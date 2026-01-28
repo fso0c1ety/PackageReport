@@ -1,0 +1,139 @@
+[
+  {
+    "id": "default-board",
+    "name": "Default Board",
+    "columns": [
+      {
+        "id": "task",
+        "name": "Importusi",
+        "type": "Text",
+        "order": 0
+      },
+      {
+        "id": "065f4d68-4151-4c4c-97de-d5bbc19222ca",
+        "name": "Eksportuesi",
+        "type": "Text",
+        "order": 1
+      },
+      {
+        "id": "owner",
+        "name": "Pronari",
+        "type": "People",
+        "order": 2
+      },
+      {
+        "id": "status",
+        "name": "Statusi",
+        "type": "Status",
+        "order": 3,
+        "options": [
+          {
+            "value": "Ngarkuar",
+            "color": "#e0e4ef"
+          },
+          {
+            "value": "Nisur",
+            "color": "#d4ff00"
+          },
+          {
+            "value": "Ngecur",
+            "color": "#ff0000"
+          },
+          {
+            "value": "Arritur",
+            "color": "#04ff00"
+          }
+        ]
+      },
+      {
+        "id": "c323d0fc-e3d4-4804-b351-37592c8798b0",
+        "name": "Kg",
+        "type": "Numbers",
+        "order": 4
+      }
+    ],
+    "tasks": [
+      {
+        "id": "ef4c8154-e75e-435e-bf89-9b4ed6d50eeb",
+        "values": {
+          "task": "Ags Transport",
+          "owner": "Valon",
+          "status": "Nisur",
+          "c323d0fc-e3d4-4804-b351-37592c8798b0": "376",
+          "065f4d68-4151-4c4c-97de-d5bbc19222ca": "Rugove Sh.p.k",
+          "914611f2-ad61-4a2f-b1a7-8e685d69d4e4": [],
+          "fd63447a-e332-489c-9996-f2d4f8b0fdb1": ""
+        }
+      },
+      {
+        "id": "de2eff84-8df1-44df-be09-d76ecbe3367f",
+        "values": {
+          "task": "valon",
+          "065f4d68-4151-4c4c-97de-d5bbc19222ca": "sfs",
+          "owner": "valon",
+          "status": "Arritur",
+          "c323d0fc-e3d4-4804-b351-37592c8798b0": "",
+          "914611f2-ad61-4a2f-b1a7-8e685d69d4e4": "",
+          "fd63447a-e332-489c-9996-f2d4f8b0fdb1": ""
+        }
+      }
+    ]
+  },
+  {
+    "id": "e88ef902-019a-4bd0-ba12-81e63a18da14",
+    "name": "valon",
+    "columns": [
+      {
+        "id": "task",
+        "name": "Task",
+        "type": "Text",
+        "order": 0
+      },
+      {
+        "id": "status",
+        "name": "Status",
+        "type": "Status",
+        "order": 1,
+        "options": [
+          {
+            "value": "Started",
+            "color": "#1976d2"
+          },
+          {
+            "value": "Working on it",
+            "color": "#fdab3d"
+          },
+          {
+            "value": "Done",
+            "color": "#00c875"
+          }
+        ]
+      },
+      {
+        "id": "number",
+        "name": "Number",
+        "type": "Numbers",
+        "order": 2
+      }
+    ],
+    "createdAt": 1769553316638,
+    "tasks": [
+      {
+        "id": "295b7327-0056-4b13-8507-ef4120f9d7e4",
+        "values": {
+          "task": "",
+          "status": "Started",
+          "number": ""
+        }
+      },
+      {
+        "id": "62ee9de3-5e40-45de-957b-a1dc70839a35",
+        "values": {
+          "task": "",
+          "status": "Started",
+          "number": ""
+        }
+      }
+    ]
+  }
+]

@@ -1,5 +1,12 @@
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+
+import ThemeRegistry from "./ThemeRegistry";
+import Sidebar from "./Sidebar";
+import TopBar from "./TopBar";
+import Box from "@mui/material/Box";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,10 +31,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ThemeRegistry>
+          <Box sx={{ display: 'flex', minHeight: '100vh', width: '100vw', bgcolor: '#f6f7fb' }}>
+            <Sidebar />
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+              <TopBar />
+              <Box component="main" sx={{ flex: 1, p: '32px 32px 0 32px', bgcolor: '#f6f7fb' }}>{children}</Box>
+            </Box>
+          </Box>
+        </ThemeRegistry>
       </body>
     </html>
   );
