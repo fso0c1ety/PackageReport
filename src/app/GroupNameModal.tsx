@@ -5,10 +5,16 @@ interface GroupNameModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (name: string) => void;
+  initialName?: string;
+  mode?: 'create' | 'rename';
 }
 
-export default function GroupNameModal({ open, onClose, onSubmit }: GroupNameModalProps) {
-  const [name, setName] = useState("");
+export default function GroupNameModal({ open, onClose, onSubmit, initialName = '', mode = 'create' }: GroupNameModalProps) {
+  const [name, setName] = useState(initialName);
+
+  React.useEffect(() => {
+    if (open) setName(initialName);
+  }, [open, initialName]);
 
   const handleSubmit = () => {
     if (name.trim()) {
@@ -24,7 +30,7 @@ export default function GroupNameModal({ open, onClose, onSubmit }: GroupNameMod
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>New Group</DialogTitle>
+      <DialogTitle>{mode === 'rename' ? 'Rename Group' : 'New Group'}</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -39,7 +45,7 @@ export default function GroupNameModal({ open, onClose, onSubmit }: GroupNameMod
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={!name.trim()}>Create</Button>
+        <Button onClick={handleSubmit} variant="contained" disabled={!name.trim()}>{mode === 'rename' ? 'Rename' : 'Create'}</Button>
       </DialogActions>
     </Dialog>
   );

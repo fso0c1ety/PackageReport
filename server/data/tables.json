@@ -1,7 +1,7 @@
 [
   {
     "id": "default-board",
-    "name": "Default Board",
+    "name": "Transporti",
     "columns": [
       {
         "id": "task",
@@ -57,7 +57,13 @@
         "id": "ef4c8154-e75e-435e-bf89-9b4ed6d50eeb",
         "values": {
           "task": "Ags Transport",
-          "owner": "Valon",
+          "owner": [
+            {
+              "name": "Valon Halili",
+              "email": "valonhalili74@gmail.com",
+              "avatar": null
+            }
+          ],
           "status": "Nisur",
           "c323d0fc-e3d4-4804-b351-37592c8798b0": "376",
           "065f4d68-4151-4c4c-97de-d5bbc19222ca": "Rugove Sh.p.k",
@@ -71,17 +77,27 @@
           "task": "valon",
           "065f4d68-4151-4c4c-97de-d5bbc19222ca": "sfs",
           "owner": "valon",
-          "status": "Arritur",
+          "status": "Ngecur",
           "c323d0fc-e3d4-4804-b351-37592c8798b0": "",
           "914611f2-ad61-4a2f-b1a7-8e685d69d4e4": "",
           "fd63447a-e332-489c-9996-f2d4f8b0fdb1": ""
+        }
+      },
+      {
+        "id": "0cefa704-967f-418c-961a-be5c33781766",
+        "values": {
+          "task": "Test",
+          "065f4d68-4151-4c4c-97de-d5bbc19222ca": "Mobile",
+          "owner": "Halili",
+          "status": "Ngecur",
+          "c323d0fc-e3d4-4804-b351-37592c8798b0": ""
         }
       }
     ]
   },
   {
-    "id": "e88ef902-019a-4bd0-ba12-81e63a18da14",
-    "name": "valon",
+    "id": "f4055d54-a5e6-4e4b-b435-1f7da5b12641",
+    "name": "Test Mobile",
     "columns": [
       {
         "id": "task",
@@ -116,21 +132,13 @@
         "order": 2
       }
     ],
-    "createdAt": 1769553316638,
+    "createdAt": 1769625108289,
     "tasks": [
       {
-        "id": "295b7327-0056-4b13-8507-ef4120f9d7e4",
+        "id": "e7ed6534-1a39-4bfe-b54c-15d41af7b8d9",
         "values": {
           "task": "",
-          "status": "Started",
-          "number": ""
-        }
-      },
-      {
-        "id": "62ee9de3-5e40-45de-957b-a1dc70839a35",
-        "values": {
-          "task": "",
-          "status": "Started",
+          "status": "Working on it",
           "number": ""
         }
       }

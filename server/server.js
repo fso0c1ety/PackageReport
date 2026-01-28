@@ -1,4 +1,5 @@
 
+
 // ...existing code...
 const express = require('express');
 const fs = require('fs');
@@ -35,6 +36,17 @@ function writeJson(file, data) {
     console.error(`Error writing ${file}:`, err);
   }
 }
+app.patch('/api/tables/:tableId', (req, res) => {
+  const tables = readJson(tablesFile);
+  const table = tables.find(t => t.id === req.params.tableId);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (typeof req.body.name === 'string') {
+    table.name = req.body.name;
+    writeJson(tablesFile, tables);
+    return res.json({ success: true, name: table.name });
+  }
+  res.status(400).json({ error: 'Missing or invalid name' });
+});
 app.delete('/api/tables/:tableId', (req, res) => {
   const tables = readJson(tablesFile);
   const idx = tables.findIndex(t => t.id === req.params.tableId);
@@ -129,5 +141,5 @@ app.delete('/api/tables/:tableId/tasks', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Express server running on http://localhost:${PORT}`);
+  console.log(`Express server running on http://192.168.0.25:${PORT}`);
 });

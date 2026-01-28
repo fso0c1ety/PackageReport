@@ -23,6 +23,8 @@ const initialGroups: Group[] = [
 
 export default function BoardPage() {
   const [groups, setGroups] = useState<Group[]>(initialGroups);
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [groupToRename, setGroupToRename] = useState<Group | null>(null);
 
   // Fetch tables from backend and sync groups
   const fetchTables = async () => {
@@ -90,35 +92,80 @@ export default function BoardPage() {
 
   return (
     <Box>
-      <GroupNameModal open={modalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} />
+      <GroupNameModal open={modalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} mode="create" />
       {showTables ? (
         <TablesPage />
       ) : (
-        <Stack spacing={4}>
+        <Stack spacing={4} sx={{ px: { xs: 0.5, sm: 1, md: 0 } }}>
           {groups.map((group) => (
-            <Box key={group.id}>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1, justifyContent: 'space-between' }}>
-                <Stack direction="row" alignItems="center" spacing={1}>
+            <Box key={group.id} sx={{ mb: { xs: 2, md: 0 } }}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                spacing={1}
+                sx={{ mb: 1, justifyContent: { sm: 'space-between' } }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                   <Box sx={{ width: 6, height: 28, bgcolor: group.color, borderRadius: 2, mr: 1 }} />
-                  <Typography variant="h6" fontWeight={700} color={group.completed ? '#00c875' : '#0073ea'}>
+                  <Typography
+                    variant="h6"
+                    fontWeight={700}
+                    color={group.completed ? '#00c875' : '#0073ea'}
+                    sx={{ fontSize: { xs: 16, sm: 20, md: 24 }, wordBreak: 'break-word', flex: 1 }}
+                  >
                     {group.name}
                   </Typography>
-                  {group.completed && <Typography fontWeight={600} color="#00c875">✔</Typography>}
-                </Stack>
-                <GroupMenu onDelete={async () => {
-                  // Delete group from backend
-                  await fetch(getApiUrl(`/tables/${group.id}`), { method: "DELETE" });
-                  await fetchTables();
-                }} />
+                  {group.completed && (
+                    <Typography fontWeight={600} color="#00c875">✔</Typography>
+                  )}
+                  <Box sx={{ ml: 1 }}>
+                    <GroupMenu
+                      onDelete={async () => {
+                        // Delete group from backend
+                        await fetch(getApiUrl(`/tables/${group.id}`), { method: "DELETE" });
+                        await fetchTables();
+                      }}
+                      onRename={() => {
+                        setGroupToRename(group);
+                        setRenameModalOpen(true);
+                      }}
+                    />
+                  </Box>
+                </Box>
               </Stack>
               <TableBoard tableId={group.id} />
             </Box>
           ))}
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddGroup} sx={{ mt: 2, width: 200 }}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddGroup}
+            sx={{ mt: 2, width: { xs: '100%', sm: 200 } }}
+          >
             Add new group
           </Button>
         </Stack>
       )}
+      <GroupNameModal 
+        open={renameModalOpen} 
+        onClose={() => {
+          setRenameModalOpen(false);
+          setGroupToRename(null);
+        }} 
+        onSubmit={async (name: string) => {
+          if (!groupToRename) return;
+          setRenameModalOpen(false);
+          await fetch(getApiUrl(`/tables/${groupToRename.id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          setGroupToRename(null);
+          await fetchTables();
+        }}
+        initialName={groupToRename?.name || ''}
+        mode="rename"
+      />
     </Box>
   );
 }

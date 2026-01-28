@@ -27,7 +27,18 @@ export default function TopBar() {
           <AddIcon />
         </IconButton>
       </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+      {/* Centered SmartManage only on desktop, not mobile */}
+      <Box sx={{ flex: 1, display: { xs: 'none', md: 'flex' }, justifyContent: 'center', position: 'absolute', left: 0, right: 0, pointerEvents: 'none' }}>
+        <Typography
+          variant="h6"
+          fontWeight={800}
+          color="#0073ea"
+          sx={{ textAlign: 'center', width: '100%', pointerEvents: 'auto' }}
+        >
+          SmartManage
+        </Typography>
+      </Box>
+      <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 2 }}>
         <Avatar sx={{ width: 32, height: 32, bgcolor: "#0073ea" }}>VH</Avatar>
       </Box>
     </Box>

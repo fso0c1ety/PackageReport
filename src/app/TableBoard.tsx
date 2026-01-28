@@ -52,6 +52,7 @@ import {
   DialogContent,
   DialogActions,
 } from "@mui/material";
+import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
@@ -85,6 +86,16 @@ interface TableBoardProps {
 const initialRows: Row[] = [];
 
 export default function TableBoard({ tableId }: TableBoardProps) {
+  // --- Sample people list ---
+  const samplePeople = [
+    {
+      name: "Valon Halili",
+      email: "valonhalili74@gmail.com",
+      avatar: null, // or a URL if you want
+    },
+    // Add more sample people if needed
+  ];
+
   // --- State ---
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [newStatusLabel, setNewStatusLabel] = useState("");
@@ -588,16 +599,15 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           />
         );
       }
-      // People
+      // People (edit mode: custom PeopleSelector)
       if (col.type === "People") {
         return (
-          <TextField
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
-            onBlur={() => handleCellSave(row.id, col.id)}
-            onKeyDown={e => e.key === "Enter" && handleCellSave(row.id, col.id)}
-            size="small"
-            autoFocus
+          <PeopleSelector
+            value={Array.isArray(editValue) ? editValue : []}
+            onChange={(newValue) => {
+              setEditValue(newValue);
+              // Optionally, save immediately on select (or keep onBlur for save)
+            }}
           />
         );
       }
@@ -753,10 +763,45 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       );
     }
     if (col.type === "People") {
+      // Show avatars for all assigned people (multi-value)
+      const people = Array.isArray(value) ? value : [];
       return (
-        <Avatar sx={{ width: 28, height: 28, bgcolor: '#0073ea', fontSize: 14 }} onClick={() => handleCellClick(row.id, col.id, value)}>
-          {value ? value[0] : "-"}
-        </Avatar>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }} onClick={() => handleCellClick(row.id, col.id, value)}>
+          {people.length === 0 ? (
+            <Avatar sx={{ width: 28, height: 28, bgcolor: '#bdbdbd', fontSize: 14 }}>-</Avatar>
+          ) : (
+            <>
+              {people.map((person: any) => (
+                <Tooltip key={person.email} title={person.name + (person.email ? ` (${person.email})` : "") }>
+                  <Avatar sx={{ width: 28, height: 28, bgcolor: '#0073ea', fontSize: 14 }}>
+                    {person.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                  </Avatar>
+                </Tooltip>
+              ))}
+              {people.length > 1 && (
+                <Box sx={{
+                  position: 'absolute',
+                  top: -8,
+                  left: -8,
+                  bgcolor: '#e2445c',
+                  color: '#fff',
+                  borderRadius: '50%',
+                  width: 20,
+                  height: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  zIndex: 2,
+                  boxShadow: '0 0 0 2px #fff',
+                }}>
+                  {people.length}
+                </Box>
+              )}
+            </>
+          )}
+        </Box>
       );
     }
     if (col.type === "Date") {
