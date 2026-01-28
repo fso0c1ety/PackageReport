@@ -54,7 +54,7 @@ export default function TableManager({ onTableCreated }: { onTableCreated: () =>
   const handleCreateTable = async () => {
     if (!name || columns.length === 0) return;
     console.log('Creating table with columns:', columns);
-    await fetch(getApiUrl("/api/tables"), {
+    await fetch(getApiUrl("/tables"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, columns }),

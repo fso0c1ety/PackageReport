@@ -245,28 +245,38 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       setEditValue(value ?? "");
     }
   };
-  const handleCellSave = async (rowId: string, colId: string, colType?: string) => {
-    let updatedRow: Row | undefined;
-    setRows((prev) =>
-      prev.map((row) => {
-        if (row.id !== rowId) return row;
-        let newValue = editValue;
-        if (colType === "Date") {
-          newValue = editValue && dayjs.isDayjs(editValue) && editValue.isValid() ? editValue.format("YYYY-MM-DD") : "";
-        }
-        updatedRow = { ...row, values: { ...row.values, [colId]: newValue } };
-        return updatedRow;
-      })
-    );
+  // Accept optional valueOverride for immediate save from PeopleSelector
+  const handleCellSave = async (rowId: string, colId: string, colType?: string, valueOverride?: any) => {
+    console.log('handleCellSave called', { rowId, colId, colType, valueOverride });
+    // Find and update the row before calling setRows
+    const prevRows = [...rows];
+    const rowIdx = prevRows.findIndex((row) => row.id === rowId);
+    if (rowIdx === -1) return;
+    let newValue = valueOverride !== undefined ? valueOverride : editValue;
+    const col = columns.find(c => c.id === colId);
+    if (col && col.type === "People") {
+      newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ name: p.name, email: p.email })) : [];
+    }
+    if (colType === "Date") {
+      newValue = newValue && dayjs.isDayjs(newValue) && newValue.isValid() ? newValue.format("YYYY-MM-DD") : "";
+    }
+    const updatedRow: Row = { ...prevRows[rowIdx], values: { ...prevRows[rowIdx].values, [colId]: newValue } };
+    const updatedRows = prevRows.map((row, idx) => idx === rowIdx ? updatedRow : row);
+    setRows(updatedRows);
     setEditingCell(null);
     setEditValue("");
     // Persist to backend
     if (updatedRow) {
+      console.log('Sending PUT to backend:', getApiUrl(`/tables/${tableId}/tasks`), { id: updatedRow.id, values: updatedRow.values });
       await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: updatedRow.id, values: updatedRow.values }),
       });
+      // Re-fetch latest rows from backend to ensure sync
+      const res = await fetch(getApiUrl(`/tables/${tableId}/tasks`));
+      const data = await res.json();
+      setRows(data);
     }
   };
 
@@ -601,14 +611,93 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       }
       // People (edit mode: custom PeopleSelector)
       if (col.type === "People") {
+        // Always enter edit mode on click
+        if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id) {
+          // Deduplicate by email
+          const seen: Record<string, boolean> = {};
+          const deduped = (Array.isArray(editValue) ? editValue : []).filter((person: any) => {
+            if (!person.email || seen[person.email]) return false;
+            seen[person.email] = true;
+            return true;
+          });
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              {deduped.map((person: any) => (
+                <Chip
+                  key={person.email}
+                  avatar={<Avatar sx={{ bgcolor: '#0073ea' }}>{person.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}</Avatar>}
+                  label={person.name}
+                  onDelete={person.email === "valonhalili74@gmail.com" ? undefined : () => {
+                    const newValue = deduped.filter((p: any) => p.email !== person.email);
+                    setEditValue(newValue);
+                    handleCellSave(row.id, col.id, col.type, newValue);
+                  }}
+                  sx={{ mb: 0.5 }}
+                  disabled={person.email === "valonhalili74@gmail.com"}
+                />
+              ))}
+              <PeopleSelector
+                value={deduped}
+                onChange={(newValue: any[]) => {
+                  setEditValue(newValue);
+                }}
+                onClose={(finalValue: any[]) => {
+                  setEditValue(finalValue);
+                  handleCellSave(row.id, col.id, col.type, finalValue);
+                  setEditingCell(null);
+                }}
+              />
+            </Box>
+          );
+        }
+        // Always enter edit mode on click
+        // Deduplicate by email for read mode too
+        const seen: Record<string, boolean> = {};
+        const people = (Array.isArray(value) ? value : []).filter((person: any) => {
+          if (!person.email || seen[person.email]) return false;
+          seen[person.email] = true;
+          return true;
+        });
         return (
-          <PeopleSelector
-            value={Array.isArray(editValue) ? editValue : []}
-            onChange={(newValue) => {
-              setEditValue(newValue);
-              // Optionally, save immediately on select (or keep onBlur for save)
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }}
+            onClick={() => {
+              handleCellClick(row.id, col.id, value, col.type);
+            }}>
+            {people.length === 0 ? (
+              <Avatar sx={{ width: 28, height: 28, bgcolor: '#bdbdbd', fontSize: 14 }}>-</Avatar>
+            ) : (
+              <>
+                {people.map((person: any) => (
+                  <Tooltip key={person.email} title={person.name + (person.email ? ` (${person.email})` : "") }>
+                    <Avatar sx={{ width: 28, height: 28, bgcolor: '#0073ea', fontSize: 14 }}>
+                      {person.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+                {people.length > 1 && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: -8,
+                    left: -8,
+                    bgcolor: '#e2445c',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    zIndex: 2,
+                    boxShadow: '0 0 0 2px #fff',
+                  }}>
+                    {people.length}
+                  </Box>
+                )}
+              </>
+            )}
+          </Box>
         );
       }
       // Numbers

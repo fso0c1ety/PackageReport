@@ -24,7 +24,7 @@ export function TodoList({ columns, tableId }: TodoListProps) {
   // Always load tasks from backend
   useEffect(() => {
     setLoading(true);
-    fetch(getApiUrl(`/api/tables/${tableId}/tasks`))
+    fetch(getApiUrl(`/tables/${tableId}/tasks`))
       .then((res) => res.json())
       .then((data) => setTasks(data))
       .finally(() => setLoading(false));
@@ -33,13 +33,13 @@ export function TodoList({ columns, tableId }: TodoListProps) {
   const addTask = async () => {
     const newTask = { id: uuidv4(), values: {} };
     setLoading(true);
-    await fetch(getApiUrl(`/api/tables/${tableId}/tasks`), {
+    await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newTask),
     });
     // Refetch tasks from backend after adding
-    fetch(getApiUrl(`/api/tables/${tableId}/tasks`))
+    fetch(getApiUrl(`/tables/${tableId}/tasks`))
       .then((res) => res.json())
       .then((data) => setTasks(data))
       .finally(() => setLoading(false));
@@ -50,14 +50,14 @@ export function TodoList({ columns, tableId }: TodoListProps) {
     const updatedTask = tasks.find((t) => t.id === taskId);
     if (updatedTask) {
       const newValues = { ...updatedTask.values, [columnId]: value };
-      await fetch(getApiUrl(`/api/tables/${tableId}/tasks`), {
+      await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: taskId, values: newValues }),
       });
     }
     // Refetch tasks from backend after editing
-    fetch(getApiUrl(`/api/tables/${tableId}/tasks`))
+    fetch(getApiUrl(`/tables/${tableId}/tasks`))
       .then((res) => res.json())
       .then((data) => setTasks(data))
       .finally(() => {

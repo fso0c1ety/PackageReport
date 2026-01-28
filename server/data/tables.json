@@ -60,8 +60,7 @@
           "owner": [
             {
               "name": "Valon Halili",
-              "email": "valonhalili74@gmail.com",
-              "avatar": null
+              "email": "valonhalili74@gmail.com"
             }
           ],
           "status": "Nisur",
@@ -76,8 +75,17 @@
         "values": {
           "task": "valon",
           "065f4d68-4151-4c4c-97de-d5bbc19222ca": "sfs",
-          "owner": "valon",
-          "status": "Ngecur",
+          "owner": [
+            {
+              "name": "Valon Halili",
+              "email": "valonhalili74@gmail.com"
+            },
+            {
+              "name": "Bossi",
+              "email": "valitv7@gmail.com"
+            }
+          ],
+          "status": "Arritur",
           "c323d0fc-e3d4-4804-b351-37592c8798b0": "",
           "914611f2-ad61-4a2f-b1a7-8e685d69d4e4": "",
           "fd63447a-e332-489c-9996-f2d4f8b0fdb1": ""
@@ -88,7 +96,12 @@
         "values": {
           "task": "Test",
           "065f4d68-4151-4c4c-97de-d5bbc19222ca": "Mobile",
-          "owner": "Halili",
+          "owner": [
+            {
+              "name": "Valon Halili",
+              "email": "valonhalili74@gmail.com"
+            }
+          ],
           "status": "Ngecur",
           "c323d0fc-e3d4-4804-b351-37592c8798b0": ""
         }

@@ -14,7 +14,7 @@ export default function TablesPage() {
   const [selected, setSelected] = useState(0);
 
   const fetchTables = async () => {
-    const res = await fetch(getApiUrl("/api/tables"));
+    const res = await fetch(getApiUrl("/tables"));
     const data = await res.json();
     setTables(data);
   };

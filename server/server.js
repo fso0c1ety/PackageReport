@@ -8,9 +8,13 @@ const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
 
 const app = express();
+// Enable CORS for all routes before anything else
+app.use(cors());
+// Register people route at /api
+const peopleRoute = require('./routes/people');
+app.use('/api', peopleRoute);
 const PORT = 4000;
 
-app.use(cors());
 app.use(express.json());
 
 const dataDir = path.join(__dirname, 'data');
@@ -121,13 +125,45 @@ app.post('/api/tables/:tableId/tasks', (req, res) => {
 });
 
 app.put('/api/tables/:tableId/tasks', (req, res) => {
-  const tables = readJson(tablesFile);
-  const table = tables.find(t => t.id === req.params.tableId);
-  if (!table || !table.tasks) return res.status(404).json({ error: 'Table not found' });
-  const { id, values } = req.body;
-  table.tasks = table.tasks.map(task => task.id === id ? { ...task, values } : task);
-  writeJson(tablesFile, tables);
-  res.json({ success: true });
+  try {
+    const tables = readJson(tablesFile);
+    const table = tables.find(t => t.id === req.params.tableId);
+    if (!table || !table.tasks) {
+      console.error('Table not found or missing tasks:', req.params.tableId);
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    const { id, values } = req.body;
+    if (!id || typeof values !== 'object') {
+      console.error('Invalid request body for task update:', req.body);
+      return res.status(400).json({ error: 'Invalid request body' });
+    }
+    let found = false;
+    table.tasks = table.tasks.map(task => {
+      if (task.id === id) {
+        found = true;
+        console.log('Updating task:', { id, values });
+        return { ...task, values };
+      }
+      return task;
+    });
+    if (!found) {
+      console.error('Task not found for update:', id);
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    writeJson(tablesFile, tables);
+    // Re-read file to confirm write
+    const afterWrite = readJson(tablesFile);
+    const updatedTable = afterWrite.find(t => t.id === req.params.tableId);
+    const updatedTask = updatedTable && updatedTable.tasks ? updatedTable.tasks.find(task => task.id === id) : null;
+    if (!updatedTask || JSON.stringify(updatedTask.values) !== JSON.stringify(values)) {
+      console.error('Persistence error: Task values after write do not match expected.', { expected: values, actual: updatedTask ? updatedTask.values : null });
+      return res.status(500).json({ error: 'Persistence error: Task not updated correctly.' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in PUT /api/tables/:tableId/tasks:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.delete('/api/tables/:tableId/tasks', (req, res) => {
