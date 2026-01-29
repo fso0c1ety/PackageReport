@@ -1,6 +1,3 @@
-
-
-// ...existing code...
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -18,8 +15,60 @@ const PORT = 4000;
 app.use(express.json());
 
 const dataDir = path.join(__dirname, 'data');
+const workspacesFile = path.join(dataDir, 'workspaces.json');
 const tablesFile = path.join(dataDir, 'tables.json');
 const tasksFile = path.join(dataDir, 'tasks.json');
+// --- Workspace Endpoints ---
+// List all workspaces
+app.get('/api/workspaces', (req, res) => {
+  res.json(readJson(workspacesFile));
+});
+
+// Create a new workspace
+app.post('/api/workspaces', (req, res) => {
+  const workspaces = readJson(workspacesFile);
+  const newWorkspace = {
+    id: uuidv4(),
+    name: req.body.name || 'Untitled Workspace'
+  };
+  workspaces.push(newWorkspace);
+  writeJson(workspacesFile, workspaces);
+  res.json(newWorkspace);
+});
+
+// List tables for a workspace
+app.get('/api/workspaces/:workspaceId/tables', (req, res) => {
+  const tables = readJson(tablesFile);
+  const filtered = tables.filter(t => t.workspaceId === req.params.workspaceId);
+  res.json(filtered);
+});
+
+// Create a table for a workspace
+app.post('/api/workspaces/:workspaceId/tables', (req, res) => {
+  const tables = readJson(tablesFile);
+  let columns = req.body.columns;
+  if (!columns || !Array.isArray(columns) || columns.length === 0) {
+    columns = [{
+      id: uuidv4(),
+      name: 'Task',
+      type: 'Text',
+      order: 0
+    }];
+  }
+  const newTable = {
+    id: uuidv4(),
+    name: req.body.name,
+    columns,
+    createdAt: Date.now(),
+    tasks: [],
+    workspaceId: req.params.workspaceId
+  };
+  tables.push(newTable);
+  writeJson(tablesFile, tables);
+  res.json(newTable);
+});
+
+
 
 function readJson(file) {
   try {
@@ -76,14 +125,19 @@ app.use((req, res, next) => {
 });
 
 // Tables endpoints
+// List all tables (optionally filter by workspaceId)
 app.get('/api/tables', (req, res) => {
-  res.json(readJson(tablesFile));
+  const tables = readJson(tablesFile);
+  if (req.query.workspaceId) {
+    return res.json(tables.filter(t => t.workspaceId === req.query.workspaceId));
+  }
+  res.json(tables);
 });
 
+// Create a table (must provide workspaceId)
 app.post('/api/tables', (req, res) => {
   const tables = readJson(tablesFile);
   let columns = req.body.columns;
-  // If no columns provided, add a default column
   if (!columns || !Array.isArray(columns) || columns.length === 0) {
     columns = [{
       id: uuidv4(),
@@ -92,12 +146,16 @@ app.post('/api/tables', (req, res) => {
       order: 0
     }];
   }
+  if (!req.body.workspaceId) {
+    return res.status(400).json({ error: 'workspaceId is required' });
+  }
   const newTable = {
     id: uuidv4(),
     name: req.body.name,
     columns,
     createdAt: Date.now(),
     tasks: [],
+    workspaceId: req.body.workspaceId
   };
   tables.push(newTable);
   writeJson(tablesFile, tables);
@@ -177,5 +235,5 @@ app.delete('/api/tables/:tableId/tasks', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Express server running on http://192.168.0.25:${PORT}`);
+  console.log(`Express server running on http://192.168.0.14:${PORT}`);
 });

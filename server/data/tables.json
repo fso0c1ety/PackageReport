@@ -2,6 +2,15 @@
   {
     "id": "default-board",
     "name": "Transporti",
+    "workspaceId": "default-workspace",
+    "groups": [
+      {
+        "id": "default-group",
+        "name": "To-Do",
+        "color": "#0073ea",
+        "order": 0
+      }
+    ],
     "columns": [
       {
         "id": "task",
@@ -79,10 +88,6 @@
             {
               "name": "Valon Halili",
               "email": "valonhalili74@gmail.com"
-            },
-            {
-              "name": "Bossi",
-              "email": "valitv7@gmail.com"
             }
           ],
           "status": "Arritur",
@@ -111,6 +116,15 @@
   {
     "id": "f4055d54-a5e6-4e4b-b435-1f7da5b12641",
     "name": "Test Mobile",
+    "workspaceId": "default-workspace",
+    "groups": [
+      {
+        "id": "default-group",
+        "name": "To-Do",
+        "color": "#0073ea",
+        "order": 0
+      }
+    ],
     "columns": [
       {
         "id": "task",
@@ -156,5 +170,54 @@
         }
       }
     ]
+  },
+  {
+    "id": "39a0073a-25a4-407f-834c-e6c6d49677be",
+    "name": "new",
+    "workspaceId": "default-workspace",
+    "groups": [
+      {
+        "id": "default-group",
+        "name": "To-Do",
+        "color": "#0073ea",
+        "order": 0
+      }
+    ],
+    "columns": [
+      {
+        "id": "task",
+        "name": "Task",
+        "type": "Text",
+        "order": 0
+      },
+      {
+        "id": "status",
+        "name": "Status",
+        "type": "Status",
+        "order": 1,
+        "options": [
+          {
+            "value": "Started",
+            "color": "#1976d2"
+          },
+          {
+            "value": "Working on it",
+            "color": "#fdab3d"
+          },
+          {
+            "value": "Done",
+            "color": "#00c875"
+          }
+        ]
+      },
+      {
+        "id": "number",
+        "name": "Number",
+        "type": "Numbers",
+        "order": 2
+      }
+    ],
+    "createdAt": 1769718823066,
+    "tasks": []
   }
 ]

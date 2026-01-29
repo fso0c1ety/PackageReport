@@ -20,28 +20,29 @@ const initialGroups: Group[] = [
   { id: "completed", name: "Completed", color: "#00c875", completed: true },
 ];
 
-
-export default function BoardPage() {
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const [renameModalOpen, setRenameModalOpen] = useState(false);
-  const [groupToRename, setGroupToRename] = useState<Group | null>(null);
+function BoardPage() {
+  const [workspaces, setWorkspaces] = useState<Group[]>(initialGroups);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(initialGroups[0]?.id || '');
 
   // Fetch tables from backend and sync groups
   const fetchTables = async () => {
     const res = await fetch(getApiUrl("/tables"));
     const tables = await res.json();
-    setGroups(tables.map((table: any) => ({
+    setWorkspaces(tables.map((table: any) => ({
       id: table.id,
       name: table.name,
       color: "#0073ea"
     })));
+    if (tables.length && !tables.find((t: any) => t.id === selectedWorkspace)) {
+      setSelectedWorkspace(tables[0].id);
+    }
   };
   const [showTables, setShowTables] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingName, setPendingName] = useState<string | null>(null);
 
-  const handleAddGroup = () => {
+  const handleAddWorkspace = () => {
     setModalOpen(true);
   };
 
@@ -77,12 +78,14 @@ export default function BoardPage() {
         order: 2
       }
     ];
-    await fetch(getApiUrl("/tables"), {
+    const res = await fetch(getApiUrl("/tables"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, columns: defaultColumns }),
     });
+    const created = await res.json();
     await fetchTables();
+    setSelectedWorkspace(created.id);
   };
 
   // Fetch tables on mount
@@ -92,80 +95,72 @@ export default function BoardPage() {
 
   return (
     <Box>
+      {/* Workspace controls */}
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 2 }}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          sx={{
+            bgcolor: '#0073ea',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 20,
+            borderRadius: 2,
+            textTransform: 'none',
+            px: 2,
+            boxShadow: 1,
+            '&:hover': { bgcolor: '#005bb5' }
+          }}
+          onClick={handleAddWorkspace}
+        >
+          Workspaces
+        </Button>
+        <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+          {workspaces.map((ws) => (
+            <Button
+              key={ws.id}
+              variant={ws.id === selectedWorkspace ? 'outlined' : 'text'}
+              sx={{
+                fontWeight: 600,
+                color: ws.id === selectedWorkspace ? '#0073ea' : '#323338',
+                borderColor: '#0073ea',
+                bgcolor: ws.id === selectedWorkspace ? '#e3f0fc' : 'transparent',
+                textTransform: 'none',
+                px: 2,
+                borderRadius: 2,
+                minWidth: 100
+              }}
+              onClick={() => setSelectedWorkspace(ws.id)}
+            >
+              {ws.name}
+            </Button>
+          ))}
+        </Box>
+      </Box>
       <GroupNameModal open={modalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} mode="create" />
       {showTables ? (
         <TablesPage />
       ) : (
-        <Stack spacing={4} sx={{ px: { xs: 0.5, sm: 1, md: 0 } }}>
-          {groups.map((group) => (
-            <Box key={group.id} sx={{ mb: { xs: 2, md: 0 } }}>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                spacing={1}
-                sx={{ mb: 1, justifyContent: { sm: 'space-between' } }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                  <Box sx={{ width: 6, height: 28, bgcolor: group.color, borderRadius: 2, mr: 1 }} />
-                  <Typography
-                    variant="h6"
-                    fontWeight={700}
-                    color={group.completed ? '#00c875' : '#0073ea'}
-                    sx={{ fontSize: { xs: 16, sm: 20, md: 24 }, wordBreak: 'break-word', flex: 1 }}
-                  >
-                    {group.name}
-                  </Typography>
-                  {group.completed && (
-                    <Typography fontWeight={600} color="#00c875">✔</Typography>
-                  )}
-                  <Box sx={{ ml: 1 }}>
-                    <GroupMenu
-                      onDelete={async () => {
-                        // Delete group from backend
-                        await fetch(getApiUrl(`/tables/${group.id}`), { method: "DELETE" });
-                        await fetchTables();
-                      }}
-                      onRename={() => {
-                        setGroupToRename(group);
-                        setRenameModalOpen(true);
-                      }}
-                    />
-                  </Box>
-                </Box>
-              </Stack>
-              <TableBoard tableId={group.id} />
-            </Box>
-          ))}
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleAddGroup}
-            sx={{ mt: 2, width: { xs: '100%', sm: 200 } }}
-          >
-            Add new group
-          </Button>
-        </Stack>
+        <Box>
+          {workspaces
+            .filter((ws) => ws.id === selectedWorkspace)
+            .map((ws) => (
+              <Box key={ws.id} sx={{ mb: { xs: 2, md: 0 } }}>
+                <Typography
+                  variant="h6"
+                  fontWeight={700}
+                  color={'#0073ea'}
+                  sx={{ fontSize: { xs: 16, sm: 20, md: 24 }, wordBreak: 'break-word', flex: 1, mb: 2 }}
+                >
+                  {ws.name}
+                </Typography>
+                <TableBoard tableId={ws.id} />
+              </Box>
+            ))}
+        </Box>
       )}
-      <GroupNameModal 
-        open={renameModalOpen} 
-        onClose={() => {
-          setRenameModalOpen(false);
-          setGroupToRename(null);
-        }} 
-        onSubmit={async (name: string) => {
-          if (!groupToRename) return;
-          setRenameModalOpen(false);
-          await fetch(getApiUrl(`/tables/${groupToRename.id}`), {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-          });
-          setGroupToRename(null);
-          await fetchTables();
-        }}
-        initialName={groupToRename?.name || ''}
-        mode="rename"
-      />
     </Box>
   );
 }
+
+export default BoardPage;

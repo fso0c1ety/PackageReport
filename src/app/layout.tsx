@@ -51,9 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <span style={{ fontWeight: 800, color: '#0073ea', fontSize: 20 }}>SmartManage</span>
                 </Box>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{ width: 32, height: 32, bgcolor: '#0073ea' }}>VH</Avatar>
-              </Box>
+              {/* Avatar removed from mobile header; only TopBar avatar/icons are shown */}
             </Box>
             <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
             <Box

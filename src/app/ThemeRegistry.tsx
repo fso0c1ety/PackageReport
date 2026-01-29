@@ -11,15 +11,14 @@ function createEmotionCache() {
   return createCache({ key: 'mui', prepend: true });
 }
 
+
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
   const cache = React.useMemo(() => createEmotionCache(), []);
   return (
     <CacheProvider value={cache}>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <ThemeProvider theme={theme}>
           <CssBaseline />
           {children}
-        </ThemeProvider>
       </LocalizationProvider>
     </CacheProvider>
   );
