@@ -2,17 +2,22 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const fetch = require('node-fetch');
 const cors = require('cors');
 
 const app = express();
 // Enable CORS for all routes before anything else
 app.use(cors());
-// Register people route at /api
-const peopleRoute = require('./routes/people');
-app.use('/api', peopleRoute);
-const PORT = 4000;
+// Register people and automation routes at /api
 
 app.use(express.json());
+const peopleRoute = require('./routes/people');
+const automationRoute = require('./routes/automation');
+const emailerRoute = require('./routes/emailer');
+app.use('/api', peopleRoute);
+app.use('/api', automationRoute);
+app.use('/api', emailerRoute);
+const PORT = 4000;
 
 const dataDir = path.join(__dirname, 'data');
 const workspacesFile = path.join(dataDir, 'workspaces.json');
@@ -34,6 +39,21 @@ app.post('/api/workspaces', (req, res) => {
   workspaces.push(newWorkspace);
   writeJson(workspacesFile, workspaces);
   res.json(newWorkspace);
+});
+
+
+// Delete a workspace
+app.delete('/api/workspaces/:workspaceId', (req, res) => {
+  const workspaces = readJson(workspacesFile);
+  const idx = workspaces.findIndex(w => w.id === req.params.workspaceId);
+  if (idx === -1) return res.status(404).json({ error: 'Workspace not found' });
+  workspaces.splice(idx, 1);
+  writeJson(workspacesFile, workspaces);
+  // Optionally, delete all tables belonging to this workspace
+  let tables = readJson(tablesFile);
+  tables = tables.filter(t => t.workspaceId !== req.params.workspaceId);
+  writeJson(tablesFile, tables);
+  res.json({ success: true });
 });
 
 // List tables for a workspace
@@ -182,7 +202,7 @@ app.post('/api/tables/:tableId/tasks', (req, res) => {
   res.status(201).json(newTask);
 });
 
-app.put('/api/tables/:tableId/tasks', (req, res) => {
+app.put('/api/tables/:tableId/tasks', async (req, res) => {
   try {
     const tables = readJson(tablesFile);
     const table = tables.find(t => t.id === req.params.tableId);
@@ -196,10 +216,11 @@ app.put('/api/tables/:tableId/tasks', (req, res) => {
       return res.status(400).json({ error: 'Invalid request body' });
     }
     let found = false;
+    let oldTask = null;
     table.tasks = table.tasks.map(task => {
       if (task.id === id) {
         found = true;
-        console.log('Updating task:', { id, values });
+        oldTask = { ...task };
         return { ...task, values };
       }
       return task;
@@ -217,6 +238,47 @@ app.put('/api/tables/:tableId/tasks', (req, res) => {
       console.error('Persistence error: Task values after write do not match expected.', { expected: values, actual: updatedTask ? updatedTask.values : null });
       return res.status(500).json({ error: 'Persistence error: Task not updated correctly.' });
     }
+
+    // --- EMAIL AUTOMATION LOGIC ---
+    // Load automation config for this table
+    const automationFile = path.join(dataDir, 'automation.json');
+    let automations = [];
+    try { automations = JSON.parse(fs.readFileSync(automationFile, 'utf-8')); } catch {}
+    const automation = automations.find(a => a.tableId === req.params.tableId);
+    if (automation && automation.triggerCol) {
+      // If the triggerCol value changed, send email
+      const triggerCol = automation.triggerCol;
+      if (oldTask && oldTask.values[triggerCol] !== values[triggerCol]) {
+        // Compose email
+        const subject = `Task updated: ${table.name}`;
+        let html = `<h2>Task Update</h2><ul>`;
+        (automation.cols || []).forEach(colId => {
+          const col = (table.columns || []).find(c => c.id === colId);
+          if (col) {
+            html += `<li><b>${col.name}:</b> ${JSON.stringify(values[colId])}</li>`;
+          }
+        });
+        html += `</ul>`;
+        // Send email to all recipients
+        if (automation.recipients && automation.recipients.length > 0) {
+          try {
+            await fetch('http://localhost:4000/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: automation.recipients.join(','),
+                subject,
+                text: subject,
+                html
+              })
+            });
+          } catch (err) {
+            console.error('Failed to send email:', err);
+          }
+        }
+      }
+    }
+    // --- END EMAIL AUTOMATION ---
     res.json({ success: true });
   } catch (err) {
     console.error('Error in PUT /api/tables/:tableId/tasks:', err);

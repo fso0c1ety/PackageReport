@@ -1,6 +1,6 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
-function TaskRowMenu({ row, onDelete }: { row: Row, onDelete: () => void }) {
+function TaskRowMenu({ row, onDelete, onView }: { row: Row, onDelete: () => void, onView: () => void }) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
@@ -10,7 +10,7 @@ function TaskRowMenu({ row, onDelete }: { row: Row, onDelete: () => void }) {
         <MoreVertIcon />
       </IconButton>
       <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={handleClose}>
-        <MenuItem onClick={() => { handleClose(); alert(`Viewing task: ${row.id}`); }}>
+        <MenuItem onClick={() => { handleClose(); onView(); }}>
           <Typography>View</Typography>
         </MenuItem>
         <MenuItem onClick={() => { handleClose(); onDelete(); }}>
@@ -51,6 +51,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Checkbox,
+  ListItemText
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -86,6 +88,20 @@ interface TableBoardProps {
 const initialRows: Row[] = [];
 
 export default function TableBoard({ tableId }: TableBoardProps) {
+  // --- State ---
+  const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [reviewTask, setReviewTask] = useState<Row | null>(null);
+  // Email Automation UI state
+  const [showEmailAutomation, setShowEmailAutomation] = useState(false);
+  const [emailTriggerCol, setEmailTriggerCol] = useState<string>("");
+  const [emailCols, setEmailCols] = useState<string[]>([]);
+  const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
+  // Find the first column of type 'People'
+  const peopleCol = columns.find(col => col.type === 'People');
+  // Extract people options from the current task's people column
+  const peopleOptions = (reviewTask && peopleCol && Array.isArray(reviewTask.values[peopleCol.id]))
+    ? reviewTask.values[peopleCol.id].map((p: any) => ({ name: p.name, email: p.email }))
+    : [];
   // --- Sample people list ---
   const samplePeople = [
     {
@@ -95,9 +111,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     },
     // Add more sample people if needed
   ];
-
-  // --- State ---
-  const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [newStatusLabel, setNewStatusLabel] = useState("");
   const [newStatusColor, setNewStatusColor] = useState("#e0e4ef");
   const [editingLabelsColId, setEditingLabelsColId] = useState<string | null>(null);
@@ -963,15 +976,126 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             </TableCell>
                           ))}
                           <TableCell align="center">
-                            <TaskRowMenu row={row} onDelete={async () => {
-                              setRows(rows => rows.filter(r => r.id !== row.id));
-                              await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
-                                method: "DELETE",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ id: row.id }),
-                              });
-                            }} />
+                            <TaskRowMenu
+                              row={row}
+                              onDelete={async () => {
+                                setRows(rows => rows.filter(r => r.id !== row.id));
+                                await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+                                  method: "DELETE",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ id: row.id }),
+                                });
+                              }}
+                              onView={() => setReviewTask(row)}
+                            />
                           </TableCell>
+                              {/* Task Review Drawer/Dialog */}
+                              <Dialog open={!!reviewTask} onClose={() => { setReviewTask(null); setShowEmailAutomation(false); }} maxWidth="sm" fullWidth>
+                                <DialogTitle>Task Details</DialogTitle>
+                                <DialogContent dividers>
+                                  {reviewTask && !showEmailAutomation && (
+                                    <Box>
+                                      {columns.map((col) => (
+                                        <Box key={col.id} sx={{ mb: 2 }}>
+                                          <Typography variant="subtitle2" color="text.secondary">{col.name}</Typography>
+                                          <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+                                            {Array.isArray(reviewTask.values[col.id])
+                                              ? reviewTask.values[col.id].map((v: any, i: number) => typeof v === 'object' && v !== null ? v.name || v.email || JSON.stringify(v) : String(v)).join(', ')
+                                              : String(reviewTask.values[col.id] ?? "-")}
+                                          </Typography>
+                                        </Box>
+                                      ))}
+                                      <Box sx={{ mt: 3 }}>
+                                        <Typography variant="subtitle1" fontWeight={600} mb={1}>Options</Typography>
+                                        <Button variant="outlined" onClick={() => setShowEmailAutomation(true)}>
+                                          Email Automation
+                                        </Button>
+                                      </Box>
+                                    </Box>
+                                  )}
+                                  {reviewTask && showEmailAutomation && (
+                                    <Box>
+                                      <Typography variant="h6" mb={2}>Email Automation</Typography>
+                                      <FormControl fullWidth sx={{ mb: 2 }}>
+                                        <InputLabel id="email-trigger-col-label">Send email when column is edited</InputLabel>
+                                        <Select
+                                          labelId="email-trigger-col-label"
+                                          value={emailTriggerCol || ''}
+                                          label="Send email when column is edited"
+                                          onChange={e => setEmailTriggerCol(e.target.value)}
+                                        >
+                                          {columns.map(col => (
+                                            <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
+                                          ))}
+                                        </Select>
+                                      </FormControl>
+                                      <FormControl fullWidth sx={{ mb: 2 }}>
+                                        <InputLabel id="email-cols-label">Columns to include in email</InputLabel>
+                                        <Select
+                                          labelId="email-cols-label"
+                                          multiple
+                                          value={emailCols}
+                                          onChange={e => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                          renderValue={(selected) => columns.filter(col => selected.includes(col.id)).map(col => col.name).join(', ')}
+                                        >
+                                          {columns.map(col => (
+                                            <MenuItem key={col.id} value={col.id}>
+                                              <Checkbox checked={emailCols.indexOf(col.id) > -1} />
+                                              <ListItemText primary={col.name} />
+                                            </MenuItem>
+                                          ))}
+                                        </Select>
+                                      </FormControl>
+                                      {/* Recipient selection from People column */}
+                                      <FormControl fullWidth sx={{ mb: 2 }}>
+                                        <InputLabel id="email-recipients-label">Recipients</InputLabel>
+                                        <Select
+                                          labelId="email-recipients-label"
+                                          multiple
+                                          value={emailRecipients}
+                                          onChange={e => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                          renderValue={(selected) => selected.map((email: string) => {
+                                            const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
+                                            return person ? person.name : email;
+                                          }).join(', ')}
+                                        >
+                                          {peopleOptions.map((person: { name: string; email: string }) => (
+                                            <MenuItem key={person.email} value={person.email}>
+                                              <Checkbox checked={emailRecipients.indexOf(person.email) > -1} />
+                                              <ListItemText primary={person.name} />
+                                            </MenuItem>
+                                          ))}
+                                        </Select>
+                                      </FormControl>
+                                      <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                                        <Button variant="outlined" onClick={() => setShowEmailAutomation(false)}>Back</Button>
+                                        <Button
+                                          variant="contained"
+                                          color="primary"
+                                          onClick={async () => {
+                                            // Save automation settings to backend
+                                            await fetch(getApiUrl(`/automation/${tableId}`), {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                triggerCol: emailTriggerCol,
+                                                cols: emailCols,
+                                                recipients: emailRecipients
+                                              })
+                                            });
+                                            setShowEmailAutomation(false);
+                                          }}
+                                        >
+                                          Save Automation
+                                        </Button>
+                                      </Box>
+                                    </Box>
+                                  )}
+                                </DialogContent>
+                                <DialogActions>
+                                  <Button onClick={() => { setReviewTask(null); setShowEmailAutomation(false); }}>Close</Button>
+                                </DialogActions>
+                              </Dialog>
                         </TableRow>
                       )}
                     </Draggable>

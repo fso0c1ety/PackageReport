@@ -1,0 +1,43 @@
+[
+  {
+    "tableId": "default-board",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "065f4d68-4151-4c4c-97de-d5bbc19222ca",
+      "status",
+      "c323d0fc-e3d4-4804-b351-37592c8798b0"
+    ],
+    "recipients": [
+      "valitv7@gmail.com",
+      "valonhalili74@gmail.com"
+    ]
+  },
+  {
+    "tableId": "b9c9c14b-0b73-4e0b-82db-36daf978b1f6",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "status",
+      "number"
+    ],
+    "recipients": [
+      "valitv7@gmail.com"
+    ]
+  },
+  {
+    "tableId": "ca9b23aa-1158-4d78-97ef-4c2caa04e20b",
+    "triggerCol": "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
+    "cols": [
+      "task",
+      "4c1c4531-b849-4281-9e10-be8db8e114fa",
+      "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
+      "8f908cb4-1920-4f33-9b85-147522d74393",
+      "7299f9c0-38d7-4da7-b919-860fdab3d1a5",
+      "6fedd67e-e350-44b2-9315-9eaca2a349ff"
+    ],
+    "recipients": [
+      "valitv7@gmail.com"
+    ]
+  }
+]
