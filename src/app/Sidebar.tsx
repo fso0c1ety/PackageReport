@@ -1,26 +1,29 @@
-function SidebarItem({ icon, label }: { icon: React.ReactNode; label: string }) {
+import Link from "next/link";
+function SidebarItem({ icon, label, href }: { icon: React.ReactNode; label: string; href: string }) {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 1.5,
-        py: 1.2,
-        px: 1.5,
-        borderRadius: 2,
-        cursor: "pointer",
-        color: "#323338",
-        fontWeight: 500,
-        fontSize: 16,
-        transition: "background 0.2s",
-        '&:hover': {
-          bgcolor: "#f6f7fb",
-        },
-      }}
-    >
-      {icon}
-      <span>{label}</span>
-    </Box>
+    <Link href={href} style={{ textDecoration: 'none' }} passHref>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          py: 1.2,
+          px: 1.5,
+          borderRadius: 2,
+          cursor: "pointer",
+          color: "#323338",
+          fontWeight: 500,
+          fontSize: 16,
+          transition: "background 0.2s",
+          '&:hover': {
+            bgcolor: "#f6f7fb",
+          },
+        }}
+      >
+        {icon}
+        <span>{label}</span>
+      </Box>
+    </Link>
   );
 }
 import React from "react";
@@ -52,9 +55,9 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
       </Box>
       <Divider />
       <Box sx={{ flex: 1, mt: 2 }}>
-        <SidebarItem icon={<HomeIcon />} label="Home" />
-        <SidebarItem icon={<WorkspacesIcon />} label="Workspaces" />
-        <SidebarItem icon={<SettingsIcon />} label="Settings" />
+        <SidebarItem icon={<HomeIcon />} label="Home" href="/home" />
+        <SidebarItem icon={<WorkspacesIcon />} label="Workspaces" href="/workspaces" />
+        <SidebarItem icon={<SettingsIcon />} label="Settings" href="/settings" />
       </Box>
       <Divider />
       <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -3,10 +3,46 @@ import React, { useState } from "react";
 import { Box, Typography, Button, Stack } from "@mui/material";
 import { getApiUrl } from "./apiUrl";
 import GroupMenu from "./GroupMenu";
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import GroupNameModal from "./GroupNameModal";
+
 import TableBoard from "./TableBoard";
 import TablesPage from "./TablesPage";
+import { Tabs, Tab, IconButton, Tooltip, Box as MuiBox, Menu, MenuItem } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+// Table menu for delete option
+function TableMenu({ onDelete }: { onDelete: () => void }) {
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
+  const handleClose = () => setAnchorEl(null);
+  const handleDelete = () => { handleClose(); onDelete(); };
+  return (
+    <>
+      <IconButton size="small" onClick={handleClick} aria-label="table menu">
+        <MoreVertIcon fontSize="small" />
+      </IconButton>
+      <Menu anchorEl={anchorEl} open={open} onClose={handleClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <MenuItem onClick={handleDelete}>
+          <DeleteIcon fontSize="small" color="error" sx={{ mr: 1 }} />
+          Delete table
+        </MenuItem>
+      </Menu>
+    </>
+  );
+}
+
+interface Table {
+  id: string;
+  name: string;
+  workspaceId: string;
+  // ...other fields
+}
 
 interface Group {
   id: string;
@@ -21,63 +57,100 @@ const initialGroups: Group[] = [
 ];
 
 
-export default function BoardPage() {
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const [renameModalOpen, setRenameModalOpen] = useState(false);
-  const [groupToRename, setGroupToRename] = useState<Group | null>(null);
-
-  // Fetch tables from backend and sync groups
-  const fetchTables = async () => {
-    const res = await fetch(getApiUrl("/tables"));
-    const tables = await res.json();
-    setGroups(tables.map((table: any) => ({
-      id: table.id,
-      name: table.name,
-      color: "#0073ea"
-    })));
-  };
-  const [showTables, setShowTables] = useState(false);
-
+function BoardPage() {
+  const [tables, setTables] = useState<Table[]>([]);
+  const [selectedTableId, setSelectedTableId] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [showTables, setShowTables] = useState(false);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<string | null>(null);
+  const [workspaceNameToDelete, setWorkspaceNameToDelete] = useState<string | null>(null);
+  const [tableToDelete, setTableToDelete] = useState<{ id: string, name: string } | null>(null);
 
-  const handleAddGroup = () => {
-    setModalOpen(true);
+  // Workspace delete dialog handlers
+  const cancelWorkspaceDelete = () => {
+    setWorkspaceToDelete(null);
+    setWorkspaceNameToDelete(null);
+  };
+  const confirmWorkspaceDelete = async () => {
+    if (workspaceToDelete) {
+      await fetch(getApiUrl(`/workspaces/${workspaceToDelete}`), { method: 'DELETE' });
+      setWorkspaceToDelete(null);
+      setWorkspaceNameToDelete(null);
+      await fetchTables();
+    }
+  };
+  
+  // Table delete dialog handlers
+  const handleTableDelete = (id: string, name: string) => {
+    setTableToDelete({ id, name });
+  };
+  const cancelTableDelete = () => {
+    setTableToDelete(null);
+  };
+  const confirmTableDelete = async () => {
+    if (tableToDelete) {
+      await fetch(getApiUrl(`/tables/${tableToDelete.id}`), { method: 'DELETE' });
+      setTableToDelete(null);
+      await fetchTables();
+    }
   };
 
+  // Fetch all tables from backend
+  const fetchTables = async () => {
+      // Workspace delete handler (to be passed to GroupMenu)
+      const handleWorkspaceDelete = (id: string, name: string) => {
+        setWorkspaceToDelete(id);
+        setWorkspaceNameToDelete(name);
+      };
+
+      const confirmWorkspaceDelete = async () => {
+        if (workspaceToDelete) {
+          await fetch(getApiUrl(`/workspaces/${workspaceToDelete}`), { method: 'DELETE' });
+          setWorkspaceToDelete(null);
+          setWorkspaceNameToDelete(null);
+          await fetchTables();
+        }
+      };
+
+      const cancelWorkspaceDelete = () => {
+        setWorkspaceToDelete(null);
+        setWorkspaceNameToDelete(null);
+      };
+    const res = await fetch(getApiUrl(`/tables`));
+    const allTables = await res.json();
+    setTables(allTables);
+    if (allTables.length > 0) {
+      setSelectedTableId(allTables[0].id);
+    } else {
+      setSelectedTableId("");
+    }
+  };
+
+  // Add workspace logic
   const handleModalClose = () => {
     setModalOpen(false);
   };
 
   const handleModalSubmit = async (name: string) => {
     setModalOpen(false);
-    // Default columns: Text, Status, Number
+    // 1. Create workspace
+    const res = await fetch(getApiUrl("/workspaces"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const created = await res.json();
+    // 2. Create a default table for the new workspace
     const defaultColumns = [
-      {
-        id: "task",
-        name: "Task",
-        type: "Text",
-        order: 0
-      },
-      {
-        id: "status",
-        name: "Status",
-        type: "Status",
-        order: 1,
-        options: [
-          { value: "Started", color: "#1976d2" },
-          { value: "Working on it", color: "#fdab3d" },
-          { value: "Done", color: "#00c875" }
-        ]
-      },
-      {
-        id: "number",
-        name: "Number",
-        type: "Numbers",
-        order: 2
-      }
+      { id: "task", name: "Task", type: "Text", order: 0 },
+      { id: "status", name: "Status", type: "Status", order: 1, options: [
+        { value: "Started", color: "#1976d2" },
+        { value: "Working on it", color: "#fdab3d" },
+        { value: "Done", color: "#00c875" }
+      ] },
+      { id: "number", name: "Number", type: "Numbers", order: 2 }
     ];
-    await fetch(getApiUrl("/tables"), {
+    await fetch(getApiUrl(`/workspaces/${created.id}/tables`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, columns: defaultColumns }),
@@ -85,87 +158,91 @@ export default function BoardPage() {
     await fetchTables();
   };
 
-  // Fetch tables on mount
+  // Fetch all tables on mount
   React.useEffect(() => {
     fetchTables();
   }, []);
 
   return (
     <Box>
+      {/* Table tabs for all tables */}
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 2 }}>
+        {tables.length > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+            <Tabs
+              value={selectedTableId}
+              onChange={(_, v) => setSelectedTableId(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{ mb: 0, flex: 1 }}
+            >
+              {tables.map((table) => (
+                <Tab
+                  key={table.id}
+                  value={table.id}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>{table.name}</span>
+                      <TableMenu onDelete={() => handleTableDelete(table.id, table.name)} />
+                    </Box>
+                  }
+                  sx={{ minWidth: 80, pr: 0 }}
+                />
+              ))}
+            </Tabs>
+          </Box>
+        )}
+        <Tooltip title="Add Workspace">
+          <IconButton color="primary" onClick={() => setModalOpen(true)} size="small" sx={{ ml: 1 }}>
+            <AddIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Table delete confirmation dialog */}
+      <Dialog open={!!tableToDelete} onClose={cancelTableDelete}>
+        <DialogTitle>Delete Table</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete the table <b>{tableToDelete?.name}</b>? This cannot be undone.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelTableDelete}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={confirmTableDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Workspace delete confirmation dialog */}
+      <Dialog open={!!workspaceToDelete} onClose={cancelWorkspaceDelete}>
+        <DialogTitle>Delete Workspace</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete the workspace <b>{workspaceNameToDelete}</b>? This cannot be undone.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelWorkspaceDelete}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={confirmWorkspaceDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
       <GroupNameModal open={modalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} mode="create" />
       {showTables ? (
         <TablesPage />
       ) : (
-        <Stack spacing={4} sx={{ px: { xs: 0.5, sm: 1, md: 0 } }}>
-          {groups.map((group) => (
-            <Box key={group.id} sx={{ mb: { xs: 2, md: 0 } }}>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                spacing={1}
-                sx={{ mb: 1, justifyContent: { sm: 'space-between' } }}
+        <Box>
+          {tables.filter((table) => table.id === selectedTableId).map((table) => (
+            <Box key={table.id} sx={{ mb: { xs: 2, md: 0 } }}>
+              <Typography
+                variant="h6"
+                fontWeight={700}
+                color={'#0073ea'}
+                sx={{ fontSize: { xs: 16, sm: 20, md: 24 }, wordBreak: 'break-word', flex: 1, mb: 2 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                  <Box sx={{ width: 6, height: 28, bgcolor: group.color, borderRadius: 2, mr: 1 }} />
-                  <Typography
-                    variant="h6"
-                    fontWeight={700}
-                    color={group.completed ? '#00c875' : '#0073ea'}
-                    sx={{ fontSize: { xs: 16, sm: 20, md: 24 }, wordBreak: 'break-word', flex: 1 }}
-                  >
-                    {group.name}
-                  </Typography>
-                  {group.completed && (
-                    <Typography fontWeight={600} color="#00c875">✔</Typography>
-                  )}
-                  <Box sx={{ ml: 1 }}>
-                    <GroupMenu
-                      onDelete={async () => {
-                        // Delete group from backend
-                        await fetch(getApiUrl(`/tables/${group.id}`), { method: "DELETE" });
-                        await fetchTables();
-                      }}
-                      onRename={() => {
-                        setGroupToRename(group);
-                        setRenameModalOpen(true);
-                      }}
-                    />
-                  </Box>
-                </Box>
-              </Stack>
-              <TableBoard tableId={group.id} />
+                {table.name}
+              </Typography>
+              <TableBoard tableId={table.id} />
             </Box>
           ))}
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleAddGroup}
-            sx={{ mt: 2, width: { xs: '100%', sm: 200 } }}
-          >
-            Add new group
-          </Button>
-        </Stack>
+        </Box>
       )}
-      <GroupNameModal 
-        open={renameModalOpen} 
-        onClose={() => {
-          setRenameModalOpen(false);
-          setGroupToRename(null);
-        }} 
-        onSubmit={async (name: string) => {
-          if (!groupToRename) return;
-          setRenameModalOpen(false);
-          await fetch(getApiUrl(`/tables/${groupToRename.id}`), {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-          });
-          setGroupToRename(null);
-          await fetchTables();
-        }}
-        initialName={groupToRename?.name || ''}
-        mode="rename"
-      />
     </Box>
   );
 }
+
+export default BoardPage;

@@ -22,7 +22,7 @@ interface ColumnTypeSelectorProps {
 
 
 const columnOptions = [
-  { label: "Status", icon: <CheckBoxIcon sx={{ color: '#00c875' }} />, color: '#00c875', type: 'Status' },
+  { label: "Status", icon: <CheckBoxIcon sx={(theme) => ({ color: theme.palette.success.main })} />, color: '#00c875', type: 'Status' },
   { label: "Text", icon: <TextFieldsIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Text' },
   { label: "People", icon: <PeopleIcon sx={{ color: '#a25ddc' }} />, color: '#a25ddc', type: 'People' },
   { label: "Dropdown", icon: <ArrowDropDownCircleIcon sx={{ color: '#ffcb00' }} />, color: '#ffcb00', type: 'Dropdown' },

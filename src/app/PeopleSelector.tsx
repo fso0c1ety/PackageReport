@@ -137,7 +137,7 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
     setInviteError("");
   };
 
-  const handleInviteSubmit = () => {
+  const handleInviteSubmit = async () => {
     // Basic email validation
     const email = inviteEmail.trim();
     let name = inviteName.trim();
@@ -154,6 +154,21 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
       return;
     }
     const newPerson = { name, email, avatar: null };
+    // Persist to backend
+    try {
+      await fetch(getApiUrl('/people'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email })
+      });
+    } catch (err) {
+      // fallback to local only
+      setPeople((prev) => {
+        const updated = [...prev, newPerson];
+        localStorage.setItem("suggestedPeople", JSON.stringify(updated));
+        return updated;
+      });
+    }
     setPeople((prev) => {
       const updated = [...prev, newPerson];
       localStorage.setItem("suggestedPeople", JSON.stringify(updated));

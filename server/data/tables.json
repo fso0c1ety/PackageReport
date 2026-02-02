@@ -1,6 +1,6 @@
 [
   {
-    "id": "default-board",
+    "id": "ca9b23aa-1158-4d78-97ef-4c2caa04e20b",
     "name": "Transporti",
     "columns": [
       {
@@ -10,151 +10,91 @@
         "order": 0
       },
       {
-        "id": "065f4d68-4151-4c4c-97de-d5bbc19222ca",
-        "name": "Eksportuesi",
+        "id": "4c1c4531-b849-4281-9e10-be8db8e114fa",
+        "name": "Exportusi",
         "type": "Text",
         "order": 1
       },
       {
-        "id": "owner",
-        "name": "Pronari",
+        "id": "73c3a39c-fe0e-45d5-a0e6-e4ffac381225",
+        "name": "Pronaret",
         "type": "People",
-        "order": 2
+        "order": 2,
+        "options": []
       },
       {
-        "id": "status",
+        "id": "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
         "name": "Statusi",
         "type": "Status",
         "order": 3,
         "options": [
           {
             "value": "Ngarkuar",
-            "color": "#e0e4ef"
+            "color": "#ff000d"
           },
           {
-            "value": "Nisur",
-            "color": "#d4ff00"
+            "value": "NIsur",
+            "color": "#e1ff00"
           },
           {
-            "value": "Ngecur",
+            "value": "Bllokuar",
             "color": "#ff0000"
           },
           {
             "value": "Arritur",
-            "color": "#04ff00"
+            "color": "#00ff1e"
           }
         ]
       },
       {
-        "id": "c323d0fc-e3d4-4804-b351-37592c8798b0",
+        "id": "8f908cb4-1920-4f33-9b85-147522d74393",
         "name": "Kg",
         "type": "Numbers",
         "order": 4
-      }
-    ],
-    "tasks": [
-      {
-        "id": "ef4c8154-e75e-435e-bf89-9b4ed6d50eeb",
-        "values": {
-          "task": "Ags Transport",
-          "owner": [
-            {
-              "name": "Valon Halili",
-              "email": "valonhalili74@gmail.com"
-            }
-          ],
-          "status": "Nisur",
-          "c323d0fc-e3d4-4804-b351-37592c8798b0": "376",
-          "065f4d68-4151-4c4c-97de-d5bbc19222ca": "Rugove Sh.p.k",
-          "914611f2-ad61-4a2f-b1a7-8e685d69d4e4": [],
-          "fd63447a-e332-489c-9996-f2d4f8b0fdb1": ""
-        }
       },
       {
-        "id": "de2eff84-8df1-44df-be09-d76ecbe3367f",
-        "values": {
-          "task": "valon",
-          "065f4d68-4151-4c4c-97de-d5bbc19222ca": "sfs",
-          "owner": [
-            {
-              "name": "Valon Halili",
-              "email": "valonhalili74@gmail.com"
-            },
-            {
-              "name": "Bossi",
-              "email": "valitv7@gmail.com"
-            }
-          ],
-          "status": "Arritur",
-          "c323d0fc-e3d4-4804-b351-37592c8798b0": "",
-          "914611f2-ad61-4a2f-b1a7-8e685d69d4e4": "",
-          "fd63447a-e332-489c-9996-f2d4f8b0fdb1": ""
-        }
-      },
-      {
-        "id": "0cefa704-967f-418c-961a-be5c33781766",
-        "values": {
-          "task": "Test",
-          "065f4d68-4151-4c4c-97de-d5bbc19222ca": "Mobile",
-          "owner": [
-            {
-              "name": "Valon Halili",
-              "email": "valonhalili74@gmail.com"
-            }
-          ],
-          "status": "Ngecur",
-          "c323d0fc-e3d4-4804-b351-37592c8798b0": ""
-        }
-      }
-    ]
-  },
-  {
-    "id": "f4055d54-a5e6-4e4b-b435-1f7da5b12641",
-    "name": "Test Mobile",
-    "columns": [
-      {
-        "id": "task",
-        "name": "Task",
-        "type": "Text",
-        "order": 0
-      },
-      {
-        "id": "status",
-        "name": "Status",
-        "type": "Status",
-        "order": 1,
+        "id": "7299f9c0-38d7-4da7-b919-860fdab3d1a5",
+        "name": "Shteti",
+        "type": "Dropdown",
+        "order": 5,
         "options": [
           {
-            "value": "Started",
-            "color": "#1976d2"
-          },
-          {
-            "value": "Working on it",
-            "color": "#fdab3d"
-          },
-          {
-            "value": "Done",
-            "color": "#00c875"
+            "value": "Germani",
+            "color": "#d21414"
           }
         ]
       },
       {
-        "id": "number",
-        "name": "Number",
-        "type": "Numbers",
-        "order": 2
+        "id": "6fedd67e-e350-44b2-9315-9eaca2a349ff",
+        "name": "Date",
+        "type": "Date",
+        "order": 6
       }
     ],
-    "createdAt": 1769625108289,
+    "createdAt": 1769887950534,
     "tasks": [
       {
-        "id": "e7ed6534-1a39-4bfe-b54c-15d41af7b8d9",
+        "id": "a47dfaa8-5c63-4de4-aa39-43deb4570697",
         "values": {
-          "task": "",
-          "status": "Working on it",
-          "number": ""
+          "task": "Ags Transporti",
+          "4c1c4531-b849-4281-9e10-be8db8e114fa": "Rugove",
+          "73c3a39c-fe0e-45d5-a0e6-e4ffac381225": [
+            {
+              "name": "Valoni",
+              "email": "valonhalili74@gmail.com"
+            },
+            {
+              "name": "Valoni2",
+              "email": "valitv7@gmail.com"
+            }
+          ],
+          "83dabc09-ba5a-4e4b-84f4-e3892536aa8d": "Arritur",
+          "8f908cb4-1920-4f33-9b85-147522d74393": "325",
+          "7299f9c0-38d7-4da7-b919-860fdab3d1a5": "Germani",
+          "6fedd67e-e350-44b2-9315-9eaca2a349ff": "2026-12-03"
         }
       }
-    ]
+    ],
+    "workspaceId": "5d104efd-9bcf-4d27-b296-7433f7bdb146"
   }
 ]
