@@ -6,16 +6,16 @@ function TaskRowMenu({ row, onDelete, onView }: { row: Row, onDelete: () => void
   const handleClose = () => setAnchorEl(null);
   return (
     <>
-      <IconButton onClick={handleOpen}>
+      <IconButton onClick={handleOpen} sx={{ color: '#bfc8e0' }}>
         <MoreVertIcon />
       </IconButton>
-      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={handleClose}>
-        <MenuItem onClick={() => { handleClose(); onView(); }}>
-          <Typography>View</Typography>
+      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={handleClose} PaperProps={{ sx: { bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}>
+        <MenuItem onClick={() => { handleClose(); onView(); }} sx={{ color: '#fff' }}>
+          <Typography sx={{ color: '#fff' }}>View</Typography>
         </MenuItem>
-        <MenuItem onClick={() => { handleClose(); onDelete(); }}>
-          <DeleteIcon fontSize="small" color="error" sx={{ mr: 1 }} />
-          <Typography color="error">Delete</Typography>
+        <MenuItem onClick={() => { handleClose(); onDelete(); }} sx={{ color: '#e2445c' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1, color: '#e2445c' }} />
+          <Typography sx={{ color: '#e2445c' }}>Delete</Typography>
         </MenuItem>
       </Menu>
     </>
@@ -933,24 +933,24 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       </Box>
       <DragDropContext onDragEnd={onDragEnd}>
         <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 2 }}>
-          <Table>
+          <Table sx={{ background: '#23243a', color: '#fff', borderRadius: 3 }}>
             <TableHead>
               <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
                 {(provided) => (
-                  <TableRow ref={provided.innerRef} {...provided.droppableProps}>
+                  <TableRow ref={provided.innerRef} {...provided.droppableProps} sx={{ background: '#23243a' }}>
                     {columns.map((col, colIdx) => (
                       <Draggable key={col.id} draggableId={col.id} index={colIdx}>
                         {(provided) => (
                           <TableCell
                             align="left"
-                            sx={{ fontWeight: 700, fontSize: 16 }}
+                            sx={{ fontWeight: 700, fontSize: 16, color: '#fff', background: '#23243a', borderBottom: '2px solid #35365a' }}
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               {col.name}
-                              <IconButton size="small" onClick={(e) => handleColMenuOpen(e, col.id)}>
+                              <IconButton size="small" sx={{ color: '#bfc8e0' }} onClick={(e) => handleColMenuOpen(e, col.id)}>
                                 <MoreVertIcon fontSize="small" />
                               </IconButton>
                             </Box>
@@ -969,13 +969,13 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   {rows.map((row, rowIdx) => (
                     <Draggable key={row.id || String(rowIdx)} draggableId={row.id ? String(row.id) : `row-${rowIdx}`} index={rowIdx}>
                       {(provided) => (
-                        <TableRow key={row.id} ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                        <TableRow key={row.id} ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} sx={{ background: rowIdx % 2 === 0 ? '#23243a' : '#2c2d4a', '&:hover': { background: '#35365a' } }}>
                           {columns.map((col, colIdx) => (
-                            <TableCell key={col.id} align="left" sx={{ cursor: 'pointer' }}>
+                            <TableCell key={col.id} align="left" sx={{ cursor: 'pointer', color: '#fff', background: 'inherit', borderBottom: '1.5px solid #35365a' }}>
                               {renderCell(row, col)}
                             </TableCell>
                           ))}
-                          <TableCell align="center">
+                          <TableCell align="center" sx={{ color: '#fff', background: 'inherit', borderBottom: '1.5px solid #35365a' }}>
                             <TaskRowMenu
                               row={row}
                               onDelete={async () => {
@@ -1103,12 +1103,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   {/* Add task row */}
                   <TableRow key="add-task-row">
                     {columns.map((col, idx) => (
-                      <TableCell key={col.id} align="left" sx={{ bgcolor: '#f6f7fb', borderBottom: 'none' }}>
+                      <TableCell key={col.id} align="left" sx={{ background: '#35365a', borderBottom: 'none' }}>
                         {idx === 0 ? (
                           <Button
                             variant="text"
                             startIcon={<AddIcon />}
-                            sx={{ color: '#fff', fontWeight: 600, pl: 0, background: '#0073ea' }}
+                            sx={{ color: '#fff', fontWeight: 600, pl: 0, background: '#4f51c0', borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
                             onClick={handleAddTask}
                           >
                             Add task
@@ -1116,7 +1116,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                         ) : null}
                       </TableCell>
                     ))}
-                    <TableCell sx={{ bgcolor: '#f6f7fb', borderBottom: 'none' }} />
+                    <TableCell sx={{ background: '#35365a', borderBottom: 'none' }} />
                   </TableRow>
                   {provided.placeholder}
                 </TableBody>
@@ -1132,11 +1132,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           setRenameValue(columns.find(c => c.id === colMenuId)?.name || "");
           setRenameAnchorEl(e.currentTarget);
           handleColMenuClose();
-        }}><EditIcon fontSize="small" sx={{ mr: 1 }} />Rename column</MenuItem>
+        }} sx={{ color: '#fff' }}><EditIcon fontSize="small" sx={{ mr: 1, color: '#4f51c0' }} />Rename column</MenuItem>
         <MenuItem onClick={() => {
           setDeleteColId(colMenuId);
           handleColMenuClose();
-        }}><DeleteIcon fontSize="small" sx={{ mr: 1 }} />Delete column</MenuItem>
+        }} sx={{ color: '#e2445c' }}><DeleteIcon fontSize="small" sx={{ mr: 1, color: '#e2445c' }} />Delete column</MenuItem>
       </Menu>
       {/* File preview/delete dialog */}
       <Menu
@@ -1144,9 +1144,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         onClose={() => setFileDialog({ open: false, file: null, rowId: null, colId: null })}
         anchorEl={null}
         anchorReference="none"
-        PaperProps={{ sx: { minWidth: 340, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
+        PaperProps={{ sx: { minWidth: 340, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}
       >
-        <Typography fontWeight={600} mb={2} align="center">File: {fileDialog.file?.name ?? ''}</Typography>
+        <Typography fontWeight={600} mb={2} align="center" sx={{ color: '#fff' }}>File: {fileDialog.file?.name ?? ''}</Typography>
         {fileDialog.file && fileDialog.file.type && fileDialog.file.type.startsWith('image/') ? (
           <img
             src={fileDialog.file ? URL.createObjectURL(fileDialog.file) : ''}

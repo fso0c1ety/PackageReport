@@ -96,5 +96,55 @@
       }
     ],
     "workspaceId": "5d104efd-9bcf-4d27-b296-7433f7bdb146"
+  },
+  {
+    "id": "1994c76a-cafa-4042-a80a-27e26f0c306e",
+    "name": "high",
+    "columns": [
+      {
+        "id": "task",
+        "name": "Task",
+        "type": "Text",
+        "order": 0
+      },
+      {
+        "id": "status",
+        "name": "Status",
+        "type": "Status",
+        "order": 1,
+        "options": [
+          {
+            "value": "Started",
+            "color": "#1976d2"
+          },
+          {
+            "value": "Working on it",
+            "color": "#fdab3d"
+          },
+          {
+            "value": "Done",
+            "color": "#00c875"
+          }
+        ]
+      },
+      {
+        "id": "number",
+        "name": "Number",
+        "type": "Numbers",
+        "order": 2
+      }
+    ],
+    "createdAt": 1770151818302,
+    "tasks": [
+      {
+        "id": "9b55bf29-8189-41e0-a7c9-8709215280da",
+        "values": {
+          "task": "low",
+          "status": "Started",
+          "number": ""
+        }
+      }
+    ],
+    "workspaceId": "2aaf454b-989b-4166-9fc5-6e25a3bc31b9"
   }
 ]
