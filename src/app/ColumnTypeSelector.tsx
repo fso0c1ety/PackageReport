@@ -1,6 +1,7 @@
 
 import type { ColumnType } from "../types";
-import { Box, Typography, Grid, Paper, TextField, InputAdornment } from "@mui/material";
+import { Box, Typography, Paper, TextField, InputAdornment } from "@mui/material";
+import Grid from "@mui/material/Grid";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
 import DateRangeIcon from "@mui/icons-material/DateRange";
@@ -43,53 +44,55 @@ const columnOptions = [
 
 export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps) {
   return (
-    <Paper elevation={3} sx={{ p: 3, width: 420, borderRadius: 4 }}>
+    <Box sx={{ bgcolor: '#23243a', p: 0, m: 0, borderRadius: 4, minWidth: 0, minHeight: 0 }}>
+      <Paper elevation={8} sx={{ p: 3, width: 420, borderRadius: 4, bgcolor: '#23243a', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.32)', m: 0, minWidth: 0, minHeight: 0 }}>
       <TextField
         fullWidth
         placeholder="Search or describe your column"
         size="small"
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, bgcolor: '#2c2d4a', borderRadius: 2, input: { color: '#fff' } }}
         InputProps={{
-          startAdornment: <InputAdornment position="start">🔍</InputAdornment>,
+          startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#bfc8e0' }}>🔍</Typography></InputAdornment>,
         }}
       />
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 2 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, color: '#bfc8e0' }}>
         Essentials
       </Typography>
       <Grid container spacing={2}>
         {columnOptions.slice(0, 6).map((opt) => (
           <Grid item xs={4} key={opt.label}>
             <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f6f7fb' } }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', p: 1, borderRadius: 2, bgcolor: '#23243a', '&:hover': { bgcolor: '#35365a' } }}
               onClick={() => onSelect(opt.type as ColumnType, opt.label)}
             >
               {opt.icon}
-              <Typography fontWeight={600} color={opt.color}>{opt.label}</Typography>
+              <Typography fontWeight={600} sx={{ color: opt.color }}>{opt.label}</Typography>
             </Box>
           </Grid>
         ))}
       </Grid>
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 3 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, mt: 3, color: '#bfc8e0' }}>
         Super useful
       </Typography>
       <Grid container spacing={2}>
         {columnOptions.slice(6).map((opt) => (
           <Grid item xs={4} key={opt.label}>
             <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f6f7fb' } }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', p: 1, borderRadius: 2, bgcolor: '#23243a', '&:hover': { bgcolor: '#35365a' } }}
               onClick={() => onSelect(opt.type as ColumnType, opt.label)}
             >
               {opt.icon}
-              <Typography fontWeight={600} color={opt.color}>{opt.label}</Typography>
+              <Typography fontWeight={600} sx={{ color: opt.color }}>{opt.label}</Typography>
             </Box>
           </Grid>
         ))}
       </Grid>
-      <Box sx={{ textAlign: 'center', mt: 3 }}>
-        <Typography variant="body2" color="text.secondary" sx={{ cursor: 'pointer', fontWeight: 600 }}>
-          More columns
-        </Typography>
-      </Box>
-    </Paper>
+        <Box sx={{ textAlign: 'center', mt: 3 }}>
+          <Typography variant="body2" sx={{ cursor: 'pointer', fontWeight: 600, color: '#bfc8e0' }}>
+            More columns
+          </Typography>
+        </Box>
+      </Paper>
+    </Box>
   );
 }

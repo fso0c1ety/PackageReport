@@ -11,8 +11,8 @@ export default function TopBar() {
       sx={{
         width: "100%",
         height: 64,
-        bgcolor: "#fff",
-        borderBottom: "1.5px solid #e0e4ef",
+        bgcolor: "#23243a",
+        borderBottom: "1.5px solid #35365a",
         display: "flex",
         alignItems: "center",
         px: 3,
@@ -23,16 +23,15 @@ export default function TopBar() {
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <span style={{ fontWeight: 600, fontSize: 18, color: '#323338' }}>Welcome back, Valon</span>
+        <span style={{ fontWeight: 600, fontSize: 18, color: '#fff' }}>Welcome back, Valon</span>
       </Box>
-      {/* Title is shown in the sidebar or the mobile header in layout.tsx */}
       <Box sx={{ flex: 1 }} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <IconButton size="small"><NotificationsNoneIcon /></IconButton>
-        <IconButton size="small"><MailOutlineIcon /></IconButton>
-        <IconButton size="small"><SearchIcon /></IconButton>
-        <IconButton size="small"><HelpOutlineIcon /></IconButton>
-        <Avatar sx={{ width: 32, height: 32, bgcolor: '#0073ea' }}>VH</Avatar>
+        <IconButton size="small" sx={{ color: '#fff' }}><NotificationsNoneIcon /></IconButton>
+        <IconButton size="small" sx={{ color: '#fff' }}><MailOutlineIcon /></IconButton>
+        <IconButton size="small" sx={{ color: '#fff' }}><SearchIcon /></IconButton>
+        <IconButton size="small" sx={{ color: '#fff' }}><HelpOutlineIcon /></IconButton>
+        <Avatar sx={{ width: 32, height: 32, bgcolor: '#4f51c0' }}>VH</Avatar>
       </Box>
     </Box>
   );

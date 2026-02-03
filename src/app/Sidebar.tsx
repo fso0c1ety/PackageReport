@@ -38,34 +38,52 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
   const sidebarContent = (
     <Box
       sx={{
-        width: 220,
+        width: 240,
         height: '100vh',
-        bgcolor: '#fff',
-        borderRight: '1.5px solid #e0e4ef',
+        bgcolor: '#23243a',
+        color: '#fff',
         display: 'flex',
         flexDirection: 'column',
         p: 2,
         gap: 2,
+        fontFamily: 'Inter, sans-serif',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-        <Typography variant="h6" fontWeight={800} color="#0073ea" sx={{ textAlign: 'center', width: '100%' }}>
-          SmartManage
-        </Typography>
+      {/* Top navigation */}
+      <Box sx={{ mb: 1 }}>
+        <SidebarItem icon={<HomeIcon sx={{ color: '#fff' }} />} label={<span style={{ color: '#fff', fontWeight: 700 }}>Home</span>} href="/home" />
+        <SidebarItem icon={null} label={<span style={{ color: '#bfc8e0' }}>My work</span>} href="#" />
+        <SidebarItem icon={null} label={<span style={{ color: '#bfc8e0' }}>More</span>} href="#" />
       </Box>
-      <Divider />
-      <Box sx={{ flex: 1, mt: 2 }}>
-        <SidebarItem icon={<HomeIcon />} label="Home" href="/home" />
-        <SidebarItem icon={<WorkspacesIcon />} label="Workspaces" href="/workspaces" />
-        <SidebarItem icon={<SettingsIcon />} label="Settings" href="/settings" />
+      <Divider sx={{ bgcolor: '#35365a', my: 1 }} />
+      {/* monday AI section */}
+      <Box sx={{ mb: 1 }}>
+        <Typography variant="caption" sx={{ color: '#bfc8e0', pl: 1, mb: 0.5 }}>monday AI</Typography>
+        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>★</span>} label={<span style={{ color: '#fff' }}>AI Sidekick</span>} href="#" />
+        <SidebarItem icon={<span style={{ color: '#fd397a' }}>♥</span>} label={<span style={{ color: '#fff' }}>Vibe</span>} href="#" />
+        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>🧠</span>} label={<span style={{ color: '#fff' }}>AI Workflows</span>} href="#" />
+        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>🤖</span>} label={<span style={{ color: '#fff' }}>AI Agents</span>} href="#" />
+        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>📝</span>} label={<span style={{ color: '#fff' }}>AI Notetaker</span>} href="#" />
       </Box>
-      <Divider />
-      <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Avatar sx={{ width: 32, height: 32, bgcolor: '#0073ea' }}>VH</Avatar>
-        <Typography fontWeight={600}>Your Name</Typography>
-        <IconButton size="small">
-          <AddIcon />
-        </IconButton>
+      <Divider sx={{ bgcolor: '#35365a', my: 1 }} />
+      {/* Favorites section */}
+      <Box sx={{ mb: 1 }}>
+        <Typography variant="caption" sx={{ color: '#bfc8e0', pl: 1, mb: 0.5 }}>Favorites</Typography>
+      </Box>
+      {/* Workspaces section */}
+      <Box sx={{ mb: 1 }}>
+        <Typography variant="caption" sx={{ color: '#bfc8e0', pl: 1, mb: 0.5 }}>Workspaces</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, mb: 1 }}>
+          <Avatar sx={{ bgcolor: '#4f51c0', width: 32, height: 32 }}>M</Avatar>
+          <Typography fontWeight={600} sx={{ color: '#fff' }}>Main workspace...</Typography>
+          <IconButton size="small" sx={{ color: '#fff', bgcolor: '#35365a', borderRadius: 1 }}>
+            <AddIcon fontSize="small" />
+          </IconButton>
+        </Box>
+        <Box sx={{ pl: 6 }}>
+          <Typography sx={{ color: '#fff', fontSize: 15, mb: 0.5 }}>Name of the Group</Typography>
+          <Typography sx={{ color: '#fff', fontSize: 15 }}>Dashboard and reporting</Typography>
+        </Box>
       </Box>
     </Box>
   );
