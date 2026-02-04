@@ -55,64 +55,63 @@ const Section = styled(Box)(({ theme }) => ({
 const WorkspaceCard = styled(Card)(({ theme }) => ({
   background: '#2c2d4a',
   color: '#fff',
-  borderRadius: 16,
-  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-  marginBottom: 16,
-  border: '1.5px solid #35365a',
+  borderRadius: 20,
+  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+  marginBottom: 24,
+  border: '2px solid #4f51c0',
+  width: '32vw',
+  minWidth: 260,
+  maxWidth: 400,
+  minHeight: '18vw',
+  maxHeight: 260,
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: '24px 0',
+  [theme.breakpoints.down('sm')]: {
+    width: '80vw',
+    minWidth: 180,
+    maxWidth: 320,
+    minHeight: '28vw',
+    maxHeight: 180,
+    padding: '12px 0',
+  },
 }));
 const BoardPreview = styled(Box)(({ theme }) => ({
-  height: 120,
+  height: '12vw',
+  minHeight: 100,
+  maxHeight: 180,
   background: '#35365a',
-  borderRadius: 12,
-  marginBottom: 8,
+  borderRadius: 20,
+  marginBottom: 16,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  width: '95%',
+  [theme.breakpoints.down('sm')]: {
+    height: '24vw',
+    minHeight: 60,
+    maxHeight: 120,
+    marginBottom: 10,
+  },
 }));
 
 export default function HomeDashboard() {
-  const [automationUpdates, setAutomationUpdates] = useState<any[]>([]);
-  const [transportiTask, setTransportiTask] = useState(null);
-  const [transportiRecipients, setTransportiRecipients] = useState([]);
-  const [transportiCols, setTransportiCols] = useState<string[]>([]);
+  const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
 
   useEffect(() => {
-        // Find selected columns for Transporti from automation.json
-        fetch('/api/automation')
-          .then(res => res.json())
-          .then(data => {
-            if (Array.isArray(data)) {
-              const automation = data.find(a => a.tableId === 'ca9b23aa-1158-4d78-97ef-4c2caa04e20b');
-              if (automation && Array.isArray(automation.cols)) {
-                setTransportiCols(automation.cols);
-              }
-            }
-          });
-    function fetchUpdates() {
-      fetch('/api/automation')
+    function fetchEmailUpdates() {
+      fetch('http://localhost:4000/api/email-updates')
         .then(res => res.json())
-        .then(data => setAutomationUpdates(Array.isArray(data) ? data : []));
-
-      fetch('/api/transporti')
-        .then(res => res.json())
-        .then(data => {
-          if (data) {
-            setTransportiTask(data);
-            setTransportiRecipients(data.recipients || []);
-          }
-        });
+        .then(data => setEmailUpdates(Array.isArray(data) ? data.reverse() : [])); // newest first
     }
-    fetchUpdates();
-    const interval = setInterval(fetchUpdates, 10000); // 10 seconds
+    fetchEmailUpdates();
+    const interval = setInterval(fetchEmailUpdates, 10000); // 10 seconds
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    // Fetch all automations (simulate fetching all tables)
-    fetch('/api/automation')
-      .then(res => res.json())
-      .then(data => setAutomationUpdates(Array.isArray(data) ? data : []));
-  }, []);
+  // ...existing code...
 
   return (
     <Root>
@@ -120,39 +119,51 @@ export default function HomeDashboard() {
       <Main>
         <Section>
           <Typography variant="subtitle1" fontWeight={600} mb={2}>Recently visited</Typography>
-          <Box display="flex" gap={2}>
+          <Box display="flex" gap={4} flexWrap="wrap" justifyContent="flex-start" alignItems="stretch" minHeight={280}>
             {/* Other recent buttons from recentlyVisited array */}
             {recentlyVisited.map((item, i) => (
               <WorkspaceCard
                 key={item.title}
-                sx={{ width: 220, cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
+                sx={{
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s',
+                  '&:hover': { boxShadow: '0 4px 16px #4f51c0' },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 1
+                }}
                 onClick={() => {
-                  // Use Next.js dynamic route for group pages
-                  window.location.href = `/home/group/${encodeURIComponent(item.title)}`;
+                  if (item.title === 'Dashboard and reporting') {
+                    window.location.href = '/dashboard';
+                  } else {
+                    window.location.href = `/home/group/${encodeURIComponent(item.title)}`;
+                  }
                 }}
               >
-                <BoardPreview>
-                  <img src={item.img} alt={item.title} style={{ width: '80%', borderRadius: 8, background: '#CBDDFF' }} />
+                <BoardPreview sx={{ height: '12vw', minHeight: 100, maxHeight: 180, width: '95%', mb: 0 }}>
+                  <img src={item.img} alt={item.title} style={{ width: '100%', height: '100%', borderRadius: 20, background: '#CBDDFF', objectFit: 'cover' }} />
                 </BoardPreview>
-                <CardContent>
-                  <Typography fontWeight={600}>{item.title}</Typography>
-                  <Typography variant="caption" color="#aaa">{item.group}</Typography>
+                <CardContent sx={{ textAlign: 'center', px: 0 }}>
+                  <Typography fontWeight={800} fontSize={16} mb={0.5}>{item.title}</Typography>
+                  <Typography variant="caption" color="#aaa" fontSize={12}>{item.group}</Typography>
                 </CardContent>
               </WorkspaceCard>
             ))}
             {/* Transporti button */}
             <WorkspaceCard
-              sx={{ width: 220, cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
+              sx={{ width: 400, cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
               onClick={() => {
                 window.location.href = '/';
               }}
             >
-              <BoardPreview>
-                <img src="/Group.svg" alt="Transporti" style={{ width: '80%', borderRadius: 8, background: '#CBDDFF' }} />
+              <BoardPreview sx={{ height: '12vw', minHeight: 100, maxHeight: 180, width: '95%', mb: 0 }}>
+                <img src="/Group.svg" alt="Transporti" style={{ width: '100%', height: '100%', borderRadius: 20, background: '#CBDDFF', objectFit: 'cover' }} />
               </BoardPreview>
-              <CardContent>
-                <Typography fontWeight={600}>Transporti</Typography>
-                <Typography variant="caption" color="#aaa">Recent Work</Typography>
+              <CardContent sx={{ textAlign: 'center', px: 0 }}>
+                <Typography fontWeight={700} fontSize={22}>Transporti</Typography>
+                <Typography variant="caption" color="#aaa" fontSize={16}>Recent Work</Typography>
               </CardContent>
             </WorkspaceCard>
           </Box>
@@ -160,41 +171,22 @@ export default function HomeDashboard() {
         <Section>
           <Typography variant="subtitle1" fontWeight={600} mb={2}>Update feed (Inbox)</Typography>
           <Box bgcolor="#2c2d4a" borderRadius={2} p={2} color="#aaa">
-            {transportiTask ? (
+            {emailUpdates.length > 0 ? (
               <List>
-                <ListItem alignItems="flex-start" sx={{ borderBottom: '1px solid #35365a', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <Box display="flex" alignItems="center" gap={2} mb={1}>
-                    <Avatar sx={{ bgcolor: '#4f51c0' }}>T</Avatar>
-                    <Typography fontWeight={600} color="#fff">{transportiRecipients.join(', ')}</Typography>
-                  </Box>
-                  <Typography fontWeight={600} color="#4f51c0" mb={0.5}>Subject: Task Update for Transporti</Typography>
-                  <Typography variant="body2" color="#bfc8e0" mb={0.5}>
-                    Hello,<br />
-                    There was an update in <b>Transporti</b>.<br />
-                    {transportiCols.map(colId => {
-                      const value = transportiTask[colId];
-                      // Map column id to name for display
-                      const colNames: Record<string, string> = {
-                        'task': 'Importusi',
-                        '4c1c4531-b849-4281-9e10-be8db8e114fa': 'Exportusi',
-                        '83dabc09-ba5a-4e4b-84f4-e3892536aa8d': 'Statusi',
-                        '8f908cb4-1920-4f33-9b85-147522d74393': 'Kg',
-                        '7299f9c0-38d7-4da7-b919-860fdab3d1a5': 'Shteti',
-                        '6fedd67e-e350-44b2-9315-9eaca2a349ff': 'Date',
-                        'status': 'Statusi',
-                        'number': 'Kg'
-                      };
-                      if (value !== undefined) {
-                        return (
-                          <span key={colId}>{colNames[colId] || colId}: "{value}"<br /></span>
-                        );
-                      }
-                      return null;
-                    })}
-                    <br />
-                    You are receiving this notification because you are listed as a recipient for updates on this table.
-                  </Typography>
-                </ListItem>
+                {emailUpdates.map((update, idx) => (
+                  <ListItem key={idx} alignItems="flex-start" sx={{ borderBottom: '1px solid #35365a', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Box display="flex" alignItems="center" gap={2} mb={1}>
+                      <Avatar sx={{ bgcolor: '#4f51c0' }}>{update.tableId ? update.tableId[0].toUpperCase() : 'T'}</Avatar>
+                      <Typography fontWeight={600} color="#fff">{update.recipients.join(', ')}</Typography>
+                    </Box>
+                    <Typography fontWeight={600} color="#4f51c0" mb={0.5}>{update.subject}</Typography>
+                    <Typography variant="body2" color="#bfc8e0" mb={0.5}>
+                      <span dangerouslySetInnerHTML={{ __html: update.html }} />
+                      <br />
+                      <span style={{ fontSize: '0.9em', color: '#888' }}>Sent: {new Date(update.timestamp).toLocaleString()}</span>
+                    </Typography>
+                  </ListItem>
+                ))}
               </List>
             ) : (
               <Typography>No new updates</Typography>
@@ -203,7 +195,15 @@ export default function HomeDashboard() {
         </Section>
         <Section>
           <Typography variant="subtitle1" fontWeight={600} mb={2}>My workspaces</Typography>
-          <WorkspaceCard>
+          <WorkspaceCard
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 1
+            }}
+          >
             <CardContent>
               <Box display="flex" alignItems="center" gap={2}>
                 <Avatar sx={{ bgcolor: '#4f51c0', width: 48, height: 48 }}>M</Avatar>

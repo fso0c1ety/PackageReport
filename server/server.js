@@ -272,6 +272,22 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
                 html
               })
             });
+              // Log the sent email to email_updates.json
+              const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
+              let emailUpdates = [];
+              try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+              emailUpdates.push({
+                recipients: automation.recipients,
+                subject,
+                html,
+                timestamp: Date.now(),
+                tableId: req.params.tableId,
+                triggerCol,
+                changedValue: values[triggerCol]
+              });
+              // Keep only the last 20 updates
+              if (emailUpdates.length > 20) emailUpdates = emailUpdates.slice(-20);
+              fs.writeFileSync(emailUpdatesFile, JSON.stringify(emailUpdates, null, 2));
           } catch (err) {
             console.error('Failed to send email:', err);
           }
@@ -294,6 +310,14 @@ app.delete('/api/tables/:tableId/tasks', (req, res) => {
   table.tasks = table.tasks.filter(task => task.id !== id);
   writeJson(tablesFile, tables);
   res.json({ success: true });
+});
+
+// Endpoint to get recent email updates
+app.get('/api/email-updates', (req, res) => {
+  const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
+  let emailUpdates = [];
+  try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+  res.json(emailUpdates);
 });
 
 app.listen(PORT, () => {

@@ -27,7 +27,7 @@ function SidebarItem({ icon, label, href }: { icon: React.ReactNode; label: stri
   );
 }
 import React from "react";
-import { Box, Typography, IconButton, Avatar, Divider, Drawer } from "@mui/material";
+import { Box, Typography, IconButton, Avatar, Divider, Drawer, Button } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
 import WorkspacesIcon from "@mui/icons-material/Workspaces";
@@ -75,14 +75,16 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
         <Typography variant="caption" sx={{ color: '#bfc8e0', pl: 1, mb: 0.5 }}>Workspaces</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, mb: 1 }}>
           <Avatar sx={{ bgcolor: '#4f51c0', width: 32, height: 32 }}>M</Avatar>
-          <Typography fontWeight={600} sx={{ color: '#fff' }}>Main workspace...</Typography>
+          <Button
+            variant="text"
+            sx={{ color: '#fff', fontWeight: 600, textTransform: 'none', fontSize: 16, p: 0, minWidth: 0 }}
+            onClick={() => { window.location.href = 'http://localhost:3000/'; }}
+          >
+            Main workspace...
+          </Button>
           <IconButton size="small" sx={{ color: '#fff', bgcolor: '#35365a', borderRadius: 1 }}>
             <AddIcon fontSize="small" />
           </IconButton>
-        </Box>
-        <Box sx={{ pl: 6 }}>
-          <Typography sx={{ color: '#fff', fontSize: 15, mb: 0.5 }}>Name of the Group</Typography>
-          <Typography sx={{ color: '#fff', fontSize: 15 }}>Dashboard and reporting</Typography>
         </Box>
       </Box>
     </Box>

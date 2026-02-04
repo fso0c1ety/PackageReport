@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             sx={{
               display: 'flex',
               minHeight: '100vh',
-              width: '100vw',
+              width: '100%',   // ✅ FIX
               bgcolor: '#23243a',
               flexDirection: { xs: 'column', md: 'row' },
               overflowX: 'hidden',
@@ -67,11 +67,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 component="main"
                 sx={{
                   flex: 1,
-                  p: { xs: '12px 4px 0 4px', sm: '16px 8px 0 8px', md: '32px 32px 0 32px' },
+                  p: 0,
                   bgcolor: '#23243a',
                   width: '100%',
-                  minWidth: 0,
                   overflowX: 'hidden',
+                  display: 'block',
                 }}
               >
                 {children}
