@@ -932,8 +932,30 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         </Button>
       </Box>
       <DragDropContext onDragEnd={onDragEnd}>
-        <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 2 }}>
-          <Table sx={{ background: '#23243a', color: '#fff', borderRadius: 3 }}>
+        <TableContainer
+          component={Paper}
+          sx={{
+            borderRadius: 3,
+            boxShadow: 2,
+            overflowX: 'auto',
+            maxWidth: '100vw',
+            '@media (max-width: 900px)': {
+              minWidth: 0,
+              px: 0,
+            },
+          }}
+        >
+          <Table
+            sx={{
+              background: '#23243a',
+              color: '#fff',
+              borderRadius: 3,
+              minWidth: 650,
+              '@media (max-width: 900px)': {
+                minWidth: 500,
+              },
+            }}
+          >
             <TableHead>
               <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
                 {(provided) => (
@@ -990,7 +1012,24 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             />
                           </TableCell>
                               {/* Task Review Drawer/Dialog */}
-                              <Dialog open={!!reviewTask} onClose={() => { setReviewTask(null); setShowEmailAutomation(false); }} maxWidth="sm" fullWidth>
+                              <Dialog
+                                open={!!reviewTask}
+                                onClose={() => { setReviewTask(null); setShowEmailAutomation(false); }}
+                                maxWidth="sm"
+                                fullWidth
+                                PaperProps={{
+                                  sx: {
+                                    m: 1,
+                                    width: '100%',
+                                    maxWidth: { xs: '100vw', sm: 600 },
+                                    minHeight: 200,
+                                    '@media (max-width: 600px)': {
+                                      maxWidth: '100vw',
+                                      m: 0,
+                                    },
+                                  },
+                                }}
+                              >
                                 <DialogTitle>Task Details</DialogTitle>
                                 <DialogContent dividers>
                                   {reviewTask && !showEmailAutomation && (

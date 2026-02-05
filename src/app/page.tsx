@@ -1,7 +1,8 @@
 "use client";
 
-import BoardPage from "./BoardPage";
+import { redirect } from 'next/navigation';
 
-export default function Home() {
-  return <BoardPage />;
+export default function RootPage() {
+  redirect('/home');
+  return null;
 }

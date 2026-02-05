@@ -32,12 +32,26 @@ app.get('/api/workspaces', (req, res) => {
 // Create a new workspace
 app.post('/api/workspaces', (req, res) => {
   const workspaces = readJson(workspacesFile);
+  const tables = readJson(tablesFile);
   const newWorkspace = {
     id: uuidv4(),
     name: req.body.name || 'Untitled Workspace'
   };
   workspaces.push(newWorkspace);
   writeJson(workspacesFile, workspaces);
+  // Create a default table for this workspace
+  const defaultTable = {
+    id: uuidv4(),
+    name: `${newWorkspace.name} Table`,
+    columns: [
+      { id: uuidv4(), name: 'Task', type: 'Text', order: 0 }
+    ],
+    createdAt: Date.now(),
+    tasks: [],
+    workspaceId: newWorkspace.id
+  };
+  tables.push(defaultTable);
+  writeJson(tablesFile, tables);
   res.json(newWorkspace);
 });
 

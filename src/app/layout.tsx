@@ -67,11 +67,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 component="main"
                 sx={{
                   flex: 1,
-                  p: 0,
+                  p: { xs: 1, sm: 2, md: 3 },
                   bgcolor: '#23243a',
                   width: '100%',
-                  overflowX: 'hidden',
+                  minWidth: 0,
+                  overflowX: 'auto',
                   display: 'block',
+                  boxSizing: 'border-box',
                 }}
               >
                 {children}

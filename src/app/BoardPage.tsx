@@ -228,14 +228,6 @@ function BoardPage() {
         <Box>
           {tables.filter((table) => table.id === selectedTableId).map((table) => (
             <Box key={table.id} sx={{ mb: { xs: 2, md: 0 } }}>
-              <Typography
-                variant="h6"
-                fontWeight={700}
-                color={'#0073ea'}
-                sx={{ fontSize: { xs: 16, sm: 20, md: 24 }, wordBreak: 'break-word', flex: 1, mb: 2 }}
-              >
-                {table.name}
-              </Typography>
               <TableBoard tableId={table.id} />
             </Box>
           ))}
