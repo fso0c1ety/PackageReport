@@ -22,5 +22,17 @@
     "tableId": "ca9b23aa-1158-4d78-97ef-4c2caa04e20b",
     "triggerCol": "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
     "changedValue": "Ngarkuar"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com"
+    ],
+    "subject": "Task updated: Transporti",
+    "html": "<h2>Task Update</h2><ul><li><b>Importusi:</b> \"Ags Transporti\"</li><li><b>Exportusi:</b> \"Rugove\"</li><li><b>Statusi:</b> \"Arritur\"</li></ul>",
+    "timestamp": 1770328297516,
+    "tableId": "ca9b23aa-1158-4d78-97ef-4c2caa04e20b",
+    "triggerCol": "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
+    "changedValue": "Arritur"
   }
 ]

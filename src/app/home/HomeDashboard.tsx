@@ -150,11 +150,17 @@ const BoardPreview = styled(Box)(({ theme }) => ({
   },
 }));
 
+interface Workspace {
+  id: string;
+  name: string;
+  type?: string;
+}
+
 export default function HomeDashboard() {
     const userName = 'Your Name';
-    const [workspaces, setWorkspaces] = React.useState([]);
+    const [workspaces, setWorkspaces] = React.useState<Workspace[]>([]);
     React.useEffect(() => {
-      fetch("http://19200/api/workspaces")
+      fetch("http://192.168.0.29:4000/api/workspaces")
         .then((res) => res.json())
         .then(setWorkspaces);
     }, []);
@@ -272,19 +278,35 @@ export default function HomeDashboard() {
               </svg>
             </Button>
           </Box>
-          <Box display="flex" flexWrap="wrap" gap={2} justifyContent="flex-start">
+          <Box
+            sx={{
+              display: { xs: 'grid', sm: 'flex' },
+              gridTemplateColumns: { xs: '1fr 1fr', sm: 'none' },
+              gap: { xs: 1.5, sm: 2 },
+              flexWrap: { sm: 'wrap' },
+              justifyContent: { sm: 'flex-start' },
+            }}
+          >
             {/* Main workspace card */}
             <SmallWorkspaceCard
               key="main-workspace"
-              sx={{ cursor: 'pointer', transition: 'box-shadow 0.2s', width: '32%', minWidth: 220, maxWidth: 340, '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
+              sx={{
+                cursor: 'pointer',
+                transition: 'box-shadow 0.2s',
+                width: { xs: '100%', sm: '32%' },
+                minWidth: { xs: 120, sm: 180 },
+                maxWidth: { xs: 160, sm: 340 },
+                '&:hover': { boxShadow: '0 4px 16px #4f51c0' },
+                m: { xs: 0, sm: 0 },
+              }}
               onClick={() => window.location.href = '/workspaces/5d104efd-9bcf-4d27-b296-7433f7bdb146'}
             >
-              <CardContent>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Avatar sx={{ bgcolor: '#4f51c0', width: 36, height: 36 }}>M</Avatar>
+              <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Avatar sx={{ bgcolor: '#4f51c0', width: 28, height: 28, fontSize: 16 }}>M</Avatar>
                   <Box>
-                    <Typography fontWeight={600} fontSize={15}>Main workspace</Typography>
-                    <Typography variant="caption" color="#aaa" fontSize={12}>work management</Typography>
+                    <Typography fontWeight={600} fontSize={13}>Main workspace</Typography>
+                    <Typography variant="caption" color="#aaa" fontSize={10}>work management</Typography>
                   </Box>
                 </Box>
               </CardContent>
@@ -293,15 +315,23 @@ export default function HomeDashboard() {
             {workspaces.map((ws, idx) => (
               <SmallWorkspaceCard
                 key={ws.id}
-                sx={{ cursor: 'pointer', transition: 'box-shadow 0.2s', width: '32%', minWidth: 220, maxWidth: 340, '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
+                sx={{
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s',
+                  width: { xs: '100%', sm: '32%' },
+                  minWidth: { xs: 120, sm: 180 },
+                  maxWidth: { xs: 160, sm: 340 },
+                  '&:hover': { boxShadow: '0 4px 16px #4f51c0' },
+                  m: { xs: 0, sm: 0 },
+                }}
                 onClick={() => window.location.href = `/workspaces/${ws.id}`}
               >
-                <CardContent>
-                  <Box display="flex" alignItems="center" gap={2}>
-                    <Avatar sx={{ bgcolor: '#4f51c0', width: 36, height: 36 }}>{ws.name.charAt(0).toUpperCase()}</Avatar>
+                <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Avatar sx={{ bgcolor: '#4f51c0', width: 28, height: 28, fontSize: 16 }}>{ws.name.charAt(0).toUpperCase()}</Avatar>
                     <Box>
-                      <Typography fontWeight={600} sx={{ fontSize: { xs: 15, md: 22 } }}>{ws.name}</Typography>
-                      <Typography variant="caption" color="#aaa" sx={{ fontSize: { xs: 12, md: 16 } }}>{ws.type || ''}</Typography>
+                      <Typography fontWeight={600} fontSize={13}>{ws.name}</Typography>
+                      <Typography variant="caption" color="#aaa" fontSize={10}>{ws.type || ''}</Typography>
                     </Box>
                   </Box>
                 </CardContent>
