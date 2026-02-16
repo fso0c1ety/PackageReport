@@ -1,4 +1,3 @@
-
 import type { ColumnType } from "../types";
 import { Box, Typography, Paper, TextField, InputAdornment } from "@mui/material";
 import Grid from "@mui/material/Grid";
@@ -15,6 +14,8 @@ import LinkIcon from "@mui/icons-material/Link";
 import FunctionsIcon from "@mui/icons-material/Functions";
 import InfoIcon from "@mui/icons-material/Info";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
+import FlagIcon from '@mui/icons-material/Flag';
+import ChatIcon from '@mui/icons-material/Chat';
 
 interface ColumnTypeSelectorProps {
   onSelect: (type: ColumnType, label: string) => void;
@@ -37,6 +38,8 @@ const columnOptions = [
   { label: "Formula", icon: <FunctionsIcon sx={{ color: '#fdab3d' }} />, color: '#fdab3d', type: 'Formula' },
   { label: "Extract info", icon: <InfoIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Extract' },
   { label: "Priority", icon: <PriorityHighIcon sx={{ color: '#e2445c' }} />, color: '#e2445c', type: 'Priority' },
+  { label: "Country", icon: <FlagIcon sx={{ color: '#1976d2' }} />, color: '#1976d2', type: 'Country' },
+  { label: "Message", icon: <ChatIcon sx={{ color: '#fd397a' }} />, color: '#fd397a', type: 'Message' },
 ];
 
 
@@ -45,7 +48,18 @@ const columnOptions = [
 export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps) {
   return (
     <Box sx={{ bgcolor: '#23243a', p: 0, m: 0, borderRadius: 4, minWidth: 0, minHeight: 0 }}>
-      <Paper elevation={8} sx={{ p: 3, width: 420, borderRadius: 4, bgcolor: '#23243a', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.32)', m: 0, minWidth: 0, minHeight: 0 }}>
+      <Paper elevation={0} sx={{
+        p: 3,
+        width: 420,
+        borderRadius: 4,
+        bgcolor: '#23243a',
+        color: '#fff',
+        boxShadow: 'none',
+        border: 'none',
+        m: 0,
+        minWidth: 0,
+        minHeight: 0
+      }}>
       <TextField
         fullWidth
         placeholder="Search or describe your column"

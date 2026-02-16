@@ -3,11 +3,28 @@
 import { use, useState, useEffect } from "react";
 import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
+
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 export default function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = use(params);
+  // Set last opened workspace in localStorage for HomeDashboard
+  useEffect(() => {
+    if (typeof window !== 'undefined' && workspaceId) {
+      // Try to get workspace name from API or fallback to id
+      fetch(`http://192.168.0.26:4000/api/workspaces/${workspaceId}`)
+        .then(res => res.json())
+        .then(ws => {
+          if (ws && ws.id) {
+            localStorage.setItem('lastWorkspace', JSON.stringify({ id: ws.id, name: ws.name || ws.id }));
+          }
+        })
+        .catch(() => {
+          localStorage.setItem('lastWorkspace', JSON.stringify({ id: workspaceId, name: workspaceId }));
+        });
+    }
+  }, [workspaceId]);
   const [tables, setTables] = useState<any[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +58,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
       return;
     }
     try {
-      const res = await fetch(`http://192.168.0.29:4000/api/tables/${menuTableId}`, {
+      const res = await fetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: renameValue }),
@@ -61,7 +78,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
   };
   const handleDelete = async () => {
     if (!menuTableId) return;
-    await fetch(`http://19200/api/tables/${menuTableId}`, {
+    await fetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
       method: "DELETE",
     });
     handleMenuClose();
@@ -71,7 +88,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 
   const fetchTables = async () => {
     setLoading(true);
-    const res = await fetch(`http://192.168.0.29:4000/api/workspaces/${workspaceId}/tables`);
+    const res = await fetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`);
     const data = await res.json();
     setTables(data);
     // If no tab is selected, select the first one
@@ -87,10 +104,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 
   const handleAddTable = async () => {
     setCreating(true);
-    const res = await fetch(`http://192.0/api/workspaces/${workspaceId}/tables`, {
+    // Default columns for new group/table
+    const defaultColumns = [
+      { id: 'task', name: 'Task', type: 'Text', order: 0 },
+      { id: 'people', name: 'People', type: 'People', order: 1, options: [] },
+      { id: 'status', name: 'Status', type: 'Status', order: 2, options: [
+        { value: 'Working on it', color: '#fdab3d' },
+        { value: 'Done', color: '#00c875' },
+        { value: 'Stuck', color: '#e2445c' }
+      ] }
+    ];
+    const res = await fetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: `New Group ${tables.length + 1}` }),
+      body: JSON.stringify({ name: `New Group ${tables.length + 1}`, columns: defaultColumns }),
     });
     setCreating(false);
     const newTable = await res.json();
@@ -110,6 +137,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 
   return (
     <Box>
+      {/* Table tabs and actions */}
       <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Tabs

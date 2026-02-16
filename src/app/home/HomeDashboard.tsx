@@ -5,6 +5,24 @@ import { Box, Typography, Card, CardContent, Avatar, List, ListItem, ListItemAva
 import { useEffect, useState } from 'react';
 import { styled } from '@mui/material/styles';
 
+// Helper to get/set last workspace in localStorage
+function getLastWorkspace() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const ws = localStorage.getItem('lastWorkspace');
+    return ws ? JSON.parse(ws) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setLastWorkspace(workspace: any) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('lastWorkspace', JSON.stringify(workspace));
+  } catch {}
+}
+
 // Example data (replace with your actual data)
 const recentlyVisited = [
   { title: 'Dashboard and reporting', group: 'Main workspace', img: '/dashboard.svg' },
@@ -160,15 +178,37 @@ export default function HomeDashboard() {
     const userName = 'Your Name';
     const [workspaces, setWorkspaces] = React.useState<Workspace[]>([]);
     React.useEffect(() => {
-      fetch("http://192.168.0.29:4000/api/workspaces")
+      fetch("http://192.168.0.28:4000/api/workspaces")
         .then((res) => res.json())
         .then(setWorkspaces);
     }, []);
   const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
+  const [lastWorkspace, setLastWorkspaceState] = useState(() => getLastWorkspace());
+  // Format timestamps on client only to avoid hydration mismatch
+  const [formattedUpdates, setFormattedUpdates] = useState<any[]>([]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setFormattedUpdates(
+        emailUpdates.map(update => ({
+          ...update,
+          formattedTimestamp: update.timestamp ? new Date(update.timestamp).toLocaleString() : ''
+        }))
+      );
+    } else {
+      setFormattedUpdates(emailUpdates.map(update => ({ ...update, formattedTimestamp: '' })));
+    }
+  }, [emailUpdates]);
+
+  // Listen for storage changes (in case user opens workspaces in other tabs)
+  useEffect(() => {
+    const handler = () => setLastWorkspaceState(getLastWorkspace());
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
 
   useEffect(() => {
     function fetchEmailUpdates() {
-      fetch('http://192.168.0.29:4000/api/email-updates')
+      fetch('http://192.168.0.28:4000/api/email-updates')
         .then(res => res.json())
         .then(data => setEmailUpdates(Array.isArray(data) ? data.reverse() : [])); // newest first
     }
@@ -217,29 +257,38 @@ export default function HomeDashboard() {
                 </CardContent>
               </WorkspaceCard>
             ))}
-            {/* Transporti button */}
-            <WorkspaceCard
-              sx={{ width: 400, cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
-              onClick={() => {
-                window.location.href = '/';
-              }}
-            >
-              <BoardPreview sx={{ height: '12vw', minHeight: 100, maxHeight: 180, width: '95%', mb: 0 }}>
-                <img src="/Group.svg" alt="Transporti" style={{ width: '100%', height: '100%', borderRadius: 20, background: '#CBDDFF', objectFit: 'cover', maxHeight: '90px' }} />
-              </BoardPreview>
-              <CardContent sx={{ textAlign: 'center', px: 0 }}>
-                <Typography fontWeight={600} fontSize={10}>Transporti</Typography>
-                <Typography variant="caption" color="#aaa" fontSize={8}>Recent Work</Typography>
-              </CardContent>
-            </WorkspaceCard>
+            {/* Latest workspace opened card (replaces Transporti) */}
+            {lastWorkspace && workspaces.length > 0 && (() => {
+              const ws = workspaces.find(w => w.id === lastWorkspace.id);
+              const wsName = ws?.name || lastWorkspace.name;
+              if (!wsName) return null;
+              return (
+                <WorkspaceCard
+                  sx={{ width: 400, cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
+                  onClick={() => {
+                    window.location.href = `/workspaces/${lastWorkspace.id}`;
+                  }}
+                >
+                  <BoardPreview sx={{ height: '12vw', minHeight: 100, maxHeight: 180, width: '95%', mb: 0 }}>
+                    <img src="/Group.svg" alt={wsName} style={{ width: '100%', height: '100%', borderRadius: 20, background: '#CBDDFF', objectFit: 'cover', maxHeight: '90px' }} />
+                  </BoardPreview>
+                  <CardContent sx={{ textAlign: 'center', px: 0 }}>
+                    <Typography fontWeight={600} fontSize={10}>
+                      {wsName}
+                    </Typography>
+                    <Typography variant="caption" color="#aaa" fontSize={8}>Recent Workspace</Typography>
+                  </CardContent>
+                </WorkspaceCard>
+              );
+            })()}
           </Box>
         </Section>
         <Section>
           <Typography variant="subtitle1" fontWeight={600} mb={2}>Update feed (Inbox)</Typography>
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} color="#aaa">
-            {emailUpdates.length > 0 ? (
+          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} color="#aaa" sx={{ maxHeight: 320, overflowY: 'auto' }}>
+            {formattedUpdates.length > 0 ? (
               <List>
-                {emailUpdates.map((update, idx) => (
+                {formattedUpdates.slice(0, 3).map((update, idx) => (
                   <ListItem key={idx} alignItems="flex-start" sx={{ borderBottom: '1px solid #35365a', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', overflow: 'visible', p: 1 }}>
                     <Box display="flex" alignItems="center" gap={1} mb={0.5}>
                       <Avatar sx={{ bgcolor: '#4f51c0', width: 20, height: 20, fontSize: 10 }}>{update.tableId ? update.tableId[0].toUpperCase() : 'T'}</Avatar>
@@ -249,7 +298,7 @@ export default function HomeDashboard() {
                     <Typography variant="body2" color="#bfc8e0" mb={0.2} sx={{ fontSize: { xs: 9, md: 14 } }}>
                       <span dangerouslySetInnerHTML={{ __html: update.html }} />
                       <br />
-                      <span style={{ fontSize: '0.7em', color: '#888' }}>Sent: {new Date(update.timestamp).toLocaleString()}</span>
+                      <span style={{ fontSize: '0.7em', color: '#888' }}>Sent: {update.formattedTimestamp}</span>
                     </Typography>
                     {/* Fix badge overlap: move badge inside card, top right */}
                     {update.badge && (
@@ -287,31 +336,7 @@ export default function HomeDashboard() {
               justifyContent: { sm: 'flex-start' },
             }}
           >
-            {/* Main workspace card */}
-            <SmallWorkspaceCard
-              key="main-workspace"
-              sx={{
-                cursor: 'pointer',
-                transition: 'box-shadow 0.2s',
-                width: { xs: '100%', sm: '32%' },
-                minWidth: { xs: 120, sm: 180 },
-                maxWidth: { xs: 160, sm: 340 },
-                '&:hover': { boxShadow: '0 4px 16px #4f51c0' },
-                m: { xs: 0, sm: 0 },
-              }}
-              onClick={() => window.location.href = '/workspaces/5d104efd-9bcf-4d27-b296-7433f7bdb146'}
-            >
-              <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Avatar sx={{ bgcolor: '#4f51c0', width: 28, height: 28, fontSize: 16 }}>M</Avatar>
-                  <Box>
-                    <Typography fontWeight={600} fontSize={13}>Main workspace</Typography>
-                    <Typography variant="caption" color="#aaa" fontSize={10}>work management</Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </SmallWorkspaceCard>
-            {/* Other workspaces from API */}
+            {/* Show each workspace only once */}
             {workspaces.map((ws, idx) => (
               <SmallWorkspaceCard
                 key={ws.id}
@@ -344,11 +369,11 @@ export default function HomeDashboard() {
         <Box
           sx={{ display: { xs: 'none', sm: 'block' } }}
         >
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a">
+          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a" mb={3}>
             <Typography fontWeight={600} mb={1} color="#fff">Boost your workflow in minutes with ready-made templates</Typography>
             <Button variant="contained" sx={{ bgcolor: '#4f51c0', borderRadius: 2, mt: 1, color: '#fff' }}>Explore templates</Button>
           </Box>
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a">
+          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a" mb={3}>
             <Typography fontWeight={600} mb={1} color="#fff">Getting started</Typography>
             <Typography variant="body2" color="#bfc8e0">Learn how your app works</Typography>
           </Box>

@@ -23,6 +23,7 @@ import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
 import WorkspacesIcon from "@mui/icons-material/Workspaces";
 import SettingsIcon from "@mui/icons-material/Settings";
+import WorkspaceDropdown from "./workspaces/WorkspaceDropdown";
 
 function SidebarItem({ icon, label, href }: { icon: React.ReactNode; label: React.ReactNode; href: string }) {
   return (
@@ -64,7 +65,7 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
 
   // Fetch workspaces on mount and after creation
   useEffect(() => {
-    fetch("http://192.168.0.29:4000/api/workspaces")
+    fetch("http://192.168.0.28:4000/api/workspaces")
       .then((res) => res.json())
       .then(setWorkspaces);
   }, []);
@@ -76,7 +77,7 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
   const handleCreateWorkspace = async () => {
     try {
       // 1. Create workspace
-      const wsRes = await fetch("http://192.168.0.29:4000/api/workspaces", {
+      const wsRes = await fetch("http://192.168.0.28:4000/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newWorkspaceName }),
@@ -91,7 +92,7 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
       let attempts = 0;
       while (!table && attempts < 3) {
         try {
-          const tableRes = await fetch(`http://192.168.0.29:4000/api/workspaces/${ws.id}/tables`, {
+          const tableRes = await fetch(`http://192.168.0.28:4000/api/workspaces/${ws.id}/tables`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: `${ws.name} Table` }),
@@ -140,7 +141,7 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
       <Divider sx={{ bgcolor: '#35365a', my: 1 }} />
       {/* monday AI section */}
       <Box sx={{ mb: 1, pl: 2 }}>
-        <Typography variant="caption" sx={{ color: '#bfc8e0', mb: 0.5, pl: 1 }}>monday AI</Typography>
+        <Typography variant="caption" sx={{ color: '#bfc8e0', mb: 0.5, pl: 1 }}>Smart Manage AI</Typography>
         <SidebarItem icon={<span style={{ color: '#4f51c0' }}>★</span>} label={<span style={{ color: '#fff' }}>AI Sidekick</span>} href="#" />
         <SidebarItem icon={<span style={{ color: '#fd397a' }}>♥</span>} label={<span style={{ color: '#fff' }}>Vibe</span>} href="#" />
         <SidebarItem icon={<span style={{ color: '#4f51c0' }}>🧠</span>} label={<span style={{ color: '#fff' }}>AI Workflows</span>} href="#" />
@@ -148,7 +149,6 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
         <SidebarItem icon={<span style={{ color: '#4f51c0' }}>📝</span>} label={<span style={{ color: '#fff' }}>AI Notetaker</span>} href="#" />
       </Box>
       <Divider sx={{ bgcolor: '#35365a', my: 1 }} />
-      {/* Favorites section */}
       {/* Workspaces section */}
       <Box sx={{ mb: 1, pl: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -161,97 +161,10 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
             <AddIcon fontSize="small" />
           </IconButton>
         </Box>
-        <List dense sx={{ pl: 0, mt: 1 }}>
-          {/* Main workspace button */}
-          <ListItem sx={{ pl: 0, alignItems: 'center', mb: 1 }} disableGutters>
-            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              <Avatar sx={{ bgcolor: '#4f51c0', width: 24, height: 32, fontSize: 16, flexShrink: 0 }}>M</Avatar>
-              <Button
-                variant="contained"
-                sx={{
-                  bgcolor: '#4f51c0',
-                  color: '#fff',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  fontSize: 15,
-                  ml: 1,
-                  borderRadius: 2,
-                  boxShadow: 'none',
-                  width: '100%',
-                  height: 40,
-                  justifyContent: 'flex-start',
-                  alignItems: 'center',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  minWidth: 0,
-                  maxWidth: '100%',
-                  display: 'flex'
-                }}
-                onClick={() => router.push("/workspaces/5d104efd-9bcf-4d27-b296-7433f7bdb146")}
-              >
-                <span style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  display: 'block',
-                  width: '100%'
-                }}>Main workspace</span>
-              </Button>
-            </Box>
-          </ListItem>
-          {/* Other workspaces */}
-          {workspaces.map((ws) => (
-            <ListItem key={ws.id} sx={{ pl: 0, alignItems: 'center', mb: 1 }} disableGutters>
-              <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                  <Avatar sx={{ bgcolor: '#4f51c0', width: 36, height: 36 }}>{ws.name.charAt(0).toUpperCase()}</Avatar>
-                  {/* Ensure avatar is perfectly round and uniform size */}
-                  <style jsx>{`
-                    .MuiAvatar-root {
-                      border-radius: 50% !important;
-                      width: 28px !important;
-                      height: 28px !important;
-                      font-size: 1rem !important;
-                    }
-                  `}</style>
-                <Button
-                  variant="contained"
-                  sx={{
-                    bgcolor: '#4f51c0',
-                    color: '#fff',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    fontSize: { xs: 14, sm: 15 },
-                    ml: 1,
-                    borderRadius: 2,
-                    boxShadow: 'none',
-                    width: '100%',
-                    height: { xs: 32, sm: 40 },
-                    py: { xs: 0.5, sm: 1 },
-                    px: { xs: 1, sm: 2 },
-                    justifyContent: 'flex-start',
-                    alignItems: 'center',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    minWidth: 0,
-                    maxWidth: '100%',
-                    display: 'flex'
-                  }}
-                  onClick={() => router.push(`/workspaces/${ws.id}`)}
-                >
-                  <span style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    display: 'block',
-                    width: '100%'
-                  }}>{ws.name}</span>
-                </Button>
-              </Box>
-            </ListItem>
-          ))}
-        </List>
+        <Box sx={{ mb: 2 }}>
+          <WorkspaceDropdown />
+        </Box>
+        {/* Workspace buttons replaced by dropdown below */}
       </Box>
       {/* Dialog for new workspace */}
       <Dialog

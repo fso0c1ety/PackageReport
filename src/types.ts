@@ -13,7 +13,9 @@ export type ColumnType =
   | 'Checkbox'
   | 'Formula'
   | 'Extract'
-  | 'Priority';
+  | 'Priority'
+  | 'Country'
+  | 'Message';
 
 export interface ColumnOption {
   value: string;

@@ -198,9 +198,10 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, color: '#fff', '& .MuiInputBase-input': { color: '#fff' } }}
+            InputProps={{ style: { color: '#fff' } }}
           />
-          <Typography variant="caption" color="text.secondary">Suggested people</Typography>
+          <Typography variant="caption" sx={{ color: '#fff' }}>Suggested people</Typography>
           <List dense>
             {filteredPeople.map((person) => (
               <ListItem
@@ -211,12 +212,12 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
                   </IconButton>
                 }
                 onClick={() => handleSelect(person)}
-                sx={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                sx={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: '#fff' }}
               >
                 <ListItemAvatar>
                   <Avatar sx={{ bgcolor: '#0073ea' }}>{person.name.split(' ').map(n => n[0]).join('').toUpperCase()}</Avatar>
                 </ListItemAvatar>
-                <ListItemText primary={person.name} secondary={person.email} />
+                <ListItemText primary={person.name} secondary={person.email} primaryTypographyProps={{ style: { color: '#fff' } }} secondaryTypographyProps={{ style: { color: '#fff' } }} />
               </ListItem>
             ))}
           </List>

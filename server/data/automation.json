@@ -1,41 +1,31 @@
 [
   {
-    "tableId": "default-board",
-    "triggerCol": "status",
+    "tableId": "a3f98c10-5c19-437e-bcee-ffdc0c7d2838",
+    "triggerCol": "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
     "cols": [
-      "task",
-      "065f4d68-4151-4c4c-97de-d5bbc19222ca",
-      "status",
-      "c323d0fc-e3d4-4804-b351-37592c8798b0"
-    ],
-    "recipients": [
-      "valitv7@gmail.com",
-      "valonhalili74@gmail.com"
-    ]
-  },
-  {
-    "tableId": "b9c9c14b-0b73-4e0b-82db-36daf978b1f6",
-    "triggerCol": "status",
-    "cols": [
-      "task",
-      "status",
-      "number"
-    ],
-    "recipients": [
-      "valitv7@gmail.com"
-    ]
-  },
-  {
-    "tableId": "ca9b23aa-1158-4d78-97ef-4c2caa04e20b",
-    "triggerCol": "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
-    "cols": [
-      "task",
-      "4c1c4531-b849-4281-9e10-be8db8e114fa",
-      "83dabc09-ba5a-4e4b-84f4-e3892536aa8d"
+      "fd2d9c11-eabf-423a-9bb1-4c0a548cc9eb",
+      "fed4848c-0852-4b21-91a3-3cd01298af65",
+      "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
+      "8e8a01e0-cc9a-4686-89d0-304d179b988c"
     ],
     "recipients": [
       "valonhalili74@gmail.com",
       "valitv7@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "cols": [
+      "9b16eaad-3c63-4e9f-8a3c-384fa2eec742",
+      "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+      "135173e9-2d6e-4ac8-900c-340d504129c1",
+      "2ec415fe-2ecc-48e1-94aa-dd76e0761915"
+    ],
+    "recipients": [
+      "valitv73@gmail.com",
+      "valonhalili74@gmail.com"
     ]
   }
 ]

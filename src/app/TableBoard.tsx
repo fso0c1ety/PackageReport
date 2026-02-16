@@ -4,13 +4,21 @@ function TaskRowMenu({ row, onDelete, onView }: { row: Row, onDelete: () => void
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
+  const handleView = () => {
+    // Blur the currently focused element before closing the menu
+    if (typeof window !== 'undefined' && document && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    handleClose();
+    onView();
+  };
   return (
     <>
       <IconButton onClick={handleOpen} sx={{ color: '#bfc8e0' }}>
         <MoreVertIcon />
       </IconButton>
       <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={handleClose} PaperProps={{ sx: { bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}>
-        <MenuItem onClick={() => { handleClose(); onView(); }} sx={{ color: '#fff' }}>
+        <MenuItem onClick={handleView} sx={{ color: '#fff' }}>
           <Typography sx={{ color: '#fff' }}>View</Typography>
         </MenuItem>
         <MenuItem onClick={() => { handleClose(); onDelete(); }} sx={{ color: '#e2445c' }}>
@@ -22,6 +30,11 @@ function TaskRowMenu({ row, onDelete, onView }: { row: Row, onDelete: () => void
   );
 }
 import React, { useState, useEffect } from "react";
+import Flag from "react-flagkit";
+// Country name to ISO 3166-1 alpha-2 code mapping for react-flagkit
+const countryCodeMap: Record<string, string> = {
+  "Afghanistan": "AF", "Albania": "AL", "Algeria": "DZ", "Andorra": "AD", "Angola": "AO", "Antigua and Barbuda": "AG", "Argentina": "AR", "Armenia": "AM", "Australia": "AU", "Austria": "AT", "Azerbaijan": "AZ", "Bahamas": "BS", "Bahrain": "BH", "Bangladesh": "BD", "Barbados": "BB", "Belarus": "BY", "Belgium": "BE", "Belize": "BZ", "Benin": "BJ", "Bhutan": "BT", "Bolivia": "BO", "Bosnia and Herzegovina": "BA", "Botswana": "BW", "Brazil": "BR", "Brunei": "BN", "Bulgaria": "BG", "Burkina Faso": "BF", "Burundi": "BI", "Cabo Verde": "CV", "Cambodia": "KH", "Cameroon": "CM", "Canada": "CA", "Central African Republic": "CF", "Chad": "TD", "Chile": "CL", "China": "CN", "Colombia": "CO", "Comoros": "KM", "Congo (Congo-Brazzaville)": "CG", "Costa Rica": "CR", "Croatia": "HR", "Cuba": "CU", "Cyprus": "CY", "Czechia (Czech Republic)": "CZ", "Denmark": "DK", "Djibouti": "DJ", "Dominica": "DM", "Dominican Republic": "DO", "Ecuador": "EC", "Egypt": "EG", "El Salvador": "SV", "Equatorial Guinea": "GQ", "Eritrea": "ER", "Estonia": "EE", "Eswatini (fmr. 'Swaziland')": "SZ", "Ethiopia": "ET", "Fiji": "FJ", "Finland": "FI", "France": "FR", "Gabon": "GA", "Gambia": "GM", "Georgia": "GE", "Germany": "DE", "Ghana": "GH", "Greece": "GR", "Grenada": "GD", "Guatemala": "GT", "Guinea": "GN", "Guinea-Bissau": "GW", "Guyana": "GY", "Haiti": "HT", "Honduras": "HN", "Hungary": "HU", "Iceland": "IS", "India": "IN", "Indonesia": "ID", "Iran": "IR", "Iraq": "IQ", "Ireland": "IE", "Israel": "IL", "Italy": "IT", "Jamaica": "JM", "Japan": "JP", "Jordan": "JO", "Kazakhstan": "KZ", "Kenya": "KE", "Kiribati": "KI", "Kuwait": "KW", "Kyrgyzstan": "KG", "Laos": "LA", "Latvia": "LV", "Lebanon": "LB", "Lesotho": "LS", "Liberia": "LR", "Libya": "LY", "Liechtenstein": "LI", "Lithuania": "LT", "Luxembourg": "LU", "Madagascar": "MG", "Malawi": "MW", "Malaysia": "MY", "Maldives": "MV", "Mali": "ML", "Malta": "MT", "Marshall Islands": "MH", "Mauritania": "MR", "Mauritius": "MU", "Mexico": "MX", "Micronesia": "FM", "Moldova": "MD", "Monaco": "MC", "Mongolia": "MN", "Montenegro": "ME", "Morocco": "MA", "Mozambique": "MZ", "Myanmar (Burma)": "MM", "Namibia": "NA", "Nauru": "NR", "Nepal": "NP", "Netherlands": "NL", "New Zealand": "NZ", "Nicaragua": "NI", "Niger": "NE", "Nigeria": "NG", "North Korea": "KP", "North Macedonia": "MK", "Norway": "NO", "Oman": "OM", "Pakistan": "PK", "Palau": "PW", "Palestine State": "PS", "Panama": "PA", "Papua New Guinea": "PG", "Paraguay": "PY", "Peru": "PE", "Philippines": "PH", "Poland": "PL", "Portugal": "PT", "Qatar": "QA", "Romania": "RO", "Russia": "RU", "Rwanda": "RW", "Saint Kitts and Nevis": "KN", "Saint Lucia": "LC", "Saint Vincent and the Grenadines": "VC", "Samoa": "WS", "San Marino": "SM", "Sao Tome and Principe": "ST", "Saudi Arabia": "SA", "Senegal": "SN", "Serbia": "RS", "Seychelles": "SC", "Sierra Leone": "SL", "Singapore": "SG", "Slovakia": "SK", "Slovenia": "SI", "Solomon Islands": "SB", "Somalia": "SO", "South Africa": "ZA", "South Korea": "KR", "South Sudan": "SS", "Spain": "ES", "Sri Lanka": "LK", "Sudan": "SD", "Suriname": "SR", "Sweden": "SE", "Switzerland": "CH", "Syria": "SY", "Taiwan": "TW", "Tajikistan": "TJ", "Tanzania": "TZ", "Thailand": "TH", "Timor-Leste": "TL", "Togo": "TG", "Tonga": "TO", "Trinidad and Tobago": "TT", "Tunisia": "TN", "Turkey": "TR", "Turkmenistan": "TM", "Tuvalu": "TV", "Uganda": "UG", "Ukraine": "UA", "United Arab Emirates": "AE", "United Kingdom": "GB", "United States of America": "US", "Uruguay": "UY", "Uzbekistan": "UZ", "Vanuatu": "VU", "Vatican City": "VA", "Venezuela": "VE", "Vietnam": "VN", "Yemen": "YE", "Zambia": "ZM", "Zimbabwe": "ZW"
+};
 import dayjs, { Dayjs } from "dayjs";
 import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -52,7 +65,9 @@ import {
   DialogContent,
   DialogActions,
   Checkbox,
-  ListItemText
+  ListItemText,
+  Switch,
+  Popover
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -63,21 +78,8 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ColumnTypeSelector from "./ColumnTypeSelector";
 import { Column, Row, ColumnType, ColumnOption } from "../types";
 
-const initialColumns: Column[] = [
-  { id: "task", name: "Task", type: "Text", order: 0 },
-  { id: "owner", name: "Owner", type: "People", order: 1 },
-  { id: "status", name: "Status", type: "Status", order: 2, options: [
-    { value: "Working on it", color: "#fdab3d" },
-    { value: "Done", color: "#00c875" },
-    { value: "Stuck", color: "#e2445c" },
-  ] },
-  { id: "due", name: "Due date", type: "Date", order: 3 },
-  { id: "priority", name: "Priority", type: "Dropdown", order: 4, options: [
-    { value: "Low", color: "#00c875" },
-    { value: "Medium", color: "#fdab3d" },
-    { value: "High", color: "#e2445c" },
-  ] },
-];
+// Columns will be loaded dynamically from backend; do not use hardcoded IDs.
+const initialColumns: Column[] = [];
 
 import { getApiUrl } from "./apiUrl";
 
@@ -85,10 +87,36 @@ interface TableBoardProps {
   tableId: string;
 }
 
-const initialRows: Row[] = [];
+const initialRows: Row[] = [
+  {
+    id: uuidv4().toString(),
+    values: {
+      task: "Started",
+      owner: "",
+      status: "Started",
+      due: "",
+      priority: "",
+    },
+  },
+];
 
 export default function TableBoard({ tableId }: TableBoardProps) {
+    // Chat popover state
+    const [chatAnchor, setChatAnchor] = useState<null | HTMLElement>(null);
+    const [chatPopoverKey, setChatPopoverKey] = useState<string | null>(null);
+    const [chatInput, setChatInput] = useState("");
+    const [chatMessages, setChatMessages] = useState<any[]>([]);
+    const [chatTaskId, setChatTaskId] = useState<string | null>(null);
   // --- State ---
+
+    // Fix popover anchor to button
+    // (Removed duplicate handleOpenChat definition)
+
+  // Handler to close the review dialog
+  const handleCloseReview = () => {
+    setReviewTask(null);
+    setShowEmailAutomation(false);
+  };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
   // Email Automation UI state
@@ -128,6 +156,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [deleteColId, setDeleteColId] = useState<string | null>(null);
   const [fileDialog, setFileDialog] = useState<{ open: boolean; file: File | null; rowId: string | null; colId: string | null }>({ open: false, file: null, rowId: null, colId: null });
   const [loading, setLoading] = useState(false);
+  const [automationEnabled, setAutomationEnabled] = useState(true);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -141,9 +170,21 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       .finally(() => setLoading(false));
     fetch(getApiUrl(`/tables/${tableId}/tasks`))
       .then((res) => res.json())
-      .then((data) => setRows(data))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setRows(data);
+        } else {
+          // If no tasks, show a placeholder row (not persisted)
+          setRows([
+            {
+              id: 'placeholder',
+              values: Object.fromEntries(columns.map(col => [col.id, col.type === 'People' ? [] : '']))
+            }
+          ]);
+        }
+      })
       .finally(() => setLoading(false));
-  }, [tableId]);
+  }, [tableId, columns.length]);
 
   // --- Handlers and logic ---
   // Add new task
@@ -203,14 +244,21 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Add new column
   const handleAddColumn = async (colType: ColumnType, label: string) => {
+    // Inject full country list for Country columns
+    const fullCountryList = [
+      "Afghanistan","Albania","Algeria","Andorra","Angola","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Cape Verde","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo (Brazzaville)","Congo (Kinshasa)","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic","East Timor","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Korea, North","Korea, South","Kosovo","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+    ];
     const newColumn: Column = {
       id: uuidv4(),
       name: label,
       type: colType,
       order: columns.length,
-      options: ["Status", "Dropdown", "People"].includes(colType)
-        ? []
-        : undefined,
+      options:
+        colType === "Country"
+          ? fullCountryList.map(c => ({ value: c }))
+          : ["Status", "Dropdown", "People"].includes(colType)
+            ? []
+            : undefined,
     };
     const updatedColumns = [...columns, newColumn];
     setColumns(updatedColumns);
@@ -251,11 +299,25 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Edit cell
   const handleCellClick = (rowId: string, colId: string, value: any, colType?: string) => {
-    setEditingCell({ rowId, colId });
-    if (colType === "Date") {
-      setEditValue(value ? dayjs(value) : null);
-    } else {
-      setEditValue(value ?? "");
+    // Only enter edit mode if not already editing this cell
+    if (!editingCell || editingCell.rowId !== rowId || editingCell.colId !== colId) {
+      // Close chat popover if clicking any column except Message
+      if (colType !== "Message") {
+        setChatAnchor(null);
+        setChatTaskId(null);
+        setChatMessages([]);
+        setChatInput("");
+      }
+      setEditingCell({ rowId, colId });
+      if (colType === "Date") {
+        setEditValue(value ? dayjs(value) : null);
+      } else if (colType === "People") {
+        setEditValue(Array.isArray(value) ? value : []);
+      } else if (colType === "Country") {
+        setEditValue(value ?? "");
+      } else {
+        setEditValue(value ?? "");
+      }
     }
   };
   // Accept optional valueOverride for immediate save from PeopleSelector
@@ -278,17 +340,62 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     setRows(updatedRows);
     setEditingCell(null);
     setEditValue("");
-    // Persist to backend
+    // If editing the placeholder row, treat as new task
+    if (rowId === 'placeholder') {
+      setLoading(true);
+      // Create a new task with the edited value
+      const values: Record<string, any> = { ...editValue };
+      columns.forEach(col => {
+        if (!(col.id in values)) {
+          values[col.id] = col.type === 'People' ? [] : '';
+        }
+      });
+      values[colId] = valueOverride !== undefined ? valueOverride : editValue;
+      const res = await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values }),
+      });
+      const created = await res.json();
+      // Remove placeholder and add real task
+      setRows([created]);
+      setEditingCell(null);
+      setEditValue("");
+      setLoading(false);
+      return;
+    }
+    // Persist to backend for real rows
     if (updatedRow) {
       console.log('Sending PUT to backend:', getApiUrl(`/tables/${tableId}/tasks`), { id: updatedRow.id, values: updatedRow.values });
-      await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+      const response = await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: updatedRow.id, values: updatedRow.values }),
       });
+      // Log backend debug logs if present
+      const debugLogsHeader = response.headers.get("X-Debug-Logs");
+      if (debugLogsHeader) {
+        try {
+          const logs = JSON.parse(decodeURIComponent(debugLogsHeader));
+          logs.forEach((log: { msg: string; obj?: any }) => {
+            console.log(`[BACKEND] ${log.msg}`, log.obj);
+          });
+        } catch (e) {
+          console.warn("Failed to parse backend debug logs:", e, debugLogsHeader);
+        }
+      }
       // Re-fetch latest rows from backend to ensure sync
       const res = await fetch(getApiUrl(`/tables/${tableId}/tasks`));
-      const data = await res.json();
+      let data = await res.json();
+      // If backend returns no rows, show placeholder
+      if (!Array.isArray(data) || data.length === 0) {
+        data = [
+          {
+            id: 'placeholder',
+            values: Object.fromEntries(columns.map(col => [col.id, col.type === 'People' ? [] : '']))
+          }
+        ];
+      }
       setRows(data);
     }
   };
@@ -376,7 +483,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }));
   };
 
-  // Status label management
+   // Status label management
   const handleEditStatusLabel = (colId: string, idx: number) => {
     const newLabel = labelEdits[colId]?.[idx]?.trim();
     if (!newLabel) return;
@@ -487,25 +594,127 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
 
   // --- Render cell by type ---
+    // Handler for opening chat popover
+    const handleOpenChat = (
+      event: React.MouseEvent<HTMLElement>,
+      rowId: string,
+      messages: any[],
+      colId: string
+    ) => {
+      setChatAnchor(event.currentTarget);
+      setChatPopoverKey(`${rowId}-${colId}`);
+      setChatInput("");
+      setChatTaskId(rowId);
+      // Always load messages from backend when opening
+      fetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
+        .then(res => res.json())
+        .then(task => setChatMessages(task.values.message || []));
+    };
+    const handleCloseChat = () => {
+      setChatAnchor(null);
+      setChatPopoverKey(null);
+      setChatMessages([]);
+      setChatInput("");
+      setChatTaskId(null);
+    };
+    const handleSendChat = async () => {
+      if (!chatTaskId || !chatInput.trim()) return;
+      const newMsg = {
+        id: uuidv4(),
+        sender: "User", // Replace with actual user info if available
+        text: chatInput,
+        timestamp: new Date().toISOString()
+      };
+      // Update local state
+      setChatMessages(prev => [...prev, newMsg]);
+      setChatInput("");
+      // Update task row in backend
+      const row = rows.find(r => r.id === chatTaskId);
+      if (row) {
+        const updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
+        await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.id, values: updatedValues }),
+        });
+        // Reload messages from backend after saving
+        const res = await fetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`));
+        const updatedRow = await res.json();
+        setRows(rows => rows.map(r => r.id === row.id ? { ...r, values: updatedRow.values } : r));
+        setChatMessages(updatedRow.values.message || []);
+      }
+    };
   const renderCell = (row: Row, col: Column) => {
     // Force Priority column to always use Dropdown logic for editing
     const effectiveCol = col.id === "priority" ? { ...col, type: "Dropdown" } : col;
     let value = row.values ? row.values[col.id] : "";
-    // For Dropdown/Status/Priority, ensure value is in options
-    if ((col.type === "Status" || col.type === "Dropdown" || col.id === "priority") && col.options) {
+    // Debug logging for country column rendering
+    if (effectiveCol.type && effectiveCol.options) {
+      console.log({
+        type: effectiveCol.type,
+        options: effectiveCol.options,
+        value,
+        editValue,
+        editingCell,
+        colId: effectiveCol.id,
+        rowId: row.id,
+      });
+    }
+    // For Dropdown/Status/Priority/Country, ensure value is in options (case-insensitive for Country)
+    if ((col.type === "Status" || col.type === "Dropdown" || col.id === "priority" || (col.type && col.type.toLowerCase() === "country")) && col.options) {
       if (!col.options.some(opt => opt.value === value)) {
         value = "";
       }
     }
     if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id) {
+      // Country column: dropdown in edit mode (case-insensitive)
+      if (((col.type && col.type.toLowerCase() === "country") || (effectiveCol.type && effectiveCol.type.toLowerCase() === "country")) && effectiveCol.options) {
+        return (
+          <FormControl size="small" fullWidth sx={{ minWidth: 160 }}>
+            <Select
+              value={value}
+              onChange={(e) => {
+                setEditingCell(null);
+                handleCellSave(row.id, col.id, col.type, e.target.value);
+              }}
+              autoFocus
+              displayEmpty
+              renderValue={selected => (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderRadius: 2, bgcolor: '#23234a' }}>
+                  {countryCodeMap[selected as keyof typeof countryCodeMap] ? (
+                    <Flag country={countryCodeMap[selected as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
+                  ) : null}
+                  <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{selected || <span style={{ color: '#888' }}>Select country</span>}</Typography>
+                </Box>
+              )}
+              sx={{ color: '#fff', background: '#23234a', borderRadius: 2, boxShadow: '0 2px 8px #23234a33', minHeight: 44 }}
+              id={`country-select-${row.id}-${col.id}`}
+              name={`country-select-${row.id}-${col.id}`}
+              MenuProps={{ PaperProps: { sx: { bgcolor: '#23234a', color: '#fff', borderRadius: 2 } } }}
+            >
+              {effectiveCol.options.map((opt: ColumnOption) => (
+                <MenuItem key={opt.value} value={opt.value} sx={{ color: '#fff', background: 'transparent', display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1 }}>
+                  {countryCodeMap[opt.value as keyof typeof countryCodeMap] ? (
+                    <Flag country={countryCodeMap[opt.value as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
+                  ) : null}
+                  <Typography sx={{ fontWeight: 500, fontSize: 15 }}>{opt.value}</Typography>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        );
+      }
+      // Files column
       if (effectiveCol.type === "Files") {
         return (
           <input
             type="file"
             multiple
             autoFocus
-            onChange={e => handleFileUpload(row.id, col.id, e.target.files)}
-            style={{ marginTop: 8 }}
+            id={`file-upload-${row.id}-${col.id}`}
+            name={`file-upload-${row.id}-${col.id}`}
+            onChange={(e) => handleFileUpload(row.id, col.id, e.target.files)}
+            style={{ marginTop: 8, color: '#fff', background: '#222' }}
           />
         );
       }
@@ -519,10 +728,13 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             size="small"
             autoFocus
             placeholder="Paste doc link or text"
+            id={`doc-input-${row.id}-${col.id}`}
+            name={`doc-input-${row.id}-${col.id}`}
+            InputProps={{ style: { color: '#fff' } }}
           />
         );
       }
-      // Status/Dropdown
+      // Status/Dropdown/Country
       if ((effectiveCol.type === "Status" || effectiveCol.type === "Dropdown") && effectiveCol.options) {
         const isEditingLabels = editingLabelsColId === effectiveCol.id;
         return (
@@ -530,48 +742,59 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             <FormControl size="small" fullWidth>
               <Select
                 value={editValue}
-                onChange={e => setEditValue(e.target.value)}
+                onChange={(e) => {
+                  setEditValue(e.target.value);
+                  setEditingCell(null);
+                  handleCellSave(row.id, col.id, col.type, e.target.value);
+                }}
                 // Prevent closing when editing labels
                 onBlur={!isEditingLabels ? () => handleCellSave(row.id, col.id) : undefined}
                 autoFocus
                 open={isEditingLabels ? true : undefined}
                 MenuProps={isEditingLabels ? { disableAutoFocusItem: true } : {}}
+                sx={{ color: '#fff', background: '#222' }}
+                id={`dropdown-select-${row.id}-${col.id}`}
+                name={`dropdown-select-${row.id}-${col.id}`}
               >
-                {effectiveCol.options.map((opt, idx) => (
-                  <MenuItem key={opt.value} value={opt.value} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {isEditingLabels ? (
-                      <>
-                        <TextField
-                          value={labelEdits[effectiveCol.id]?.[idx] ?? opt.value}
-                          size="small"
-                          onChange={e => setLabelEdits(edits => ({
-                            ...edits,
-                            [effectiveCol.id]: { ...edits[effectiveCol.id], [idx]: e.target.value }
-                          }))}
-                          onBlur={() => handleEditStatusLabel(effectiveCol.id, idx)}
-                          sx={{ width: 100 }}
-                          onClick={e => e.stopPropagation()}
-                          onMouseDown={e => e.stopPropagation()}
-                        />
-                        <input
-                          type="color"
-                          value={opt.color || "#e0e4ef"}
-                          style={{ width: 28, height: 28, border: 'none', background: 'none', marginLeft: 4, marginRight: 4, cursor: 'pointer' }}
-                          onChange={e => handleEditStatusColor(effectiveCol.id, idx, e.target.value)}
-                          onClick={e => e.stopPropagation()}
-                          onMouseDown={e => e.stopPropagation()}
-                        />
-                        <IconButton size="small" color="error" onClick={e => { e.stopPropagation(); handleDeleteStatusLabel(effectiveCol.id, idx); }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </>
-                    ) : (
-                      <>
-                        <Box sx={{ width: 16, height: 16, bgcolor: opt.color, borderRadius: '50%', mr: 1, display: 'inline-block' }} />
-                        {opt.value}
-                      </>
-                    )}
-                  </MenuItem>
+                {effectiveCol.options.map((opt: ColumnOption, idx: number) => (
+                  isEditingLabels ? (
+                    <MenuItem key={opt.value} value={opt.value} sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff', background: '#222' }}>
+                      <TextField
+                        value={labelEdits[effectiveCol.id]?.[idx] ?? opt.value}
+                        size="small"
+                        onChange={(e) => setLabelEdits(edits => ({
+                          ...edits,
+                          [effectiveCol.id]: { ...edits[effectiveCol.id], [idx]: e.target.value }
+                        }))}
+                        onBlur={() => handleEditStatusLabel(effectiveCol.id, idx)}
+                        sx={{ width: 100, color: '#fff', '& .MuiInputBase-input': { color: '#fff' } }}
+                        InputProps={{ style: { color: '#fff' } }}
+                      />
+                      <input
+                        type="color"
+                        value={opt.color || "#e0e4ef"}
+                        style={{ width: 28, height: 28, border: 'none', background: 'none', marginLeft: 4, marginRight: 4, cursor: 'pointer' }}
+                        onChange={(e) => handleEditStatusColor(effectiveCol.id, idx, e.target.value)}
+                      />
+                      <IconButton size="small" color="error" onClick={() => { handleDeleteStatusLabel(effectiveCol.id, idx); }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </MenuItem>
+                  ) : (
+                    <MenuItem
+                      key={opt.value}
+                      value={opt.value}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff', background: '#222' }}
+                      onClick={() => {
+                        setEditValue(opt.value);
+                        setEditingCell(null);
+                        handleCellSave(row.id, col.id, col.type, opt.value);
+                      }}
+                    >
+                      <Box sx={{ width: 16, height: 16, bgcolor: opt.color, borderRadius: '50%', mr: 1, display: 'inline-block' }} />
+                      {opt.value}
+                    </MenuItem>
+                  )
                 ))}
               </Select>
             </FormControl>
@@ -588,8 +811,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                     size="small"
                     placeholder="Add label"
                     value={newStatusLabel}
-                    onChange={e => setNewStatusLabel(e.target.value)}
-                    onKeyDown={e => {
+                    onChange={(e) => setNewStatusLabel(e.target.value)}
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         handleAddStatusLabel(effectiveCol.id);
                       }
@@ -600,7 +823,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                     type="color"
                     value={newStatusColor}
                     style={{ width: 28, height: 28, border: 'none', background: 'none', marginLeft: 4, marginRight: 4, cursor: 'pointer' }}
-                    onChange={e => setNewStatusColor(e.target.value)}
+                    onChange={(e) => setNewStatusColor(e.target.value)}
                   />
                   <IconButton size="small" color="primary" disabled={!newStatusLabel.trim()} onClick={() => handleAddStatusLabel(effectiveCol.id)}>
                     <AddIcon fontSize="small" />
@@ -611,14 +834,137 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Box>
         );
       }
+      // Country column: dropdown in edit mode only
+      if (col.type && col.type.toLowerCase() === "country" && col.options) {
+  return (
+    <FormControl size="small" fullWidth>
+      <Select
+        value={value}
+        onChange={e => {
+          setEditValue(e.target.value);
+          handleCellSave(row.id, col.id, col.type, e.target.value);
+        }}
+        sx={{ color: '#fff', background: '#222' }}
+        id={`country-select-read-${row.id}-${col.id}`}
+        name={`country-select-read-${row.id}-${col.id}`}
+      >
+        {col.options.map((opt: ColumnOption) => (
+          <MenuItem key={opt.value} value={opt.value} sx={{ color: '#fff', background: '#222', display: 'flex', alignItems: 'center' }}>
+            {countryCodeMap[opt.value as keyof typeof countryCodeMap] ? (
+              <Flag country={countryCodeMap[opt.value as keyof typeof countryCodeMap]} size={20} style={{ marginRight: 8, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
+            ) : null}
+            {opt.value}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+}
+      // Message column: show chat popover trigger in edit mode
+      if (effectiveCol.type === "Message") {
+        return (
+          <>
+            <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
+              Chat
+            </Button>
+            {chatPopoverKey === `${row.id}-${col.id}` && chatAnchor && (
+              <Popover
+                open={!!chatAnchor}
+                anchorEl={chatAnchor}
+                onClose={handleCloseChat}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                PaperProps={{
+                  sx: {
+                    p: 0,
+                    minWidth: 340,
+                    maxWidth: 420,
+                    bgcolor: '#23234a',
+                    borderRadius: 3,
+                    boxShadow: '0 8px 32px rgba(44,45,74,0.25)',
+                    border: '2px solid #0073ea',
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', flexDirection: 'column', height: 380 }}>
+                  <Box sx={{
+                    px: 2,
+                    py: 1.5,
+                    bgcolor: '#2c2d4a',
+                    borderTopLeftRadius: 12,
+                    borderTopRightRadius: 12,
+                    borderBottom: '1px solid #3a3b5a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}>
+                    <Avatar sx={{ bgcolor: '#0073ea', width: 36, height: 36, fontWeight: 700 }}>💬</Avatar>
+                    <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>Task Chat</Typography>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#fff' }}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
+                  <Box sx={{ flex: 1, overflowY: 'auto', px: 2, py: 1, bgcolor: '#23234a' }}>
+                    {chatMessages.length === 0 ? (
+                      <Typography color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>No messages yet. Start the conversation!</Typography>
+                    ) : (
+                      chatMessages.map(msg => (
+                        <Box key={msg.id} sx={{ mb: 2, display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 1 }}>
+                          <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontWeight: 700 }}>{msg.sender[0]}</Avatar>
+                          <Box sx={{ bgcolor: '#2c2d4a', borderRadius: 2, px: 2, py: 1, minWidth: 120, maxWidth: 260 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{msg.sender}</Typography>
+                            <Typography variant="body1" sx={{ color: '#bfc8e0', fontSize: 15 }}>{msg.text}</Typography>
+                            <Typography variant="caption" sx={{ fontSize: 11, color: '#fff' }}>{new Date(msg.timestamp).toLocaleString()}</Typography>
+                          </Box>
+                        </Box>
+                      ))
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, bgcolor: '#23234a', borderTop: '1px solid #3a3b5a' }}>
+                    <TextField
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      size="small"
+                      placeholder="Type a fun message..."
+                      fullWidth
+                      sx={{ bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2, '& .MuiInputBase-input': { color: '#fff' } }}
+                    />
+                    <Button onClick={handleSendChat} disabled={!chatInput.trim()} variant="contained" sx={{ bgcolor: '#0073ea', color: '#fff', fontWeight: 700, borderRadius: 2, boxShadow: '0 2px 8px #0073ea33' }}>Send</Button>
+                  </Box>
+                </Box>
+              </Popover>
+            )}
+          </>
+        );
+      }
       // Date
       if (col.type === "Date") {
         return (
           <DatePicker
             value={editValue || null}
             onChange={val => setEditValue(val)}
-            onClose={() => handleCellSave(row.id, col.id, col.type)}
-            slotProps={{ textField: { size: 'small', autoFocus: true } }}
+            slotProps={{
+              textField: {
+                size: 'small',
+                autoFocus: true,
+                InputProps: { style: { color: '#fff' } },
+                sx: { bgcolor: '#333', color: '#fff' },
+                onBlur: () => {
+                  if (editValue && dayjs(editValue).isValid()) {
+                    handleCellSave(row.id, col.id, col.type, editValue);
+                  }
+                },
+                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (editValue && dayjs(editValue).isValid()) {
+                      handleCellSave(row.id, col.id, col.type, editValue);
+                    }
+                  }
+                }
+              }
+            }}
           />
         );
       }
@@ -634,7 +980,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             return true;
           });
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', width: '100%' }}
+              onClick={e => e.stopPropagation()}
+              onMouseDown={e => e.stopPropagation()}
+            >
               {deduped.map((person: any) => (
                 <Chip
                   key={person.email}
@@ -729,11 +1079,22 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             onKeyDown={e => e.key === "Enter" && handleCellSave(row.id, col.id)}
             size="small"
             autoFocus
-            inputProps={{ inputMode: 'decimal', pattern: '^-?\\d*\\.?\\d*$' }}
+            id={`number-input-${row.id}-${col.id}`}
+            name={`number-input-${row.id}-${col.id}`}
+            inputProps={{ inputMode: 'decimal', pattern: '^-?\d*\.?\d*$', style: { color: '#fff' } }}
+            InputProps={{ style: { color: '#fff' } }}
           />
         );
       }
       // Default: text input
+      // Message column: show chat popover trigger
+      if (col.type === "Message") {
+        return (
+          <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
+            Chat
+          </Button>
+        );
+      }
       return (
         <TextField
           value={editValue}
@@ -742,10 +1103,105 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           onKeyDown={e => e.key === "Enter" && handleCellSave(row.id, col.id)}
           size="small"
           autoFocus
+          id={`text-input-${row.id}-${col.id}`}
+          name={`text-input-${row.id}-${col.id}`}
+          InputProps={{ style: { color: '#fff' } }}
         />
       );
     }
     // --- Read mode ---
+    // Country column: always show dropdown with flag icons using effectiveCol (case-insensitive)
+    if (effectiveCol.type && effectiveCol.type.toLowerCase() === "country" && effectiveCol.options) {
+      // Read mode: styled country display
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: 2, bgcolor: '#23234a', minHeight: 44, minWidth: 160 }}>
+          {countryCodeMap[value as keyof typeof countryCodeMap] ? (
+            <Flag country={countryCodeMap[value as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
+          ) : null}
+          <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{value || <span style={{ color: '#888' }}>No country</span>}</Typography>
+        </Box>
+      );
+    }
+    // --- Read mode ---
+    // Message column: show chat popover trigger
+    if (col.type === "Message") {
+      return (
+        <>
+          <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
+            Chat
+          </Button>
+          {chatPopoverKey === `${row.id}-${col.id}` && chatAnchor && (
+            <Popover
+              open={!!chatAnchor}
+              anchorEl={chatAnchor}
+              onClose={handleCloseChat}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              PaperProps={{
+                sx: {
+                  p: 0,
+                  minWidth: 340,
+                  maxWidth: 420,
+                  bgcolor: '#23234a',
+                  borderRadius: 3,
+                  boxShadow: '0 8px 32px rgba(44,45,74,0.25)',
+                  border: '2px solid #0073ea',
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', flexDirection: 'column', height: 380 }}>
+                <Box sx={{
+                  px: 2,
+                  py: 1.5,
+                  bgcolor: '#2c2d4a',
+                  borderTopLeftRadius: 12,
+                  borderTopRightRadius: 12,
+                  borderBottom: '1px solid #3a3b5a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}>
+                  <Avatar sx={{ bgcolor: '#0073ea', width: 36, height: 36, fontWeight: 700 }}>💬</Avatar>
+                  <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>Task Chat</Typography>
+                  <Box sx={{ flexGrow: 1 }} />
+                  <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#fff' }}>
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+                <Box sx={{ flex: 1, overflowY: 'auto', px: 2, py: 1, bgcolor: '#23234a' }}>
+                  {chatMessages.length === 0 ? (
+                    <Typography color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>No messages yet. Start the conversation!</Typography>
+                  ) : (
+                    chatMessages.map(msg => (
+                      <Box key={msg.id} sx={{ mb: 2, display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 1 }}>
+                        <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontWeight: 700 }}>{msg.sender[0]}</Avatar>
+                        <Box sx={{ bgcolor: '#2c2d4a', borderRadius: 2, px: 2, py: 1, minWidth: 120, maxWidth: 260 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{msg.sender}</Typography>
+                          <Typography variant="body1" sx={{ color: '#bfc8e0', fontSize: 15 }}>{msg.text}</Typography>
+                          <Typography variant="caption" sx={{ fontSize: 11, color: '#fff' }}>{new Date(msg.timestamp).toLocaleString()}</Typography>
+                        </Box>
+                      </Box>
+                    ))
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, bgcolor: '#23234a', borderTop: '1px solid #3a3b5a' }}>
+                  <TextField
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    size="small"
+                    placeholder="Type a fun message..."
+                    fullWidth
+                    sx={{ bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2, '& .MuiInputBase-input': { color: '#fff' } }}
+                  />
+                  <Button onClick={handleSendChat} disabled={!chatInput.trim()} variant="contained" sx={{ bgcolor: '#0073ea', color: '#fff', fontWeight: 700, borderRadius: 2, boxShadow: '0 2px 8px #0073ea33' }}>Send</Button>
+                </Box>
+              </Box>
+            </Popover>
+          )}
+        </>
+      );
+    }
+    // Fix popover anchor to button
     if (col.type === "Files") {
       const files = value && Array.isArray(value) ? value : [];
       // Hidden file input ref
@@ -908,8 +1364,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
     if (col.type === "Date") {
       return (
-        <Typography variant="body2" color="text.secondary" onClick={() => handleCellClick(row.id, col.id, value, col.type)}>
-          {value || "-"}
+        <Typography
+          variant="body2"
+          sx={{ color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+          onClick={() => handleCellClick(row.id, col.id, value, col.type)}
+        >
+          {value && dayjs(value).isValid() ? dayjs(value).format('YYYY-MM-DD') : '-'}
         </Typography>
       );
     }
@@ -923,6 +1383,94 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   // --- JSX ---
   return (
     <Box>
+      {/* Rename Column Dialog */}
+      <Dialog open={!!renamingColId} onClose={() => setRenamingColId(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Rename Column</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Column Name"
+            type="text"
+            fullWidth
+            value={renameValue}
+            onChange={e => setRenameValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && renamingColId && renameValue.trim()) {
+                handleRenameColumn(renamingColId, renameValue.trim());
+                setRenamingColId(null);
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenamingColId(null)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              if (renamingColId && renameValue.trim()) {
+                handleRenameColumn(renamingColId, renameValue.trim());
+                setRenamingColId(null);
+              }
+            }}
+            variant="contained"
+            disabled={!renameValue.trim()}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Column Dialog */}
+      <Dialog open={!!deleteColId} onClose={() => setDeleteColId(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Column</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this column? This cannot be undone.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteColId(null)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              if (deleteColId) {
+                handleDeleteColumn(deleteColId);
+                setDeleteColId(null);
+              }
+            }}
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Column menu for rename/delete */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl) && !!colMenuId}
+        onClose={handleColMenuClose}
+        PaperProps={{ sx: { bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}
+      >
+        <MenuItem
+          onClick={() => {
+            setRenamingColId(colMenuId);
+            setRenameValue(columns.find(c => c.id === colMenuId)?.name || '');
+            handleColMenuClose();
+          }}
+          sx={{ color: '#fff' }}
+        >
+          <EditIcon fontSize="small" sx={{ mr: 1, color: '#fff' }} />
+          Rename
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setDeleteColId(colMenuId);
+            handleColMenuClose();
+          }}
+          sx={{ color: '#e2445c' }}
+        >
+          <DeleteIcon fontSize="small" sx={{ mr: 1, color: '#e2445c' }} />
+          Delete
+        </MenuItem>
+      </Menu>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
         <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddTask} sx={{ color: '#fff' }}>
           New task
@@ -930,6 +1478,27 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         <Button variant="outlined" onClick={(e) => { setShowColSelector(true); setColSelectorAnchor(e.currentTarget); }}>
           + Add column
         </Button>
+        {/* ColumnTypeSelector Popover */}
+        <Popover
+          open={showColSelector}
+          anchorEl={colSelectorAnchor}
+          onClose={() => setShowColSelector(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, boxShadow: 6, p: 2 } }}
+        >
+          <Box sx={{ minWidth: 420 }}>
+            <ColumnTypeSelector
+              onSelect={(type, label) => {
+                handleAddColumn(type, label);
+                setShowColSelector(false);
+              }}
+            />
+            <Box sx={{ textAlign: 'right', mt: 2 }}>
+              <Button onClick={() => setShowColSelector(false)} sx={{ color: '#fff', fontWeight: 600, borderRadius: 2, px: 3, py: 1, '&:hover': { bgcolor: '#35365a' } }}>Cancel</Button>
+            </Box>
+          </Box>
+        </Popover>
       </Box>
       <DragDropContext onDragEnd={onDragEnd}>
         <TableContainer
@@ -988,12 +1557,24 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             <Droppable droppableId="rows-droppable" type="row">
               {(provided) => (
                 <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                  {rows.map((row, rowIdx) => (
-                    <Draggable key={row.id || String(rowIdx)} draggableId={row.id ? String(row.id) : `row-${rowIdx}`} index={rowIdx}>
+                  {rows.filter(row => row.id).map((row, rowIdx) => (
+                    <Draggable draggableId={String(row.id)} index={rowIdx} key={row.id}>
                       {(provided) => (
                         <TableRow key={row.id} ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} sx={{ background: rowIdx % 2 === 0 ? '#23243a' : '#2c2d4a', '&:hover': { background: '#35365a' } }}>
                           {columns.map((col, colIdx) => (
-                            <TableCell key={col.id} align="left" sx={{ cursor: 'pointer', color: '#fff', background: 'inherit', borderBottom: '1.5px solid #35365a' }}>
+                            <TableCell
+                              key={col.id}
+                              align="left"
+                              sx={{ cursor: 'pointer', color: '#fff', background: 'inherit', borderBottom: '1.5px solid #35365a' }}
+                              onClick={() => {
+                                // Always allow single click to enter edit mode for any column
+                                handleCellClick(row.id, col.id, row.values[col.id], col.type);
+                              }}
+                              onDoubleClick={() => {
+                                // Also allow double click for legacy/UX reasons
+                                handleCellClick(row.id, col.id, row.values[col.id], col.type);
+                              }}
+                            >
                               {renderCell(row, col)}
                             </TableCell>
                           ))}
@@ -1001,140 +1582,22 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             <TaskRowMenu
                               row={row}
                               onDelete={async () => {
-                                setRows(rows => rows.filter(r => r.id !== row.id));
-                                await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
-                                  method: "DELETE",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ id: row.id }),
+                                setRows(rows => {
+                                  if (rows.length <= 1) return rows; // Prevent deleting last row
+                                  return rows.filter(r => r.id !== row.id);
                                 });
+                                // Only delete from backend if more than one row exists
+                                if (rows.length > 1) {
+                                  await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+                                    method: "DELETE",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ id: row.id }),
+                                  });
+                                }
                               }}
                               onView={() => setReviewTask(row)}
                             />
                           </TableCell>
-                              {/* Task Review Drawer/Dialog */}
-                              <Dialog
-                                open={!!reviewTask}
-                                onClose={() => { setReviewTask(null); setShowEmailAutomation(false); }}
-                                maxWidth="sm"
-                                fullWidth
-                                PaperProps={{
-                                  sx: {
-                                    m: 1,
-                                    width: '100%',
-                                    maxWidth: { xs: '100vw', sm: 600 },
-                                    minHeight: 200,
-                                    '@media (max-width: 600px)': {
-                                      maxWidth: '100vw',
-                                      m: 0,
-                                    },
-                                  },
-                                }}
-                              >
-                                <DialogTitle>Task Details</DialogTitle>
-                                <DialogContent dividers>
-                                  {reviewTask && !showEmailAutomation && (
-                                    <Box>
-                                      {columns.map((col) => (
-                                        <Box key={col.id} sx={{ mb: 2 }}>
-                                          <Typography variant="subtitle2" color="text.secondary">{col.name}</Typography>
-                                          <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
-                                            {Array.isArray(reviewTask.values[col.id])
-                                              ? reviewTask.values[col.id].map((v: any, i: number) => typeof v === 'object' && v !== null ? v.name || v.email || JSON.stringify(v) : String(v)).join(', ')
-                                              : String(reviewTask.values[col.id] ?? "-")}
-                                          </Typography>
-                                        </Box>
-                                      ))}
-                                      <Box sx={{ mt: 3 }}>
-                                        <Typography variant="subtitle1" fontWeight={600} mb={1}>Options</Typography>
-                                        <Button variant="outlined" onClick={() => setShowEmailAutomation(true)}>
-                                          Email Automation
-                                        </Button>
-                                      </Box>
-                                    </Box>
-                                  )}
-                                  {reviewTask && showEmailAutomation && (
-                                    <Box>
-                                      <Typography variant="h6" mb={2}>Email Automation</Typography>
-                                      <FormControl fullWidth sx={{ mb: 2 }}>
-                                        <InputLabel id="email-trigger-col-label">Send email when column is edited</InputLabel>
-                                        <Select
-                                          labelId="email-trigger-col-label"
-                                          value={emailTriggerCol || ''}
-                                          label="Send email when column is edited"
-                                          onChange={e => setEmailTriggerCol(e.target.value)}
-                                        >
-                                          {columns.map(col => (
-                                            <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
-                                          ))}
-                                        </Select>
-                                      </FormControl>
-                                      <FormControl fullWidth sx={{ mb: 2 }}>
-                                        <InputLabel id="email-cols-label">Columns to include in email</InputLabel>
-                                        <Select
-                                          labelId="email-cols-label"
-                                          multiple
-                                          value={emailCols}
-                                          onChange={e => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                                          renderValue={(selected) => columns.filter(col => selected.includes(col.id)).map(col => col.name).join(', ')}
-                                        >
-                                          {columns.map(col => (
-                                            <MenuItem key={col.id} value={col.id}>
-                                              <Checkbox checked={emailCols.indexOf(col.id) > -1} />
-                                              <ListItemText primary={col.name} />
-                                            </MenuItem>
-                                          ))}
-                                        </Select>
-                                      </FormControl>
-                                      {/* Recipient selection from People column */}
-                                      <FormControl fullWidth sx={{ mb: 2 }}>
-                                        <InputLabel id="email-recipients-label">Recipients</InputLabel>
-                                        <Select
-                                          labelId="email-recipients-label"
-                                          multiple
-                                          value={emailRecipients}
-                                          onChange={e => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                                          renderValue={(selected) => selected.map((email: string) => {
-                                            const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
-                                            return person ? person.name : email;
-                                          }).join(', ')}
-                                        >
-                                          {peopleOptions.map((person: { name: string; email: string }) => (
-                                            <MenuItem key={person.email} value={person.email}>
-                                              <Checkbox checked={emailRecipients.indexOf(person.email) > -1} />
-                                              <ListItemText primary={person.name} />
-                                            </MenuItem>
-                                          ))}
-                                        </Select>
-                                      </FormControl>
-                                      <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                                        <Button variant="outlined" onClick={() => setShowEmailAutomation(false)}>Back</Button>
-                                        <Button
-                                          variant="contained"
-                                          color="primary"
-                                          onClick={async () => {
-                                            // Save automation settings to backend
-                                            await fetch(getApiUrl(`/automation/${tableId}`), {
-                                              method: 'POST',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({
-                                                triggerCol: emailTriggerCol,
-                                                cols: emailCols,
-                                                recipients: emailRecipients
-                                              })
-                                            });
-                                            setShowEmailAutomation(false);
-                                          }}
-                                        >
-                                          Save Automation
-                                        </Button>
-                                      </Box>
-                                    </Box>
-                                  )}
-                                </DialogContent>
-                                <DialogActions>
-                                  <Button onClick={() => { setReviewTask(null); setShowEmailAutomation(false); }}>Close</Button>
-                                </DialogActions>
-                              </Dialog>
                         </TableRow>
                       )}
                     </Draggable>
@@ -1164,162 +1627,154 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Table>
         </TableContainer>
       </DragDropContext>
-      {/* Column menu (edit/delete) */}
-      <Menu anchorEl={anchorEl} open={!!colMenuId} onClose={handleColMenuClose}>
-        <MenuItem onClick={e => {
-          setRenamingColId(colMenuId);
-          setRenameValue(columns.find(c => c.id === colMenuId)?.name || "");
-          setRenameAnchorEl(e.currentTarget);
-          handleColMenuClose();
-        }} sx={{ color: '#fff' }}><EditIcon fontSize="small" sx={{ mr: 1, color: '#4f51c0' }} />Rename column</MenuItem>
-        <MenuItem onClick={() => {
-          setDeleteColId(colMenuId);
-          handleColMenuClose();
-        }} sx={{ color: '#e2445c' }}><DeleteIcon fontSize="small" sx={{ mr: 1, color: '#e2445c' }} />Delete column</MenuItem>
-      </Menu>
-      {/* File preview/delete dialog */}
-      <Menu
-        open={fileDialog.open}
-        onClose={() => setFileDialog({ open: false, file: null, rowId: null, colId: null })}
-        anchorEl={null}
-        anchorReference="none"
-        PaperProps={{ sx: { minWidth: 340, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}
-      >
-        <Typography fontWeight={600} mb={2} align="center" sx={{ color: '#fff' }}>File: {fileDialog.file?.name ?? ''}</Typography>
-        {fileDialog.file && fileDialog.file.type && fileDialog.file.type.startsWith('image/') ? (
-          <img
-            src={fileDialog.file ? URL.createObjectURL(fileDialog.file) : ''}
-            alt={fileDialog.file ? fileDialog.file.name : ''}
-            style={{ maxWidth: 280, maxHeight: 200, marginBottom: 16, borderRadius: 8 }}
-          />
-        ) : fileDialog.file ? (
-          <Typography variant="body2" color="text.secondary" mb={2}>Cannot preview this file type.</Typography>
-        ) : null}
-        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-          {fileDialog.file ? (
-            <Button
-              variant="outlined"
-              onClick={() => {
-                if (fileDialog.file) {
-                  const url = URL.createObjectURL(fileDialog.file);
-                  window.open(url, '_blank');
-                }
-              }}
-            >
-              Open
-            </Button>
-          ) : null}
-          <Button color="error" variant="contained" onClick={handleFileDelete}>
-            Delete
-          </Button>
-        </Box>
-      </Menu>
-      {/* Rename column dialog */}
-      <Dialog open={!!renamingColId} onClose={() => setRenamingColId(null)}>
-        <DialogTitle>Rename column</DialogTitle>
-        <DialogContent>
-          <TextField
-            value={renameValue}
-            onChange={e => setRenameValue(e.target.value)}
-            size="small"
-            fullWidth
-            autoFocus
-            margin="dense"
-            onKeyDown={async e => {
-              if (e.key === 'Enter') {
-                const updatedColumns = columns.map(c => c.id === renamingColId ? { ...c, name: renameValue } : c);
-                setColumns(updatedColumns);
-                setRenamingColId(null);
-                // Persist columns to backend
-                await fetch(getApiUrl(`/tables/${tableId}/columns`), {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ columns: updatedColumns }),
-                });
-                // Reload columns from backend
-                const tablesRes = await fetch(getApiUrl(`/tables`));
-                const tables = await tablesRes.json();
-                const table = tables.find((t: any) => t.id === tableId);
-                if (table) setColumns(table.columns || []);
-              }
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRenamingColId(null)}>Cancel</Button>
-          <Button onClick={async () => {
-            const updatedColumns = columns.map(c => c.id === renamingColId ? { ...c, name: renameValue } : c);
-            setColumns(updatedColumns);
-            setRenamingColId(null);
-            // Persist columns to backend
-            await fetch(getApiUrl(`/tables/${tableId}/columns`), {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ columns: updatedColumns }),
-            });
-            // Reload columns from backend
-            const tablesRes = await fetch(getApiUrl(`/tables`));
-            const tables = await tablesRes.json();
-            const table = tables.find((t: any) => t.id === tableId);
-            if (table) setColumns(table.columns || []);
-          }}>Save</Button>
-        </DialogActions>
-      </Dialog>
-      {/* Delete column confirm dialog */}
-      <Menu
-        open={!!deleteColId}
-        onClose={() => setDeleteColId(null)}
-        anchorEl={null}
-        anchorReference="none"
+
+      {/* Task Review Drawer/Dialog with Email Automation */}
+      <Dialog
+        open={!!reviewTask}
+        onClose={handleCloseReview}
+        maxWidth="sm"
+        fullWidth
         PaperProps={{
           sx: {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh',
-            minWidth: '100vw',
-            background: 'rgba(0,0,0,0.08)',
-            boxShadow: 'none',
-          }
+            m: 1,
+            width: '100%',
+            maxWidth: { xs: '100vw', sm: 600 },
+            minHeight: 200,
+            bgcolor: '#23243a',
+            color: '#fff',
+            borderRadius: 3,
+            boxShadow: 6,
+            p: { xs: 1, sm: 3 },
+            '@media (max-width: 600px)': {
+              maxWidth: '100vw',
+              m: 0,
+            },
+          },
         }}
       >
-        <Box sx={{ p: 4, minWidth: 320, bgcolor: 'background.paper', borderRadius: 3, boxShadow: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Typography fontWeight={600} mb={2} align="center">Delete this column?</Typography>
-          <Button color="error" variant="contained" fullWidth onClick={async () => {
-            if (!deleteColId) return;
-            // Remove column from columns
-            const updatedColumns = columns.filter(c => c.id !== deleteColId);
-            setColumns(updatedColumns);
-            setDeleteColId(null);
-            // Persist columns to backend
-            await fetch(getApiUrl(`/tables/${tableId}/columns`), {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ columns: updatedColumns }),
-            });
-            // Remove column values from all tasks and persist
-            const updatedRows = rows.map(row => {
-              const newValues = { ...row.values };
-              delete newValues[deleteColId];
-              return { ...row, values: newValues };
-            });
-            setRows(updatedRows);
-            for (const row of updatedRows) {
-              await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: row.id, values: row.values }),
-              });
-            }
-          }}>Delete</Button>
-        </Box>
-      </Menu>
-      {/* Column type selector modal */}
-      <Menu anchorEl={colSelectorAnchor} open={showColSelector} onClose={() => setShowColSelector(false)}>
-        <Box sx={{ p: 1 }}>
-          <ColumnTypeSelector onSelect={(type, label) => handleAddColumn(type, label)} />
-        </Box>
-      </Menu>
+        <DialogTitle sx={{ bgcolor: '#2c2d4a', color: '#fff', fontWeight: 700, fontSize: 22, borderRadius: 2, mb: 1, px: 3, py: 2 }}>
+          Task Details
+        </DialogTitle>
+        <DialogContent dividers sx={{ bgcolor: '#23243a', color: '#fff', px: { xs: 1, sm: 3 }, py: 2 }}>
+          {reviewTask && !showEmailAutomation && (
+            <Box>
+              {columns.map((col) => (
+                <Box key={col.id} sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ color: '#bfc8e0', fontWeight: 600, fontSize: 15 }}>{col.name}</Typography>
+                  <Typography variant="body1" sx={{ wordBreak: 'break-word', color: '#fff', fontWeight: 500, fontSize: 16 }}>
+                    {Array.isArray(reviewTask.values[col.id])
+                      ? reviewTask.values[col.id].map((v: any, i: number) => typeof v === 'object' && v !== null ? v.name || v.email || JSON.stringify(v) : String(v)).join(', ')
+                      : String(reviewTask.values[col.id] ?? "-")}
+                  </Typography>
+                </Box>
+              ))}
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle1" fontWeight={700} mb={1} sx={{ color: '#bfc8e0' }}>Options</Typography>
+                <Button variant="outlined" onClick={() => setShowEmailAutomation(true)} sx={{ color: '#fff', borderColor: '#4f51c0', borderRadius: 2, fontWeight: 600, px: 3, py: 1, '&:hover': { bgcolor: '#35365a', borderColor: '#4f51c0' } }}>
+                  Email Automation
+                </Button>
+              </Box>
+            </Box>
+          )}
+          {reviewTask && showEmailAutomation && (
+            <Box>
+              <Typography variant="h6" mb={2} sx={{ color: '#fff', fontWeight: 700 }}>Email Automation</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Typography sx={{ color: '#bfc8e0', fontWeight: 600, mr: 2 }}>Automation Enabled</Typography>
+                <Switch
+                  checked={automationEnabled}
+                  onChange={e => setAutomationEnabled(e.target.checked)}
+                  color="primary"
+                  sx={{ '& .MuiSwitch-thumb': { bgcolor: automationEnabled ? '#4f51c0' : '#888' } }}
+                />
+              </Box>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel id="email-trigger-col-label" sx={{ color: '#bfc8e0' }}>Send email when column is edited</InputLabel>
+                <Select
+                  labelId="email-trigger-col-label"
+                  value={emailTriggerCol || ''}
+                  label="Send email when column is edited"
+                  onChange={e => setEmailTriggerCol(e.target.value)}
+                  sx={{ color: '#fff', bgcolor: '#2c2d4a', borderRadius: 2 }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff' } } }}
+                >
+                  {columns.map(col => (
+                    <MenuItem key={col.id} value={col.id} sx={{ color: '#fff', bgcolor: '#23243a', '&.Mui-selected': { bgcolor: '#35365a' } }}>{col.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel id="email-cols-label" sx={{ color: '#bfc8e0' }}>Columns to include in email</InputLabel>
+                <Select
+                  labelId="email-cols-label"
+                  multiple
+                  value={emailCols}
+                  onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                  renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
+                  sx={{ color: '#fff', bgcolor: '#2c2d4a', borderRadius: 2 }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff' } } }}
+                >
+                  {columns.map((col) => (
+                    <MenuItem key={col.id} value={col.id} sx={{ color: '#fff', bgcolor: '#23243a', '&.Mui-selected': { bgcolor: '#35365a' } }}>
+                      <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#4f51c0' }} />
+                      <ListItemText primary={col.name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel id="email-recipients-label" sx={{ color: '#bfc8e0' }}>Recipients</InputLabel>
+                <Select
+                  labelId="email-recipients-label"
+                  multiple
+                  value={emailRecipients}
+                  onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                  renderValue={(selected) => selected.map((email: string) => {
+                    const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
+                    return person ? person.name : email;
+                  }).join(', ')}
+                  sx={{ color: '#fff', bgcolor: '#2c2d4a', borderRadius: 2 }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff' } } }}
+                >
+                  {peopleOptions.map((person: { name: string; email: string }) => (
+                    <MenuItem key={person.email} value={person.email} sx={{ color: '#fff', bgcolor: '#23243a', '&.Mui-selected': { bgcolor: '#35365a' } }}>
+                      <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#4f51c0' }} />
+                      <ListItemText primary={person.name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                <Button variant="outlined" onClick={() => setShowEmailAutomation(false)} sx={{ color: '#fff', borderColor: '#4f51c0', borderRadius: 2, fontWeight: 600, px: 3, py: 1, '&:hover': { bgcolor: '#35365a', borderColor: '#4f51c0' } }}>Back</Button>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  sx={{ bgcolor: '#4f51c0', color: '#fff', borderRadius: 2, fontWeight: 700, px: 3, py: 1, boxShadow: 2, '&:hover': { bgcolor: '#35365a' } }}
+                  onClick={async () => {
+                    // Save automation settings to backend
+                    await fetch(getApiUrl(`/automation/${tableId}`), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        enabled: automationEnabled,
+                        triggerCol: emailTriggerCol,
+                        cols: emailCols,
+                        recipients: emailRecipients
+                      })
+                    });
+                    setShowEmailAutomation(false);
+                  }}
+                >
+                  Save Automation
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ bgcolor: '#2c2d4a', borderRadius: 2, p: 2 }}>
+          <Button onClick={handleCloseReview} sx={{ color: '#fff', fontWeight: 600, borderRadius: 2, px: 3, py: 1, '&:hover': { bgcolor: '#35365a' } }}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

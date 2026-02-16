@@ -119,7 +119,12 @@ function BoardPage() {
     const res = await fetch(getApiUrl(`/tables`));
     const allTables = await res.json();
     setTables(allTables);
-    if (allTables.length > 0) {
+    // Set default to the correct tableId for automation
+    const automationTableId = "ca9b23aa-1158-4d78-97ef-4c2caa04e20b";
+    const found = allTables.find(t => t.id === automationTableId);
+    if (found) {
+      setSelectedTableId(automationTableId);
+    } else if (allTables.length > 0) {
       setSelectedTableId(allTables[0].id);
     } else {
       setSelectedTableId("");

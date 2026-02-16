@@ -21,10 +21,10 @@ function writeJson(file, data) {
 // Save automation for a table
 router.post('/automation/:tableId', (req, res) => {
   const automations = readJson(automationFile);
-  const { triggerCol, cols, recipients } = req.body;
+  const { triggerCol, cols, recipients, enabled } = req.body;
   const tableId = req.params.tableId;
   const idx = automations.findIndex(a => a.tableId === tableId);
-  const automation = { tableId, triggerCol, cols, recipients };
+  const automation = { tableId, triggerCol, cols, recipients, enabled };
   if (idx !== -1) automations[idx] = automation;
   else automations.push(automation);
   writeJson(automationFile, automations);

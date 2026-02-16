@@ -1,3 +1,11 @@
+/* Remove white background from MUI Popover/Menu Paper globally */
+.MuiPopover-paper, .MuiMenu-paper, .MuiPaper-root.MuiPopover-paper, .MuiPaper-root.MuiMenu-paper {
+  background: #23243a !important;
+  color: #fff !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.32) !important;
+  border-radius: 12px !important;
+  border: none !important;
+}
 @import "tailwindcss";
 
 :root {

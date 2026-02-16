@@ -1,4 +1,4 @@
-// Main Workspace Page
+// Main Workspace Page removed
 import React from 'react';
 import TableBoard from '../TableBoard';
 
