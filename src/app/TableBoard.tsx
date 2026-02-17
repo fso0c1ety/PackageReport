@@ -124,6 +124,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [emailTriggerCol, setEmailTriggerCol] = useState<string>("");
   const [emailCols, setEmailCols] = useState<string[]>([]);
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
+  const [automationLoading, setAutomationLoading] = useState(false);
   // Find the first column of type 'People'
   const peopleCol = columns.find(col => col.type === 'People');
   // Extract people options from the current task's people column
@@ -226,19 +227,48 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       newColumns.splice(result.destination.index, 0, removed);
       newColumns.forEach((col, idx) => (col.order = idx));
       setColumns(newColumns);
+      // Persist new column order to backend
+      await fetch(getApiUrl(`/tables/${tableId}/columns`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ columns: newColumns }),
+      });
+      // Reload columns from backend to ensure persistence
+      const tablesRes = await fetch(getApiUrl(`/tables`));
+      const tables = await tablesRes.json();
+      const table = tables.find((t: any) => t.id === tableId);
+      if (table) setColumns(table.columns || []);
     }
     // Row drag
     if (result.type === 'row') {
       const newRows = Array.from(rows);
       const [removed] = newRows.splice(result.source.index, 1);
       newRows.splice(result.destination.index, 0, removed);
+      // Ensure all rows have unique, non-empty ids
+      const allIds = newRows.map(r => r.id);
+      const hasDuplicates = allIds.length !== new Set(allIds).size;
+      const hasMissing = allIds.some(id => !id);
+      console.log('Drag result:', result);
+      console.log('New row order:', newRows);
+      if (hasDuplicates) {
+        console.error('Duplicate row ids detected:', allIds);
+      }
+      if (hasMissing) {
+        console.error('Some rows are missing ids:', newRows);
+      }
       setRows(newRows);
-      // Optionally, persist new order to backend
-      // await fetch(getApiUrl(`/tables/${TABLE_ID}/tasks`), {
-      //   method: "PUT",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(newRows),
-      // });
+      // Persist new row order to backend (send only orderedTaskIds)
+      await fetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedTaskIds: newRows.map(r => r.id) }),
+      });
+      // Reload rows from backend to ensure persistence
+      const res = await fetch(getApiUrl(`/tables/${tableId}/tasks`));
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setRows(data);
+      }
     }
   };
 
@@ -1500,62 +1530,63 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Box>
         </Popover>
       </Box>
+
       <DragDropContext onDragEnd={onDragEnd}>
-        <TableContainer
-          component={Paper}
-          sx={{
-            borderRadius: 3,
-            boxShadow: 2,
-            overflowX: 'auto',
-            maxWidth: '100vw',
-            '@media (max-width: 900px)': {
-              minWidth: 0,
-              px: 0,
-            },
-          }}
-        >
-          <Table
-            sx={{
-              background: '#23243a',
-              color: '#fff',
-              borderRadius: 3,
-              minWidth: 650,
-              '@media (max-width: 900px)': {
-                minWidth: 500,
-              },
-            }}
-          >
-            <TableHead>
-              <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
-                {(provided) => (
-                  <TableRow ref={provided.innerRef} {...provided.droppableProps} sx={{ background: '#23243a' }}>
-                    {columns.map((col, colIdx) => (
-                      <Draggable key={col.id} draggableId={col.id} index={colIdx}>
-                        {(provided) => (
-                          <TableCell
-                            align="left"
-                            sx={{ fontWeight: 700, fontSize: 16, color: '#fff', background: '#23243a', borderBottom: '2px solid #35365a' }}
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              {col.name}
-                              <IconButton size="small" sx={{ color: '#bfc8e0' }} onClick={(e) => handleColMenuOpen(e, col.id)}>
-                                <MoreVertIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          </TableCell>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </TableRow>
-                )}
-              </Droppable>
-            </TableHead>
-            <Droppable droppableId="rows-droppable" type="row">
-              {(provided) => (
+        <Droppable droppableId="rows-droppable" type="row">
+          {(provided) => (
+            <TableContainer
+              component={Paper}
+              sx={{
+                borderRadius: 3,
+                boxShadow: 2,
+                overflowX: 'auto',
+                maxWidth: '100vw',
+                '@media (max-width: 900px)': {
+                  minWidth: 0,
+                  px: 0,
+                },
+              }}
+            >
+              <Table
+                sx={{
+                  background: '#23243a',
+                  color: '#fff',
+                  borderRadius: 3,
+                  minWidth: 650,
+                  '@media (max-width: 900px)': {
+                    minWidth: 500,
+                  },
+                }}
+              >
+                <TableHead>
+                  <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
+                    {(providedCol) => (
+                      <TableRow ref={providedCol.innerRef} {...providedCol.droppableProps} sx={{ background: '#23243a' }}>
+                        {columns.map((col, colIdx) => (
+                          <Draggable key={col.id} draggableId={col.id} index={colIdx}>
+                            {(provided) => (
+                              <TableCell
+                                align="left"
+                                sx={{ fontWeight: 700, fontSize: 16, color: '#fff', background: '#23243a', borderBottom: '2px solid #35365a' }}
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {col.name}
+                                  <IconButton size="small" sx={{ color: '#bfc8e0' }} onClick={(e) => handleColMenuOpen(e, col.id)}>
+                                    <MoreVertIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              </TableCell>
+                            )}
+                          </Draggable>
+                        ))}
+                        {providedCol.placeholder}
+                      </TableRow>
+                    )}
+                  </Droppable>
+                </TableHead>
                 <TableBody ref={provided.innerRef} {...provided.droppableProps}>
                   {rows.filter(row => row.id).map((row, rowIdx) => (
                     <Draggable draggableId={String(row.id)} index={rowIdx} key={row.id}>
@@ -1622,10 +1653,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   </TableRow>
                   {provided.placeholder}
                 </TableBody>
-              )}
-            </Droppable>
-          </Table>
-        </TableContainer>
+              </Table>
+            </TableContainer>
+          )}
+        </Droppable>
       </DragDropContext>
 
       {/* Task Review Drawer/Dialog with Email Automation */}
@@ -1670,7 +1701,37 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               ))}
               <Box sx={{ mt: 3 }}>
                 <Typography variant="subtitle1" fontWeight={700} mb={1} sx={{ color: '#bfc8e0' }}>Options</Typography>
-                <Button variant="outlined" onClick={() => setShowEmailAutomation(true)} sx={{ color: '#fff', borderColor: '#4f51c0', borderRadius: 2, fontWeight: 600, px: 3, py: 1, '&:hover': { bgcolor: '#35365a', borderColor: '#4f51c0' } }}>
+                <Button
+                  variant="outlined"
+                  onClick={async () => {
+                    if (!reviewTask || !reviewTask.id || reviewTask.id === 'placeholder') {
+                      setShowEmailAutomation(true);
+                      return;
+                    }
+                    setAutomationLoading(true);
+                    // Try to load per-task automation config first
+                    let config = null;
+                    try {
+                      const res = await fetch(getApiUrl(`/automation/${tableId}`));
+                      if (res.ok) {
+                        const allConfigs = await res.json();
+                        if (Array.isArray(allConfigs)) {
+                          config = allConfigs.find((a: any) => a.taskId === reviewTask.id) || allConfigs.find((a: any) => a.tableId === tableId && !a.taskId);
+                        } else if (allConfigs && typeof allConfigs === 'object') {
+                          // If backend returns a single config (legacy), use it
+                          config = allConfigs;
+                        }
+                      }
+                    } catch {}
+                    setAutomationEnabled(config?.enabled ?? true);
+                    setEmailTriggerCol(config?.triggerCol ?? "");
+                    setEmailCols(config?.cols ?? []);
+                    setEmailRecipients(config?.recipients ?? []);
+                    setAutomationLoading(false);
+                    setShowEmailAutomation(true);
+                  }}
+                  sx={{ color: '#fff', borderColor: '#4f51c0', borderRadius: 2, fontWeight: 600, px: 3, py: 1, '&:hover': { bgcolor: '#35365a', borderColor: '#4f51c0' } }}
+                >
                   Email Automation
                 </Button>
               </Box>
@@ -1678,6 +1739,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           )}
           {reviewTask && showEmailAutomation && (
             <Box>
+              {automationLoading && <Typography sx={{ color: '#bfc8e0', mb: 2 }}>Loading automation settings...</Typography>}
               <Typography variant="h6" mb={2} sx={{ color: '#fff', fontWeight: 700 }}>Email Automation</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Typography sx={{ color: '#bfc8e0', fontWeight: 600, mr: 2 }}>Automation Enabled</Typography>
@@ -1752,15 +1814,19 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   sx={{ bgcolor: '#4f51c0', color: '#fff', borderRadius: 2, fontWeight: 700, px: 3, py: 1, boxShadow: 2, '&:hover': { bgcolor: '#35365a' } }}
                   onClick={async () => {
                     // Save automation settings to backend
+                    const body = {
+                      enabled: automationEnabled,
+                      triggerCol: emailTriggerCol,
+                      cols: emailCols,
+                      recipients: emailRecipients
+                    };
+                    if (reviewTask && reviewTask.id && reviewTask.id !== 'placeholder') {
+                      body.taskId = reviewTask.id;
+                    }
                     await fetch(getApiUrl(`/automation/${tableId}`), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        enabled: automationEnabled,
-                        triggerCol: emailTriggerCol,
-                        cols: emailCols,
-                        recipients: emailRecipients
-                      })
+                      body: JSON.stringify(body)
                     });
                     setShowEmailAutomation(false);
                   }}

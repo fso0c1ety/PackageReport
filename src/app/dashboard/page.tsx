@@ -99,11 +99,11 @@ export default function DashboardPage() {
 
   return (
     <Box sx={{ bgcolor: '#23243a', minHeight: '100vh', color: '#fff', p: 0 }}>
-      <Box sx={{ px: 4, py: 2, borderBottom: '1px solid #35365a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography fontWeight={700} fontSize={28}>Dashboard and Reporting</Typography>
+      <Box sx={{ px: { xs: 2, sm: 4 }, py: 2, borderBottom: '1px solid #35365a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography fontWeight={700} fontSize={{ xs: 20, sm: 28 }}>Dashboard and Reporting</Typography>
       </Box>
-      <Box sx={{ px: 4, py: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <FormControl sx={{ minWidth: 180 }} size="small">
+      <Box sx={{ px: { xs: 2, sm: 4 }, py: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 180 }, mb: { xs: 1, sm: 0 } }} size="small">
           <InputLabel sx={{ color: '#fff' }}>Workspace</InputLabel>
           <Select
             value={selectedWorkspace}
@@ -117,7 +117,7 @@ export default function DashboardPage() {
             ))}
           </Select>
         </FormControl>
-        <FormControl sx={{ minWidth: 180 }} size="small">
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 180 }, mb: { xs: 1, sm: 0 } }} size="small">
           <InputLabel sx={{ color: '#fff' }}>People</InputLabel>
           <Select
             value={selectedPerson}
@@ -136,56 +136,93 @@ export default function DashboardPage() {
           placeholder="Search tasks"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          sx={{ input: { color: "#fff" }, '& fieldset': { borderColor: '#35365a' }, minWidth: 180 }}
+          sx={{ input: { color: "#fff" }, '& fieldset': { borderColor: '#35365a' }, minWidth: { xs: '100%', sm: 180 } }}
         />
       </Box>
-      <Grid container spacing={2} px={4} pt={2}>
+      <Grid container spacing={2} px={{ xs: 0, sm: 4 }} pt={2}>
         <Grid item xs={12}>
-          <Box sx={{ width: '100%', overflowX: 'auto' }}>
-            <Box display="flex" flexDirection="row" gap={4} minWidth={1400}>
-              <Card sx={{ minWidth: 600, bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 2, boxShadow: "none", minHeight: 400 }}>
+          <Box sx={{ width: '100%', px: { xs: 1.5, sm: 0 } }}>
+            <Box
+              display="flex"
+              flexDirection={{ xs: 'column', md: 'row' }}
+              gap={{ xs: 2, md: 4 }}
+              minWidth={{ xs: 'unset', md: 1400 }}
+              alignItems={{ xs: 'stretch', md: 'flex-start' }}
+              width="100%"
+              mx={{ xs: 0, md: 0 }}
+            >
+              <Card sx={{
+                width: { xs: '100vw', md: 600 },
+                bgcolor: cardBg,
+                border: `1px solid ${border}`,
+                borderRadius: 2,
+                boxShadow: "none",
+                minHeight: 300,
+                mb: { xs: 2, md: 0 },
+                mx: { xs: 0, md: 0 },
+                alignSelf: 'stretch',
+                minWidth: { xs: 0, md: 0 },
+                maxWidth: { xs: '100%', md: 600 },
+                ml: { xs: 0, sm: 0, md: 0 },
+              }}>
                 <CardContent>
-                  <Typography fontWeight={600} fontSize={18} mb={2}>Task Status Overview</Typography>
-                  <ResponsiveContainer width={550} height={360}>
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={180}
-                        label={({ name, value }) => `${name}: ${value}`}
-                        stroke="#fff"
-                        strokeWidth={3}
-                      >
-                        {pieData.map((entry, idx) => (
-                          <Cell key={idx} fill={getStatusColor(entry.name)} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <Typography fontWeight={600} fontSize={{ xs: 15, md: 18 }} mb={2}>Task Status Overview</Typography>
+                  <Box sx={{ width: '100%', height: { xs: 220, sm: 300, md: 360 }, ml: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          label={({ name, value }) => `${name}: ${value}`}
+                          stroke="#fff"
+                          strokeWidth={3}
+                        >
+                          {pieData.map((entry, idx) => (
+                            <Cell key={idx} fill={getStatusColor(entry.name)} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
                 </CardContent>
               </Card>
-              <Card sx={{ minWidth: 800, bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 2, boxShadow: "none", minHeight: 400 }}>
+              <Card sx={{
+                width: { xs: '100%', md: 800 },
+                bgcolor: cardBg,
+                border: `1px solid ${border}`,
+                borderRadius: 2,
+                boxShadow: "none",
+                minHeight: 300,
+                mx: { xs: 0, md: 0 },
+                alignSelf: 'stretch',
+                minWidth: { xs: 0, md: 0 },
+                maxWidth: { xs: '100%', md: 800 },
+                ml: { xs: 0, sm: 0, md: 0 },
+              }}>
                 <CardContent>
-                  <Typography fontWeight={600} fontSize={18} mb={2}>Tasks per Person</Typography>
-                  <ResponsiveContainer width={750} height={360}>
-                    <BarChart data={barData}>
-                      <XAxis stroke="#9ca3af" dataKey="name" fontSize={18} tickLine={false} axisLine={{ stroke: '#4f51c0', strokeWidth: 2 }} />
-                      <YAxis stroke="#9ca3af" fontSize={18} tickLine={false} axisLine={{ stroke: '#4f51c0', strokeWidth: 2 }} />
-                      <Tooltip wrapperStyle={{ fontSize: 18, background: '#23243a', color: '#fff', border: '2px solid #4f51c0', borderRadius: 8 }} />
-                      <Bar dataKey="count" fill="#5B8DEF" radius={[12, 12, 0, 0]} stroke="#23243a" strokeWidth={2} label={{ position: 'top', fontSize: 18, fill: '#fff', fontWeight: 700 }} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <Typography fontWeight={600} fontSize={{ xs: 15, md: 18 }} mb={2}>Tasks per Person</Typography>
+                  <Box sx={{ width: '100%', height: { xs: 220, sm: 300, md: 360 }, ml: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={barData}>
+                        <XAxis stroke="#9ca3af" dataKey="name" fontSize={12} tickLine={false} axisLine={{ stroke: '#4f51c0', strokeWidth: 2 }} />
+                        <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={{ stroke: '#4f51c0', strokeWidth: 2 }} />
+                        <Tooltip wrapperStyle={{ fontSize: 14, background: '#23243a', color: '#fff', border: '2px solid #4f51c0', borderRadius: 8 }} />
+                        <Bar dataKey="count" fill="#5B8DEF" radius={[12, 12, 0, 0]} stroke="#23243a" strokeWidth={2} label={{ position: 'top', fontSize: 12, fill: '#fff', fontWeight: 700 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Box>
                 </CardContent>
               </Card>
             </Box>
           </Box>
         </Grid>
       </Grid>
-      <Box px={4} py={4}>
-        <Card sx={{ bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 2, boxShadow: "none", width: '100%' }}>
+      <Box px={{ xs: 1, sm: 4 }} py={4}>
+        <Card sx={{ bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 2, boxShadow: "none", width: '100%', fontSize: { xs: 12, sm: 16 } }}>
           <CardContent>
             <Typography fontWeight={600} fontSize={18} mb={2}>Tasks Table</Typography>
             <Box sx={{ overflowX: 'auto' }}>

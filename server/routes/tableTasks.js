@@ -1,8 +1,27 @@
-// server/routes/tableTasks.js
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const router = express.Router();
+// PUT /tables/:tableId/tasks/order - update the order of all tasks in a table
+router.put('/tables/:tableId/tasks/order', (req, res) => {
+  const { rows } = req.body;
+  console.log('[ORDER] Received new row order for table', req.params.tableId, rows);
+  if (!Array.isArray(rows)) {
+    console.error('[ORDER] Missing rows array in request body');
+    return res.status(400).json({ error: 'Missing rows array' });
+  }
+  let tables = readJson(tablesFile);
+  const tableIdx = tables.findIndex(t => t.id === req.params.tableId);
+  if (tableIdx === -1) {
+    console.error('[ORDER] Table not found:', req.params.tableId);
+    return res.status(404).json({ error: 'Table not found' });
+  }
+  tables[tableIdx].tasks = rows;
+  writeJson(tablesFile, tables);
+  console.log('[ORDER] Saved new row order for table', req.params.tableId, tables[tableIdx].tasks);
+  res.json({ success: true, tasks: tables[tableIdx].tasks });
+});
+// server/routes/tableTasks.js
 
 const dataDir = path.join(__dirname, '../data');
 const tablesFile = path.join(dataDir, 'tables.json');

@@ -1,3 +1,5 @@
+// --- Task Order Endpoint for Drag-and-Drop ---
+// (Endpoint is now placed at the end of the file, after all initialization)
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -14,9 +16,11 @@ app.use(express.json());
 const peopleRoute = require('./routes/people');
 const automationRoute = require('./routes/automation');
 const emailerRoute = require('./routes/emailer');
+// const tableTasksRoute = require('./routes/tableTasks');
 app.use('/api', peopleRoute);
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
+// app.use('/api', tableTasksRoute);
 const PORT = 4000;
 
 const dataDir = path.join(__dirname, 'data');
@@ -228,7 +232,10 @@ app.post('/api/tables', (req, res) => {
 app.get('/api/tables/:tableId/tasks', (req, res) => {
   const tables = readJson(tablesFile);
   const table = tables.find(t => t.id === req.params.tableId);
-  res.json(table && table.tasks ? table.tasks : []);
+  if (!table || !table.tasks) return res.json([]);
+  // Always return tasks sorted by order (default 0 if missing)
+  const sorted = [...table.tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  res.json(sorted);
 });
 
 // Get a specific task by ID for a table
@@ -258,16 +265,25 @@ app.post('/api/tables/:tableId/tasks', (req, res) => {
 });
 
 app.put('/api/tables/:tableId/tasks', async (req, res) => {
+  const debugLogs = [];
+  const log = (msg, obj) => {
+    console.log(msg, obj);
+    debugLogs.push({ msg, obj });
+  };
+  log('[TASK UPDATE] Incoming PUT /api/tables/:tableId/tasks', {
+    tableId: req.params.tableId,
+    body: req.body
+  });
   try {
     const tables = readJson(tablesFile);
     const table = tables.find(t => t.id === req.params.tableId);
     if (!table || !table.tasks) {
-      console.error('Table not found or missing tasks:', req.params.tableId);
+      log('Table not found or missing tasks', req.params.tableId);
       return res.status(404).json({ error: 'Table not found' });
     }
     const { id, values } = req.body;
     if (!id || typeof values !== 'object') {
-      console.error('Invalid request body for task update:', req.body);
+      log('Invalid request body for task update', req.body);
       return res.status(400).json({ error: 'Invalid request body' });
     }
     let found = false;
@@ -281,7 +297,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
       return task;
     });
     if (!found) {
-      console.error('Task not found for update:', id);
+      log('Task not found for update', id);
       return res.status(404).json({ error: 'Task not found' });
     }
     writeJson(tablesFile, tables);
@@ -290,66 +306,148 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     const updatedTable = afterWrite.find(t => t.id === req.params.tableId);
     const updatedTask = updatedTable && updatedTable.tasks ? updatedTable.tasks.find(task => task.id === id) : null;
     if (!updatedTask || JSON.stringify(updatedTask.values) !== JSON.stringify(values)) {
-      console.error('Persistence error: Task values after write do not match expected.', { expected: values, actual: updatedTask ? updatedTask.values : null });
+      log('Persistence error: Task values after write do not match expected.', { expected: values, actual: updatedTask ? updatedTask.values : null });
       return res.status(500).json({ error: 'Persistence error: Task not updated correctly.' });
     }
 
     // --- EMAIL AUTOMATION LOGIC ---
-    // Load automation config for this table
     const automationFile = path.join(dataDir, 'automation.json');
     let automations = [];
     try { automations = JSON.parse(fs.readFileSync(automationFile, 'utf-8')); } catch {}
-    const automation = automations.find(a => a.tableId === req.params.tableId);
-    if (automation && automation.triggerCol) {
-      // If the triggerCol value changed, send email
-      const triggerCol = automation.triggerCol;
+    // Check for per-task automation config
+    const perTaskAutomation = automations.find(a => a.taskId === id);
+    if (perTaskAutomation && perTaskAutomation.triggerCol && perTaskAutomation.enabled) {
+      log('[AUTOMATION] Loaded per-task automation config', perTaskAutomation);
+      const triggerCol = perTaskAutomation.triggerCol;
+      log('[AUTOMATION] Checking triggerCol', { triggerCol, oldValue: oldTask ? oldTask.values[triggerCol] : undefined, newValue: values[triggerCol] });
       if (oldTask && oldTask.values[triggerCol] !== values[triggerCol]) {
-        // Compose email
+        log('[AUTOMATION] TriggerCol value changed, preparing to send email', { from: oldTask.values[triggerCol], to: values[triggerCol] });
         const subject = `Task updated: ${table.name}`;
         let html = `<h2>Task Update</h2><ul>`;
-        (automation.cols || []).forEach(colId => {
+        (perTaskAutomation.cols || []).forEach(colId => {
           const col = (table.columns || []).find(c => c.id === colId);
           if (col) {
             html += `<li><b>${col.name}:</b> ${JSON.stringify(values[colId])}</li>`;
           }
         });
         html += `</ul>`;
-        // Send email to all recipients
-        if (automation.recipients && automation.recipients.length > 0) {
+        if (perTaskAutomation.recipients && perTaskAutomation.recipients.length > 0) {
           try {
-            await fetch('http://localhost:4000/api/send-email', {
+            log('[AUTOMATION] Sending email via fetch', {
+              url: 'http://localhost:4000/api/send-email',
+              to: perTaskAutomation.recipients.join(','),
+              subject,
+              html
+            });
+            const fetchRes = await fetch('http://localhost:4000/api/send-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                to: automation.recipients.join(','),
+                to: perTaskAutomation.recipients.join(','),
                 subject,
                 text: subject,
                 html
               })
             });
-              // Log the sent email to email_updates.json
-              const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
-              let emailUpdates = [];
-              try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
-              emailUpdates.push({
-                recipients: automation.recipients,
-                subject,
-                html,
-                timestamp: Date.now(),
-                tableId: req.params.tableId,
-                triggerCol,
-                changedValue: values[triggerCol]
-              });
-              // Keep only the last 20 updates
-              if (emailUpdates.length > 20) emailUpdates = emailUpdates.slice(-20);
-              fs.writeFileSync(emailUpdatesFile, JSON.stringify(emailUpdates, null, 2));
+            const fetchJson = await fetchRes.json().catch(() => ({}));
+            log('[AUTOMATION] Email fetch response', { status: fetchRes.status, body: fetchJson });
+            // Log the sent email to email_updates.json
+            const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
+            let emailUpdates = [];
+            try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+            emailUpdates.push({
+              recipients: perTaskAutomation.recipients,
+              subject,
+              html,
+              timestamp: Date.now(),
+              tableId: req.params.tableId,
+              taskId: id,
+              triggerCol,
+              changedValue: values[triggerCol]
+            });
+            if (emailUpdates.length > 20) emailUpdates = emailUpdates.slice(-20);
+            fs.writeFileSync(emailUpdatesFile, JSON.stringify(emailUpdates, null, 2));
           } catch (err) {
-            console.error('Failed to send email:', err);
+            log('[AUTOMATION] Failed to send email', err);
           }
+        } else {
+          log('[AUTOMATION] No recipients specified', perTaskAutomation.recipients);
         }
+      } else {
+        log('[AUTOMATION] TriggerCol value did not change, skipping email', { old: oldTask ? oldTask.values[triggerCol] : undefined, new: values[triggerCol] });
       }
+      // If per-task automation exists, do NOT run table-level automation
+      // (return here to prevent table-level automation for this task)
+      res.set('X-Debug-Logs', encodeURIComponent(JSON.stringify(debugLogs)));
+      return res.json({ success: true });
+    }
+    // Only if no per-task automation, check for table-level automation
+    const tableAutomation = automations.find(a => a.tableId === req.params.tableId && !a.taskId);
+    if (tableAutomation && tableAutomation.triggerCol && tableAutomation.enabled) {
+      log('[AUTOMATION] Loaded table-level automation config', tableAutomation);
+      const triggerCol = tableAutomation.triggerCol;
+      log('[AUTOMATION] Checking triggerCol', { triggerCol, oldValue: oldTask ? oldTask.values[triggerCol] : undefined, newValue: values[triggerCol] });
+      if (oldTask && oldTask.values[triggerCol] !== values[triggerCol]) {
+        log('[AUTOMATION] TriggerCol value changed, preparing to send email', { from: oldTask.values[triggerCol], to: values[triggerCol] });
+        const subject = `Task updated: ${table.name}`;
+        let html = `<h2>Task Update</h2><ul>`;
+        (tableAutomation.cols || []).forEach(colId => {
+          const col = (table.columns || []).find(c => c.id === colId);
+          if (col) {
+            html += `<li><b>${col.name}:</b> ${JSON.stringify(values[colId])}</li>`;
+          }
+        });
+        html += `</ul>`;
+        if (tableAutomation.recipients && tableAutomation.recipients.length > 0) {
+          try {
+            log('[AUTOMATION] Sending email via fetch', {
+              url: 'http://localhost:4000/api/send-email',
+              to: tableAutomation.recipients.join(','),
+              subject,
+              html
+            });
+            const fetchRes = await fetch('http://localhost:4000/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: tableAutomation.recipients.join(','),
+                subject,
+                text: subject,
+                html
+              })
+            });
+            const fetchJson = await fetchRes.json().catch(() => ({}));
+            log('[AUTOMATION] Email fetch response', { status: fetchRes.status, body: fetchJson });
+            // Log the sent email to email_updates.json
+            const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
+            let emailUpdates = [];
+            try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+            emailUpdates.push({
+              recipients: tableAutomation.recipients,
+              subject,
+              html,
+              timestamp: Date.now(),
+              tableId: req.params.tableId,
+              taskId: id,
+              triggerCol,
+              changedValue: values[triggerCol]
+            });
+            if (emailUpdates.length > 20) emailUpdates = emailUpdates.slice(-20);
+            fs.writeFileSync(emailUpdatesFile, JSON.stringify(emailUpdates, null, 2));
+          } catch (err) {
+            log('[AUTOMATION] Failed to send email', err);
+          }
+        } else {
+          log('[AUTOMATION] No recipients specified', tableAutomation.recipients);
+        }
+      } else {
+        log('[AUTOMATION] TriggerCol value did not change, skipping email', { old: oldTask ? oldTask.values[triggerCol] : undefined, new: values[triggerCol] });
+      }
+    } else {
+      log('[AUTOMATION] No automation config or triggerCol for this task or table', tableAutomation);
     }
     // --- END EMAIL AUTOMATION ---
+    res.set('X-Debug-Logs', encodeURIComponent(JSON.stringify(debugLogs)));
     res.json({ success: true });
   } catch (err) {
     console.error('Error in PUT /api/tables/:tableId/tasks:', err);
@@ -373,6 +471,29 @@ app.get('/api/email-updates', (req, res) => {
   let emailUpdates = [];
   try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
   res.json(emailUpdates);
+});
+
+
+// --- Task Order Endpoint for Drag-and-Drop ---
+app.put('/api/tables/:tableId/tasks/order', (req, res) => {
+  const tables = readJson(tablesFile);
+  const table = tables.find(t => t.id === req.params.tableId);
+  if (!table || !table.tasks) {
+    return res.status(404).json({ error: 'Table not found' });
+  }
+  const { orderedTaskIds } = req.body;
+  if (!Array.isArray(orderedTaskIds)) {
+    return res.status(400).json({ error: 'orderedTaskIds must be array' });
+  }
+  // update order values
+  table.tasks.forEach(task => {
+    const index = orderedTaskIds.indexOf(task.id);
+    if (index !== -1) {
+      task.order = index;
+    }
+  });
+  writeJson(tablesFile, tables);
+  res.json({ success: true });
 });
 
 app.listen(PORT, () => {

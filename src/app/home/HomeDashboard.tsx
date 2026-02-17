@@ -82,8 +82,11 @@ const RightSidebar = styled(Box)(({ theme }) => ({
     maxWidth: '100vw',
   },
 }));
-const Section = styled(Box)(({ theme }) => ({
-  marginBottom: 32,
+const Section = styled(Box, { shouldForwardProp: (prop) => prop !== 'nomb' })(({ theme, nomb }) => ({
+  marginBottom: nomb ? 0 : 16,
+  [theme.breakpoints.down('sm')]: {
+    marginBottom: nomb ? 0 : 8,
+  },
 }));
 const WorkspaceCard = styled(Card)(({ theme }) => ({
   background: '#2c2d4a',
@@ -111,11 +114,13 @@ const WorkspaceCard = styled(Card)(({ theme }) => ({
     padding: '6px 2px',
   },
   [theme.breakpoints.down('sm')]: {
-    maxWidth: '90vw',
-    minWidth: 80,
-    minHeight: 60,
-    maxHeight: 90,
+    width: '44vw',
+    maxWidth: '44vw',
+    minWidth: '44vw',
+    minHeight: '44vw',
+    maxHeight: '44vw',
     padding: '4px 1px',
+    aspectRatio: '1 / 1',
   },
 }));
 const SmallWorkspaceCard = styled(Card)(({ theme }) => ({
@@ -161,9 +166,11 @@ const BoardPreview = styled(Box)(({ theme }) => ({
   justifyContent: 'center',
   width: '95%',
   [theme.breakpoints.down('sm')]: {
-    height: '24vw',
-    minHeight: 60,
-    maxHeight: 120,
+    width: '90%',
+    height: '70%',
+    minHeight: 'unset',
+    maxHeight: 'unset',
+    aspectRatio: '1 / 1',
     marginBottom: 10,
   },
 }));
@@ -223,9 +230,17 @@ export default function HomeDashboard() {
     <Root>
       {/* Sidebar removed as requested */}
       <Main>
-        <Section>
+        <Section sx={{ marginBottom: 0 }}>
           <Typography variant="subtitle1" fontWeight={600} mb={2}>Recently visited</Typography>
-          <Box display="flex" gap={4} flexWrap="wrap" justifyContent="flex-start" alignItems="stretch" minHeight={280}>
+          <Box
+            display={{ xs: 'grid', sm: 'flex' }}
+            gap={{ xs: 2, sm: 4 }}
+            flexWrap={{ sm: 'wrap' }}
+            justifyContent={{ xs: 'center', sm: 'flex-start' }}
+            alignItems="stretch"
+            minHeight={280}
+            gridTemplateColumns={{ xs: '1fr 1fr', sm: 'none' }}
+          >
             {/* Other recent buttons from recentlyVisited array */}
             {recentlyVisited.map((item, i) => (
               <WorkspaceCard

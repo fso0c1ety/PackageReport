@@ -21,10 +21,19 @@ function writeJson(file, data) {
 // Save automation for a table
 router.post('/automation/:tableId', (req, res) => {
   const automations = readJson(automationFile);
-  const { triggerCol, cols, recipients, enabled } = req.body;
+  const { triggerCol, cols, recipients, enabled, taskId } = req.body;
   const tableId = req.params.tableId;
-  const idx = automations.findIndex(a => a.tableId === tableId);
-  const automation = { tableId, triggerCol, cols, recipients, enabled };
+  let idx;
+  let automation;
+  if (taskId) {
+    // Save per-task automation config
+    idx = automations.findIndex(a => a.taskId === taskId);
+    automation = { tableId, taskId, triggerCol, cols, recipients, enabled };
+  } else {
+    // Save table-level automation config
+    idx = automations.findIndex(a => a.tableId === tableId && !a.taskId);
+    automation = { tableId, triggerCol, cols, recipients, enabled };
+  }
   if (idx !== -1) automations[idx] = automation;
   else automations.push(automation);
   writeJson(automationFile, automations);
@@ -32,10 +41,11 @@ router.post('/automation/:tableId', (req, res) => {
 });
 
 // Get automation for a table
+// Get all automation configs for a table (including per-task)
 router.get('/automation/:tableId', (req, res) => {
   const automations = readJson(automationFile);
-  const automation = automations.find(a => a.tableId === req.params.tableId);
-  res.json(automation || null);
+  const tableAutomations = automations.filter(a => a.tableId === req.params.tableId);
+  res.json(tableAutomations);
 });
 
 module.exports = router;
