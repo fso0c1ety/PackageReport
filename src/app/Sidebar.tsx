@@ -1,102 +1,144 @@
-import Link from "next/link";
+"use client";
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Box,
   Typography,
   IconButton,
-  Avatar,
   Divider,
-  Drawer,
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
   TextField,
   DialogActions,
+  Tooltip,
+  Drawer,
   List,
-  ListItem,
-  ListItemAvatar,
+  ListItemButton,
+  ListItemIcon,
   ListItemText,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
-import WorkspacesIcon from "@mui/icons-material/Workspaces";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import PsychologyIcon from "@mui/icons-material/Psychology";
+import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import SettingsIcon from "@mui/icons-material/Settings";
+import SearchIcon from "@mui/icons-material/Search";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import PersonIcon from "@mui/icons-material/Person";
 import WorkspaceDropdown from "./workspaces/WorkspaceDropdown";
 
-function SidebarItem({ icon, label, href }: { icon: React.ReactNode; label: React.ReactNode; href: string }) {
+// --- Components ---
+
+interface SidebarItemProps {
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+  isActive?: boolean;
+  onClick?: () => void;
+}
+
+function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps) {
   return (
-    <Link href={href} style={{ textDecoration: 'none', width: '100%' }} passHref>
-      <Box
+    <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }} onClick={onClick}>
+      <ListItemButton
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          py: { xs: 0.5, sm: 1 },
-          pl: { xs: 0.5, sm: 1 },
-          pr: { xs: 0.5, sm: 1 },
+          py: 1,
+          px: 2,
+          mx: 1,
+          mb: 0.5,
           borderRadius: 2,
-          cursor: 'pointer',
-          color: '#323338',
-          fontWeight: 500,
-          fontSize: { xs: 14, sm: 16 },
-          width: '100%',
-          minWidth: 0,
-          maxWidth: '100%',
-          transition: 'background 0.2s',
-          '&:hover': {
-            bgcolor: '#f6f7fb',
+          width: "auto",
+          bgcolor: isActive ? "rgba(99, 102, 241, 0.15)" : "transparent",
+          color: isActive ? "#ffffff" : "#94a3b8",
+          transition: "all 0.2s ease-in-out",
+          "&:hover": {
+            bgcolor: "rgba(255, 255, 255, 0.08)",
+            color: "#ffffff",
+            transform: "translateX(4px)",
           },
         }}
       >
-        <Box sx={{ minWidth: { xs: 28, sm: 24 }, width: { xs: 28, sm: 24 }, height: { xs: 28, sm: 24 }, display: 'flex', justifyContent: 'center', alignItems: 'center', mr: 1 }}>{icon}</Box>
-        <span style={{ width: '100%', display: 'block', minWidth: 0, maxWidth: '100%' }}>{label}</span>
-      </Box>
+        <ListItemIcon
+          sx={{
+            minWidth: 36,
+            color: isActive ? "#818cf8" : "inherit",
+          }}
+        >
+          {icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={label}
+          primaryTypographyProps={{
+            fontSize: "0.9rem",
+            fontWeight: isActive ? 600 : 500,
+            letterSpacing: "0.01em",
+          }}
+        />
+      </ListItemButton>
     </Link>
   );
 }
 
-export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
-  // Force router declaration at the very top
+const drawerWidth = 260;
+
+export default function Sidebar({
+  mobileOpen,
+  onClose,
+}: {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
 
-  // Fetch workspaces on mount and after creation
+  // Fetch workspaces
   useEffect(() => {
     fetch("http://192.168.0.28:4000/api/workspaces")
       .then((res) => res.json())
-      .then(setWorkspaces);
+      .then(setWorkspaces)
+      .catch((err) => console.error("Failed to fetch workspaces", err));
   }, []);
 
-  // Open dialog
-  const handleAddWorkspace = () => setDialogOpen(true);
-
-  // Create workspace and auto-create a table, then redirect
   const handleCreateWorkspace = async () => {
+    if (!newWorkspaceName.trim()) return;
     try {
-      // 1. Create workspace
       const wsRes = await fetch("http://192.168.0.28:4000/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newWorkspaceName }),
       });
+
       if (!wsRes.ok) throw new Error("Failed to create workspace");
       const ws = await wsRes.json();
       setWorkspaces((prev) => [...prev, ws]);
-      setDialogOpen(false);
-      setNewWorkspaceName("");
-      // 2. Auto-create a table for this workspace, retry if needed
+
+      // Auto-create table
       let table = null;
       let attempts = 0;
       while (!table && attempts < 3) {
         try {
-          const tableRes = await fetch(`http://192.168.0.28:4000/api/workspaces/${ws.id}/tables`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: `${ws.name} Table` }),
-          });
+          const tableRes = await fetch(
+            `http://192.168.0.28:4000/api/workspaces/${ws.id}/tables`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: `${ws.name} Table` }),
+            }
+          );
           if (tableRes.ok) {
             table = await tableRes.json();
           } else {
@@ -107,99 +149,275 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
         }
         attempts++;
       }
-      // 3. Redirect to the new workspace's TableBoard page (adjust route as needed)
-      window.location.href = `/table/${table.id}`;
+
+      setDialogOpen(false);
+      setNewWorkspaceName("");
+      if (table && onClose) onClose(); // Close drawer on mobile if open
+      if (table) router.push(`/workspaces/${ws.id}`);
     } catch (err) {
-      alert("Failed to create workspace and table. Please try again.");
+      alert("Failed to create workspace. Please try again.");
     }
   };
 
-  const sidebarContent = (
+  const drawerContent = (
     <Box
       sx={{
-        width: { xs: '100%', sm: 220, md: 240 },
-        minWidth: 0,
-        maxWidth: { xs: '100%', sm: 240 },
-        height: '100vh',
-        bgcolor: '#23243a',
-        color: '#fff',
-        display: 'flex',
-        flexDirection: 'column',
-        p: { xs: 1, sm: 2 },
-        gap: 2,
-        fontFamily: 'Inter, sans-serif',
-        alignItems: 'flex-start',
-        overflowX: 'hidden',
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        bgcolor: "#292a43", // Slightly lighter distinct background
+        color: "#ffffff",
+        // Removed borderRight as the container has rounded edges and shadow
       }}
     >
-      {/* Top navigation */}
-      <Box sx={{ mb: 1, display: 'flex', flexDirection: 'column', gap: 0, pl: 2 }}>
-        <SidebarItem icon={<HomeIcon sx={{ color: '#fff' }} />} label={<span style={{ color: '#fff', fontWeight: 700 }}>Home</span>} href="/home" />
-        <SidebarItem icon={null} label={<span style={{ color: '#bfc8e0' }}>My work</span>} href="#" />
-        <SidebarItem icon={null} label={<span style={{ color: '#bfc8e0' }}>More</span>} href="#" />
+      {/* Brand Header */}
+      <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 2 }}>
+        <Box
+          sx={{
+            width: 36,
+            height: 36,
+            borderRadius: "10px",
+            background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 12px rgba(99, 102, 241, 0.4)",
+          }}
+        >
+          <Typography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>S</Typography>
+        </Box>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 700,
+            letterSpacing: "-0.01em",
+            background: "linear-gradient(to right, #fff, #cbd5e1)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          SmartManage
+        </Typography>
       </Box>
-      <Divider sx={{ bgcolor: '#35365a', my: 1 }} />
-      {/* monday AI section */}
-      <Box sx={{ mb: 1, pl: 2 }}>
-        <Typography variant="caption" sx={{ color: '#bfc8e0', mb: 0.5, pl: 1 }}>Smart Manage AI</Typography>
-        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>★</span>} label={<span style={{ color: '#fff' }}>AI Sidekick</span>} href="#" />
-        <SidebarItem icon={<span style={{ color: '#fd397a' }}>♥</span>} label={<span style={{ color: '#fff' }}>Vibe</span>} href="#" />
-        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>🧠</span>} label={<span style={{ color: '#fff' }}>AI Workflows</span>} href="#" />
-        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>🤖</span>} label={<span style={{ color: '#fff' }}>AI Agents</span>} href="#" />
-        <SidebarItem icon={<span style={{ color: '#4f51c0' }}>📝</span>} label={<span style={{ color: '#fff' }}>AI Notetaker</span>} href="#" />
+
+      {/* Search */}
+      <Box sx={{ px: 2, mb: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            bgcolor: searchFocused ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+            borderRadius: "8px",
+            px: 1.5,
+            py: 0.8,
+            border: "1px solid",
+            borderColor: searchFocused ? "#6366f1" : "transparent",
+            transition: "all 0.2s",
+          }}
+        >
+          <SearchIcon sx={{ fontSize: 20, color: "#64748b", mr: 1 }} />
+          <input
+            placeholder="Search..."
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#fff",
+              fontSize: "0.875rem",
+              width: "100%",
+              outline: "none",
+            }}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+          />
+        </Box>
       </Box>
-      <Divider sx={{ bgcolor: '#35365a', my: 1 }} />
-      {/* Workspaces section */}
-      <Box sx={{ mb: 1, pl: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <Typography variant="caption" sx={{ color: '#bfc8e0', pl: 0.5, mb: 0.5 }}>Workspaces</Typography>
-          <IconButton
-            size="small"
-            sx={{ color: '#fff', bgcolor: '#35365a', borderRadius: 1, ml: 1, alignSelf: 'center' }}
-            onClick={handleAddWorkspace}
+
+      {/* Main Navigation */}
+      <Box sx={{ flex: 1, overflowY: "auto", "::-webkit-scrollbar": { width: 0 } }}>
+        <Box sx={{ mb: 3 }}>
+          <SidebarItem
+            icon={<HomeIcon fontSize="small" />}
+            label="Home"
+            href="/home"
+            isActive={pathname === "/home" || pathname === "/"}
+            onClick={onClose}
+          />
+          <SidebarItem
+            icon={<SettingsIcon fontSize="small" />}
+            label="Settings"
+            href="/settings"
+            isActive={pathname === "/settings"}
+            onClick={onClose}
+          />
+        </Box>
+
+        <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mx: 3, mb: 3 }} />
+
+        {/* AI Tools Section */}
+        <Box sx={{ mb: 3 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              px: 3,
+              mb: 1.5,
+              display: "block",
+              color: "#64748b",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              fontSize: "0.7rem",
+              letterSpacing: "0.05em",
+            }}
           >
-            <AddIcon fontSize="small" />
-          </IconButton>
+            Smart/Tools AI
+          </Typography>
+          <SidebarItem icon={<SmartToyIcon fontSize="small" />} label="AI Sidekick" href="#" />
+          <SidebarItem icon={<AutoAwesomeIcon fontSize="small" />} label="Vibe" href="#" />
+          <SidebarItem icon={<PsychologyIcon fontSize="small" />} label="Reflex" href="#" />
+          <SidebarItem
+            icon={<RecordVoiceOverIcon fontSize="small" />}
+            label="Notetaker"
+            href="#"
+          />
         </Box>
-        <Box sx={{ mb: 2 }}>
-          <WorkspaceDropdown />
+
+        {/* Workspaces Section */}
+        <Box sx={{ mb: 3 }}>
+          <Box
+            sx={{
+              px: 3,
+              mb: 1.5,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                color: "#64748b",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                fontSize: "0.7rem",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Workspaces
+            </Typography>
+            <Tooltip title="New Workspace">
+              <IconButton
+                size="small"
+                onClick={() => setDialogOpen(true)}
+                sx={{
+                  color: "#94a3b8",
+                  "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
+                }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{ px: 2 }}>
+            <WorkspaceDropdown />
+          </Box>
         </Box>
-        {/* Workspace buttons replaced by dropdown below */}
       </Box>
-      {/* Dialog for new workspace */}
+
+      {/* Footer Profile */}
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+      <Box sx={{ p: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            p: 1,
+            borderRadius: 2,
+            cursor: "pointer",
+            "&:hover": { bgcolor: "rgba(255,255,255,0.05)" },
+          }}
+        >
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              bgcolor: "#4f46e5",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+            }}
+          >
+            VH
+          </Box>
+          <Box sx={{ overflow: "hidden" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+              Valon Halili
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+              Pro Plan
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Dialog */}
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        fullWidth
         maxWidth="xs"
+        fullWidth
         PaperProps={{
           sx: {
-            m: 1,
-            width: '100%',
-            maxWidth: { xs: '100vw', sm: 400 },
-            '@media (max-width: 600px)': {
-              maxWidth: '100vw',
-              m: 0,
-            },
+            bgcolor: "#23243a",
+            color: "#fff",
+            borderRadius: 3,
+            border: "1px solid rgba(255,255,255,0.1)",
           },
         }}
       >
-        <DialogTitle>Create New Workspace</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          Create New Workspace
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
           <TextField
             autoFocus
             label="Workspace Name"
             value={newWorkspaceName}
             onChange={(e) => setNewWorkspaceName(e.target.value)}
             fullWidth
+            variant="outlined"
+            size="medium"
+            sx={{
+              mt: 1,
+              "& .MuiOutlinedInput-root": {
+                color: "#fff",
+                bgcolor: "rgba(0,0,0,0.2)",
+                "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
+                "&:hover fieldset": { borderColor: "#6366f1" },
+                "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+              },
+              "& .MuiInputLabel-root": { color: "#94a3b8" },
+              "& .MuiInputLabel-root.Mui-focused": { color: "#6366f1" },
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+        <DialogActions sx={{ p: 2, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+          <Button onClick={() => setDialogOpen(false)} sx={{ color: "#94a3b8" }}>
+            Cancel
+          </Button>
           <Button
             onClick={handleCreateWorkspace}
             disabled={!newWorkspaceName.trim()}
             variant="contained"
+            sx={{
+              bgcolor: "#6366f1",
+              "&:hover": { bgcolor: "#4f46e5" },
+              textTransform: "none",
+              fontWeight: 600,
+              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.4)",
+            }}
           >
             Create
           </Button>
@@ -207,40 +425,64 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen?: boolean;
       </Dialog>
     </Box>
   );
+
   return (
-    <>
-      {/* Desktop sidebar */}
-      <Box sx={{ display: { xs: 'none', md: 'flex' } }}>{sidebarContent}</Box>
-      {/* Mobile drawer */}
+    <Box
+      component="nav"
+      sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+      aria-label="mailbox folders"
+    >
+      {/* Mobile Drawer */}
       <Drawer
-        anchor="left"
-        open={!!mobileOpen}
+        variant="temporary"
+        open={mobileOpen}
         onClose={onClose}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile.
+        }}
         sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: { xs: '75vw', sm: 320 },
-            maxWidth: { xs: '75vw', sm: 320 },
-            p: 1,
-            overflowX: 'hidden',
+          display: { xs: "block", md: "none" },
+          "& .MuiDrawer-paper": {
+            boxSizing: "border-box",
+            width: drawerWidth,
+            bgcolor: "#23243a",
+            borderRight: "1px solid rgba(255,255,255,0.08)",
           },
         }}
-        PaperProps={{
-          sx: {
-            bgcolor: '#23243a',
-            color: '#fff',
-            boxSizing: 'border-box',
-            width: { xs: '75vw', sm: 320 },
-            maxWidth: { xs: '75vw', sm: 320 },
-            p: 1,
-            overflowX: 'hidden',
-          }
-        }}
       >
-        {sidebarContent}
+        {drawerContent}
       </Drawer>
-    </>
+
+      {/* Desktop Drawer */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: "none", md: "block" },
+          "& .MuiDrawer-paper": {
+            boxSizing: "border-box",
+            
+            // Adjust width to fit within the container with margins
+            width: `calc(${drawerWidth}px - 32px)`, 
+            
+            bgcolor: "transparent", // Base transparent to show rounded corners
+            border: "none", // Remove border
+            
+            // Floating margins
+            mt: 2,
+            mb: 2,
+            ml: 2,
+            mr: 0, // No right margin needed as container has padding/space
+            
+            height: "calc(100vh - 32px)", // Full height minus vertical margins
+            borderRadius: "24px", // Rounded corners
+            overflow: "hidden", 
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)", // Shadow
+          },
+        }}
+        open
+      >
+        {drawerContent}
+      </Drawer>
+    </Box>
   );
 }

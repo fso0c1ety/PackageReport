@@ -21,28 +21,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         overflowX: "clip",
       }}
     >
-      {/* MOBILE HEADER */}
-      <Box
-        sx={{
-          display: { xs: "flex", md: "none" },
-          alignItems: "center",
-          p: 1,
-          justifyContent: "space-between",
-          position: "relative",
-        }}
-      >
-        <IconButton
-          onClick={() => setMobileSidebarOpen(true)}
-          sx={{ color: "#fff" }}
-        >
-          <MenuIcon />
-        </IconButton>
-
-        <span style={{ fontWeight: 800, color: "#4f51c0", fontSize: 20 }}>
-          SmartManage
-        </span>
-      </Box>
-
       <Sidebar
         mobileOpen={mobileSidebarOpen}
         onClose={() => setMobileSidebarOpen(false)}
@@ -59,7 +37,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           minWidth: 0,
         }}
       >
-        <TopBar />
+        <TopBar onMenuClick={() => setMobileSidebarOpen(true)} />
 
         <Box
           component="main"

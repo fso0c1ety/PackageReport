@@ -58,110 +58,6 @@
         "type": "Date",
         "order": 6
       }
-    ],
-    "createdAt": 1769887950534,
-    "tasks": [
-      {
-        "id": "a47dfaa8-5c63-4de4-aa39-43deb4570697",
-        "values": {
-          "task": "Ags Transporti",
-          "4c1c4531-b849-4281-9e10-be8db8e114fa": "Rugove",
-          "73c3a39c-fe0e-45d5-a0e6-e4ffac381225": [
-            {
-              "name": "Valoni",
-              "email": "valonhalili74@gmail.com"
-            },
-            {
-              "name": "Valoni2",
-              "email": "valitv7@gmail.com"
-            }
-          ],
-          "83dabc09-ba5a-4e4b-84f4-e3892536aa8d": "NIsur",
-          "8f908cb4-1920-4f33-9b85-147522d74393": "325",
-          "7299f9c0-38d7-4da7-b919-860fdab3d1a5": "Germani",
-          "6fedd67e-e350-44b2-9315-9eaca2a349ff": "2026-12-03"
-        }
-      },
-      {
-        "id": "ea29ec92-68f9-403a-80a5-311babfd8275",
-        "values": {
-          "task": "sds",
-          "4c1c4531-b849-4281-9e10-be8db8e114fa": "hsdj",
-          "73c3a39c-fe0e-45d5-a0e6-e4ffac381225": [
-            {
-              "name": "Valoni",
-              "email": "valonhalili74@gmail.com"
-            }
-          ],
-          "83dabc09-ba5a-4e4b-84f4-e3892536aa8d": "Ngarkuar",
-          "8f908cb4-1920-4f33-9b85-147522d74393": "343",
-          "7299f9c0-38d7-4da7-b919-860fdab3d1a5": "Germani",
-          "6fedd67e-e350-44b2-9315-9eaca2a349ff": "2026-02-04"
-        }
-      },
-      {
-        "id": "3b1a5a06-caee-4c36-946f-a1c6dc4bd4d5",
-        "values": {
-          "task": "hello",
-          "4c1c4531-b849-4281-9e10-be8db8e114fa": "heloo",
-          "73c3a39c-fe0e-45d5-a0e6-e4ffac381225": [
-            {
-              "name": "Valoni2",
-              "email": "valitv7@gmail.com"
-            }
-          ],
-          "83dabc09-ba5a-4e4b-84f4-e3892536aa8d": "Arritur",
-          "8f908cb4-1920-4f33-9b85-147522d74393": "344",
-          "7299f9c0-38d7-4da7-b919-860fdab3d1a5": "Germani",
-          "6fedd67e-e350-44b2-9315-9eaca2a349ff": "2026-07-08"
-        }
-      },
-      {
-        "id": "6ea5c55b-ef72-4665-b183-1c3fb3e3e50e",
-        "values": {
-          "task": "sjhguhds",
-          "4c1c4531-b849-4281-9e10-be8db8e114fa": "shhds",
-          "73c3a39c-fe0e-45d5-a0e6-e4ffac381225": [
-            {
-              "name": "Valoni",
-              "email": "valonhalili74@gmail.com"
-            },
-            {
-              "name": "Valoni2",
-              "email": "valitv7@gmail.com"
-            }
-          ],
-          "83dabc09-ba5a-4e4b-84f4-e3892536aa8d": "Ngarkuar",
-          "8f908cb4-1920-4f33-9b85-147522d74393": "5455",
-          "7299f9c0-38d7-4da7-b919-860fdab3d1a5": "Germani",
-          "6fedd67e-e350-44b2-9315-9eaca2a349ff": "2022-03-01"
-        }
-      },
-      {
-        "id": "cfa70768-8578-453a-bbab-6f6859e35082",
-        "values": {
-          "task": "ghagha",
-          "4c1c4531-b849-4281-9e10-be8db8e114fa": "ahahs",
-          "73c3a39c-fe0e-45d5-a0e6-e4ffac381225": [
-            {
-              "name": "vsas",
-              "email": "valitv73@gmail.com"
-            },
-            {
-              "name": "Valoni",
-              "email": "valonhalili74@gmail.com"
-            },
-            {
-              "name": "Valoni2",
-              "email": "valitv7@gmail.com"
-            }
-          ],
-          "83dabc09-ba5a-4e4b-84f4-e3892536aa8d": "Arritur",
-          "8f908cb4-1920-4f33-9b85-147522d74393": "5547",
-          "7299f9c0-38d7-4da7-b919-860fdab3d1a5": "Germani",
-          "6fedd67e-e350-44b2-9315-9eaca2a349ff": "2022-02-12"
-        }
-      }
     ]
   },
   {
@@ -236,12 +132,6 @@
         "type": "People",
         "order": 2,
         "options": []
-      },
-      {
-        "id": "9f8cf0db-ae51-45f5-b86c-b42e3384fc8a",
-        "name": "Message",
-        "type": "Message",
-        "order": 3
       }
     ],
     "createdAt": 1770310418009,
@@ -259,6 +149,10 @@
             {
               "name": "vsas",
               "email": "valitv73@gmail.com"
+            },
+            {
+              "name": "Valoni2",
+              "email": "valitv7@gmail.com"
             }
           ],
           "0f8e4794-2a41-4581-bc24-348c11bc54fd": "",
@@ -317,6 +211,12 @@
               "sender": "User",
               "text": "Pagesa duhet te kryhet sod",
               "timestamp": "2026-02-15T20:54:13.594Z"
+            },
+            {
+              "id": "662f44be-864b-4c5c-9e66-a2c77e7c70b0",
+              "sender": "User",
+              "text": "hello",
+              "timestamp": "2026-02-21T22:03:07.663Z"
             }
           ],
           "a3ccf131-68b1-4ce9-9c4b-94fea8d3ade6": "",
@@ -357,7 +257,10 @@
           "14fa2bb5-dc4d-473f-a9f9-1fb1377f1c5f": "Angola",
           "0d803f5d-391d-4ee2-a7f3-5bae0c208bc0": "",
           "9c14969f-8dd1-48b5-bef4-1adf669200f4": "",
-          "80a622c2-05a5-42e1-8f22-e8c70fdd993b": ""
+          "80a622c2-05a5-42e1-8f22-e8c70fdd993b": "",
+          "f39a14ff-a1f7-4c15-a0a7-41be04c5ced8": "",
+          "c6d44aec-a06f-4371-8a77-6bd288be9390": "",
+          "9d2614bb-d11f-4691-8e1c-b0f97164f10c": ""
         }
       },
       {
@@ -420,11 +323,15 @@
           "14fa2bb5-dc4d-473f-a9f9-1fb1377f1c5f": "Barbados",
           "0d803f5d-391d-4ee2-a7f3-5bae0c208bc0": "",
           "9c14969f-8dd1-48b5-bef4-1adf669200f4": "",
-          "80a622c2-05a5-42e1-8f22-e8c70fdd993b": ""
+          "80a622c2-05a5-42e1-8f22-e8c70fdd993b": "",
+          "f39a14ff-a1f7-4c15-a0a7-41be04c5ced8": "",
+          "c6d44aec-a06f-4371-8a77-6bd288be9390": "",
+          "9d2614bb-d11f-4691-8e1c-b0f97164f10c": ""
         }
       }
     ],
-    "workspaceId": "69d78b1d-40e6-4cd5-9a0e-36d6737125ba"
+    "workspaceId": "69d78b1d-40e6-4cd5-9a0e-36d6737125ba",
+    "docContent": ""
   },
   {
     "id": "a3f98c10-5c19-437e-bcee-ffdc0c7d2838",
@@ -462,22 +369,6 @@
             "color": "#00c875"
           }
         ]
-      },
-      {
-        "id": "8e8a01e0-cc9a-4686-89d0-304d179b988c",
-        "name": "Dropdown",
-        "type": "Dropdown",
-        "order": 3,
-        "options": [
-          {
-            "value": "ewr",
-            "color": "#e0e4ef"
-          },
-          {
-            "value": "erer",
-            "color": "#e0e4ef"
-          }
-        ]
       }
     ],
     "createdAt": 1771079705963,
@@ -494,12 +385,17 @@
             {
               "name": "Valoni2",
               "email": "valitv7@gmail.com"
+            },
+            {
+              "name": "vsas",
+              "email": "valitv73@gmail.com"
             }
           ],
-          "ad4dbf0d-17b4-4231-83fa-cab432c555f2": "Started",
+          "ad4dbf0d-17b4-4231-83fa-cab432c555f2": "Done",
           "5ed1c581-ca9a-466d-9066-eaad37411878": "",
           "c296d720-e8c3-46d4-b3c1-1c1249ebcc33": "Armenia",
-          "8e8a01e0-cc9a-4686-89d0-304d179b988c": "erer"
+          "8e8a01e0-cc9a-4686-89d0-304d179b988c": "ewr",
+          "f41ab8a5-7d0b-41ad-8946-5c6777927d0e": "Done"
         },
         "order": 0
       },
@@ -524,7 +420,8 @@
           "ad4dbf0d-17b4-4231-83fa-cab432c555f2": "Started",
           "5ed1c581-ca9a-466d-9066-eaad37411878": "",
           "c296d720-e8c3-46d4-b3c1-1c1249ebcc33": "Australia",
-          "8e8a01e0-cc9a-4686-89d0-304d179b988c": ""
+          "8e8a01e0-cc9a-4686-89d0-304d179b988c": "erer",
+          "f41ab8a5-7d0b-41ad-8946-5c6777927d0e": ""
         },
         "order": 1
       },
@@ -545,12 +442,14 @@
           "ad4dbf0d-17b4-4231-83fa-cab432c555f2": "Done",
           "5ed1c581-ca9a-466d-9066-eaad37411878": "",
           "c296d720-e8c3-46d4-b3c1-1c1249ebcc33": "Bangladesh",
-          "8e8a01e0-cc9a-4686-89d0-304d179b988c": ""
+          "8e8a01e0-cc9a-4686-89d0-304d179b988c": "ewr",
+          "f41ab8a5-7d0b-41ad-8946-5c6777927d0e": ""
         },
         "order": 2
       }
     ],
-    "workspaceId": "0546702b-5015-45aa-b69b-3afbc62ed926"
+    "workspaceId": "0546702b-5015-45aa-b69b-3afbc62ed926",
+    "docContent": ""
   },
   {
     "id": "7380663d-ba9e-42a2-a65f-fc61dcd6692a",
@@ -613,7 +512,8 @@
         }
       }
     ],
-    "workspaceId": "69d78b1d-40e6-4cd5-9a0e-36d6737125ba"
+    "workspaceId": "69d78b1d-40e6-4cd5-9a0e-36d6737125ba",
+    "docContent": ""
   },
   {
     "id": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
@@ -639,12 +539,12 @@
         "order": 2,
         "options": [
           {
-            "value": "Working on it",
-            "color": "#fdab3d"
-          },
-          {
             "value": "Done",
             "color": "#00c875"
+          },
+          {
+            "value": "Working on it",
+            "color": "#fdab3d"
           },
           {
             "value": "Stuck",
@@ -653,10 +553,16 @@
         ]
       },
       {
-        "id": "135173e9-2d6e-4ac8-900c-340d504129c1",
+        "id": "f326b698-ca01-452e-8563-eb6f532aa903",
+        "name": "Timeline",
+        "type": "Timeline",
+        "order": 3
+      },
+      {
+        "id": "8cc43b5a-d991-49ee-b062-3ec442fc66dd",
         "name": "Country",
         "type": "Country",
-        "order": 3,
+        "order": 4,
         "options": [
           {
             "value": "Afghanistan"
@@ -1246,15 +1152,15 @@
         ]
       },
       {
-        "id": "6bfc05aa-92ca-447d-abf0-c68ff8dd20a2",
-        "name": "Message",
-        "type": "Message",
-        "order": 4
-      },
-      {
         "id": "2ec415fe-2ecc-48e1-94aa-dd76e0761915",
         "name": "Date",
         "type": "Date",
+        "order": 5
+      },
+      {
+        "id": "43d3b944-9853-47ea-9a4d-6f33ee70a811",
+        "name": "Files",
+        "type": "Files",
         "order": 6
       }
     ],
@@ -1279,15 +1185,15 @@
               "email": "valitv73@gmail.com"
             },
             {
-              "name": "Valoni",
-              "email": "valonhalili74@gmail.com"
-            },
-            {
               "name": "Valoni2",
               "email": "valitv7@gmail.com"
+            },
+            {
+              "name": "Valoni",
+              "email": "valonhalili74@gmail.com"
             }
           ],
-          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Working on it",
+          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Done",
           "da4bb67c-272b-4b85-935e-4f9de2b04fc9": "",
           "35d9ec8b-836f-43ae-81eb-93670d831328": "",
           "33f38a78-77c7-43ca-98d1-df8becdb5f4f": "",
@@ -1340,7 +1246,34 @@
               "text": "helllllll",
               "timestamp": "2026-02-16T00:27:17.352Z"
             }
-          ]
+          ],
+          "02bf43ce-9895-42a9-baa6-1240070696a3": "",
+          "e3fa03cf-cda3-4320-a810-1a00e636fb99": "",
+          "0b5d2a01-04b9-4901-a2f9-1036d6c2eda1": "",
+          "ce699533-92d9-45af-a403-0a1c4016b21b": "",
+          "d8b1f374-f12c-4986-96ed-c42add22d94d": "",
+          "917599f2-3347-48ce-a077-d1b6bc2ce7b9": "",
+          "8cc43b5a-d991-49ee-b062-3ec442fc66dd": "Albania",
+          "93f1fc2c-f031-40ab-b4f3-dfd29d22213f": "",
+          "5b6ee244-0345-483b-8e7f-580c95011490": "",
+          "43d3b944-9853-47ea-9a4d-6f33ee70a811": [
+            {
+              "name": "PCH.pdf",
+              "url": "/uploads/1771714013682-525029882-PCH.pdf",
+              "type": "application/pdf",
+              "size": 897100,
+              "uploadedAt": "2026-02-21T22:46:53.693Z"
+            }
+          ],
+          "cc886149-5dc2-4841-88e9-441670c56e02": "",
+          "e6191a63-0e19-4d44-9611-ebb2d936a4f0": false,
+          "38b2b0c6-fa2b-49f7-a32a-c36331abff9f": "",
+          "f326b698-ca01-452e-8563-eb6f532aa903": {
+            "start": "2026-02-17",
+            "end": "2026-02-27"
+          },
+          "48d3195d-1224-49ee-a43b-8a35dbee8134": true,
+          "80844a72-7b93-4f24-ab8d-7a5a990d30d0": ""
         },
         "order": 0
       },
@@ -1354,7 +1287,7 @@
               "email": "valitv7@gmail.com"
             }
           ],
-          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Done",
+          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Working on it",
           "da4bb67c-272b-4b85-935e-4f9de2b04fc9": "",
           "35d9ec8b-836f-43ae-81eb-93670d831328": "",
           "33f38a78-77c7-43ca-98d1-df8becdb5f4f": "",
@@ -1363,9 +1296,28 @@
           "135173e9-2d6e-4ac8-900c-340d504129c1": "Benin",
           "6bfc05aa-92ca-447d-abf0-c68ff8dd20a2": "",
           "0de1c636-efe3-4a2b-8064-7cd344f8bea2": "23",
-          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2022-03-02"
+          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2022-03-02",
+          "02bf43ce-9895-42a9-baa6-1240070696a3": "",
+          "e3fa03cf-cda3-4320-a810-1a00e636fb99": "",
+          "0b5d2a01-04b9-4901-a2f9-1036d6c2eda1": "",
+          "ce699533-92d9-45af-a403-0a1c4016b21b": "",
+          "d8b1f374-f12c-4986-96ed-c42add22d94d": "",
+          "917599f2-3347-48ce-a077-d1b6bc2ce7b9": "",
+          "8cc43b5a-d991-49ee-b062-3ec442fc66dd": "Bahamas",
+          "93f1fc2c-f031-40ab-b4f3-dfd29d22213f": "",
+          "5b6ee244-0345-483b-8e7f-580c95011490": "",
+          "43d3b944-9853-47ea-9a4d-6f33ee70a811": "",
+          "cc886149-5dc2-4841-88e9-441670c56e02": "",
+          "e6191a63-0e19-4d44-9611-ebb2d936a4f0": false,
+          "38b2b0c6-fa2b-49f7-a32a-c36331abff9f": "",
+          "f326b698-ca01-452e-8563-eb6f532aa903": {
+            "start": "2026-02-04",
+            "end": "2026-02-20"
+          },
+          "48d3195d-1224-49ee-a43b-8a35dbee8134": false,
+          "80844a72-7b93-4f24-ab8d-7a5a990d30d0": ""
         },
-        "order": 1
+        "order": 2
       },
       {
         "id": "e3765798-fdf0-411b-a27e-4910320756f0",
@@ -1381,7 +1333,7 @@
               "email": "valitv7@gmail.com"
             }
           ],
-          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Done",
+          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Stuck",
           "da4bb67c-272b-4b85-935e-4f9de2b04fc9": "",
           "35d9ec8b-836f-43ae-81eb-93670d831328": "",
           "33f38a78-77c7-43ca-98d1-df8becdb5f4f": "",
@@ -1390,21 +1342,37 @@
           "135173e9-2d6e-4ac8-900c-340d504129c1": "Denmark",
           "6bfc05aa-92ca-447d-abf0-c68ff8dd20a2": "",
           "0de1c636-efe3-4a2b-8064-7cd344f8bea2": "",
-          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2022-03-02"
+          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2022-03-02",
+          "02bf43ce-9895-42a9-baa6-1240070696a3": "",
+          "e3fa03cf-cda3-4320-a810-1a00e636fb99": "",
+          "0b5d2a01-04b9-4901-a2f9-1036d6c2eda1": "",
+          "ce699533-92d9-45af-a403-0a1c4016b21b": "",
+          "d8b1f374-f12c-4986-96ed-c42add22d94d": "",
+          "917599f2-3347-48ce-a077-d1b6bc2ce7b9": "",
+          "8cc43b5a-d991-49ee-b062-3ec442fc66dd": "Belize",
+          "93f1fc2c-f031-40ab-b4f3-dfd29d22213f": "",
+          "5b6ee244-0345-483b-8e7f-580c95011490": "",
+          "43d3b944-9853-47ea-9a4d-6f33ee70a811": "",
+          "cc886149-5dc2-4841-88e9-441670c56e02": "",
+          "e6191a63-0e19-4d44-9611-ebb2d936a4f0": false,
+          "38b2b0c6-fa2b-49f7-a32a-c36331abff9f": "",
+          "f326b698-ca01-452e-8563-eb6f532aa903": "",
+          "48d3195d-1224-49ee-a43b-8a35dbee8134": false,
+          "80844a72-7b93-4f24-ab8d-7a5a990d30d0": ""
         },
-        "order": 2
+        "order": 3
       },
       {
         "id": "07a18390-563a-4921-9db6-afd523a2463f",
         "values": {
-          "9b16eaad-3c63-4e9f-8a3c-384fa2eec742": "Transporti",
+          "9b16eaad-3c63-4e9f-8a3c-384fa2eec742": "Transporti1",
           "50277a3c-a512-4505-a341-cd3f19a3f296": [
             {
               "name": "vsas",
               "email": "valitv73@gmail.com"
             }
           ],
-          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Working on it",
+          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Done",
           "da4bb67c-272b-4b85-935e-4f9de2b04fc9": "",
           "35d9ec8b-836f-43ae-81eb-93670d831328": "",
           "33f38a78-77c7-43ca-98d1-df8becdb5f4f": "",
@@ -1413,12 +1381,69 @@
           "135173e9-2d6e-4ac8-900c-340d504129c1": "Comoros",
           "6bfc05aa-92ca-447d-abf0-c68ff8dd20a2": "",
           "0de1c636-efe3-4a2b-8064-7cd344f8bea2": "",
-          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2022-03-02"
+          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2022-03-02",
+          "02bf43ce-9895-42a9-baa6-1240070696a3": "",
+          "e3fa03cf-cda3-4320-a810-1a00e636fb99": "",
+          "0b5d2a01-04b9-4901-a2f9-1036d6c2eda1": "",
+          "ce699533-92d9-45af-a403-0a1c4016b21b": "",
+          "d8b1f374-f12c-4986-96ed-c42add22d94d": "",
+          "917599f2-3347-48ce-a077-d1b6bc2ce7b9": "",
+          "8cc43b5a-d991-49ee-b062-3ec442fc66dd": "Argentina",
+          "93f1fc2c-f031-40ab-b4f3-dfd29d22213f": "",
+          "5b6ee244-0345-483b-8e7f-580c95011490": "",
+          "43d3b944-9853-47ea-9a4d-6f33ee70a811": "",
+          "cc886149-5dc2-4841-88e9-441670c56e02": "",
+          "e6191a63-0e19-4d44-9611-ebb2d936a4f0": false,
+          "38b2b0c6-fa2b-49f7-a32a-c36331abff9f": "",
+          "f326b698-ca01-452e-8563-eb6f532aa903": "",
+          "48d3195d-1224-49ee-a43b-8a35dbee8134": false,
+          "80844a72-7b93-4f24-ab8d-7a5a990d30d0": ""
         },
-        "order": 3
+        "order": 4
+      },
+      {
+        "id": "2ea89904-cf56-4932-ad41-f9b874077791",
+        "values": {
+          "ca2ce101-80c4-4436-aa9d-84a5b7ef1426": "Working on it",
+          "8cc43b5a-d991-49ee-b062-3ec442fc66dd": "Bolivia",
+          "2ec415fe-2ecc-48e1-94aa-dd76e0761915": "2026-03-03",
+          "9b16eaad-3c63-4e9f-8a3c-384fa2eec742": "Transporti",
+          "93f1fc2c-f031-40ab-b4f3-dfd29d22213f": "",
+          "50277a3c-a512-4505-a341-cd3f19a3f296": [
+            {
+              "name": "vsas",
+              "email": "valitv73@gmail.com"
+            },
+            {
+              "name": "Valoni",
+              "email": "valonhalili74@gmail.com"
+            }
+          ],
+          "5b6ee244-0345-483b-8e7f-580c95011490": "",
+          "43d3b944-9853-47ea-9a4d-6f33ee70a811": [
+            {
+              "name": "8b14aa51a2f941f297e65dd8c9f75881.jpg",
+              "url": "/uploads/1771714589106-349888597-8b14aa51a2f941f297e65dd8c9f75881.jpg",
+              "type": "image/jpeg",
+              "size": 1726971,
+              "uploadedAt": "2026-02-21T22:56:29.112Z"
+            }
+          ],
+          "cc886149-5dc2-4841-88e9-441670c56e02": "",
+          "e6191a63-0e19-4d44-9611-ebb2d936a4f0": false,
+          "38b2b0c6-fa2b-49f7-a32a-c36331abff9f": "",
+          "f326b698-ca01-452e-8563-eb6f532aa903": {
+            "start": "2026-02-05",
+            "end": "2026-02-20"
+          },
+          "48d3195d-1224-49ee-a43b-8a35dbee8134": false,
+          "80844a72-7b93-4f24-ab8d-7a5a990d30d0": ""
+        },
+        "order": 1
       }
     ],
-    "workspaceId": "7241c9f2-3666-47dd-af2b-8d282306a475"
+    "workspaceId": "7241c9f2-3666-47dd-af2b-8d282306a475",
+    "docContent": "hello\nsdsdsdsdd\n"
   },
   {
     "id": "f6ec8b2e-c138-4aa6-be70-fbba094d4fd7",
@@ -1576,7 +1601,8 @@
         }
       }
     ],
-    "workspaceId": "0ce4fd2a-2bb7-4973-b75f-2f6bd84eddb7"
+    "workspaceId": "0ce4fd2a-2bb7-4973-b75f-2f6bd84eddb7",
+    "docContent": ""
   },
   {
     "id": "a7646615-4440-495b-8518-e8d5ecf93ff7",
@@ -1747,5 +1773,62 @@
       }
     ],
     "workspaceId": "0546702b-5015-45aa-b69b-3afbc62ed926"
+  },
+  {
+    "id": "5085b84b-03bf-4751-97f3-1731f3dfe8ac",
+    "name": "New Group 2",
+    "columns": [
+      {
+        "id": "task",
+        "name": "Task",
+        "type": "Text",
+        "order": 0
+      },
+      {
+        "id": "people",
+        "name": "People",
+        "type": "People",
+        "order": 1,
+        "options": []
+      },
+      {
+        "id": "status",
+        "name": "Status",
+        "type": "Status",
+        "order": 2,
+        "options": [
+          {
+            "value": "Working on it",
+            "color": "#fdab3d"
+          },
+          {
+            "value": "Done",
+            "color": "#00c875"
+          },
+          {
+            "value": "Stuck",
+            "color": "#e2445c"
+          }
+        ]
+      }
+    ],
+    "createdAt": 1771721403718,
+    "tasks": [
+      {
+        "id": "44f071aa-03da-45d8-b90b-62f35e2a3ac4",
+        "values": {
+          "0": "H",
+          "1": "e",
+          "2": "l",
+          "3": "l",
+          "4": "o",
+          "task": "Hello",
+          "people": [],
+          "status": "Working on it"
+        }
+      }
+    ],
+    "workspaceId": "7241c9f2-3666-47dd-af2b-8d282306a475",
+    "docContent": ""
   }
 ]

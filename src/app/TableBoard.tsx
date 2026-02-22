@@ -30,6 +30,11 @@ function TaskRowMenu({ row, onDelete, onView }: { row: Row, onDelete: () => void
   );
 }
 import React, { useState, useEffect } from "react";
+import TimelineIcon from "@mui/icons-material/Timeline";
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import DateRangeIcon from "@mui/icons-material/DateRange";
+import DescriptionIcon from "@mui/icons-material/Description";
 import Flag from "react-flagkit";
 // Country name to ISO 3166-1 alpha-2 code mapping for react-flagkit
 const countryCodeMap: Record<string, string> = {
@@ -67,13 +72,18 @@ import {
   Checkbox,
   ListItemText,
   Switch,
-  Popover
+  Popover,
+  InputAdornment
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import SearchIcon from "@mui/icons-material/Search";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
+import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ColumnTypeSelector from "./ColumnTypeSelector";
 import { Column, Row, ColumnType, ColumnOption } from "../types";
@@ -81,7 +91,7 @@ import { Column, Row, ColumnType, ColumnOption } from "../types";
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];
 
-import { getApiUrl } from "./apiUrl";
+import { getApiUrl, SERVER_URL } from "./apiUrl";
 
 interface TableBoardProps {
   tableId: string;
@@ -101,6 +111,16 @@ const initialRows: Row[] = [
 ];
 
 export default function TableBoard({ tableId }: TableBoardProps) {
+      // Workspace view state
+      const [workspaceView, setWorkspaceView] = useState<'table' | 'kanban' | 'gantt' | 'calendar' | 'doc' | 'gallery'>('table');
+      const [filterText, setFilterText] = useState("");
+      const [filterPerson, setFilterPerson] = useState<string[]>([]);
+      const [filterStatus, setFilterStatus] = useState<string[]>([]);
+      // Current date for calendar view
+      const [currentDate, setCurrentDate] = useState(dayjs());
+      // Document view state
+      const [docContent, setDocContent] = useState("");
+      const [docSaving, setDocSaving] = useState(false);
     // Chat popover state
     const [chatAnchor, setChatAnchor] = useState<null | HTMLElement>(null);
     const [chatPopoverKey, setChatPopoverKey] = useState<string | null>(null);
@@ -147,7 +167,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [rows, setRows] = useState<Row[]>(initialRows);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [editValue, setEditValue] = useState<any>("");
+  const [editAnchorEl, setEditAnchorEl] = useState<null | HTMLElement>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
   const [renameAnchorEl, setRenameAnchorEl] = useState<null | HTMLElement>(null);
   const [colMenuId, setColMenuId] = useState<string | null>(null);
   const [showColSelector, setShowColSelector] = useState(false);
@@ -155,18 +177,25 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteColId, setDeleteColId] = useState<string | null>(null);
-  const [fileDialog, setFileDialog] = useState<{ open: boolean; file: File | null; rowId: string | null; colId: string | null }>({ open: false, file: null, rowId: null, colId: null });
+  const [fileDialog, setFileDialog] = useState<{ open: boolean; file: any | null; rowId: string | null; colId: string | null }>({ open: false, file: null, rowId: null, colId: null });
   const [loading, setLoading] = useState(false);
+  const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
   const [automationEnabled, setAutomationEnabled] = useState(true);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
     setLoading(true);
+    // Fetch fresh data when tableId changes
     fetch(getApiUrl(`/tables`))
       .then((res) => res.json())
       .then((tables) => {
         const table = tables.find((t: any) => t.id === tableId);
-        if (table) setColumns(table.columns || []);
+        if (table) {
+          setColumns(table.columns || []);
+          // Only update docContent if it's different to avoid overwrite or loop
+          // But here, we are mounting/switching table, so we should trust backend
+          setDocContent(table.docContent || "");
+        }
       })
       .finally(() => setLoading(false));
     fetch(getApiUrl(`/tables/${tableId}/tasks`))
@@ -186,6 +215,29 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       })
       .finally(() => setLoading(false));
   }, [tableId, columns.length]);
+
+
+  // Debounced save for document content
+  useEffect(() => {
+    // Save regardless of current view if docContent changes or tableId changes
+    if (docContent === undefined) return; 
+
+    const timeout = setTimeout(() => {
+      setDocSaving(true);
+      fetch(getApiUrl(`/tables/${tableId}/doc`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: docContent }),
+      })
+      .then(res => {
+         if (!res.ok) console.error('Failed to save doc');
+      })
+      .finally(() => {
+        setDocSaving(false);
+      });
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, [docContent, tableId]); // Removed workspaceView dependency
 
   // --- Handlers and logic ---
   // Add new task
@@ -238,9 +290,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       const tables = await tablesRes.json();
       const table = tables.find((t: any) => t.id === tableId);
       if (table) setColumns(table.columns || []);
+      return;
     }
     // Row drag
-    if (result.type === 'row') {
+    if (result.type === undefined || result.type === 'row' || result.type === 'default') {
       const newRows = Array.from(rows);
       const [removed] = newRows.splice(result.source.index, 1);
       newRows.splice(result.destination.index, 0, removed);
@@ -248,8 +301,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       const allIds = newRows.map(r => r.id);
       const hasDuplicates = allIds.length !== new Set(allIds).size;
       const hasMissing = allIds.some(id => !id);
-      console.log('Drag result:', result);
-      console.log('New row order:', newRows);
       if (hasDuplicates) {
         console.error('Duplicate row ids detected:', allIds);
       }
@@ -328,8 +379,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
 
   // Edit cell
-  const handleCellClick = (rowId: string, colId: string, value: any, colType?: string) => {
+  const handleCellClick = (rowId: string, colId: string, value: any, colType?: string, anchor?: HTMLElement) => {
     // Only enter edit mode if not already editing this cell
+    // Set anchor for popover-based editors
+    if (anchor) setEditAnchorEl(anchor);
+    
     if (!editingCell || editingCell.rowId !== rowId || editingCell.colId !== colId) {
       // Close chat popover if clicking any column except Message
       if (colType !== "Message") {
@@ -341,6 +395,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       setEditingCell({ rowId, colId });
       if (colType === "Date") {
         setEditValue(value ? dayjs(value) : null);
+      } else if (colType === "Timeline") {
+         setEditValue({
+           start: value?.start ? dayjs(value.start) : null,
+           end: value?.end ? dayjs(value.end) : null
+         });
       } else if (colType === "People") {
         setEditValue(Array.isArray(value) ? value : []);
       } else if (colType === "Country") {
@@ -364,6 +423,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
     if (colType === "Date") {
       newValue = newValue && dayjs.isDayjs(newValue) && newValue.isValid() ? newValue.format("YYYY-MM-DD") : "";
+    }
+    if (colType === "Timeline") {
+        const start = newValue?.start && dayjs(newValue.start).isValid() ? dayjs(newValue.start).format("YYYY-MM-DD") : null;
+        const end = newValue?.end && dayjs(newValue.end).isValid() ? dayjs(newValue.end).format("YYYY-MM-DD") : null;
+        newValue = { start, end };
     }
     const updatedRow: Row = { ...prevRows[rowIdx], values: { ...prevRows[rowIdx].values, [colId]: newValue } };
     const updatedRows = prevRows.map((row, idx) => idx === rowIdx ? updatedRow : row);
@@ -430,45 +494,224 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
   };
 
-  // File upload for Files column
-  const handleFileUpload = (rowId: string, colId: string, files: FileList | null) => {
+  // File upload for Files column - UPDATED for Server Upload
+  const handleFileUpload = async (rowId: string, colId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setRows(prevRows => prevRows.map(row => {
-      if (row.id !== rowId) return row;
-      const prevFiles = Array.isArray(row.values[colId]) ? row.values[colId] : [];
-      return {
-        ...row,
-        values: {
-          ...row.values,
-          [colId]: [...prevFiles, ...Array.from(files)]
+
+    try {
+      console.log('Starting file upload for row:', rowId, 'files:', files.length);
+
+      // 1. Upload each file to server
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+          const res = await fetch(getApiUrl('/upload'), {
+             method: 'POST',
+             body: formData,
+          });
+          
+          if (!res.ok) {
+            console.error('Upload failed for file:', file.name);
+            return null;
+          }
+          
+          const data = await res.json();
+          // Return object with metadata + url
+          return {
+             name: data.name || file.name,
+             url: data.url,
+             type: file.type,
+             size: file.size,
+             originalName: data.originalName,
+             uploadedAt: new Date().toISOString()
+          };
+        } catch (err) {
+          console.error('File upload error:', err);
+          return null;
         }
-      };
-    }));
+      });
+
+      const uploadedFiles = await Promise.all(uploadPromises);
+      const validFiles = uploadedFiles.filter((f): f is NonNullable<typeof f> => f !== null);
+      
+      if (validFiles.length === 0) {
+        console.warn('No files were successfully uploaded');
+        return;
+      }
+
+      console.log('Successfully uploaded files:', validFiles);
+
+      // 2. Update Row State & Persist
+      
+      // Calculate new state first to avoid async state update issues
+      const targetRow = rows.find(r => r.id === rowId);
+      if (targetRow) {
+         const prevFiles = Array.isArray(targetRow.values[colId]) ? targetRow.values[colId] : [];
+         const newFiles = [...prevFiles, ...validFiles];
+         const newRowValues = { ...targetRow.values, [colId]: newFiles };
+
+         // Update local state
+         setRows(prevRows => prevRows.map(r => r.id === rowId ? { ...r, values: newRowValues } : r));
+
+         // Update backend
+         await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+           method: "PUT",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ id: rowId, values: newRowValues }),
+         });
+      }
+
+    } catch (error) {
+      console.error("Error in handleFileUpload:", error);
+    }
+
     setEditingCell(null);
     setEditValue("");
   };
 
   // File dialog open/close
-  const handleFileClick = (file: File, rowId: string, colId: string) => {
+  const handleFileClick = (file: any, rowId: string, colId: string) => {
     setFileDialog({ open: true, file, rowId, colId });
   };
-  const handleFileDelete = () => {
+  const handleFileDelete = async () => {
     if (!fileDialog.file || !fileDialog.rowId || !fileDialog.colId) return;
     const colId = fileDialog.colId;
     const rowId = fileDialog.rowId;
-    setRows(prevRows => prevRows.map(row => {
-      if (row.id !== rowId) return row;
-      const files = Array.isArray(row.values[colId]) ? row.values[colId] : [];
-      return {
-        ...row,
-        values: {
-          ...row.values,
-          [colId]: files.filter((f: File) => f !== fileDialog.file)
-        }
-      };
-    }));
+    
+    // Calculate new values first
+    let newValues: any = null;
+    
+    setRows(prevRows => {
+      const targetRow = prevRows.find(r => r.id === rowId);
+      if (!targetRow) return prevRows;
+
+      const files = Array.isArray(targetRow.values[colId]) ? targetRow.values[colId] : [];
+      const newFiles = files.filter((f: any) => f !== fileDialog.file);
+      
+      newValues = { ...targetRow.values, [colId]: newFiles };
+
+      // Return updated rows
+      return prevRows.map(row => 
+        row.id === rowId ? { ...row, values: newValues } : row
+      );
+    });
+
+    // Save to backend using the calculated values
+    // Note: We need to trust that the row exists since we found it in state
+    // To be safe, we check newValues. But since setRows is async/batched, 
+    // we should re-calculate specifically for the API call or use the result from above.
+    // However, since we can't extract return value from setRows, we duplicate logic slightly 
+    // OR we just use the prevRows approach but outside.
+    
+    // Better approach:
+    const currentRow = rows.find(r => r.id === rowId);
+    if (currentRow) {
+       const currentFiles = Array.isArray(currentRow.values[colId]) ? currentRow.values[colId] : [];
+       const nextFiles = currentFiles.filter((f: any) => f !== fileDialog.file);
+       const nextValues = { ...currentRow.values, [colId]: nextFiles };
+       
+       await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: rowId, values: nextValues }),
+       });
+    }
+
     setFileDialog({ open: false, file: null, rowId: null, colId: null });
   };
+
+  // Filter options
+  const availablePeople = React.useMemo(() => {
+    const people = new Set<string>();
+    const peopleCols = columns.filter(c => c.type === 'People');
+    rows.forEach(r => {
+      peopleCols.forEach(c => {
+         const cellVal = r.values[c.id];
+         if (Array.isArray(cellVal)) {
+           cellVal.forEach((p: any) => {
+             if (p.name) people.add(p.name);
+             // else if (p.email) people.add(p.email); // Use name primarily
+           });
+         }
+      });
+    });
+    return Array.from(people).sort();
+  }, [rows, columns]);
+
+  const availableStatuses = React.useMemo(() => {
+    const statuses = new Set<string>();
+    const statusCols = columns.filter(c => c.type === 'Status');
+    statusCols.forEach(c => {
+       if (c.options) {
+         c.options.forEach(o => statuses.add(o.value));
+       }
+    });
+    return Array.from(statuses).sort();
+  }, [columns]);
+
+  // Filter logic
+  const filteredRows = React.useMemo(() => {
+    if (!filterText && filterPerson.length === 0 && filterStatus.length === 0) return rows;
+    const lowerFilter = filterText.toLowerCase();
+    
+    return rows.filter(row => {
+      // 1. Text Filter
+      const textMatch = !filterText || Object.values(row.values).some(val => {
+        if (val === null || val === undefined) return false;
+        if (typeof val === 'string') {
+            return val.toLowerCase().includes(lowerFilter);
+        }
+        if (typeof val === 'number') {
+            return val.toString().includes(lowerFilter);
+        }
+        if (Array.isArray(val)) {
+            return val.some((v: any) => {
+               if (typeof v === 'string') return v.toLowerCase().includes(lowerFilter);
+               if (v && typeof v === 'object') {
+                   return (v.name && v.name.toLowerCase().includes(lowerFilter)) || 
+                          (v.email && v.email.toLowerCase().includes(lowerFilter)) ||
+                          (v.originalName && v.originalName.toLowerCase().includes(lowerFilter)); 
+               }
+               return false;
+            });
+        }
+        if (typeof val === 'object') {
+            if (val.start && val.end) {
+                return val.start.includes(lowerFilter) || val.end.includes(lowerFilter);
+            }
+        }
+        return false;
+      });
+      if (!textMatch) return false;
+
+      // 2. People Filter
+      if (filterPerson.length > 0) {
+        const peopleCols = columns.filter(c => c.type === 'People');
+        const hasPerson = peopleCols.some(col => {
+           const val = row.values[col.id];
+           if (Array.isArray(val)) {
+             return val.some((p: any) => filterPerson.includes(p.name)); // Match by name
+           }
+           return false;
+        });
+        if (!hasPerson) return false;
+      }
+
+      // 3. Status Filter
+      if (filterStatus.length > 0) {
+        const statusCols = columns.filter(c => c.type === 'Status');
+        const hasStatus = statusCols.some(col => {
+           const val = row.values[col.id];
+           return filterStatus.includes(val);
+        });
+        if (!hasStatus) return false;
+      }
+
+      return true;
+    });
+  }, [rows, filterText, filterPerson, filterStatus, columns]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
@@ -513,37 +756,81 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }));
   };
 
-   // Status label management
-  const handleEditStatusLabel = (colId: string, idx: number) => {
+  const handleEditStatusLabel = (colId: string, idx: number, newValue: string) => {
+    // Also update the local state while typing
+    setLabelEdits(prev => ({
+      ...prev,
+      [colId]: { ...(prev[colId] || {}), [idx]: newValue }
+    }));
+  };
+
+  const handleSaveStatusLabel = async (colId: string, idx: number) => {
     const newLabel = labelEdits[colId]?.[idx]?.trim();
     if (!newLabel) return;
+    
+    // Find column to get old value
+    const col = columns.find(c => c.id === colId);
+    const oldOption = col?.options?.[idx];
+    if (!oldOption) return;
+
+    // Update columns
+    const params = { columns: [] as Column[] }; // Placeholder to capture updated columns
+    
     setColumns(cols => {
-      const updated = cols.map(col =>
-        col.id === colId && col.options
+      const updated = cols.map(c =>
+        c.id === colId && c.options
           ? {
-              ...col,
-              options: col.options.map((opt, i) =>
+              ...c,
+              options: c.options.map((opt, i) =>
                 i === idx ? { ...opt, value: newLabel } : opt
               ),
             }
-          : col
+          : c
       );
-      fetch(getApiUrl(`/tables/${tableId}/columns`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ columns: updated }),
-      });
+      params.columns = updated;
       return updated;
     });
+
+    // Persist columns
+    await fetch(getApiUrl(`/tables/${tableId}/columns`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ columns: params.columns }),
+    });
+
+    // Update all rows that used this value
+    const updatedRows = rows.map(r => {
+      if (r.values[colId] === oldOption.value) {
+        return { ...r, values: { ...r.values, [colId]: newLabel } };
+      }
+      return r;
+    });
+    setRows(updatedRows);
+
+    // Persist rows (batch or individually)
+    // For simplicity, we just persist the ones that changed
+    updatedRows.forEach(r => {
+      if (r.values[colId] === newLabel && r.values[colId] !== oldOption.value) {
+        fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.id, values: r.values }),
+        });
+      }
+    });
+
+    // Clear edit state
     setLabelEdits(edits => {
-      const updated = { ...edits[colId] };
-      delete updated[idx];
-      return { ...edits, [colId]: updated };
+        const updated = { ...edits[colId] };
+        delete updated[idx];
+        return { ...edits, [colId]: updated };
     });
   };
+
   const handleEditStatusColor = (colId: string, idx: number, color: string) => {
+    let updatedCols: Column[] = [];
     setColumns(cols => {
-      const updated = cols.map(col =>
+      updatedCols = cols.map(col =>
         col.id === colId && col.options
           ? {
               ...col,
@@ -553,40 +840,47 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             }
           : col
       );
-      fetch(getApiUrl(`/tables/${tableId}/columns`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ columns: updated }),
-      });
-      return updated;
+      return updatedCols;
+    });
+    
+    // Persist immediately
+    fetch(getApiUrl(`/tables/${tableId}/columns`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ columns: updatedCols }),
     });
   };
+
   const handleAddStatusLabel = (colId: string) => {
     if (!newStatusLabel.trim()) return;
+    let updatedCols: Column[] = [];
+    
     setColumns(cols => {
-      const updated = cols.map(col =>
-        col.id === colId && col.options
+      updatedCols = cols.map(col =>
+        col.id === colId && col.options && !col.options.some(opt => opt.value === newStatusLabel.trim())
           ? {
               ...col,
-              options: col.options.some(opt => opt.value === newStatusLabel.trim())
-                ? col.options
-                : [...col.options, { value: newStatusLabel.trim(), color: newStatusColor }],
+              options: [...col.options, { value: newStatusLabel.trim(), color: newStatusColor }],
             }
           : col
       );
-      fetch(getApiUrl(`/tables/${tableId}/columns`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ columns: updated }),
-      });
-      return updated;
+      return updatedCols;
     });
+
+    fetch(getApiUrl(`/tables/${tableId}/columns`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ columns: updatedCols }),
+    });
+
     setNewStatusLabel("");
     setNewStatusColor("#e0e4ef");
   };
-  const handleDeleteStatusLabel = (colId: string, idx: number) => {
+
+  const handleDeleteStatusLabel = async (colId: string, idx: number) => {
+    let updatedCols: Column[] = [];
     setColumns(cols => {
-      const updated = cols.map(col =>
+      updatedCols = cols.map(col =>
         col.id === colId && col.options
           ? {
               ...col,
@@ -594,33 +888,36 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             }
           : col
       );
-      fetch(getApiUrl(`/tables/${tableId}/columns`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ columns: updated }),
-      });
-      return updated;
+      return updatedCols;
     });
-    if (editingCell && editingCell.colId === colId) {
-      const col = columns.find(c => c.id === colId);
-      if (col && col.options && col.options[idx] && editValue === col.options[idx].value) {
-        setEditValue("");
-      }
+    
+    await fetch(getApiUrl(`/tables/${tableId}/columns`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ columns: updatedCols }),
+    });
+
+    // Also clear value from rows
+    const col = columns.find(c => c.id === colId);
+    const deletedOption = col?.options?.[idx];
+    
+    if (deletedOption) {
+        setRows(prevRows =>
+          prevRows.map(row => {
+            if (row.values[colId] === deletedOption.value) {
+                // Update backend as well
+                const newValues = { ...row.values, [colId]: "" };
+                fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: row.id, values: newValues }),
+                });
+                return { ...row, values: newValues };
+            }
+            return row;
+          })
+        );
     }
-    setRows(prevRows =>
-      prevRows.map(row => {
-        const col = columns.find(c => c.id === colId);
-        if (!col || !col.options) return row;
-        if (col.options[idx] && row.values[colId] === col.options[idx].value) {
-          return { ...row, values: { ...row.values, [colId]: "" } };
-        }
-        return row;
-      })
-    );
-    setLabelEdits(edits => {
-      const { [idx]: _, ...rest } = edits[colId] || {};
-      return { ...edits, [colId]: rest };
-    });
   };
 
   // --- Render cell by type ---
@@ -690,33 +987,418 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         rowId: row.id,
       });
     }
-    // For Dropdown/Status/Priority/Country, ensure value is in options (case-insensitive for Country)
-    if ((col.type === "Status" || col.type === "Dropdown" || col.id === "priority" || (col.type && col.type.toLowerCase() === "country")) && col.options) {
-      if (!col.options.some(opt => opt.value === value)) {
-        value = "";
-      }
+    
+    // Status/Dropdown/Priority - Modern status picker
+    // Moved ABOVE the generic editing block so it takes precedence
+    if (effectiveCol.type === "Status" || effectiveCol.type === "Dropdown" || effectiveCol.id === "priority") {
+      const options = effectiveCol.options || [];
+      const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
+      const isLabelEditing = editingLabelsColId === effectiveCol.id;
+      const currentOption = options.find(o => o.value === value) || { value: value || '-', color: '#e0e4ef' };
+      
+      return (
+        <>
+          <Box
+            onClick={(e) => {
+              e.stopPropagation();
+              setStatusAnchor(e.currentTarget);
+              setEditingCell({ rowId: row.id, colId: col.id });
+            }}
+            sx={{
+              bgcolor: currentOption.color,
+              color: '#fff',
+              borderRadius: '4px',
+              textAlign: 'center',
+              py: 0.5,
+              px: 1,
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              minWidth: 100,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'filter 0.2s',
+              '&:hover': { filter: 'brightness(1.1)' },
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
+              {currentOption.value}
+            </Typography>
+          </Box>
+
+          {/* Status Picker Popover */}
+          {isEditing && (
+            <Popover
+              open={Boolean(statusAnchor)}
+              anchorEl={statusAnchor}
+              onClose={() => {
+                setStatusAnchor(null);
+                setEditingCell(null);
+                setEditingLabelsColId(null);
+              }}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+              PaperProps={{
+                sx: {
+                  mt: 1,
+                  p: 2,
+                  bgcolor: '#23243a',
+                  color: '#fff',
+                  borderRadius: 3,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                  border: '1px solid #3a3b5a',
+                  minWidth: 220,
+                  maxWidth: 280
+                }
+              }}
+            >
+              {!isLabelEditing ? (
+                /* Standard Selection Mode */
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography variant="caption" sx={{ color: '#7d82a8', mb: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>
+                    Select Status
+                  </Typography>
+                  {options.map((opt) => (
+                    <Box
+                      key={opt.value}
+                      onClick={() => {
+                        handleCellSave(row.id, col.id, col.type, opt.value);
+                        setStatusAnchor(null);
+                        setEditingCell(null);
+                      }}
+                      sx={{
+                        bgcolor: opt.color,
+                        color: '#fff',
+                        borderRadius: '4px',
+                        py: 1,
+                        px: 2,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        fontWeight: 500,
+                        transition: 'transform 0.1s',
+                        '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)' }
+                      }}
+                    >
+                      {opt.value}
+                    </Box>
+                  ))}
+                  <Box sx={{ borderTop: '1px solid #3a3b5a', mt: 1, pt: 1, display: 'flex', justifyContent: 'center' }}>
+                    <Button
+                      size="small"
+                      startIcon={<EditIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => setEditingLabelsColId(effectiveCol.id)}
+                      sx={{ 
+                        color: '#7d82a8', 
+                        textTransform: 'none', 
+                        fontSize: '0.8rem',
+                        background: 'transparent',
+                        backgroundColor: 'transparent',
+                        boxShadow: 'none',
+                        '&:hover': { 
+                          color: '#fff', 
+                          bgcolor: 'rgba(255,255,255,0.05)',
+                          background: 'rgba(255,255,255,0.05)',
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          boxShadow: 'none'
+                        } 
+                      }}
+                    >
+                      Edit Labels
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+                /* Edit Labels Mode */
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: '#7d82a8', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Edit Labels
+                    </Typography>
+                    <Button
+                      size="small"
+                      onClick={() => setEditingLabelsColId(null)}
+                      sx={{ color: '#fff', minWidth: 'auto', p: 0.5 }}
+                    >
+                      Done
+                    </Button>
+                  </Box>
+                  
+                  <Box sx={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {options.map((opt, idx) => (
+                      <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <input
+                          type="color"
+                          value={opt.color}
+                          onChange={(e) => handleEditStatusColor(effectiveCol.id, idx, e.target.value)}
+                          style={{ width: 24, height: 24, padding: 0, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 4 }}
+                        />
+                        <input
+                          type="text"
+                          value={labelEdits[effectiveCol.id]?.[idx] ?? opt.value}
+                          onChange={(e) => handleEditStatusLabel(effectiveCol.id, idx, e.target.value)}
+                          onBlur={() => handleSaveStatusLabel(effectiveCol.id, idx)}
+                          style={{ 
+                            flex: 1, 
+                            background: 'rgba(255,255,255,0.05)', 
+                            border: '1px solid #3a3b5a', 
+                            color: '#fff', 
+                            padding: '4px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteStatusLabel(effectiveCol.id, idx)}
+                          sx={{ color: '#e2445c', p: 0.5, '&:hover': { bgcolor: 'rgba(226,68,92,0.1)' } }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+
+                  <Box sx={{ borderTop: '1px solid #3a3b5a', pt: 1.5, display: 'flex', gap: 1 }}>
+                    <input
+                      type="color"
+                      value={newStatusColor}
+                      onChange={(e) => setNewStatusColor(e.target.value)}
+                      style={{ width: 32, height: 32, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="New label"
+                      value={newStatusLabel}
+                      onChange={(e) => setNewStatusLabel(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddStatusLabel(effectiveCol.id)}
+                      style={{ 
+                        flex: 1, 
+                        background: 'rgba(255,255,255,0.05)', 
+                        border: '1px solid #3a3b5a', 
+                        color: '#fff', 
+                            padding: '4px 8px', 
+                        borderRadius: '4px',
+                        fontSize: '0.875rem'
+                      }}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleAddStatusLabel(effectiveCol.id)}
+                      disabled={!newStatusLabel.trim()}
+                      sx={{ bgcolor: '#4f51c0', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#5a5ccf' }, '&.Mui-disabled': { opacity: 0.5 } }}
+                    >
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Box>
+              )}
+            </Popover>
+          )}
+        </>
+      );
     }
+    
+    // People Column - Modern
+    if (col.type === "People") {
+      const people = Array.isArray(value) ? value : [];
+      const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
+      
+      // Calculate displayed people vs overflow
+      const maxDisplay = 3;
+      const displayPeople = people.slice(0, maxDisplay);
+      const overflow = people.length - maxDisplay;
+
+      return (
+        <>
+          <Box
+            onClick={(e) => {
+              e.stopPropagation();
+              setStatusAnchor(e.currentTarget);
+              setEditingCell({ rowId: row.id, colId: col.id });
+            }}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              minHeight: 32,
+              borderRadius: '18px',
+              transition: 'all 0.2s',
+              gap: 0.5,
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
+            }}
+          >
+            {people.length === 0 ? (
+              <Box sx={{ 
+                width: 28, 
+                height: 28, 
+                borderRadius: '50%', 
+                border: '1px dashed #5a5b7a', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: '#7d82a8'
+              }}>
+                <AddIcon sx={{ fontSize: 16 }} />
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5 }}>
+                {displayPeople.map((p, i) => (
+                  <Tooltip key={p.email || i} title={p.name}>
+                    <Avatar 
+                      sx={{ 
+                        width: 28, 
+                        height: 28, 
+                        fontSize: 12, 
+                        bgcolor: '#0073ea',
+                        border: '2px solid #23243a',
+                        ml: i > 0 ? -1 : 0,
+                        zIndex: 10 - i
+                      }}
+                    >
+                      {p.name ? p.name.charAt(0).toUpperCase() : '?'}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+                {overflow > 0 && (
+                  <Box sx={{ 
+                    width: 28, 
+                    height: 28, 
+                    borderRadius: '50%', 
+                    bgcolor: '#3b3c5a', 
+                    color: '#fff', 
+                    fontSize: 11, 
+                    fontWeight: 600, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    border: '2px solid #23243a',
+                    ml: -1,
+                    zIndex: 0
+                  }}>
+                    +{overflow}
+                  </Box>
+                )}
+              </Box>
+            )}
+            
+            {/* Quick add button visible on hover or if empty 
+               (Optional, keeping clean for now)
+            */}
+          </Box>
+
+          {isEditing && (
+            <Popover
+              open={Boolean(statusAnchor)}
+              anchorEl={statusAnchor}
+              onClose={() => {
+                setStatusAnchor(null);
+                setEditingCell(null);
+              }}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+              PaperProps={{
+                sx: {
+                  mt: 1,
+                  width: 300,
+                  bgcolor: '#23243a',
+                  color: '#fff',
+                  borderRadius: 3,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  border: '1px solid #3a3b5a'
+                }
+              }}
+            >
+              <Box sx={{ p: 2 }}>
+                <Typography variant="caption" sx={{ color: '#7d82a8', fontWeight: 600, textTransform: 'uppercase', display: 'block', mb: 1.5 }}>
+                  Assigned People
+                </Typography>
+                
+                {/* Search / Add */}
+                <PeopleSelector
+                  value={people}
+                  onChange={(newPeople) => {
+                    handleCellSave(row.id, col.id, col.type, newPeople);
+                    // Keep popover open to allow multiple adds
+                  }}
+                  onClose={() => { /* Handled solely by Popover onClose */ }}
+                />
+
+                {/* Current People List */}
+                <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {people.length === 0 && (
+                    <Typography variant="body2" sx={{ color: '#5a5b7a', fontStyle: 'italic' }}>
+                      No one assigned
+                    </Typography>
+                  )}
+                  {people.map((p) => (
+                    <Box key={p.email} sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between',
+                      bgcolor: 'rgba(255,255,255,0.03)',
+                      borderRadius: 2,
+                      p: 1
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}>
+                          {p.name ? p.name.charAt(0).toUpperCase() : '?'}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{p.name}</Typography>
+                          <Typography variant="caption" sx={{ color: '#7d82a8', display: 'block', lineHeight: 1 }}>{p.email}</Typography>
+                        </Box>
+                      </Box>
+                      <IconButton 
+                        size="small" 
+                        onClick={() => {
+                          const newPeople = people.filter(person => person.email !== p.email);
+                          handleCellSave(row.id, col.id, col.type, newPeople);
+                        }}
+                        sx={{ color: '#5a5b7a', '&:hover': { color: '#e2445c', bgcolor: 'rgba(226,68,92,0.1)' } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            </Popover>
+          )}
+        </>
+      );
+    }
+
     if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id) {
       // Country column: dropdown in edit mode (case-insensitive)
-      if (((col.type && col.type.toLowerCase() === "country") || (effectiveCol.type && effectiveCol.type.toLowerCase() === "country")) && effectiveCol.options) {
+      if (effectiveCol.type && effectiveCol.type.toLowerCase() === "country" && effectiveCol.options) {
         return (
           <FormControl size="small" fullWidth sx={{ minWidth: 160 }}>
             <Select
-              value={value}
+              value={value || ""}
               onChange={(e) => {
+                const newValue = e.target.value;
+                console.log("Country changed:", newValue);
                 setEditingCell(null);
-                handleCellSave(row.id, col.id, col.type, e.target.value);
+                handleCellSave(row.id, col.id, col.type, newValue);
               }}
               autoFocus
               displayEmpty
-              renderValue={selected => (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderRadius: 2, bgcolor: '#23234a' }}>
-                  {countryCodeMap[selected as keyof typeof countryCodeMap] ? (
-                    <Flag country={countryCodeMap[selected as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
-                  ) : null}
-                  <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{selected || <span style={{ color: '#888' }}>Select country</span>}</Typography>
-                </Box>
-              )}
+              renderValue={(selected: any) => {
+                if (!selected) {
+                   return <span style={{ color: '#888' }}>Select country</span>;
+                }
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderRadius: 2, bgcolor: '#23234a' }}>
+                    {countryCodeMap[selected as keyof typeof countryCodeMap] ? (
+                      <Flag country={countryCodeMap[selected as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
+                    ) : null}
+                    <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{selected}</Typography>
+                  </Box>
+                )
+              }}
               sx={{ color: '#fff', background: '#23234a', borderRadius: 2, boxShadow: '0 2px 8px #23234a33', minHeight: 44 }}
               id={`country-select-${row.id}-${col.id}`}
               name={`country-select-${row.id}-${col.id}`}
@@ -764,210 +1446,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           />
         );
       }
-      // Status/Dropdown/Country
-      if ((effectiveCol.type === "Status" || effectiveCol.type === "Dropdown") && effectiveCol.options) {
-        const isEditingLabels = editingLabelsColId === effectiveCol.id;
-        return (
-          <Box>
-            <FormControl size="small" fullWidth>
-              <Select
-                value={editValue}
-                onChange={(e) => {
-                  setEditValue(e.target.value);
-                  setEditingCell(null);
-                  handleCellSave(row.id, col.id, col.type, e.target.value);
-                }}
-                // Prevent closing when editing labels
-                onBlur={!isEditingLabels ? () => handleCellSave(row.id, col.id) : undefined}
-                autoFocus
-                open={isEditingLabels ? true : undefined}
-                MenuProps={isEditingLabels ? { disableAutoFocusItem: true } : {}}
-                sx={{ color: '#fff', background: '#222' }}
-                id={`dropdown-select-${row.id}-${col.id}`}
-                name={`dropdown-select-${row.id}-${col.id}`}
-              >
-                {effectiveCol.options.map((opt: ColumnOption, idx: number) => (
-                  isEditingLabels ? (
-                    <MenuItem key={opt.value} value={opt.value} sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff', background: '#222' }}>
-                      <TextField
-                        value={labelEdits[effectiveCol.id]?.[idx] ?? opt.value}
-                        size="small"
-                        onChange={(e) => setLabelEdits(edits => ({
-                          ...edits,
-                          [effectiveCol.id]: { ...edits[effectiveCol.id], [idx]: e.target.value }
-                        }))}
-                        onBlur={() => handleEditStatusLabel(effectiveCol.id, idx)}
-                        sx={{ width: 100, color: '#fff', '& .MuiInputBase-input': { color: '#fff' } }}
-                        InputProps={{ style: { color: '#fff' } }}
-                      />
-                      <input
-                        type="color"
-                        value={opt.color || "#e0e4ef"}
-                        style={{ width: 28, height: 28, border: 'none', background: 'none', marginLeft: 4, marginRight: 4, cursor: 'pointer' }}
-                        onChange={(e) => handleEditStatusColor(effectiveCol.id, idx, e.target.value)}
-                      />
-                      <IconButton size="small" color="error" onClick={() => { handleDeleteStatusLabel(effectiveCol.id, idx); }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </MenuItem>
-                  ) : (
-                    <MenuItem
-                      key={opt.value}
-                      value={opt.value}
-                      sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff', background: '#222' }}
-                      onClick={() => {
-                        setEditValue(opt.value);
-                        setEditingCell(null);
-                        handleCellSave(row.id, col.id, col.type, opt.value);
-                      }}
-                    >
-                      <Box sx={{ width: 16, height: 16, bgcolor: opt.color, borderRadius: '50%', mr: 1, display: 'inline-block' }} />
-                      {opt.value}
-                    </MenuItem>
-                  )
-                ))}
-              </Select>
-            </FormControl>
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, gap: 1 }}>
-              <IconButton size="small" onClick={() => setEditingLabelsColId(isEditingLabels ? null : effectiveCol.id)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
-              <span style={{ fontSize: 13, color: '#888', fontWeight: 500, cursor: 'pointer' }} onClick={() => setEditingLabelsColId(isEditingLabels ? null : effectiveCol.id)}>
-                Edit Labels
-              </span>
-              {isEditingLabels && (
-                <>
-                  <TextField
-                    size="small"
-                    placeholder="Add label"
-                    value={newStatusLabel}
-                    onChange={(e) => setNewStatusLabel(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddStatusLabel(effectiveCol.id);
-                      }
-                    }}
-                    sx={{ ml: 2, width: 100 }}
-                  />
-                  <input
-                    type="color"
-                    value={newStatusColor}
-                    style={{ width: 28, height: 28, border: 'none', background: 'none', marginLeft: 4, marginRight: 4, cursor: 'pointer' }}
-                    onChange={(e) => setNewStatusColor(e.target.value)}
-                  />
-                  <IconButton size="small" color="primary" disabled={!newStatusLabel.trim()} onClick={() => handleAddStatusLabel(effectiveCol.id)}>
-                    <AddIcon fontSize="small" />
-                  </IconButton>
-                </>
-              )}
-            </Box>
-          </Box>
-        );
-      }
-      // Country column: dropdown in edit mode only
-      if (col.type && col.type.toLowerCase() === "country" && col.options) {
-  return (
-    <FormControl size="small" fullWidth>
-      <Select
-        value={value}
-        onChange={e => {
-          setEditValue(e.target.value);
-          handleCellSave(row.id, col.id, col.type, e.target.value);
-        }}
-        sx={{ color: '#fff', background: '#222' }}
-        id={`country-select-read-${row.id}-${col.id}`}
-        name={`country-select-read-${row.id}-${col.id}`}
-      >
-        {col.options.map((opt: ColumnOption) => (
-          <MenuItem key={opt.value} value={opt.value} sx={{ color: '#fff', background: '#222', display: 'flex', alignItems: 'center' }}>
-            {countryCodeMap[opt.value as keyof typeof countryCodeMap] ? (
-              <Flag country={countryCodeMap[opt.value as keyof typeof countryCodeMap]} size={20} style={{ marginRight: 8, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
-            ) : null}
-            {opt.value}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
-}
+
+
       // Message column: show chat popover trigger in edit mode
-      if (effectiveCol.type === "Message") {
-        return (
-          <>
-            <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
-              Chat
-            </Button>
-            {chatPopoverKey === `${row.id}-${col.id}` && chatAnchor && (
-              <Popover
-                open={!!chatAnchor}
-                anchorEl={chatAnchor}
-                onClose={handleCloseChat}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                PaperProps={{
-                  sx: {
-                    p: 0,
-                    minWidth: 340,
-                    maxWidth: 420,
-                    bgcolor: '#23234a',
-                    borderRadius: 3,
-                    boxShadow: '0 8px 32px rgba(44,45,74,0.25)',
-                    border: '2px solid #0073ea',
-                  }
-                }}
-              >
-                <Box sx={{ display: 'flex', flexDirection: 'column', height: 380 }}>
-                  <Box sx={{
-                    px: 2,
-                    py: 1.5,
-                    bgcolor: '#2c2d4a',
-                    borderTopLeftRadius: 12,
-                    borderTopRightRadius: 12,
-                    borderBottom: '1px solid #3a3b5a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}>
-                    <Avatar sx={{ bgcolor: '#0073ea', width: 36, height: 36, fontWeight: 700 }}>💬</Avatar>
-                    <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>Task Chat</Typography>
-                    <Box sx={{ flexGrow: 1 }} />
-                    <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#fff' }}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
-                  <Box sx={{ flex: 1, overflowY: 'auto', px: 2, py: 1, bgcolor: '#23234a' }}>
-                    {chatMessages.length === 0 ? (
-                      <Typography color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>No messages yet. Start the conversation!</Typography>
-                    ) : (
-                      chatMessages.map(msg => (
-                        <Box key={msg.id} sx={{ mb: 2, display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 1 }}>
-                          <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontWeight: 700 }}>{msg.sender[0]}</Avatar>
-                          <Box sx={{ bgcolor: '#2c2d4a', borderRadius: 2, px: 2, py: 1, minWidth: 120, maxWidth: 260 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{msg.sender}</Typography>
-                            <Typography variant="body1" sx={{ color: '#bfc8e0', fontSize: 15 }}>{msg.text}</Typography>
-                            <Typography variant="caption" sx={{ fontSize: 11, color: '#fff' }}>{new Date(msg.timestamp).toLocaleString()}</Typography>
-                          </Box>
-                        </Box>
-                      ))
-                    )}
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, bgcolor: '#23234a', borderTop: '1px solid #3a3b5a' }}>
-                    <TextField
-                      value={chatInput}
-                      onChange={e => setChatInput(e.target.value)}
-                      size="small"
-                      placeholder="Type a fun message..."
-                      fullWidth
-                      sx={{ bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2, '& .MuiInputBase-input': { color: '#fff' } }}
-                    />
-                    <Button onClick={handleSendChat} disabled={!chatInput.trim()} variant="contained" sx={{ bgcolor: '#0073ea', color: '#fff', fontWeight: 700, borderRadius: 2, boxShadow: '0 2px 8px #0073ea33' }}>Send</Button>
-                  </Box>
-                </Box>
-              </Popover>
-            )}
-          </>
-        );
-      }
+      // ...existing code...
       // Date
       if (col.type === "Date") {
         return (
@@ -998,101 +1480,96 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           />
         );
       }
-      // People (edit mode: custom PeopleSelector)
-      if (col.type === "People") {
-        // Always enter edit mode on click
-        if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id) {
-          // Deduplicate by email
-          const seen: Record<string, boolean> = {};
-          const deduped = (Array.isArray(editValue) ? editValue : []).filter((person: any) => {
-            if (!person.email || seen[person.email]) return false;
-            seen[person.email] = true;
-            return true;
-          });
-          return (
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', width: '100%' }}
-              onClick={e => e.stopPropagation()}
-              onMouseDown={e => e.stopPropagation()}
-            >
-              {deduped.map((person: any) => (
-                <Chip
-                  key={person.email}
-                  avatar={<Avatar sx={{ bgcolor: '#0073ea' }}>{person.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}</Avatar>}
-                  label={person.name}
-                  onDelete={person.email === "valonhalili74@gmail.com" ? undefined : () => {
-                    const newValue = deduped.filter((p: any) => p.email !== person.email);
-                    setEditValue(newValue);
-                    handleCellSave(row.id, col.id, col.type, newValue);
-                  }}
-                  sx={{ mb: 0.5 }}
-                  disabled={person.email === "valonhalili74@gmail.com"}
-                />
-              ))}
-              <PeopleSelector
-                value={deduped}
-                onChange={(newValue: any[]) => {
-                  setEditValue(newValue);
-                }}
-                onClose={(finalValue: any[]) => {
-                  setEditValue(finalValue);
-                  handleCellSave(row.id, col.id, col.type, finalValue);
-                  setEditingCell(null);
-                }}
-              />
-            </Box>
-          );
-        }
-        // Always enter edit mode on click
-        // Deduplicate by email for read mode too
-        const seen: Record<string, boolean> = {};
-        const people = (Array.isArray(value) ? value : []).filter((person: any) => {
-          if (!person.email || seen[person.email]) return false;
-          seen[person.email] = true;
-          return true;
-        });
+
+      // Timeline
+      if (col.type === "Timeline") {
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }}
-            onClick={() => {
-              handleCellClick(row.id, col.id, value, col.type);
-            }}>
-            {people.length === 0 ? (
-              <Avatar sx={{ width: 28, height: 28, bgcolor: '#bdbdbd', fontSize: 14 }}>-</Avatar>
-            ) : (
-              <>
-                {people.map((person: any) => (
-                  <Tooltip key={person.email} title={person.name + (person.email ? ` (${person.email})` : "") }>
-                    <Avatar sx={{ width: 28, height: 28, bgcolor: '#0073ea', fontSize: 14 }}>
-                      {person.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                    </Avatar>
-                  </Tooltip>
-                ))}
-                {people.length > 1 && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: -8,
-                    left: -8,
-                    bgcolor: '#e2445c',
-                    color: '#fff',
-                    borderRadius: '50%',
-                    width: 20,
-                    height: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    zIndex: 2,
-                    boxShadow: '0 0 0 2px #fff',
-                  }}>
-                    {people.length}
-                  </Box>
-                )}
-              </>
-            )}
+          <Box
+             ref={(node: HTMLElement | null) => {
+               if (node && !editAnchorEl) {
+                 setEditAnchorEl(node);
+               }
+             }}
+             sx={{ 
+                width: '100%', 
+                height: 32, 
+                display: 'flex', 
+                alignItems: 'center',
+                px: 1,
+                bgcolor: '#2c2d4a',
+                borderRadius: 2
+             }}
+          >
+           <Typography variant="body2" sx={{ color: '#fff', fontSize: '0.875rem' }}>
+              {editValue && editValue.start && editValue.end ? `${dayjs(editValue.start).format('YYYY-MM-DD')} - ${dayjs(editValue.end).format('YYYY-MM-DD')}` : 'Set timeline'}
+           </Typography>
+           <Popover
+            open={Boolean(editAnchorEl)}
+            anchorEl={editAnchorEl}
+            onClose={() => handleCellSave(row.id, col.id, col.type, editValue)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            PaperProps={{ sx: { bgcolor: '#2c2d4a', p: 2, borderRadius: 2, boxShadow: 6, border: '1px solid #3f4060', mt: 1 } }}
+          >
+             <Stack direction="row" spacing={1} alignItems="center">
+                <DatePicker
+                  label="Start"
+                  value={editValue?.start || null}
+                  onChange={(newDate: any) => setEditValue((prev: any) => ({ ...prev, start: newDate }))}
+                  slotProps={{ 
+                    textField: { 
+                      size: 'small', 
+                      sx: { 
+                        width: 140, 
+                        bgcolor: '#1e1f2b', 
+                        input: { color: '#fff' }, 
+                        label: { color: '#7d82a8' },
+                        '& .MuiInputLabel-root': { color: '#7d82a8' },
+                        '& .MuiInputBase-input': { color: '#fff' },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3f4060' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#5f6190' },
+                        '& .MuiSvgIcon-root': { color: '#7d82a8' }
+                      } 
+                    },
+                    openPickerIcon: { sx: { color: "#bfc8e0" } }
+                  }}
+                />
+                <Typography sx={{ color: '#7d82a8' }}>to</Typography>
+                <DatePicker
+                  label="End"
+                  value={editValue?.end || null}
+                  onChange={(newDate: any) => setEditValue((prev: any) => ({ ...prev, end: newDate }))}
+                  slotProps={{ 
+                    textField: { 
+                      size: 'small', 
+                      sx: { 
+                        width: 140, 
+                        bgcolor: '#1e1f2b', 
+                        input: { color: '#fff' }, 
+                        label: { color: '#7d82a8' },
+                        '& .MuiInputLabel-root': { color: '#7d82a8' },
+                        '& .MuiInputBase-input': { color: '#fff' },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3f4060' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#5f6190' },
+                        '& .MuiSvgIcon-root': { color: '#7d82a8' }
+                      } 
+                    },
+                    openPickerIcon: { sx: { color: "#bfc8e0" } }
+                  }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); handleCellSave(row.id, col.id, col.type, editValue); }}
+                  sx={{ color: '#00c875', bgcolor: 'rgba(0, 200, 117, 0.1)', '&:hover': { bgcolor: 'rgba(0, 200, 117, 0.2)' } }}
+                >
+                  <CheckIcon fontSize="small" />
+                </IconButton>
+             </Stack>
+          </Popover>
           </Box>
         );
       }
+
       // Numbers
       if (col.type === "Numbers") {
         return (
@@ -1116,6 +1593,27 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           />
         );
       }
+      
+      // Checkbox
+      if (col.type === "Checkbox") {
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+            <Checkbox
+              checked={!!editValue}
+              onChange={(e) => {
+                 setEditValue(e.target.checked);
+                 handleCellSave(row.id, col.id, col.type, e.target.checked);
+              }}
+              sx={{ 
+                color: '#7d82a8',
+                '&.Mui-checked': { color: '#00c875' }
+              }}
+              autoFocus
+            />
+          </Box>
+        );
+      }
+
       // Default: text input
       // Message column: show chat popover trigger
       if (col.type === "Message") {
@@ -1144,93 +1642,19 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     if (effectiveCol.type && effectiveCol.type.toLowerCase() === "country" && effectiveCol.options) {
       // Read mode: styled country display
       return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: 2, bgcolor: '#23234a', minHeight: 44, minWidth: 160 }}>
+        <Box 
+          onClick={() => handleCellClick(row.id, col.id, value)} 
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: 2, bgcolor: '#23234a', minHeight: 44, minWidth: 160, cursor: 'pointer', '&:hover': { bgcolor: '#2c2d4a', cursor: 'pointer' } }}
+        >
           {countryCodeMap[value as keyof typeof countryCodeMap] ? (
             <Flag country={countryCodeMap[value as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
           ) : null}
-          <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{value || <span style={{ color: '#888' }}>No country</span>}</Typography>
+          <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{value || <span style={{ color: '#888' }}>Select Country</span>}</Typography>
         </Box>
       );
     }
     // --- Read mode ---
-    // Message column: show chat popover trigger
-    if (col.type === "Message") {
-      return (
-        <>
-          <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
-            Chat
-          </Button>
-          {chatPopoverKey === `${row.id}-${col.id}` && chatAnchor && (
-            <Popover
-              open={!!chatAnchor}
-              anchorEl={chatAnchor}
-              onClose={handleCloseChat}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-              PaperProps={{
-                sx: {
-                  p: 0,
-                  minWidth: 340,
-                  maxWidth: 420,
-                  bgcolor: '#23234a',
-                  borderRadius: 3,
-                  boxShadow: '0 8px 32px rgba(44,45,74,0.25)',
-                  border: '2px solid #0073ea',
-                }
-              }}
-            >
-              <Box sx={{ display: 'flex', flexDirection: 'column', height: 380 }}>
-                <Box sx={{
-                  px: 2,
-                  py: 1.5,
-                  bgcolor: '#2c2d4a',
-                  borderTopLeftRadius: 12,
-                  borderTopRightRadius: 12,
-                  borderBottom: '1px solid #3a3b5a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                }}>
-                  <Avatar sx={{ bgcolor: '#0073ea', width: 36, height: 36, fontWeight: 700 }}>💬</Avatar>
-                  <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>Task Chat</Typography>
-                  <Box sx={{ flexGrow: 1 }} />
-                  <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#fff' }}>
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-                <Box sx={{ flex: 1, overflowY: 'auto', px: 2, py: 1, bgcolor: '#23234a' }}>
-                  {chatMessages.length === 0 ? (
-                    <Typography color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>No messages yet. Start the conversation!</Typography>
-                  ) : (
-                    chatMessages.map(msg => (
-                      <Box key={msg.id} sx={{ mb: 2, display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 1 }}>
-                        <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontWeight: 700 }}>{msg.sender[0]}</Avatar>
-                        <Box sx={{ bgcolor: '#2c2d4a', borderRadius: 2, px: 2, py: 1, minWidth: 120, maxWidth: 260 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{msg.sender}</Typography>
-                          <Typography variant="body1" sx={{ color: '#bfc8e0', fontSize: 15 }}>{msg.text}</Typography>
-                          <Typography variant="caption" sx={{ fontSize: 11, color: '#fff' }}>{new Date(msg.timestamp).toLocaleString()}</Typography>
-                        </Box>
-                      </Box>
-                    ))
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, bgcolor: '#23234a', borderTop: '1px solid #3a3b5a' }}>
-                  <TextField
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    size="small"
-                    placeholder="Type a fun message..."
-                    fullWidth
-                    sx={{ bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2, '& .MuiInputBase-input': { color: '#fff' } }}
-                  />
-                  <Button onClick={handleSendChat} disabled={!chatInput.trim()} variant="contained" sx={{ bgcolor: '#0073ea', color: '#fff', fontWeight: 700, borderRadius: 2, boxShadow: '0 2px 8px #0073ea33' }}>Send</Button>
-                </Box>
-              </Box>
-            </Popover>
-          )}
-        </>
-      );
-    }
+      // ...existing code...
     // Fix popover anchor to button
     if (col.type === "Files") {
       const files = value && Array.isArray(value) ? value : [];
@@ -1285,14 +1709,44 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
     if (col.type === "Timeline") {
       return (
-        <Typography variant="body2" color="text.secondary" onClick={() => handleCellClick(row.id, col.id, value)}>
-          {value && value.start && value.end ? `${value.start} - ${value.end}` : 'Set timeline'}
-        </Typography>
+        <Box 
+          id={`cell-${row.id}-${col.id}`}
+          onClick={(e) => handleCellClick(row.id, col.id, value, col.type, e.currentTarget)}
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            cursor: 'pointer', 
+            width: '100%',
+            height: 32,
+            px: 1,
+            borderRadius: 2,
+            transition: 'all 0.2s',
+            '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
+          }}
+        >
+          <TimelineIcon sx={{ fontSize: 16, mr: 1, color: '#7d82a8' }} />
+          <Typography variant="body2" sx={{ color: value?.start ? '#fff' : '#7d82a8', fontSize: '0.875rem' }}>
+             {value && value.start && value.end ? `${value.start} - ${value.end}` : 'Set timeline'}
+          </Typography>
+        </Box>
       );
     }
     if (col.type === "Checkbox") {
       return (
-        <input type="checkbox" checked={!!value} readOnly onClick={() => handleCellClick(row.id, col.id, value)} />
+        <Box 
+          sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1, cursor: 'pointer' }}
+          onClick={() => handleCellSave(row.id, col.id, col.type, !value)}
+        >
+          <Checkbox 
+            checked={!!value} 
+            readOnly 
+            sx={{ 
+              color: '#7d82a8',
+              '&.Mui-checked': { color: '#00c875' },
+              p: 0
+            }} 
+          />
+        </Box>
       );
     }
     if (col.type === "Formula") {
@@ -1305,108 +1759,48 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         <Typography variant="body2" color="text.secondary">(lookup)</Typography>
       );
     }
-    // Priority column as dropdown with colors
-    // Priority column as colored chip (read mode only)
-    if (col.id === "priority" && col.options && (!editingCell || editingCell.rowId !== row.id || editingCell.colId !== col.id)) {
-      const opt = col.options.find((o) => o.value === value);
+
+
+    if (col.type === "Date") {
       return (
-        <Chip
-          label={value || '-'}
-          size="small"
-          sx={{ bgcolor: opt?.color || '#e0e4ef', color: '#fff', fontWeight: 600 }}
-          onClick={() => handleCellClick(row.id, col.id, value)}
-        />
-      );
-    }
-    // Always use dropdown for editing Priority, Status, Dropdown
-    if ((col.type === "Status" || col.type === "Dropdown" || col.id === "priority") && col.options) {
-      if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id) {
-        return (
-          <FormControl size="small" fullWidth>
-            <Select
-              value={editValue}
-              onChange={e => setEditValue(e.target.value)}
-              onBlur={() => handleCellSave(row.id, col.id)}
-              autoFocus
-            >
-              {col.options.map((opt, idx) => (
-                <MenuItem key={opt.value} value={opt.value} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 16, height: 16, bgcolor: opt.color, borderRadius: '50%', mr: 1, display: 'inline-block' }} />
-                  {opt.value}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        );
-      }
-      // Read mode: colored chip
-      const opt = col.options.find((o) => o.value === value);
-      return (
-        <Chip
-          label={value || (col.id === "priority" ? '-' : '-')}
-          size="small"
-          sx={{ bgcolor: opt?.color || '#e0e4ef', color: '#fff', fontWeight: 600 }}
-          onClick={() => handleCellClick(row.id, col.id, value)}
-        />
-      );
-    }
-    if (col.type === "People") {
-      // Show avatars for all assigned people (multi-value)
-      const people = Array.isArray(value) ? value : [];
-      return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }} onClick={() => handleCellClick(row.id, col.id, value)}>
-          {people.length === 0 ? (
-            <Avatar sx={{ width: 28, height: 28, bgcolor: '#bdbdbd', fontSize: 14 }}>-</Avatar>
-          ) : (
-            <>
-              {people.map((person: any) => (
-                <Tooltip key={person.email} title={person.name + (person.email ? ` (${person.email})` : "") }>
-                  <Avatar sx={{ width: 28, height: 28, bgcolor: '#0073ea', fontSize: 14 }}>
-                    {person.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                  </Avatar>
-                </Tooltip>
-              ))}
-              {people.length > 1 && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: -8,
-                  left: -8,
-                  bgcolor: '#e2445c',
-                  color: '#fff',
-                  borderRadius: '50%',
-                  width: 20,
-                  height: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  zIndex: 2,
-                  boxShadow: '0 0 0 2px #fff',
-                }}>
-                  {people.length}
-                </Box>
-              )}
-            </>
-          )}
+        <Box 
+          sx={{ 
+            cursor: 'pointer', 
+            minHeight: 32, 
+            display: 'flex', 
+            alignItems: 'center', 
+            borderRadius: 2, 
+            px: 1.5,
+            transition: 'all 0.2s',
+            '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
+          }}
+          onClick={() => handleCellClick(row.id, col.id, value, col.type)}
+        >
+          <Typography variant="body2" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.875rem' }}>
+            {value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : '-'}
+          </Typography>
         </Box>
       );
     }
-    if (col.type === "Date") {
-      return (
-        <Typography
-          variant="body2"
-          sx={{ color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-          onClick={() => handleCellClick(row.id, col.id, value, col.type)}
-        >
-          {value && dayjs(value).isValid() ? dayjs(value).format('YYYY-MM-DD') : '-'}
-        </Typography>
-      );
-    }
     return (
-      <Typography variant="body2" onClick={() => handleCellClick(row.id, col.id, value)}>
-        {value || "-"}
-      </Typography>
+      <Box 
+        sx={{ 
+          cursor: 'pointer', 
+          minHeight: 32, 
+          display: 'flex', 
+          alignItems: 'center', 
+          borderRadius: 2, 
+          px: 1,
+          ml: -1, /* Offset the cell padding so it aligns nicely */
+          transition: 'all 0.2s',
+          '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
+        }}
+        onClick={() => handleCellClick(row.id, col.id, value)}
+      >
+        <Typography variant="body2" sx={{ color: '#d0d4e4', fontSize: '0.875rem' }}>
+          {value || "-"}
+        </Typography>
+      </Box>
     );
   };
 
@@ -1501,163 +1895,1136 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           Delete
         </MenuItem>
       </Menu>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddTask} sx={{ color: '#fff' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
+        <IconButton
+          onClick={e => { e.stopPropagation(); setHeaderMenuAnchor(e.currentTarget); }}
+          sx={{
+            color: '#bfc8e0',
+            height: 40,
+            width: 40,
+            borderRadius: '8px',
+            border: '1px solid #3a3b5a',
+            '&:hover': {
+              color: '#fff',
+              bgcolor: 'rgba(255, 255, 255, 0.05)',
+              borderColor: '#4f51c0'
+            }
+          }}
+        >
+          <MoreVertIcon />
+        </IconButton>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleAddTask}
+          sx={{
+            bgcolor: '#0073ea',
+            color: '#fff',
+            fontWeight: 600,
+            textTransform: 'none',
+            borderRadius: '8px',
+            px: 2.5,
+            height: 40,
+            boxShadow: '0 4px 12px rgba(0, 115, 234, 0.2)',
+            '&:hover': { bgcolor: '#0060c2' }
+          }}
+        >
           New task
         </Button>
-        <Button variant="outlined" onClick={(e) => { setShowColSelector(true); setColSelectorAnchor(e.currentTarget); }}>
-          + Add column
-        </Button>
-        {/* ColumnTypeSelector Popover */}
-        <Popover
-          open={showColSelector}
-          anchorEl={colSelectorAnchor}
-          onClose={() => setShowColSelector(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-          PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, boxShadow: 6, p: 2 } }}
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+          onClick={e => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowColSelector(true);
+            setColSelectorAnchor(e.currentTarget);
+          }}
+          sx={{
+            background: 'transparent',
+            backgroundColor: 'transparent',
+            color: '#bfc8e0',
+            borderColor: '#3a3b5a',
+            fontWeight: 500,
+            textTransform: 'none',
+            borderRadius: '8px',
+            px: 2,
+            height: 40,
+            zIndex: 2,
+            '&:hover': {
+              borderColor: '#4f51c0',
+              color: '#fff',
+              bgcolor: 'rgba(79, 81, 192, 0.1)'
+            }
+          }}
         >
-          <Box sx={{ minWidth: 420 }}>
+          Add column
+        </Button>
+        <Box sx={{ width: 12, display: { xs: 'none', sm: 'block' } }} />
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 1, 
+            alignItems: 'center', 
+            flexGrow: 1, 
+            width: { xs: '100%', md: 'auto' },
+            mt: { xs: 1.5, md: 0 },
+            overflowX: 'auto',
+            pb: 0.5,
+            '::-webkit-scrollbar': { height: 4 },
+            '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 2 }
+          }}>
+        {/* Text Filter */}
+        <TextField
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          placeholder="Search..."
+          size="small"
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: '#7d82a8', fontSize: 18 }} />
+              </InputAdornment>
+            ),
+            sx: {
+              bgcolor: 'rgba(255,255,255,0.05)',
+              color: '#d0d4e4',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              '& fieldset': { border: '1px solid #3a3b5a' },
+              '&:hover fieldset': { borderColor: '#4f51c0' },
+              '&.Mui-focused fieldset': { borderColor: '#4f51c0' },
+              width: { xs: 120, sm: 180 },
+              height: 36
+            }
+          }}
+        />
+        {/* People Filter */}
+        <FormControl size="small" sx={{ minWidth: { xs: 100, sm: 120 } }}>
+          <Select
+            multiple
+            displayEmpty
+            value={filterPerson}
+            onChange={(e) => {
+               const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+               setFilterPerson(val as string[]);
+            }}
+            renderValue={(selected) => {
+              if (selected.length === 0) {
+                return <Typography sx={{ color: '#7d82a8', fontSize: '0.8rem' }}>Person</Typography>;
+              }
+              return <Typography sx={{ color: '#d0d4e4', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(selected as string[]).join(', ')}</Typography>;
+            }}
+            sx={{
+               bgcolor: 'rgba(255,255,255,0.05)',
+               color: '#d0d4e4',
+               borderRadius: '8px',
+               height: 36,
+               fontSize: '0.8rem',
+               '.MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+               '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
+               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
+               '.MuiSvgIcon-root': { color: '#7d82a8' }
+            }}
+            MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a' } } }}
+          >
+            {availablePeople.length === 0 ? (
+               <MenuItem disabled sx={{ color: '#7d82a8' }}>No people found</MenuItem>
+            ) : (
+               availablePeople.map((name) => (
+                 <MenuItem key={name} value={name} sx={{ '&.Mui-selected': { bgcolor: 'rgba(79, 81, 192, 0.2)' }, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                    <Checkbox checked={filterPerson.includes(name)} sx={{ color: '#7d82a8', '&.Mui-checked': { color: '#00c875' } }} />
+                    <ListItemText primary={name} primaryTypographyProps={{ color: '#d0d4e4' }} />
+                 </MenuItem>
+               ))
+            )}
+          </Select>
+        </FormControl>
+        {/* Status Filter */}
+        <FormControl size="small" sx={{ minWidth: { xs: 100, sm: 120 } }}>
+          <Select
+            multiple
+            displayEmpty
+            value={filterStatus}
+            onChange={(e) => {
+               const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+               setFilterStatus(val as string[]);
+            }}
+            renderValue={(selected) => {
+              if (selected.length === 0) {
+                return <Typography sx={{ color: '#7d82a8', fontSize: '0.8rem' }}>Status</Typography>;
+              }
+              return <Typography sx={{ color: '#d0d4e4', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(selected as string[]).join(', ')}</Typography>;
+            }}
+            sx={{
+               bgcolor: 'rgba(255,255,255,0.05)',
+               color: '#d0d4e4',
+               borderRadius: '8px',
+               height: 36,
+               fontSize: '0.8rem',
+               '.MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+               '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
+               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
+               '.MuiSvgIcon-root': { color: '#7d82a8' }
+            }}
+            MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a' } } }}
+          >
+             {availableStatuses.length === 0 ? (
+                <MenuItem disabled sx={{ color: '#7d82a8' }}>No statuses found</MenuItem>
+             ) : (
+                availableStatuses.map((status) => (
+                  <MenuItem key={status} value={status} sx={{ '&.Mui-selected': { bgcolor: 'rgba(79, 81, 192, 0.2)' }, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                     <Checkbox checked={filterStatus.includes(status)} sx={{ color: '#7d82a8', '&.Mui-checked': { color: '#00c875' } }} />
+                     <ListItemText primary={status} primaryTypographyProps={{ color: '#d0d4e4' }} />
+                  </MenuItem>
+                ))
+             )}
+          </Select>
+        </FormControl>
+        </Box>
+        <Box sx={{ flexGrow: 1 }} />
+        {/* Column Selector Popover */}
+        {showColSelector && colSelectorAnchor && (
+          <Popover
+            open={showColSelector}
+            anchorEl={colSelectorAnchor}
+            onClose={() => setShowColSelector(false)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', border: '1px solid #3a3b5a' } }}
+          >
             <ColumnTypeSelector
               onSelect={(type, label) => {
                 handleAddColumn(type, label);
                 setShowColSelector(false);
               }}
             />
-            <Box sx={{ textAlign: 'right', mt: 2 }}>
-              <Button onClick={() => setShowColSelector(false)} sx={{ color: '#fff', fontWeight: 600, borderRadius: 2, px: 3, py: 1, '&:hover': { bgcolor: '#35365a' } }}>Cancel</Button>
-            </Box>
+          </Popover>
+        )}
+        <Menu
+          anchorEl={headerMenuAnchor}
+          open={Boolean(headerMenuAnchor)}
+          onClose={() => setHeaderMenuAnchor(null)}
+          PaperProps={{
+            sx: {
+              bgcolor: '#1e1f2b',
+              color: '#d0d4e4',
+              borderRadius: 3,
+              minWidth: 220,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              border: '1px solid #3a3b5a',
+              mt: 1,
+              overflow: 'hidden'
+            }
+          }}
+          transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+        >
+          <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #2d2e45' }}>
+            <Typography variant="overline" sx={{ color: '#7d82a8', fontWeight: 700, letterSpacing: 1 }}>
+              Board Views
+            </Typography>
           </Box>
-        </Popover>
+          <MenuItem 
+            onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('table'); }}
+            sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(0, 115, 234, 0.1)', display: 'flex' }}>
+              <InsertDriveFileIcon sx={{ color: '#0073ea', fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>Table view</Typography>
+              <Typography sx={{ color: '#7d82a8', fontSize: 11 }}>Main list view</Typography>
+            </Box>
+          </MenuItem>
+          <MenuItem 
+            onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('kanban'); }}
+            sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(0, 200, 117, 0.1)', display: 'flex' }}>
+              <TimelineIcon sx={{ color: '#00c875', fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>Kanban</Typography>
+              <Typography sx={{ color: '#7d82a8', fontSize: 11 }}>Board status view</Typography>
+            </Box>
+          </MenuItem>
+          <MenuItem 
+            onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('gantt'); }}
+            sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(253, 171, 61, 0.1)', display: 'flex' }}>
+              <InsertDriveFileIcon sx={{ color: '#fdab3d', fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>Gantt</Typography>
+              <Typography sx={{ color: '#7d82a8', fontSize: 11 }}>Timeline view</Typography>
+            </Box>
+          </MenuItem>
+          <MenuItem 
+            onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('calendar'); }}
+            sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(226, 68, 92, 0.1)', display: 'flex' }}>
+              <CalendarMonthIcon sx={{ color: '#e2445c', fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>Calendar</Typography>
+              <Typography sx={{ color: '#7d82a8', fontSize: 11 }}>Date based view</Typography>
+            </Box>
+          </MenuItem>
+          <MenuItem 
+            onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('doc'); }}
+            sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(162, 93, 220, 0.1)', display: 'flex' }}>
+              <DescriptionIcon sx={{ color: '#a25ddc', fontSize: 20 }} />
+            </Box>
+            <Box>
+              <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>Doc</Typography>
+              <Typography sx={{ color: '#7d82a8', fontSize: 11 }}>Document view</Typography>
+            </Box>
+          </MenuItem>
+          <MenuItem 
+            onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('gallery'); }}
+            sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(87, 155, 252, 0.1)', display: 'flex' }}>
+              <InsertDriveFileIcon sx={{ color: '#579bfc', fontSize: 20 }} />
+            </Box>
+             <Box>
+              <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>File Gallery</Typography>
+              <Typography sx={{ color: '#7d82a8', fontSize: 11 }}>Asset gallery</Typography>
+            </Box>
+          </MenuItem>
+        </Menu>
       </Box>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId="rows-droppable" type="row">
-          {(provided) => (
-            <TableContainer
-              component={Paper}
-              sx={{
-                borderRadius: 3,
-                boxShadow: 2,
-                overflowX: 'auto',
-                maxWidth: '100vw',
-                '@media (max-width: 900px)': {
-                  minWidth: 0,
-                  px: 0,
-                },
-              }}
-            >
-              <Table
-                sx={{
-                  background: '#23243a',
-                  color: '#fff',
-                  borderRadius: 3,
-                  minWidth: 650,
-                  '@media (max-width: 900px)': {
-                    minWidth: 500,
-                  },
-                }}
-              >
-                <TableHead>
-                  <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
-                    {(providedCol) => (
-                      <TableRow ref={providedCol.innerRef} {...providedCol.droppableProps} sx={{ background: '#23243a' }}>
-                        {columns.map((col, colIdx) => (
-                          <Draggable key={col.id} draggableId={col.id} index={colIdx}>
-                            {(provided) => (
-                              <TableCell
-                                align="left"
-                                sx={{ fontWeight: 700, fontSize: 16, color: '#fff', background: '#23243a', borderBottom: '2px solid #35365a' }}
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                              >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  {col.name}
-                                  <IconButton size="small" sx={{ color: '#bfc8e0' }} onClick={(e) => handleColMenuOpen(e, col.id)}>
-                                    <MoreVertIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              </TableCell>
-                            )}
-                          </Draggable>
-                        ))}
-                        {providedCol.placeholder}
-                      </TableRow>
-                    )}
-                  </Droppable>
-                </TableHead>
-                <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                  {rows.filter(row => row.id).map((row, rowIdx) => (
-                    <Draggable draggableId={String(row.id)} index={rowIdx} key={row.id}>
-                      {(provided) => (
-                        <TableRow key={row.id} ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} sx={{ background: rowIdx % 2 === 0 ? '#23243a' : '#2c2d4a', '&:hover': { background: '#35365a' } }}>
-                          {columns.map((col, colIdx) => (
+      {workspaceView === 'table' ? (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto' }}>
+            <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
+              <TableHead>
+                <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
+                  {(provided) => (
+                    <TableRow ref={provided.innerRef} {...provided.droppableProps} sx={{ '& th': { borderBottom: 'none', color: '#bfc8e0', fontSize: 13, fontWeight: 600 } }}>
+                      {/* Drag Handle Header Placeholder */}
+                      <TableCell sx={{ width: 40, p: 0.5, borderBottom: 'none' }} />
+                      
+                      {columns.map((col, index) => (
+                        <Draggable key={col.id} draggableId={col.id} index={index}>
+                          {(provided, snapshot) => (
                             <TableCell
-                              key={col.id}
-                              align="left"
-                              sx={{ cursor: 'pointer', color: '#fff', background: 'inherit', borderBottom: '1.5px solid #35365a' }}
-                              onClick={() => {
-                                // Always allow single click to enter edit mode for any column
-                                handleCellClick(row.id, col.id, row.values[col.id], col.type);
-                              }}
-                              onDoubleClick={() => {
-                                // Also allow double click for legacy/UX reasons
-                                handleCellClick(row.id, col.id, row.values[col.id], col.type);
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              sx={{
+                                ...provided.draggableProps.style,
+                                minWidth: col.width || 150,
+                                userSelect: 'none',
+                                p: 0.5,
+                                borderBottom: 'none',
+                                bgcolor: 'transparent',
                               }}
                             >
-                              {renderCell(row, col)}
+                              <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between', 
+                                bgcolor: snapshot.isDragging ? '#3b3c5a' : '#23243a', 
+                                borderRadius: '8px', 
+                                px: 1.5, 
+                                py: 1.2, 
+                                borderBottom: '2px solid #3a3b5a',
+                                transition: 'all 0.2s ease',
+                                '&:hover': { bgcolor: '#2c2d4a' }
+                              }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }} {...provided.dragHandleProps}>
+                                  {col.type === "Status" && <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: '#00c875', flexShrink: 0 }} />}
+                                  {col.type === "Timeline" && <TimelineIcon sx={{ fontSize: 18, color: '#fdab3d', flexShrink: 0 }} />}
+                                  {col.type === "Files" && <InsertDriveFileIcon sx={{ fontSize: 18, color: '#579bfc', flexShrink: 0 }} />}
+                                  {col.type === "People" && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#a25ddc', flexShrink: 0 }} />}
+                                  <Typography variant="subtitle2" sx={{ 
+                                    fontWeight: 600, 
+                                    color: '#d0d4e4', 
+                                    fontSize: '0.875rem',
+                                    letterSpacing: '0.02em',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                  }}>
+                                    {col.name}
+                                  </Typography>
+                                </Box>
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleColMenuOpen(e, col.id)}
+                                  sx={{ 
+                                    color: '#7d82a8', 
+                                    padding: '2px',
+                                    '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } 
+                                  }}
+                                >
+                                  <MoreVertIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                </IconButton>
+                              </Box>
                             </TableCell>
-                          ))}
-                          <TableCell align="center" sx={{ color: '#fff', background: 'inherit', borderBottom: '1.5px solid #35365a' }}>
-                            <TaskRowMenu
-                              row={row}
-                              onDelete={async () => {
-                                setRows(rows => {
-                                  if (rows.length <= 1) return rows; // Prevent deleting last row
-                                  return rows.filter(r => r.id !== row.id);
-                                });
-                                // Only delete from backend if more than one row exists
-                                if (rows.length > 1) {
-                                  await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
-                                    method: "DELETE",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ id: row.id }),
-                                  });
-                                }
-                              }}
-                              onView={() => setReviewTask(row)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Draggable>
-                  ))}
-                  {/* Add task row */}
-                  <TableRow key="add-task-row">
-                    {columns.map((col, idx) => (
-                      <TableCell key={col.id} align="left" sx={{ background: '#35365a', borderBottom: 'none' }}>
-                        {idx === 0 ? (
-                          <Button
-                            variant="text"
-                            startIcon={<AddIcon />}
-                            sx={{ color: '#fff', fontWeight: 600, pl: 0, background: '#4f51c0', borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                            onClick={handleAddTask}
-                          >
-                            Add task
-                          </Button>
-                        ) : null}
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                      
+                      {/* Add Column Button in Header */}
+                      <TableCell sx={{ minWidth: 50, p: 0.5, borderBottom: 'none' }}>
+                        <IconButton
+                          onClick={(e) => {
+                            setShowColSelector(true);
+                            setColSelectorAnchor(e.currentTarget);
+                          }}
+                          sx={{ 
+                            bgcolor: '#23243a', 
+                            color: '#7d82a8', 
+                            borderRadius: '8px', 
+                            width: '100%',
+                            height: 48,
+                            border: '1px dashed #3a3b5a',
+                            '&:hover': { bgcolor: '#2c2d4a', color: '#fff', borderColor: '#4f51c0' } 
+                          }}
+                        >
+                          <AddIcon />
+                        </IconButton>
                       </TableCell>
+                    </TableRow>
+                  )}
+                </Droppable>
+              </TableHead>
+              <Droppable droppableId="rows-droppable" type="row">
+                {(provided) => (
+                  <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                    {filteredRows.map((row, index) => (
+                      <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
+                        {(provided, snapshot) => (
+                          <TableRow
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            sx={{
+                              bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
+                              '&:hover': { bgcolor: '#2c2d4a' },
+                              transition: 'background-color 0.2s',
+                              borderRadius: 4, // Attempt to round row corners
+                              ...provided.draggableProps.style
+                            }}
+                          >
+                           {/* Row Drag Handle, Menu, and Message Icon */}
+                           <TableCell sx={{ width: 60, p: 0, borderBottom: 'none', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>
+                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
+                               <div {...provided.dragHandleProps} style={{ display: 'flex', alignItems: 'center', cursor: 'grab' }}>
+                                 <MoreVertIcon sx={{ color: '#555', fontSize: 16 }} />
+                                 <MoreVertIcon sx={{ color: '#555', fontSize: 16, ml: -1 }} />
+                               </div>
+                               <TaskRowMenu
+                                 row={row}
+                                 onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
+                                 onDelete={async () => {
+                                   if (confirm('Are you sure you want to delete this task?')) {
+                                     // Optimistic update
+                                     setRows(prev => prev.filter(r => r.id !== row.id));
+                                     // Backend call
+                                     await fetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
+                                       method: "DELETE",
+                                     });
+                                   }
+                                 }}
+                               />
+                               {/* Message Icon for Chat */}
+                               <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
+                                 <ChatBubbleOutlineIcon sx={{ fontSize: 20 }} />
+                               </IconButton>
+                               {/* Chat Popover for Message Icon */}
+                               {chatPopoverKey === `${row.id}-message` && chatAnchor && (
+                                 <Popover
+                                   open={!!chatAnchor}
+                                   anchorEl={chatAnchor}
+                                   onClose={handleCloseChat}
+                                   anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                                   transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                                   PaperProps={{
+                                     sx: {
+                                       p: 0,
+                                       minWidth: 360,
+                                       maxWidth: 400,
+                                       bgcolor: '#1e1f2b',
+                                       borderRadius: 4,
+                                       boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                                       border: '1px solid #3a3b5a',
+                                     }
+                                   }}
+                                 >
+                                   <Box sx={{ display: 'flex', flexDirection: 'column', height: 450 }}>
+                                     {/* Header */}
+                                     <Box sx={{
+                                       px: 2.5,
+                                       py: 2,
+                                       borderBottom: '1px solid #2d2e45',
+                                       display: 'flex',
+                                       alignItems: 'center',
+                                       justifyContent: 'space-between',
+                                       bgcolor: '#23243a'
+                                     }}>
+                                       <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontSize: 16 }}>Discussion</Typography>
+                                       <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                                         <span style={{ fontSize: 18 }}>✕</span>
+                                       </IconButton>
+                                     </Box>
+
+                                     {/* Messages */}
+                                     <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                       {chatMessages.length === 0 ? (
+                                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
+                                            <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#4f51c0', mb: 1, opacity: 0.5 }} />
+                                            <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
+                                         </Box>
+                                       ) : (
+                                         chatMessages.map(msg => (
+                                           <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
+                                             <Box sx={{ 
+                                               bgcolor: '#2c2d4a', 
+                                               px: 2, 
+                                               py: 1.5, 
+                                               borderRadius: '12px 12px 12px 2px',
+                                               border: '1px solid #3a3b5a'
+                                             }}>
+                                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                 <Typography variant="caption" sx={{ fontWeight: 600, color: '#6c6ed6' }}>{msg.sender}</Typography>
+                                                 <Typography variant="caption" sx={{ color: '#5a5b7a', fontSize: 10 }}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Typography>
+                                               </Box>
+                                               <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5 }}>{msg.text}</Typography>
+                                             </Box>
+                                           </Box>
+                                         ))
+                                       )}
+                                       <div id="chat-bottom" />
+                                     </Box>
+
+                                     {/* Input */}
+                                     <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+                                       <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                         <input
+                                           value={chatInput}
+                                           onChange={e => setChatInput(e.target.value)}
+                                           placeholder="Write a reply..."
+                                           onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+                                           style={{
+                                             width: '100%',
+                                             backgroundColor: '#1e1f2b',
+                                             border: '1px solid #3a3b5a',
+                                             borderRadius: '24px',
+                                             padding: '12px 44px 12px 16px',
+                                             color: '#fff',
+                                             fontSize: '14px',
+                                             outline: 'none'
+                                           }}
+                                         />
+                                         <IconButton 
+                                           onClick={handleSendChat} 
+                                           disabled={!chatInput.trim()} 
+                                           size="small"
+                                           sx={{ 
+                                             position: 'absolute', 
+                                             right: 6, 
+                                             color: chatInput.trim() ? '#4f51c0' : '#3a3b5a',
+                                             bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.1)' : 'transparent',
+                                             '&:hover': { bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
+                                           }}
+                                         >
+                                           <SendIcon fontSize="small" />
+                                         </IconButton>
+                                       </Box>
+                                     </Box>
+                                   </Box>
+                                 </Popover>
+                               )}
+                             </Box>
+                           </TableCell>
+
+                            {/* Render Cells */}
+                            {columns.map((col) => (
+                               <TableCell
+                                 key={col.id}
+                                 align="left"
+                                 sx={{
+                                   borderBottom: '1px solid #2e2f45',
+                                   p: 1.5,
+                                   color: '#d0d4e4',
+                                   fontSize: '0.875rem',
+                                   minWidth: col.width || 150,
+                                   maxWidth: 300,
+                                   overflow: 'hidden',
+                                   textOverflow: 'ellipsis',
+                                   whiteSpace: 'nowrap'
+                                 }}
+                               >
+                                 {renderCell(row, col)}
+                               </TableCell>
+                            ))}
+                            
+                            {/* Empty cell for the Add Column column alignment */}
+                            <TableCell sx={{ borderBottom: 'none', borderTopRightRadius: 12, borderBottomRightRadius: 12 }} />
+                          </TableRow>
+                        )}
+                      </Draggable>
                     ))}
-                    <TableCell sx={{ background: '#35365a', borderBottom: 'none' }} />
-                  </TableRow>
-                  {provided.placeholder}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Droppable>
-      </DragDropContext>
+                    {provided.placeholder}
+                  </TableBody>
+                )}
+              </Droppable>
+            </Table>
+          </TableContainer>
+        </DragDropContext>
+      ) : workspaceView === 'kanban' ? (
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 2.5, 
+          height: '100%',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          pb: 2,
+          px: 1,
+          '::-webkit-scrollbar': { height: 8 },
+          '::-webkit-scrollbar-track': { background: 'transparent' },
+          '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
+          '::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
+        }}>
+          {(() => {
+            const statusCol = columns.find(col => col.type === 'Status');
+            if (!statusCol || !Array.isArray(statusCol.options)) {
+              return (
+                <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
+                   <Stack alignItems="center" spacing={2}>
+                      <Box sx={{ bgcolor: '#23243a', p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 400 }}>
+                           <Typography variant="h6" sx={{ mb: 1, color: '#fff' }}>No Status Column</Typography>
+                           <Typography variant="body2" sx={{ color: '#bfc8e0' }}>
+                              Please add a "Status" column to your table to visualize your tasks in Kanban view.
+                           </Typography>
+                      </Box>
+                   </Stack>
+                </Box>
+              );
+            }
+            // Use status options for columns
+            return statusCol.options.map(opt => {
+              const colTasks = filteredRows.filter(r => r.values[statusCol.id] === opt.value);
+              const statusColor = opt.color || '#35365a';
+              
+              return (
+                <Paper 
+                  key={opt.value}
+                  elevation={0}
+                  sx={{ 
+                    width: 280, 
+                    minWidth: 280,
+                    bgcolor: 'transparent',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    height: '100%',
+                    flexShrink: 0
+                  }}
+                >
+                  {/* Column Header */}
+                  <Box sx={{ 
+                    mb: 2, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    bgcolor: '#23243a', // Header BG
+                    p: 1.5,
+                    borderRadius: 2,
+                    borderTop: `4px solid ${statusColor}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: '#fff' }}>
+                      {opt.value}
+                    </Typography>
+                    <Box sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.1)', 
+                      borderRadius: '12px', 
+                      px: 1, 
+                      py: 0.25,
+                      minWidth: 24,
+                      textAlign: 'center'
+                    }}>
+                      <Typography sx={{ fontSize: '0.75rem', color: '#bfc8e0' }}>
+                        {colTasks.length}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Tasks Container */}
+                  <Box sx={{ 
+                    flex: 1, 
+                    overflowY: 'auto', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 1.5,
+                    px: 0.5,
+                    pb: 2,
+                    '::-webkit-scrollbar': { width: 6 },
+                    '::-webkit-scrollbar-track': { background: 'transparent' },
+                    '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 3 },
+                  }}>
+                    {colTasks.map(task => (
+                      <Paper 
+                        key={task.id}
+                        elevation={0}
+                        sx={{ 
+                          bgcolor: '#23243a',
+                          p: 2, 
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s, box-shadow 0.2s',
+                          border: '1px solid transparent',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                            border: `1px solid ${statusColor}44`
+                          }
+                        }}
+                        onClick={() => setReviewTask(task)}
+                      >
+                         {/* Primary Text (Use first column) */}
+                         <Typography sx={{ fontWeight: 500, color: '#fff', mb: 1, lineHeight: 1.4 }}>
+                           {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
+                         </Typography>
+
+                         {/* Metadata Grid */}
+                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                           {columns.filter(c => c.id !== statusCol.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3).map(col => {
+                             const rawVal = task.values[col.id];
+                             if (!rawVal) return null;
+
+                             if (col.type === 'People' && Array.isArray(rawVal)) {
+                               return (
+                                 <Box key={col.id} sx={{ display: 'flex', '& > *': { ml: -0.5 }, pl: 0.5 }}>
+                                   {rawVal.slice(0, 3).map((p: any, i) => (
+                                     <Tooltip key={i} title={p.name || p.email}>
+                                       <Avatar 
+                                         src={p.avatar}
+                                         sx={{ width: 22, height: 22, border: '2px solid #23243a', fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
+                                       >
+                                         {p.name?.[0] || p.email?.[0] || '?'}
+                                       </Avatar>
+                                     </Tooltip>
+                                   ))}
+                                 </Box>
+                               );
+                             }
+
+                             if (col.type === 'Priority') {
+                               const prioColor = rawVal === 'High' ? '#e2445c' : rawVal === 'Medium' ? '#fdab3d' : '#00c875';
+                               return (
+                                 <Chip 
+                                   key={col.id} 
+                                   label={String(rawVal)} 
+                                   size="small" 
+                                   sx={{ 
+                                     height: 20, 
+                                     fontSize: '0.65rem', 
+                                     bgcolor: `${prioColor}33`, 
+                                     color: prioColor,
+                                     border: `1px solid ${prioColor}44`
+                                   }} 
+                                 />
+                               );
+                             }
+
+                             if (col.type === 'Country' && countryCodeMap[String(rawVal)]) {
+                               return (
+                                 <Tooltip key={col.id} title={String(rawVal)}>
+                                   <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                     <Flag country={countryCodeMap[String(rawVal)]} size={14} />
+                                   </Box>
+                                 </Tooltip>
+                               );
+                             }
+
+                             // Generic fallback for other fields (Date, Text, etc)
+                             if (['Date', 'Text'].includes(col.type)) {
+                               return (
+                                  <Typography key={col.id} variant="caption" sx={{ color: '#bfc8e0', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
+                                    {String(rawVal)}
+                                  </Typography>
+                               );
+                             }
+                             
+                             return null;
+                           })}
+                         </Box>
+                      </Paper>
+                    ))}
+
+                    <Button 
+                       startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+                       sx={{
+                         color: '#bfc8e0',
+                         textTransform: 'none',
+                         justifyContent: 'flex-start',
+                         py: 1,
+                         px: 1,
+                         borderRadius: 2,
+                         '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+                       }}
+                       onClick={() => {
+                         // Pre-fill status
+                         const newRow: Row = { id: uuidv4(), values: { [statusCol.id]: opt.value } };
+                         setRows(prev => [...prev, newRow]);
+                         setEditingCell({ rowId: newRow.id, colId: columns[0]?.id || '' });
+                       }}
+                    >
+                      New Task
+                    </Button>
+                  </Box>
+                </Paper>
+              );
+            });
+          })()}
+        </Box>
+      ) : workspaceView === 'calendar' ? (
+        <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
+          {/* Calendar Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+               <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>{currentDate.format('MMMM YYYY')}</Typography>
+               <Box sx={{ display: 'flex', gap: 1 }}>
+                 <IconButton onClick={() => setCurrentDate(curr => curr.subtract(1, 'month'))} sx={{ color: '#bfc8e0', bgcolor: '#2c2d4a', '&:hover': { bgcolor: '#3d3e5a' } }}>
+                   <Typography variant="h6">{'<'}</Typography>
+                 </IconButton>
+                 <Button onClick={() => setCurrentDate(dayjs())} sx={{ color: '#fff', textTransform: 'none' }}>
+                   Today
+                 </Button>
+                 <IconButton onClick={() => setCurrentDate(curr => curr.add(1, 'month'))} sx={{ color: '#bfc8e0', bgcolor: '#2c2d4a', '&:hover': { bgcolor: '#3d3e5a' } }}>
+                   <Typography variant="h6">{'>'}</Typography>
+                 </IconButton>
+               </Box>
+             </Box>
+             {/* Filter/Legend could go here */}
+          </Box>
+
+          {/* Calendar Grid */}
+          <Box sx={{ flex: 1, bgcolor: '#23243a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid #35365a' }}>
+            {(() => {
+               const dateCol = columns.find(c => c.type === 'Date');
+               const statusCol = columns.find(c => c.type === 'Status');
+               if (!dateCol) return (
+                 <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                   <Typography sx={{ color: '#bfc8e0' }}>No Date column found. Please add a Date column to use Calendar view.</Typography>
+                 </Box>
+               );
+
+               const startOfMonth = currentDate.startOf('month');
+               const endOfMonth = currentDate.endOf('month');
+               const startDate = startOfMonth.startOf('week');
+               const endDate = endOfMonth.endOf('week');
+               
+               const calendarDays = [];
+               let day = startDate;
+               while (day.isBefore(endDate) || day.isSame(endDate, 'day')) {
+                 calendarDays.push(day);
+                 day = day.add(1, 'day');
+               }
+
+               const weeks = [];
+               for (let i = 0; i < calendarDays.length; i += 7) {
+                 weeks.push(calendarDays.slice(i, i + 7));
+               }
+               
+               return (
+                 <>
+                   {/* Weekday Headers */}
+                   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #35365a' }}>
+                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                       <Box key={d} sx={{ p: 1.5, textAlign: 'center', borderRight: '1px solid #35365a', '&:last-child': { borderRight: 'none' } }}>
+                         <Typography variant="subtitle2" sx={{ color: '#bfc8e0', fontWeight: 600 }}>{d}</Typography>
+                       </Box>
+                     ))}
+                   </Box>
+                   
+                   {/* Weeks */}
+                   <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                     {weeks.map((week, wIdx) => (
+                       <Box key={wIdx} sx={{ 
+                         display: 'grid', 
+                         gridTemplateColumns: 'repeat(7, 1fr)', 
+                         flex: 1,
+                         minHeight: 100,
+                         borderBottom: wIdx === weeks.length - 1 ? 'none' : '1px solid #35365a' 
+                       }}>
+                         {week.map((date, dIdx) => {
+                           const isCurrentMonth = date.month() === currentDate.month();
+                           const isToday = date.isSame(dayjs(), 'day');
+                           const dayTasks = filteredRows.filter(r => {
+                             const rDate = r.values[dateCol.id];
+                             return rDate && dayjs(rDate).isSame(date, 'day');
+                           });
+
+                           return (
+                             <Box 
+                               key={dIdx} 
+                               sx={{ 
+                                 borderRight: dIdx === 6 ? 'none' : '1px solid #35365a',
+                                 bgcolor: isCurrentMonth ? 'transparent' : 'rgba(0,0,0,0.15)',
+                                 p: 1,
+                                 position: 'relative',
+                                 transition: 'background-color 0.2s',
+                                 '&:hover': { bgcolor: isCurrentMonth ? '#2c2d4a' : 'rgba(0,0,0,0.2)' }
+                               }}
+                               onClick={() => {
+                                 // Add new task on this date
+                                 // Logic to open modal or prepopulate could go here
+                               }}
+                             >
+                               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                                 <Typography sx={{ 
+                                   fontSize: '0.85rem', 
+                                   fontWeight: isToday ? 700 : 400,
+                                   width: 24, 
+                                   height: 24, 
+                                   lineHeight: '24px',
+                                   textAlign: 'center',
+                                   borderRadius: '50%',
+                                   bgcolor: isToday ? '#e2445c' : 'transparent',
+                                   color: isToday ? '#fff' : isCurrentMonth ? '#fff' : '#5c5e80'
+                                 }}>
+                                   {date.date()}
+                                 </Typography>
+                               </Box>
+                               
+                               <Stack spacing={0.5}>
+                                 {dayTasks.map(task => {
+                                   const statusVal = statusCol ? task.values[statusCol.id] : null;
+                                   const statusOpt = statusCol?.options?.find(o => o.value === statusVal);
+                                   const borderLeftColor = statusOpt?.color || '#0073ea';
+                                   
+                                   return (
+                                     <Paper
+                                       key={task.id}
+                                       elevation={0}
+                                       sx={{
+                                         p: 0.5,
+                                         px: 1,
+                                         bgcolor: '#35365a',
+                                         borderLeft: `3px solid ${borderLeftColor}`,
+                                         cursor: 'pointer',
+                                         '&:hover': { filter: 'brightness(1.2)' }
+                                       }}
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setReviewTask(task);
+                                       }}
+                                     >
+                                       <Typography noWrap sx={{ fontSize: '0.75rem', color: '#fff' }}>
+                                         {columns[0] ? task.values[columns[0].id] : 'Untitled'}
+                                       </Typography>
+                                     </Paper>
+                                   );
+                                 })}
+                               </Stack>
+                             </Box>
+                           );
+                         })}
+                       </Box>
+                     ))}
+                   </Box>
+                 </>
+               );
+            })()}
+          </Box>
+        </Box>
+      ) : workspaceView === 'doc' ? (
+        <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ bgcolor: '#23243a', borderRadius: 4, p: 4, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 4 }}>
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+               <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>
+                 Workspace Document
+               </Typography>
+               <Typography variant="caption" sx={{ color: docSaving ? '#fdab3d' : '#00c875' }}>
+                 {docSaving ? 'Saving...' : 'Saved'}
+               </Typography>
+             </Box>
+             <TextField
+               multiline
+               fullWidth
+               variant="outlined"
+               placeholder="Write your project documentation, notes, or ideas here..."
+               value={docContent}
+               onChange={(e) => setDocContent(e.target.value)}
+               sx={{
+                 flex: 1,
+                 bgcolor: 'transparent',
+                 '& .MuiOutlinedInput-root': {
+                   height: '100%',
+                   alignItems: 'flex-start',
+                   color: '#fff',
+                   fontSize: '1.1rem',
+                   lineHeight: 1.6,
+                   '& fieldset': { border: 'none' },
+                   '&:hover fieldset': { border: 'none' },
+                   '&.Mui-focused fieldset': { border: 'none' }
+                 }
+               }}
+             />
+          </Box>
+        </Box>
+      ) : workspaceView === 'gantt' ? (
+        <Box sx={{ mt: 4, mb: 4 }}>
+          {/* Find Timeline column */}
+          {(() => {
+            const timelineCol = columns.find(col => col.type === 'Timeline');
+            if (!timelineCol) {
+              return <Typography sx={{ color: '#bfc8e0' }}>No Timeline column found. Gantt requires a Timeline column.</Typography>;
+            }
+            // Find min/max dates
+            const tasksWithTimeline = filteredRows.filter(row => {
+              const val = row.values[timelineCol.id];
+              return val && val.start && val.end;
+            });
+            if (tasksWithTimeline.length === 0) {
+              return <Typography sx={{ color: '#bfc8e0' }}>No tasks with timeline data.</Typography>;
+            }
+            const minDate = Math.min(...tasksWithTimeline.map(row => new Date(row.values[timelineCol.id].start).getTime()));
+            const maxDate = Math.max(...tasksWithTimeline.map(row => new Date(row.values[timelineCol.id].end).getTime()));
+            // Render Gantt chart
+            return (
+              <Box sx={{ bgcolor: '#23243a', borderRadius: 3, p: 3, boxShadow: 4 }}>
+                <Typography variant="h6" sx={{ color: '#fdab3d', fontWeight: 700, mb: 2 }}>Gantt Chart</Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {tasksWithTimeline.map(row => {
+                    const start = new Date(row.values[timelineCol.id].start).getTime();
+                    const end = new Date(row.values[timelineCol.id].end).getTime();
+                    const total = maxDate - minDate;
+                    const left = ((start - minDate) / total) * 100;
+                    const width = ((end - start) / total) * 100;
+                    return (
+                      <Box key={row.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography sx={{ color: '#fff', minWidth: 120 }}>{columns[0]?.name}: {row.values[columns[0]?.id]}</Typography>
+                        <Box sx={{ position: 'relative', flex: 1, height: 24, bgcolor: '#35365a', borderRadius: 2 }}>
+                          <Box sx={{ position: 'absolute', left: `${left}%`, width: `${width}%`, height: '100%', bgcolor: '#fdab3d', borderRadius: 2, boxShadow: '0 2px 8px #fdab3d44' }} />
+                        </Box>
+                        <Typography sx={{ color: '#bfc8e0', minWidth: 120 }}>{row.values[timelineCol.id].start} - {row.values[timelineCol.id].end}</Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+            );
+          })()}
+        </Box>
+      ) : workspaceView === 'gallery' ? (
+        <Box sx={{ mt: 4, mb: 4 }}>
+          {/* File Gallery */}
+          <Box sx={{ bgcolor: '#23243a', borderRadius: 4, p: 4, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: 4 }}>
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>File Gallery</Typography>
+               <Typography variant="caption" sx={{ color: '#7d82a8' }}>
+                 All files across your board
+               </Typography>
+             </Box>
+             
+             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 3 }}>
+               {/* Collect all files */}
+               {(() => {
+                 let allFiles: any[] = [];
+                 const fileCols = columns.filter(c => c.type === 'Files');
+                 
+                 filteredRows.forEach(row => {
+                   fileCols.forEach(col => {
+                     const cellFiles = Array.isArray(row.values[col.id]) ? row.values[col.id] : [];
+                     cellFiles.forEach((f: any) => {
+                       // Find task name (first column usually)
+                       const taskName = columns.length > 0 ? row.values[columns[0].id] : 'Untitled';
+                       allFiles.push({ file: f, rowId: row.id, colId: col.id, taskName });
+                     });
+                   });
+                 });
+                 
+                 if (allFiles.length === 0) {
+                    return (
+                      <Box sx={{ gridColumn: '1 / -1', py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <InsertDriveFileIcon sx={{ fontSize: 64, color: '#35365a' }} />
+                        <Typography sx={{ color: '#7d82a8' }}>No files uploaded yet.</Typography>
+                      </Box>
+                    );
+                 }
+
+                 return allFiles.map((item, idx) => {
+                    const isImage = (item.file.type && item.file.type.startsWith('image/')) || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file.name);
+                    const fileUrl = item.file.url ? (item.file.url.startsWith('http') ? item.file.url : `${SERVER_URL}${item.file.url}`) : null;
+
+                    return (
+                     <Paper 
+                       key={idx}
+                       elevation={0}
+                       sx={{ 
+                         bgcolor: '#2c2d4a', 
+                         borderRadius: 3, 
+                         overflow: 'hidden',
+                         position: 'relative',
+                         transition: 'transform 0.2s, box-shadow 0.2s',
+                         '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 1 }
+                       }}
+                     >
+                       {/* Preview Area */}
+                       <Box 
+                         sx={{ 
+                           height: 140, 
+                           bgcolor: '#1e1f2b', 
+                           display: 'flex', 
+                           alignItems: 'center', 
+                           justifyContent: 'center',
+                           cursor: 'pointer',
+                           overflow: 'hidden',
+                           borderBottom: '1px solid #35365a'
+                         }}
+                         onClick={() => handleFileClick(item.file, item.rowId, item.colId)}
+                       >
+                         {isImage && fileUrl ? (
+                            <img 
+                              src={fileUrl} 
+                              alt={item.file.name} 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                            />
+                         ) : (
+                            <InsertDriveFileIcon sx={{ fontSize: 48, color: '#579bfc' }} />
+                         )}
+                       </Box>
+                       
+                       {/* Info Area */}
+                       <Box sx={{ p: 2 }}>
+                         <Typography noWrap variant="subtitle2" sx={{ color: '#fff', fontWeight: 600, mb: 0.5 }} title={item.file.name}>
+                           {item.file.name}
+                         </Typography>
+                         <Typography noWrap variant="caption" sx={{ color: '#7d82a8', display: 'block', mb: 1 }}>
+                           {item.taskName}
+                         </Typography>
+                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                           <Typography variant="caption" sx={{ color: '#5c5e80', fontWeight: 600 }}>
+                             {item.file.size ? (item.file.size / 1024).toFixed(0) + ' KB' : ''}
+                           </Typography>
+                           <IconButton 
+                             size="small" 
+                             onClick={() => handleFileClick(item.file, item.rowId, item.colId)}
+                             sx={{ color: '#bfc8e0', bgcolor: 'rgba(255,255,255,0.05)', '&:hover': { bgcolor: '#0073ea', color: '#fff' } }}
+                           >
+                              <span style={{ fontSize: 16 }}>↗</span>
+                           </IconButton>
+                         </Box>
+                       </Box>
+                     </Paper>
+                   );
+                 });
+               })()}
+             </Box>
+          </Box>
+        </Box>
+      ) : null}
 
       {/* Task Review Drawer/Dialog with Email Automation */}
       <Dialog
@@ -1821,7 +3188,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       recipients: emailRecipients
                     };
                     if (reviewTask && reviewTask.id && reviewTask.id !== 'placeholder') {
-                      body.taskId = reviewTask.id;
+                      (body as any).taskId = reviewTask.id;
                     }
                     await fetch(getApiUrl(`/automation/${tableId}`), {
                       method: 'POST',
@@ -1841,6 +3208,107 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           <Button onClick={handleCloseReview} sx={{ color: '#fff', fontWeight: 600, borderRadius: 2, px: 3, py: 1, '&:hover': { bgcolor: '#35365a' } }}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* File Preview / Actions Dialog */}
+      <Dialog
+        open={fileDialog.open}
+        onClose={() => setFileDialog({ ...fileDialog, open: false })}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, p: 0, border: '1px solid #35365a', overflow: 'hidden' } }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid #35365a', bgcolor: '#2c2d4a' }}>
+          <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600 }}>
+             {fileDialog.file?.name || 'File Preview'}
+          </Typography>
+          <IconButton onClick={() => setFileDialog({ ...fileDialog, open: false })} sx={{ color: '#bfc8e0' }}>
+            <span style={{ fontSize: 20 }}>✕</span>
+          </IconButton>
+        </Box>
+
+        <DialogContent sx={{ p: 0, minHeight: 400, bgcolor: '#1e1f2b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+           {fileDialog.file && (
+             <>
+               {fileDialog.file.url ? (
+                 <Box sx={{ width: '100%', height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000' }}>
+                   {(fileDialog.file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileDialog.file.name)) ? (
+                     <img 
+                       src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`} 
+                       alt={fileDialog.file.name} 
+                       style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }} 
+                     />
+                   ) : (fileDialog.file.type === 'application/pdf' || /\.pdf$/i.test(fileDialog.file.name)) ? (
+                     <iframe 
+                       src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`} 
+                       style={{ width: '100%', height: '60vh', border: 'none' }} 
+                       title="PDF Preview"
+                     />
+                   ) : (
+                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, p: 5 }}>
+                        <InsertDriveFileIcon sx={{ fontSize: 80, color: '#0073ea', opacity: 0.8 }} />
+                        <Typography sx={{ color: '#bfc8e0', textAlign: 'center' }}>Preview not available for this file type</Typography>
+                     </Box>
+                   )}
+                 </Box>
+               ) : (
+                 <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Typography variant="body1" sx={{ color: '#fdab3d' }}>
+                      File not uploaded to server
+                    </Typography>
+                 </Box>
+               )}
+             </>
+           )}
+        </DialogContent>
+        
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 2, bgcolor: '#23243a', borderTop: '1px solid #35365a' }}>
+           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              {fileDialog.file?.size && (
+                <Typography variant="caption" sx={{ color: '#7d82a8', bgcolor: '#2c2d4a', px: 1, py: 0.5, borderRadius: 1 }}>
+                  {(fileDialog.file.size / 1024).toFixed(1)} KB
+                </Typography>
+              )}
+              {fileDialog.file?.uploadedAt && (
+                <Typography variant="caption" sx={{ color: '#7d82a8', bgcolor: '#2c2d4a', px: 1, py: 0.5, borderRadius: 1 }}>
+                  {new Date(fileDialog.file.uploadedAt).toLocaleDateString()}
+                </Typography>
+              )}
+           </Box>
+
+           <Box sx={{ display: 'flex', gap: 2 }}>
+             <Button 
+               onClick={handleFileDelete}
+               sx={{ color: '#e2445c', '&:hover': { bgcolor: 'rgba(226, 68, 92, 0.1)' } }}
+               startIcon={<DeleteIcon />}
+             >
+               Delete
+             </Button>
+             
+             {fileDialog.file?.url && (
+               <Button
+                 variant="contained"
+                 component="a"
+                 href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                 download={fileDialog.file.name} // HTML5 download attribute
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 startIcon={<InsertDriveFileIcon />}
+                 sx={{ 
+                   bgcolor: '#0073ea', 
+                   color: '#fff', 
+                   borderRadius: 2, 
+                   textTransform: 'none', 
+                   fontWeight: 600,
+                   '&:hover': { bgcolor: '#0060c2' }
+                 }}
+               >
+                 Download
+               </Button>
+             )}
+           </Box>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 }

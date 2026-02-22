@@ -38,7 +38,7 @@ interface PeopleSelectorProps {
   onClose?: (finalValue: Person[]) => void;
 }
 
-export default function PeopleSelector({ value = [], onChange, onClose }: PeopleSelectorProps) {
+export default function PeopleSelector({ value = [], onChange, onClose, embed = false }: PeopleSelectorProps & { embed?: boolean }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
   const [people, setPeople] = useState<Person[]>(defaultPeople);
@@ -101,10 +101,15 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
   };
 
   const handleSelect = (person: Person) => {
-    if (!value.some((p) => p.email === person.email)) {
-      const newSelected = [...value, person];
-      onChange && onChange(newSelected);
+    // Toggle logic
+    const exists = value.some((p) => p.email === person.email);
+    let newSelected;
+    if (exists) {
+      newSelected = value.filter(p => p.email !== person.email);
+    } else {
+      newSelected = [...value, person];
     }
+    onChange && onChange(newSelected);
   };
 
   // Deduplicate people by email
@@ -174,9 +179,119 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
       localStorage.setItem("suggestedPeople", JSON.stringify(updated));
       return updated;
     });
-    onChange && onChange([...value, newPerson]);
+    // Don't auto-select on invite, just add to list
+    // onChange && onChange([...value, newPerson]); 
     setInviteDialogOpen(false);
   };
+
+  const Content = (
+    <Box sx={{ p: embed ? 0 : 2, width: embed ? '100%' : 320 }}>
+      {!embed && <Typography variant="subtitle2" sx={{ mb: 1 }}>People</Typography>}
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="Search names, roles or teams"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        onKeyDown={handleSearchKeyDown}
+        sx={{ mb: 2, bgcolor: '#2c2d4a', borderRadius: 1, '& .MuiOutlinedInput-notchedOutline': { border: 'none' }, '& .MuiInputBase-input': { color: '#fff' } }}
+        InputProps={{ style: { color: '#fff' } }}
+      />
+      <Typography variant="caption" sx={{ color: '#7d82a8', fontWeight: 600, textTransform: 'uppercase', mb: 1, display: 'block' }}>Suggested people</Typography>
+      <List dense sx={{ maxHeight: 200, overflowY: 'auto' }}>
+        {filteredPeople.map((person) => {
+          const isSelected = value.some(p => p.email === person.email);
+          return (
+            <ListItem
+              key={person.email}
+              secondaryAction={
+                <IconButton edge="end" aria-label="delete" onClick={(e) => { e.stopPropagation(); handleDeleteSuggested(person); }}>
+                  <DeleteIcon fontSize="small" sx={{ color: '#5a5b7a' }} />
+                </IconButton>
+              }
+              onClick={() => handleSelect(person)}
+              sx={{ 
+                width: '100%', 
+                textAlign: 'left', 
+                cursor: 'pointer', 
+                color: '#fff', 
+                bgcolor: isSelected ? 'rgba(0, 115, 234, 0.1)' : 'transparent',
+                borderRadius: 2,
+                mb: 0.5,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
+              }}
+            >
+              <ListItemAvatar>
+                <Avatar sx={{ bgcolor: isSelected ? '#0073ea' : '#5a5b7a', width: 32, height: 32, fontSize: 14 }}>
+                  {person.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText 
+                primary={person.name} 
+                secondary={person.email} 
+                primaryTypographyProps={{ style: { color: '#fff', fontWeight: isSelected ? 600 : 400 } }} 
+                secondaryTypographyProps={{ style: { color: '#7d82a8' } }} 
+              />
+              {isSelected && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#0073ea', mr: 2 }} />}
+            </ListItem>
+          );
+        })}
+      </List>
+      <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+      <Button 
+        fullWidth 
+        startIcon={<PersonAddIcon />} 
+        sx={{ 
+          mb: 1, 
+          color: '#0073ea',
+          background: 'transparent',
+          backgroundColor: 'transparent',
+          boxShadow: 'none',
+          '&:hover': {
+            background: 'transparent',
+            backgroundColor: 'transparent',
+            bgcolor: 'transparent',
+            textDecoration: 'underline',
+            boxShadow: 'none'
+          }
+        }} 
+        onClick={handleInviteClick}
+      >
+        Invite a new member by email
+      </Button>
+      {/* Invite dialog */}
+      <Dialog open={inviteDialogOpen} onClose={() => setInviteDialogOpen(false)} PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff' } }}>
+        <DialogTitle>Invite a new member</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Email Address"
+            type="email"
+            fullWidth
+            value={inviteEmail}
+            onChange={e => setInviteEmail(e.target.value)}
+            sx={{ mb: 2, '& input': { color: '#fff' }, '& label': { color: '#7d82a8' }, '& .MuiOutlinedInput-root': { color: '#fff', '& fieldset': { borderColor: '#3a3b5a' } } }}
+          />
+          <TextField
+            margin="dense"
+            label="Name (optional)"
+            fullWidth
+            value={inviteName}
+            onChange={e => setInviteName(e.target.value)}
+            sx={{ '& input': { color: '#fff' }, '& label': { color: '#7d82a8' }, '& .MuiOutlinedInput-root': { color: '#fff', '& fieldset': { borderColor: '#3a3b5a' } } }}
+          />
+          {inviteError && <Typography color="error" variant="body2">{inviteError}</Typography>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setInviteDialogOpen(false)} sx={{ color: '#7d82a8' }}>Cancel</Button>
+          <Button onClick={handleInviteSubmit} variant="contained" sx={{ bgcolor: '#0073ea' }}>Invite</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+
+  if (embed) return Content;
 
   return (
     <>
@@ -188,76 +303,9 @@ export default function PeopleSelector({ value = [], onChange, onClose }: People
         anchorEl={anchorEl}
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a' } }}
       >
-        <Box sx={{ p: 2, width: 320 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>People</Typography>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Search names, roles or teams"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            sx={{ mb: 2, color: '#fff', '& .MuiInputBase-input': { color: '#fff' } }}
-            InputProps={{ style: { color: '#fff' } }}
-          />
-          <Typography variant="caption" sx={{ color: '#fff' }}>Suggested people</Typography>
-          <List dense>
-            {filteredPeople.map((person) => (
-              <ListItem
-                key={person.email}
-                secondaryAction={
-                  <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteSuggested(person)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                }
-                onClick={() => handleSelect(person)}
-                sx={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: '#fff' }}
-              >
-                <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: '#0073ea' }}>{person.name.split(' ').map(n => n[0]).join('').toUpperCase()}</Avatar>
-                </ListItemAvatar>
-                <ListItemText primary={person.name} secondary={person.email} primaryTypographyProps={{ style: { color: '#fff' } }} secondaryTypographyProps={{ style: { color: '#fff' } }} />
-              </ListItem>
-            ))}
-          </List>
-          <Divider sx={{ my: 1 }} />
-          <Button fullWidth startIcon={<PersonAddIcon />} sx={{ mb: 1 }} onClick={handleInviteClick}>
-            Invite a new member by email
-          </Button>
-          {/* Invite dialog */}
-          <Dialog open={inviteDialogOpen} onClose={() => setInviteDialogOpen(false)}>
-            <DialogTitle>Invite a new member</DialogTitle>
-            <DialogContent>
-              <TextField
-                autoFocus
-                margin="dense"
-                label="Email Address"
-                type="email"
-                fullWidth
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                margin="dense"
-                label="Name (optional)"
-                fullWidth
-                value={inviteName}
-                onChange={e => setInviteName(e.target.value)}
-              />
-              {inviteError && <Typography color="error" variant="body2">{inviteError}</Typography>}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleInviteSubmit} variant="contained">Invite</Button>
-            </DialogActions>
-          </Dialog>
-          <Button fullWidth startIcon={<NotificationsOffIcon />} variant="outlined" color="inherit">
-            Mute
-          </Button>
-          {/* Removed Auto-assign people option */}
-        </Box>
+        {Content}
       </Popover>
     </>
   );

@@ -133,5 +133,22 @@
       "valitv7@gmail.com"
     ],
     "enabled": true
+  },
+  {
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "cols": [
+      "9b16eaad-3c63-4e9f-8a3c-384fa2eec742",
+      "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+      "8cc43b5a-d991-49ee-b062-3ec442fc66dd",
+      "2ec415fe-2ecc-48e1-94aa-dd76e0761915"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "enabled": true
   }
 ]

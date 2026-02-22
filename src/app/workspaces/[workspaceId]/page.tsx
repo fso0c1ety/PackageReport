@@ -13,7 +13,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
   useEffect(() => {
     if (typeof window !== 'undefined' && workspaceId) {
       // Try to get workspace name from API or fallback to id
-      fetch(`http://192.168.0.26:4000/api/workspaces/${workspaceId}`)
+      fetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}`)
         .then(res => res.json())
         .then(ws => {
           if (ws && ws.id) {
@@ -136,66 +136,181 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
   );
 
   return (
-    <Box>
-      {/* Table tabs and actions */}
-      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Tabs
-            value={selected}
-            onChange={(_, v) => setSelected(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-          >
-            {tables.map((table) => (
-              <Tab
-                key={table.id}
-                value={table.id}
-                label={
-                  <span style={{ display: 'flex', alignItems: 'center' }}>
-                    {table.name}
-                    <span
-                      style={{ marginLeft: 6, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-                      onClick={e => { e.stopPropagation(); handleMenuOpen(e, tables.findIndex(t => t.id === table.id)); }}
-                    >
-                      <MoreVertIcon fontSize="small" />
-                    </span>
-                  </span>
-                }
-              />
-            ))}
-          </Tabs>
-          <IconButton onClick={handleAddTable} color="primary" sx={{ ml: 1 }} disabled={creating}>
-            <AddIcon />
-          </IconButton>
-        </Box>
-        {/* Table menu */}
-        <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={handleMenuClose}>
-          <MenuItem onClick={handleRename}>Rename</MenuItem>
-          <MenuItem onClick={handleDelete} sx={{ color: 'red' }}>Delete</MenuItem>
-        </Menu>
-        {/* Rename dialog */}
-        <Dialog open={renameDialogOpen} onClose={handleRenameCancel}>
-          <DialogTitle>Rename Table</DialogTitle>
-          <DialogContent>
-            <TextField
-              value={renameValue}
-              onChange={e => {
-                setRenameValue(e.target.value);
-                setRenameError(null);
-                console.log('TextField changed', e.target.value);
-              }}
-              fullWidth
-              autoFocus
-              error={!!renameError}
-              helperText={renameError}
+    <Box sx={{ p: 0 }}>
+      {/* Table tabs and actions - Redesigned */}
+      <Box sx={{ 
+        display: "flex", 
+        alignItems: "center", 
+        mb: 2, 
+        px: 3, 
+        pt: 2
+      }}>
+        <Tabs
+          value={selected}
+          onChange={(_, v) => setSelected(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            minHeight: 48,
+            '& .MuiTabs-indicator': {
+              backgroundColor: '#0073ea',
+              height: 3,
+              borderRadius: '3px 3px 0 0'
+            },
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              minHeight: 48,
+              fontWeight: 500,
+              fontSize: '0.95rem',
+              color: '#8d90b5',
+              mr: 2,
+              '&:hover': {
+                color: '#fff',
+                bgcolor: 'rgba(255,255,255,0.03)'
+              },
+              '&.Mui-selected': {
+                color: '#fff',
+                fontWeight: 600
+              }
+            }
+          }}
+        >
+          {tables.map((table) => (
+            <Tab
+              key={table.id}
+              value={table.id}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <span>{table.name}</span>
+                  <Box
+                    component="span"
+                    sx={{
+                       display: 'flex', 
+                       alignItems: 'center', 
+                       padding: '2px',
+                       borderRadius: '4px',
+                       color: 'inherit',
+                       opacity: selected === table.id ? 1 : 0.5,
+                       '&:hover': {
+                         bgcolor: 'rgba(255,255,255,0.1)',
+                         opacity: 1
+                       }
+                    }}
+                    onClick={e => { 
+                      e.stopPropagation(); 
+                      handleMenuOpen(e, tables.findIndex(t => t.id === table.id)); 
+                    }}
+                  >
+                    <MoreVertIcon sx={{ fontSize: 18 }} />
+                  </Box>
+                </Box>
+              }
             />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleRenameCancel}>Cancel</Button>
-            <Button onClick={handleRenameSave} disabled={!renameValue.trim()} variant="contained">Save</Button>
-          </DialogActions>
-        </Dialog>
+          ))}
+        </Tabs>
+        <IconButton 
+          onClick={handleAddTable} 
+          disabled={creating}
+          size="small"
+          sx={{ 
+            ml: 1, 
+            bgcolor: '#0073ea', 
+            color: '#fff', 
+            '&:hover': { bgcolor: '#0060c2' },
+            width: 32,
+            height: 32
+          }}
+        >
+          <AddIcon sx={{ fontSize: 20 }} />
+        </IconButton>
       </Box>
+
+      {/* Table menu */}
+      <Menu 
+        anchorEl={menuAnchor} 
+        open={!!menuAnchor} 
+        onClose={handleMenuClose}
+        PaperProps={{
+          sx: {
+            bgcolor: '#2c2d4a',
+            color: '#fff',
+            borderRadius: 2,
+            minWidth: 150,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            '& .MuiMenuItem-root': {
+               fontSize: '0.9rem',
+               py: 1,
+               '&:hover': { bgcolor: '#3d3e5a' }
+            }
+          }
+        }}
+      >
+        <MenuItem onClick={handleRename}>
+          <Box component="span" sx={{ flex: 1 }}>Rename</Box>
+        </MenuItem>
+        <MenuItem onClick={handleDelete} sx={{ color: '#e2445c' }}>
+          <Box component="span" sx={{ flex: 1 }}>Delete</Box>
+        </MenuItem>
+      </Menu>
+
+      {/* Rename dialog */}
+      <Dialog 
+        open={renameDialogOpen} 
+        onClose={handleRenameCancel}
+        PaperProps={{
+          sx: {
+            bgcolor: '#23243a',
+            color: '#fff',
+            borderRadius: 3,
+            p: 1
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Rename Table</DialogTitle>
+        <DialogContent>
+          <TextField
+            value={renameValue}
+            onChange={e => {
+              setRenameValue(e.target.value);
+              setRenameError(null);
+            }}
+            fullWidth
+            autoFocus
+            variant="outlined"
+            placeholder="Table Name"
+            error={!!renameError}
+            helperText={renameError}
+            sx={{
+              mt: 1,
+              '& .MuiOutlinedInput-root': {
+                color: '#fff',
+                '& fieldset': { borderColor: '#35365a' },
+                '&:hover fieldset': { borderColor: '#45466a' },
+                '&.Mui-focused fieldset': { borderColor: '#0073ea' },
+              },
+              '& .MuiInputLabel-root': { color: '#bfc8e0' },
+              '& .MuiInputBase-input': { p: 1.5 }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleRenameCancel} sx={{ color: '#bfc8e0', textTransform: 'none' }}>Cancel</Button>
+          <Button 
+            onClick={handleRenameSave} 
+            disabled={!renameValue.trim()} 
+            variant="contained" 
+            sx={{ 
+               bgcolor: '#0073ea', 
+               textTransform: 'none',
+               '&:hover': { bgcolor: '#0060c2' },
+               boxShadow: 'none'
+            }}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <TableBoard tableId={selected || (tables[0]?.id ?? null)} />
     </Box>
   );

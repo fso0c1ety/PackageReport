@@ -1,403 +1,553 @@
 "use client";
-// HomeDashboard: Styled dashboard matching screenshot, with user's name and data
-import React from 'react';
-import { Box, Typography, Card, CardContent, Avatar, List, ListItem, ListItemAvatar, ListItemText, Divider, Button } from '@mui/material';
-import { useEffect, useState } from 'react';
-import { styled } from '@mui/material/styles';
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Avatar,
+  IconButton,
+  Button,
+  Chip,
+  Skeleton,
+  Divider,
+} from "@mui/material";
+import { styled } from "@mui/material/styles";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
+import AddIcon from "@mui/icons-material/Add";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import FolderIcon from "@mui/icons-material/Folder"; // Placeholder for workspace icon
 
-// Helper to get/set last workspace in localStorage
+// --- Styled Components ---
+
+const DashboardContainer = styled(Box)(({ theme }) => ({
+  minHeight: "100%",
+  backgroundColor: "#23243a", // Matches app background
+  color: "#fff",
+  fontFamily: "'Inter', sans-serif",
+  padding: theme.spacing(4),
+  [theme.breakpoints.up("md")]: {
+    padding: theme.spacing(4.5), // Slightly reduced from 6
+  },
+  [theme.breakpoints.down("sm")]: {
+    padding: theme.spacing(2),
+  },
+}));
+
+const SectionTitle = styled(Typography)(({ theme }) => ({
+  fontWeight: 700,
+  fontSize: "1.1rem",
+  marginBottom: theme.spacing(2),
+  color: "#fff",
+  display: "flex",
+  alignItems: "center",
+  gap: theme.spacing(1),
+  [theme.breakpoints.up("md")]: {
+    fontSize: "1.25rem", // Larger title on desktop
+    marginBottom: theme.spacing(3),
+  },
+}));
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  backgroundColor: "#2c2d4a",
+  color: "#fff",
+  borderRadius: "16px",
+  border: "1px solid rgba(255, 255, 255, 0.05)",
+  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+  "&:hover": {
+    transform: "translateY(-4px)",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+    borderColor: "#6366f1", // Indigo accent on hover
+  },
+}));
+
+const RecentCard = styled(StyledCard)(({ theme }) => ({
+  cursor: "pointer",
+  height: "100%",
+  display: "flex",
+  flexDirection: "row", // Horizontal layout everywhere
+  alignItems: "stretch", // Stretch image and content
+  overflow: "hidden",
+}));
+
+const WorkspaceCard = styled(StyledCard)(({ theme }) => ({
+  cursor: "pointer",
+  height: "100%",
+  display: "flex",
+  flexDirection: "column", 
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  padding: theme.spacing(2),
+  gap: theme.spacing(1),
+  [theme.breakpoints.up("md")]: {
+     flexDirection: "row",
+     textAlign: "left",
+     gap: theme.spacing(2.5), // Increased gap
+     padding: theme.spacing(3), // Increased padding
+     justifyContent: "flex-start"
+  }
+}));
+
+const InboxItem = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2),
+  borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+  "&:last-child": {
+    borderBottom: "none",
+  },
+  "&:hover": {
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+  },
+}));
+
+// --- Helper Functions ---
+
 function getLastWorkspace() {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   try {
-    const ws = localStorage.getItem('lastWorkspace');
+    const ws = localStorage.getItem("lastWorkspace");
     return ws ? JSON.parse(ws) : null;
   } catch {
     return null;
   }
 }
 
-function setLastWorkspace(workspace: any) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem('lastWorkspace', JSON.stringify(workspace));
-  } catch {}
-}
-
-// Example data (replace with your actual data)
-const recentlyVisited = [
-  { title: 'Dashboard and reporting', group: 'Main workspace', img: '/dashboard.svg' },
-];
-
-const Root = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  minHeight: '100vh',
-  background: '#23243a',
-  color: '#fff',
-  fontFamily: 'Inter, sans-serif',
-  overflowX: 'hidden',
-}));
-const Sidebar = styled(Box)(({ theme }) => ({
-  width: 240,
-  background: '#18192b',
-  padding: '24px 0',
-  display: 'flex',
-  flexDirection: 'column',
-  borderRight: '1px solid #2c2d4a',
-}));
-const Main = styled(Box)(({ theme }) => ({
-  flex: 1,
-  padding: '32px',
-  display: 'flex',
-  flexDirection: 'column',
-  background: '#23243a',
-  color: '#fff',
-  fontSize: '1.15rem', // Increase base font size for desktop
-  [theme.breakpoints.up('md')]: {
-    fontSize: '1.25rem', // Even larger on desktop
-  },
-  [theme.breakpoints.down('sm')]: {
-    alignItems: 'center',
-    paddingLeft: '6vw',
-    paddingRight: '6vw',
-    width: '100%',
-    boxSizing: 'border-box',
-    fontSize: '1rem', // Normal size on mobile
-  },
-}));
-const RightSidebar = styled(Box)(({ theme }) => ({
-  width: 320,
-  background: '#23243a',
-  padding: '32px 16px',
-  borderLeft: '1px solid #35365a',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 24,
-  [theme.breakpoints.down('sm')]: {
-    marginLeft: 0,
-    marginRight: 0,
-    alignItems: 'flex-start',
-    paddingLeft: 0,
-    paddingRight: 0,
-    width: '100%',
-    maxWidth: '100vw',
-  },
-}));
-const Section = styled(Box, { shouldForwardProp: (prop) => prop !== 'nomb' })(({ theme, nomb }) => ({
-  marginBottom: nomb ? 0 : 16,
-  [theme.breakpoints.down('sm')]: {
-    marginBottom: nomb ? 0 : 8,
-  },
-}));
-const WorkspaceCard = styled(Card)(({ theme }) => ({
-  background: '#2c2d4a',
-  color: '#fff',
-  borderRadius: 20,
-  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-  marginBottom: 16,
-  border: '2px solid #4f51c0',
-  width: '100%',
-  maxWidth: 320,
-  minWidth: 120,
-  minHeight: 120,
-  maxHeight: 180,
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: '10px 4px',
-  boxSizing: 'border-box',
-  [theme.breakpoints.down('md')]: {
-    maxWidth: 260,
-    minWidth: 100,
-    minHeight: 90,
-    maxHeight: 120,
-    padding: '6px 2px',
-  },
-  [theme.breakpoints.down('sm')]: {
-    width: '44vw',
-    maxWidth: '44vw',
-    minWidth: '44vw',
-    minHeight: '44vw',
-    maxHeight: '44vw',
-    padding: '4px 1px',
-    aspectRatio: '1 / 1',
-  },
-}));
-const SmallWorkspaceCard = styled(Card)(({ theme }) => ({
-  background: '#2c2d4a',
-  color: '#fff',
-  borderRadius: 20,
-  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-  marginBottom: 24,
-  border: '2px solid #4f51c0',
-  width: '22vw',
-  minWidth: 180,
-  maxWidth: 260,
-  minHeight: '10vw',
-  maxHeight: 140,
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: '10px 0',
-  [theme.breakpoints.up('md')]: {
-    minHeight: 80,
-    maxHeight: 100,
-    padding: '6px 0',
-  },
-  [theme.breakpoints.down('sm')]: {
-    width: '90vw',
-    minWidth: 120,
-    maxWidth: 180,
-    minHeight: '18vw',
-    maxHeight: 90,
-    padding: '6px 0',
-  },
-}));
-const BoardPreview = styled(Box)(({ theme }) => ({
-  height: '12vw',
-  minHeight: 100,
-  maxHeight: 180,
-  background: '#35365a',
-  borderRadius: 20,
-  marginBottom: 16,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '95%',
-  [theme.breakpoints.down('sm')]: {
-    width: '90%',
-    height: '70%',
-    minHeight: 'unset',
-    maxHeight: 'unset',
-    aspectRatio: '1 / 1',
-    marginBottom: 10,
-  },
-}));
-
-interface Workspace {
-  id: string;
-  name: string;
-  type?: string;
-}
+// --- Main Component ---
 
 export default function HomeDashboard() {
-    const userName = 'Your Name';
-    const [workspaces, setWorkspaces] = React.useState<Workspace[]>([]);
-    React.useEffect(() => {
-      fetch("http://192.168.0.28:4000/api/workspaces")
-        .then((res) => res.json())
-        .then(setWorkspaces);
-    }, []);
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
-  const [lastWorkspace, setLastWorkspaceState] = useState(() => getLastWorkspace());
-  // Format timestamps on client only to avoid hydration mismatch
-  const [formattedUpdates, setFormattedUpdates] = useState<any[]>([]);
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setFormattedUpdates(
-        emailUpdates.map(update => ({
-          ...update,
-          formattedTimestamp: update.timestamp ? new Date(update.timestamp).toLocaleString() : ''
-        }))
-      );
-    } else {
-      setFormattedUpdates(emailUpdates.map(update => ({ ...update, formattedTimestamp: '' })));
-    }
-  }, [emailUpdates]);
+  // Start with null to prevent hydration mismatch
+  const [lastWorkspace, setLastWorkspace] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [greeting, setGreeting] = useState("Good morning");
 
-  // Listen for storage changes (in case user opens workspaces in other tabs)
+  // Load client-only data once mounted
   useEffect(() => {
-    const handler = () => setLastWorkspaceState(getLastWorkspace());
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    setLastWorkspace(getLastWorkspace());
+    
+    // Set greeting based on client time
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting("Good morning");
+    else if (hour < 18) setGreeting("Good afternoon");
+    else setGreeting("Good evening");
   }, []);
 
+  // Fetch Data
   useEffect(() => {
-    function fetchEmailUpdates() {
-      fetch('http://192.168.0.28:4000/api/email-updates')
-        .then(res => res.json())
-        .then(data => setEmailUpdates(Array.isArray(data) ? data.reverse() : [])); // newest first
-    }
-    fetchEmailUpdates();
-    const interval = setInterval(fetchEmailUpdates, 10000); // 10 seconds
+    const fetchData = async () => {
+      try {
+        const [wsRes, updatesRes] = await Promise.all([
+          fetch("http://192.168.0.28:4000/api/workspaces"),
+          fetch("http://192.168.0.28:4000/api/email-updates"),
+        ]);
+        const wsData = await wsRes.json();
+        const updatesData = await updatesRes.json();
+
+        setWorkspaces(Array.isArray(wsData) ? wsData : []);
+        setEmailUpdates(Array.isArray(updatesData) ? updatesData.reverse() : []);
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    // Poll for updates (optional)
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // ...existing code...
+  // Listen for storage changes
+  useEffect(() => {
+    const handler = () => setLastWorkspace(getLastWorkspace());
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
+
 
   return (
-    <Root>
-      {/* Sidebar removed as requested */}
-      <Main>
-        <Section sx={{ marginBottom: 0 }}>
-          <Typography variant="subtitle1" fontWeight={600} mb={2}>Recently visited</Typography>
-          <Box
-            display={{ xs: 'grid', sm: 'flex' }}
-            gap={{ xs: 2, sm: 4 }}
-            flexWrap={{ sm: 'wrap' }}
-            justifyContent={{ xs: 'center', sm: 'flex-start' }}
-            alignItems="stretch"
-            minHeight={280}
-            gridTemplateColumns={{ xs: '1fr 1fr', sm: 'none' }}
-          >
-            {/* Other recent buttons from recentlyVisited array */}
-            {recentlyVisited.map((item, i) => (
-              <WorkspaceCard
-                key={item.title}
-                sx={{
-                  cursor: 'pointer',
-                  transition: 'box-shadow 0.2s',
-                  '&:hover': { boxShadow: '0 4px 16px #4f51c0' },
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  p: 1
-                }}
-                onClick={() => {
-                  if (item.title === 'Dashboard and reporting') {
-                    window.location.href = '/dashboard';
-                  } else {
-                    window.location.href = `/home/group/${encodeURIComponent(item.title)}`;
-                  }
-                }}
-              >
-                <BoardPreview sx={{ height: '12vw', minHeight: 100, maxHeight: 180, width: '95%', mb: 0 }}>
-                  <img src={item.img} alt={item.title} style={{ width: '100%', height: '100%', borderRadius: 20, background: '#CBDDFF', objectFit: 'cover', maxHeight: '90px' }} />
-                </BoardPreview>
-                <CardContent sx={{ textAlign: 'center', px: 0 }}>
-                  <Typography fontWeight={600} fontSize={10} mb={0.1}>{item.title}</Typography>
-                  <Typography variant="caption" color="#aaa" fontSize={8}>{item.group}</Typography>
-                </CardContent>
-              </WorkspaceCard>
-            ))}
-            {/* Latest workspace opened card (replaces Transporti) */}
-            {lastWorkspace && workspaces.length > 0 && (() => {
-              const ws = workspaces.find(w => w.id === lastWorkspace.id);
-              const wsName = ws?.name || lastWorkspace.name;
-              if (!wsName) return null;
-              return (
-                <WorkspaceCard
-                  sx={{ width: 400, cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 16px #4f51c0' } }}
-                  onClick={() => {
-                    window.location.href = `/workspaces/${lastWorkspace.id}`;
-                  }}
-                >
-                  <BoardPreview sx={{ height: '12vw', minHeight: 100, maxHeight: 180, width: '95%', mb: 0 }}>
-                    <img src="/Group.svg" alt={wsName} style={{ width: '100%', height: '100%', borderRadius: 20, background: '#CBDDFF', objectFit: 'cover', maxHeight: '90px' }} />
-                  </BoardPreview>
-                  <CardContent sx={{ textAlign: 'center', px: 0 }}>
-                    <Typography fontWeight={600} fontSize={10}>
-                      {wsName}
-                    </Typography>
-                    <Typography variant="caption" color="#aaa" fontSize={8}>Recent Workspace</Typography>
-                  </CardContent>
-                </WorkspaceCard>
-              );
-            })()}
-          </Box>
-        </Section>
-        <Section>
-          <Typography variant="subtitle1" fontWeight={600} mb={2}>Update feed (Inbox)</Typography>
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} color="#aaa" sx={{ maxHeight: 320, overflowY: 'auto' }}>
-            {formattedUpdates.length > 0 ? (
-              <List>
-                {formattedUpdates.slice(0, 3).map((update, idx) => (
-                  <ListItem key={idx} alignItems="flex-start" sx={{ borderBottom: '1px solid #35365a', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', overflow: 'visible', p: 1 }}>
-                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
-                      <Avatar sx={{ bgcolor: '#4f51c0', width: 20, height: 20, fontSize: 10 }}>{update.tableId ? update.tableId[0].toUpperCase() : 'T'}</Avatar>
-                      <Typography fontWeight={500} color="#fff" sx={{ fontSize: { xs: 11, md: 16 } }}>{update.recipients.join(', ')}</Typography>
-                    </Box>
-                    <Typography fontWeight={500} color="#4f51c0" mb={0.2} sx={{ fontSize: { xs: 10, md: 15 } }}>{update.subject}</Typography>
-                    <Typography variant="body2" color="#bfc8e0" mb={0.2} sx={{ fontSize: { xs: 9, md: 14 } }}>
-                      <span dangerouslySetInnerHTML={{ __html: update.html }} />
-                      <br />
-                      <span style={{ fontSize: '0.7em', color: '#888' }}>Sent: {update.formattedTimestamp}</span>
-                    </Typography>
-                    {/* Fix badge overlap: move badge inside card, top right */}
-                    {update.badge && (
-                      <Box sx={{ position: 'absolute', top: 2, right: 4, zIndex: 2 }}>
-                        {update.badge}
-                      </Box>
-                    )}
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography>No new updates</Typography>
-            )}
-          </Box>
-        </Section>
-        <Section>
-          <Box display="flex" alignItems="center" mb={2}>
-            <Typography variant="subtitle1" fontWeight={600}>My workspaces</Typography>
-            <Button
-              size="small"
-              sx={{ ml: 1, minWidth: 0, p: 0, bgcolor: '#35365a', color: '#fff', borderRadius: 1 }}
-              onClick={() => {/* Add workspace logic here or open dialog */}}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" fill="currentColor" />
-              </svg>
-            </Button>
-          </Box>
-          <Box
-            sx={{
-              display: { xs: 'grid', sm: 'flex' },
-              gridTemplateColumns: { xs: '1fr 1fr', sm: 'none' },
-              gap: { xs: 1.5, sm: 2 },
-              flexWrap: { sm: 'wrap' },
-              justifyContent: { sm: 'flex-start' },
-            }}
-          >
-            {/* Show each workspace only once */}
-            {workspaces.map((ws, idx) => (
-              <SmallWorkspaceCard
-                key={ws.id}
-                sx={{
-                  cursor: 'pointer',
-                  transition: 'box-shadow 0.2s',
-                  width: { xs: '100%', sm: '32%' },
-                  minWidth: { xs: 120, sm: 180 },
-                  maxWidth: { xs: 160, sm: 340 },
-                  '&:hover': { boxShadow: '0 4px 16px #4f51c0' },
-                  m: { xs: 0, sm: 0 },
-                }}
-                onClick={() => window.location.href = `/workspaces/${ws.id}`}
-              >
-                <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Avatar sx={{ bgcolor: '#4f51c0', width: 28, height: 28, fontSize: 16 }}>{ws.name.charAt(0).toUpperCase()}</Avatar>
-                    <Box>
-                      <Typography fontWeight={600} fontSize={13}>{ws.name}</Typography>
-                      <Typography variant="caption" color="#aaa" fontSize={10}>{ws.type || ''}</Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </SmallWorkspaceCard>
-            ))}
-          </Box>
-        </Section>
-      </Main>
-      <RightSidebar>
-        <Box
-          sx={{ display: { xs: 'none', sm: 'block' } }}
-        >
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a" mb={3}>
-            <Typography fontWeight={600} mb={1} color="#fff">Boost your workflow in minutes with ready-made templates</Typography>
-            <Button variant="contained" sx={{ bgcolor: '#4f51c0', borderRadius: 2, mt: 1, color: '#fff' }}>Explore templates</Button>
-          </Box>
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a" mb={3}>
-            <Typography fontWeight={600} mb={1} color="#fff">Getting started</Typography>
-            <Typography variant="body2" color="#bfc8e0">Learn how your app works</Typography>
-          </Box>
-          <Box bgcolor="#2c2d4a" borderRadius={2} p={2} border="1.5px solid #35365a">
-            <Typography fontWeight={600} mb={1} color="#fff">Help center</Typography>
-            <Typography variant="body2" color="#bfc8e0">Learn and get support</Typography>
-          </Box>
+    <DashboardContainer>
+      {/* Header */}
+      <Box sx={{ mb: { xs: 4, md: 5 }, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Box>
+          <Typography variant="h4" fontWeight={800} sx={{ mb: 1, letterSpacing: "-0.02em", fontSize: { md: "2.25rem" } }}>
+            {greeting}, Valon
+          </Typography>
+          <Typography variant="body1" sx={{ color: "#94a3b8", fontSize: { md: "1.1rem" } }}>
+            Here's what's happening with your projects today.
+          </Typography>
         </Box>
-      </RightSidebar>
-    </Root>
+      </Box>
+
+      <Grid container spacing={4} sx={{ width: '100%', maxWidth: '100%', margin: 0 }}>
+        {/* Main Content Column */}
+        <Grid item xs={12} md={8} sx={{ paddingLeft: '0 !important' }}>
+          {/* Recently Visited */}
+          <Box sx={{ mb: 5 }}>
+            <SectionTitle>
+              <AccessTimeIcon sx={{ color: "#6366f1", fontSize: 20 }} />
+              Recently Visited
+            </SectionTitle>
+            <Grid container spacing={3} alignItems="stretch">
+              {/* Dashboard Card - Takes 12 on mobile, 6 on desktop (half width) */}
+              <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
+                <RecentCard onClick={() => (window.location.href = "/dashboard")} sx={{ width: '100%' }}>
+                  <Box
+                    sx={{
+                      height: 'auto',
+                      minHeight: { xs: 120, md: 140 }, // Reduced from 160
+                      width: { xs: 120, sm: 180, md: 210 }, // Reduced from 240
+                      flexShrink: 0,
+                      bgcolor: "#35365a", 
+                      backgroundImage: "url(/dashboard.svg)",
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      position: "relative",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: "linear-gradient(to top, rgba(44, 45, 74, 0.9) 0%, transparent 100%)",
+                      }}
+                    />
+                    <Chip
+                      label="Main Workspace"
+                      size="small"
+                      sx={{
+                        position: "absolute",
+                        top: 12,
+                        left: 12,
+                        bgcolor: "rgba(0,0,0,0.4)",
+                        color: "#fff",
+                        backdropFilter: "blur(4px)",
+                        fontWeight: 600,
+                        fontSize: "0.7rem",
+                      }}
+                    />
+                  </Box>
+                  <CardContent sx={{ flex: 1, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { md: "1.15rem" } }}>
+                      Dashboard & Reporting
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.85rem" } }}>
+                      Overview of all project metrics
+                    </Typography>
+                  </CardContent>
+                </RecentCard>
+              </Grid>
+              
+              {/* Last Workspace Card - Takes 12 on mobile, 6 on desktop (half width) */}
+              {lastWorkspace && (
+                <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
+                  <RecentCard onClick={() => (window.location.href = `/workspaces/${lastWorkspace.id}`)} sx={{ width: '100%' }}>
+                     <Box
+                      sx={{
+                        height: 'auto',
+                        minHeight: { xs: 120, md: 140 }, // Reduced from 160
+                        width: { xs: 140, sm: 200, md: 250 }, // Reduced from 240
+                        flexShrink: 0,
+                        bgcolor: "#3b3c5a",
+                        backgroundImage: "url(/Group.svg)", 
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        position: "relative",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: "linear-gradient(to top, rgba(44, 45, 74, 0.9) 0%, transparent 100%)",
+                        }}
+                      />
+                       <Chip
+                        label="Recent"
+                        size="small"
+                        sx={{
+                          position: "absolute",
+                          top: 12,
+                          left: 12,
+                          bgcolor: "rgba(99, 102, 241, 0.8)", // Accent color
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: "0.7rem",
+                        }}
+                      />
+                    </Box>
+                    <CardContent sx={{ flex: 1, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                      <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { md: "1.15rem" } }}>
+                        {lastWorkspace.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.85rem" } }}>
+                        Continue where you left off
+                      </Typography>
+                    </CardContent>
+                  </RecentCard>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+
+          {/* My Workspaces */}
+          <Box sx={{ mb: 4 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+              <SectionTitle sx={{ mb: 0 }}>
+                <FolderIcon sx={{ color: "#6366f1", fontSize: 20 }} />
+                 My Workspaces
+              </SectionTitle>
+              <Button 
+                size="small" 
+                variant="text"
+                disableRipple
+                sx={{ 
+                  color: "#94a3b8", 
+                  background: "transparent",
+                  backgroundColor: "transparent",
+                  textTransform: "none",
+                  boxShadow: "none",
+                  "&:hover": { 
+                    maxHeight: "none",
+                    background: "transparent",
+                    backgroundColor: "transparent",
+                    color: "#6366f1",
+                    boxShadow: "none"
+                  },
+                  "&.MuiButton-root": {
+                    background: "transparent", 
+                    backgroundColor: "transparent"
+                  }
+                }} 
+                endIcon={<ArrowForwardIcon fontSize="small" />}
+              >
+                View all
+              </Button>
+            </Box>
+            
+            <Grid container spacing={{ xs: 1, md: 3 }}>
+              {loading
+                ? [1, 2, 3].map((n) => (
+                    <Grid item xs={6} sm={6} md={6} key={n}>
+                      <Skeleton variant="rectangular" height={100} sx={{ bgcolor: "rgba(255,255,255,0.05)", borderRadius: 2 }} />
+                    </Grid>
+                  ))
+                : workspaces.map((ws) => (
+                    <Grid item xs={6} sm={6} md={6} key={ws.id}>
+                      <WorkspaceCard onClick={() => (window.location.href = `/workspaces/${ws.id}`)}>
+                        <Avatar
+                          variant="rounded"
+                          sx={{
+                            bgcolor: "rgba(99, 102, 241, 0.15)",
+                            color: "#818cf8",
+                            width: { xs: 48, md: 52 }, // Reduced from 56
+                            height: { xs: 48, md: 52 },
+                            fontWeight: 700,
+                            fontSize: { md: "1.35rem" }, 
+                          }}
+                        >
+                          {ws.name.charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Box sx={{ overflow: "hidden" }}>
+                          <Typography variant="subtitle2" fontWeight={600} noWrap sx={{ fontSize: { md: "1rem" } }}>
+                            {ws.name}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.80rem" } }} noWrap>
+                            {ws.type || "General Workspace"}
+                          </Typography>
+                        </Box>
+                      </WorkspaceCard>
+                    </Grid>
+                  ))}
+            </Grid>
+          </Box>
+
+          {/* Templates Section - Desktop Only */}
+          <Box sx={{ display: { xs: "none", lg: "block" }, mt: 5 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+              <SectionTitle sx={{ mb: 0 }}>
+                <DashboardIcon sx={{ color: "#6366f1", fontSize: 20 }} />
+                Start with a Template
+              </SectionTitle>
+              <Button 
+                size="small" 
+                variant="text"
+                disableRipple
+                sx={{ 
+                  color: "#94a3b8", 
+                  background: "transparent",
+                  backgroundColor: "transparent",
+                  textTransform: "none",
+                  boxShadow: "none",
+                  "&:hover": { 
+                    maxHeight: "none",
+                    background: "transparent",
+                    backgroundColor: "transparent",
+                    color: "#6366f1",
+                    boxShadow: "none"
+                  },
+                  "&.MuiButton-root": {
+                    background: "transparent", 
+                    backgroundColor: "transparent"
+                  }
+                }} 
+                endIcon={<ArrowForwardIcon fontSize="small" />}
+              >
+                Browse gallery
+              </Button>
+            </Box>
+            
+            <Grid container spacing={3}>
+              {[
+                { title: "Project Tracker", color: "#e11d48", icon: "📊" },
+                { title: "CRM & Sales", color: "#2563eb", icon: "💼" },
+                { title: "Content Calendar", color: "#d97706", icon: "📅" },
+              ].map((template) => (
+                <Grid item lg={4} key={template.title}>
+                  <StyledCard
+                    sx={{
+                      cursor: "pointer",
+                      height: "100%",
+                      p: 3, // Reduced padding
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      textAlign: "center",
+                      gap: 2, // Reduced gap
+                      border: "1px dashed rgba(255,255,255,0.1)",
+                      "&:hover": { borderColor: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.05)" }
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        bgcolor: `${template.color}20`,
+                        color: template.color,
+                        width: 64, // Reduced from 72
+                        height: 64,
+                        fontSize: "1.75rem",
+                        mb: 1
+                      }}
+                    >
+                      {template.icon}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "1.1rem" }}>
+                        {template.title}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mt: 0.5, fontSize: "0.85rem" }}>
+                        Ready-to-use template
+                      </Typography>
+                    </Box>
+                  </StyledCard>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </Grid>
+
+        {/* Right Sidebar - Inbox */}
+        <Grid item xs={12} md={4}>
+          <Box sx={{ position: "sticky", top: 24 }}>
+            <SectionTitle>
+              <NotificationsnoneIcon sx={{ color: "#6366f1", fontSize: 20 }} />
+              Inbox & Updates
+            </SectionTitle>
+            <StyledCard sx={{ maxHeight: 600, display: "flex", flexDirection: "column" }}>
+               {/* Inbox Header */}
+               <Box sx={{ p: { xs: 2, md: 2.5 }, borderBottom: "1px solid rgba(255,255,255,0.05)", bgcolor: "rgba(0,0,0,0.1)" }}>
+                  <Typography variant="subtitle2" fontWeight={600} sx={{ color: "#94a3b8", fontSize: { md: "0.95rem" } }}>
+                    Recent Activity
+                  </Typography>
+               </Box>
+
+               {/* Updates List */}
+               <Box sx={{ overflowY: "auto", flex: 1, "::-webkit-scrollbar": { width: 4 }, "::-webkit-scrollbar-thumb": { bgcolor: "rgba(255,255,255,0.1)", borderRadius: 2 } }}>
+                  {emailUpdates.length === 0 && !loading && (
+                    <Box sx={{ p: 4, textAlign: "center", color: "#94a3b8" }}>
+                      <Typography variant="body2">No recent updates</Typography>
+                    </Box>
+                  )}
+                  {emailUpdates.map((update, idx) => (
+                    <InboxItem key={idx} sx={{ p: { md: 2 } }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, mb: 1 }}>
+                        <Avatar sx={{ width: { xs: 24, md: 28 }, height: { xs: 24, md: 28 }, fontSize: { xs: 10, md: 11 }, bgcolor: "#6366f1" }}>
+                           {update.tableId ? update.tableId[0].toUpperCase() : 'T'}
+                        </Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                           <Typography variant="caption" sx={{ fontWeight: 600, color: "#fff", display: "block", mb: 0.5, fontSize: { xs: "0.75rem", md: "0.85rem" } }}>
+                              {update.subject || "Task Update"}
+                           </Typography>
+                           <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
+                             {update.timestamp ? new Date(update.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                           </Typography>
+                        </Box>
+                        {update.badge && (
+                          <Chip label={update.badge} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: "#22c55e", color: "#fff", fontWeight: 700 }} />
+                        )}
+                      </Box>
+                      
+                       <Box 
+                          sx={{ 
+                            p: 1.5, 
+                            bgcolor: "rgba(0,0,0,0.2)", 
+                            borderRadius: 2, 
+                            border: "1px solid rgba(255,255,255,0.05)",
+                            "& h2": { fontSize: "0.85rem", fontWeight: 700, mt: 0, mb: 0.5, color: "#e2e8f0" },
+                            "& ul": { m: 0, pl: 2, fontSize: "0.75rem", color: "#94a3b8" },
+                            "& li": { mb: 0.25 },
+                            "& b": { color: "#cbd5e1" } // lighter text for labels
+                          }}
+                       >
+                          <div dangerouslySetInnerHTML={{ __html: update.html }} />
+                       </Box>
+                    </InboxItem>
+                  ))}
+               </Box>
+               
+               <Box sx={{ p: 1.5, borderTop: "1px solid rgba(255,255,255,0.05)", textAlign: "center" }}>
+                  <Button 
+                    size="small" 
+                    variant="text"
+                    disableRipple
+                    sx={{ 
+                      color: "#6366f1", 
+                      background: "transparent",
+                      backgroundColor: "transparent",
+                      textTransform: "none",
+                      boxShadow: "none",
+                      "&:hover": { 
+                        bgcolor: "transparent", 
+                        background: "transparent",
+                        backgroundColor: "transparent",
+                        textDecoration: "underline",
+                        boxShadow: "none"
+                      },
+                      "&.MuiButton-root": {
+                        background: "transparent", 
+                        backgroundColor: "transparent"
+                      }
+                    }}>
+                    View all notifications
+                  </Button>
+               </Box>
+            </StyledCard>
+          </Box>
+        </Grid>
+      </Grid>
+    </DashboardContainer>
   );
 }
