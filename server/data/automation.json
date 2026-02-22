@@ -1,0 +1,154 @@
+[
+  {
+    "tableId": "a3f98c10-5c19-437e-bcee-ffdc0c7d2838",
+    "triggerCol": "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
+    "cols": [
+      "fd2d9c11-eabf-423a-9bb1-4c0a548cc9eb",
+      "fed4848c-0852-4b21-91a3-3cd01298af65",
+      "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
+      "8e8a01e0-cc9a-4686-89d0-304d179b988c"
+    ],
+    "recipients": [
+      "valitv7@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "taskId": "a47dfaa8-5c63-4de4-aa39-43deb4570697",
+    "triggerCol": "83dabc09-ba5a-4e4b-84f4-e3892536aa8d",
+    "cols": [
+      "task",
+      "4c1c4531-b849-4281-9e10-be8db8e114fa",
+      "83dabc09-ba5a-4e4b-84f4-e3892536aa8d"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "triggerCol": "",
+    "cols": [],
+    "recipients": [],
+    "enabled": false
+  },
+  {
+    "tableId": "62896f0b-178d-4b25-acbf-6bc4bb0cb291",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "status"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "a7646615-4440-495b-8518-e8d5ecf93ff7",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "status"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "a3f98c10-5c19-437e-bcee-ffdc0c7d2838",
+    "taskId": "978449c6-527a-4bc8-99e7-53256da5aa84",
+    "triggerCol": "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
+    "cols": [
+      "fd2d9c11-eabf-423a-9bb1-4c0a548cc9eb",
+      "fed4848c-0852-4b21-91a3-3cd01298af65",
+      "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
+      "8e8a01e0-cc9a-4686-89d0-304d179b988c"
+    ],
+    "recipients": [
+      "valitv7@gmail.com",
+      "valonhalili74@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "a3f98c10-5c19-437e-bcee-ffdc0c7d2838",
+    "taskId": "90d36592-0fd4-46d3-b740-7149277f74ef",
+    "triggerCol": "fd2d9c11-eabf-423a-9bb1-4c0a548cc9eb",
+    "cols": [
+      "fd2d9c11-eabf-423a-9bb1-4c0a548cc9eb",
+      "ad4dbf0d-17b4-4231-83fa-cab432c555f2",
+      "8e8a01e0-cc9a-4686-89d0-304d179b988c"
+    ],
+    "recipients": [
+      "valitv7@gmail.com",
+      "valonhalili74@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "enabled": false
+  },
+  {
+    "tableId": "f6ec8b2e-c138-4aa6-be70-fbba094d4fd7",
+    "taskId": "1a188781-9da8-46d5-b48a-6e4d6079eb41",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "people",
+      "status"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "dbfaef54-1bed-4b71-944e-32c3be4a7bb9",
+    "taskId": "58e712a7-37ab-4c52-9e38-b799f9c660f4",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "status"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "dbfaef54-1bed-4b71-944e-32c3be4a7bb9",
+    "taskId": "0c1c7e20-7f02-4432-a3d9-3cc1499b8cf9",
+    "triggerCol": "status",
+    "cols": [
+      "task",
+      "status"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com"
+    ],
+    "enabled": true
+  },
+  {
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "cols": [
+      "9b16eaad-3c63-4e9f-8a3c-384fa2eec742",
+      "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+      "8cc43b5a-d991-49ee-b062-3ec442fc66dd",
+      "2ec415fe-2ecc-48e1-94aa-dd76e0761915"
+    ],
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "enabled": true
+  }
+]
