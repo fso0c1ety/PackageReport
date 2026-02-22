@@ -41,6 +41,8 @@ const countryCodeMap: Record<string, string> = {
   "Afghanistan": "AF", "Albania": "AL", "Algeria": "DZ", "Andorra": "AD", "Angola": "AO", "Antigua and Barbuda": "AG", "Argentina": "AR", "Armenia": "AM", "Australia": "AU", "Austria": "AT", "Azerbaijan": "AZ", "Bahamas": "BS", "Bahrain": "BH", "Bangladesh": "BD", "Barbados": "BB", "Belarus": "BY", "Belgium": "BE", "Belize": "BZ", "Benin": "BJ", "Bhutan": "BT", "Bolivia": "BO", "Bosnia and Herzegovina": "BA", "Botswana": "BW", "Brazil": "BR", "Brunei": "BN", "Bulgaria": "BG", "Burkina Faso": "BF", "Burundi": "BI", "Cabo Verde": "CV", "Cambodia": "KH", "Cameroon": "CM", "Canada": "CA", "Central African Republic": "CF", "Chad": "TD", "Chile": "CL", "China": "CN", "Colombia": "CO", "Comoros": "KM", "Congo (Congo-Brazzaville)": "CG", "Costa Rica": "CR", "Croatia": "HR", "Cuba": "CU", "Cyprus": "CY", "Czechia (Czech Republic)": "CZ", "Denmark": "DK", "Djibouti": "DJ", "Dominica": "DM", "Dominican Republic": "DO", "Ecuador": "EC", "Egypt": "EG", "El Salvador": "SV", "Equatorial Guinea": "GQ", "Eritrea": "ER", "Estonia": "EE", "Eswatini (fmr. 'Swaziland')": "SZ", "Ethiopia": "ET", "Fiji": "FJ", "Finland": "FI", "France": "FR", "Gabon": "GA", "Gambia": "GM", "Georgia": "GE", "Germany": "DE", "Ghana": "GH", "Greece": "GR", "Grenada": "GD", "Guatemala": "GT", "Guinea": "GN", "Guinea-Bissau": "GW", "Guyana": "GY", "Haiti": "HT", "Honduras": "HN", "Hungary": "HU", "Iceland": "IS", "India": "IN", "Indonesia": "ID", "Iran": "IR", "Iraq": "IQ", "Ireland": "IE", "Israel": "IL", "Italy": "IT", "Jamaica": "JM", "Japan": "JP", "Jordan": "JO", "Kazakhstan": "KZ", "Kenya": "KE", "Kiribati": "KI", "Kuwait": "KW", "Kyrgyzstan": "KG", "Laos": "LA", "Latvia": "LV", "Lebanon": "LB", "Lesotho": "LS", "Liberia": "LR", "Libya": "LY", "Liechtenstein": "LI", "Lithuania": "LT", "Luxembourg": "LU", "Madagascar": "MG", "Malawi": "MW", "Malaysia": "MY", "Maldives": "MV", "Mali": "ML", "Malta": "MT", "Marshall Islands": "MH", "Mauritania": "MR", "Mauritius": "MU", "Mexico": "MX", "Micronesia": "FM", "Moldova": "MD", "Monaco": "MC", "Mongolia": "MN", "Montenegro": "ME", "Morocco": "MA", "Mozambique": "MZ", "Myanmar (Burma)": "MM", "Namibia": "NA", "Nauru": "NR", "Nepal": "NP", "Netherlands": "NL", "New Zealand": "NZ", "Nicaragua": "NI", "Niger": "NE", "Nigeria": "NG", "North Korea": "KP", "North Macedonia": "MK", "Norway": "NO", "Oman": "OM", "Pakistan": "PK", "Palau": "PW", "Palestine State": "PS", "Panama": "PA", "Papua New Guinea": "PG", "Paraguay": "PY", "Peru": "PE", "Philippines": "PH", "Poland": "PL", "Portugal": "PT", "Qatar": "QA", "Romania": "RO", "Russia": "RU", "Rwanda": "RW", "Saint Kitts and Nevis": "KN", "Saint Lucia": "LC", "Saint Vincent and the Grenadines": "VC", "Samoa": "WS", "San Marino": "SM", "Sao Tome and Principe": "ST", "Saudi Arabia": "SA", "Senegal": "SN", "Serbia": "RS", "Seychelles": "SC", "Sierra Leone": "SL", "Singapore": "SG", "Slovakia": "SK", "Slovenia": "SI", "Solomon Islands": "SB", "Somalia": "SO", "South Africa": "ZA", "South Korea": "KR", "South Sudan": "SS", "Spain": "ES", "Sri Lanka": "LK", "Sudan": "SD", "Suriname": "SR", "Sweden": "SE", "Switzerland": "CH", "Syria": "SY", "Taiwan": "TW", "Tajikistan": "TJ", "Tanzania": "TZ", "Thailand": "TH", "Timor-Leste": "TL", "Togo": "TG", "Tonga": "TO", "Trinidad and Tobago": "TT", "Tunisia": "TN", "Turkey": "TR", "Turkmenistan": "TM", "Tuvalu": "TV", "Uganda": "UG", "Ukraine": "UA", "United Arab Emirates": "AE", "United Kingdom": "GB", "United States of America": "US", "Uruguay": "UY", "Uzbekistan": "UZ", "Vanuatu": "VU", "Vatican City": "VA", "Venezuela": "VE", "Vietnam": "VN", "Yemen": "YE", "Zambia": "ZM", "Zimbabwe": "ZW"
 };
 import dayjs, { Dayjs } from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
 import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import {
@@ -178,6 +180,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [renameValue, setRenameValue] = useState("");
   const [deleteColId, setDeleteColId] = useState<string | null>(null);
   const [fileDialog, setFileDialog] = useState<{ open: boolean; file: any | null; rowId: string | null; colId: string | null }>({ open: false, file: null, rowId: null, colId: null });
+  const [fileComment, setFileComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
   const [automationEnabled, setAutomationEnabled] = useState(true);
@@ -620,6 +623,54 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
 
     setFileDialog({ open: false, file: null, rowId: null, colId: null });
+  };
+
+  const handleFileCommentSubmit = async () => {
+    if (!fileComment.trim() || !fileDialog.file || !fileDialog.rowId || !fileDialog.colId) return;
+    
+    const { rowId, colId, file: targetFile } = fileDialog;
+    
+    const newComment = {
+      id: uuidv4(),
+      text: fileComment,
+      createdAt: new Date().toISOString(),
+      user: "User" // Or use actual user info if available
+    };
+
+    let updatedFile: any = null;
+    let nextRows: Row[] = [];
+
+    // Calculate new state based on current rows
+    const currentRow = rows.find(r => r.id === rowId);
+    if (!currentRow) return;
+
+    const currentFiles = Array.isArray(currentRow.values[colId]) ? currentRow.values[colId] : [];
+    const updatedFiles = currentFiles.map((f: any) => {
+        // Find by reference or unique property (URL is good for uploads)
+        if (f === targetFile || (f.url && f.url === targetFile.url)) {
+            updatedFile = { ...f, comments: [...(f.comments || []), newComment] };
+            return updatedFile;
+        }
+        return f;
+    });
+
+    if (!updatedFile) return;
+
+    const newValues = { ...currentRow.values, [colId]: updatedFiles };
+    
+    // Update local state
+    setRows(prevRows => prevRows.map(r => r.id === rowId ? { ...r, values: newValues } : r));
+    
+    // Update dialog file reference immediately to show new comment
+    setFileDialog(prev => ({ ...prev, file: updatedFile }));
+    setFileComment("");
+
+    // Persist to backend
+    await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: rowId, values: newValues }),
+    });
   };
 
   // Filter options
@@ -3213,9 +3264,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       <Dialog
         open={fileDialog.open}
         onClose={() => setFileDialog({ ...fileDialog, open: false })}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
-        PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, p: 0, border: '1px solid #35365a', overflow: 'hidden' } }}
+        PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, p: 0, border: '1px solid #35365a', overflow: 'hidden', height: '80vh', display: 'flex', flexDirection: 'column' } }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid #35365a', bgcolor: '#2c2d4a' }}>
           <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600 }}>
@@ -3226,7 +3277,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </IconButton>
         </Box>
 
-        <DialogContent sx={{ p: 0, minHeight: 400, bgcolor: '#1e1f2b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', flexDirection: { xs: 'column', md: 'row' } }}>
+        <Box sx={{ flex: 1, bgcolor: '#1e1f2b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'auto', borderRight: { md: '1px solid #35365a' }, borderBottom: { xs: '1px solid #35365a', md: 'none' } }}>
            {fileDialog.file && (
              <>
                {fileDialog.file.url ? (
@@ -3259,22 +3311,98 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                )}
              </>
            )}
-        </DialogContent>
+        </Box>
         
-        <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 2, bgcolor: '#23243a', borderTop: '1px solid #35365a' }}>
-           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              {fileDialog.file?.size && (
-                <Typography variant="caption" sx={{ color: '#7d82a8', bgcolor: '#2c2d4a', px: 1, py: 0.5, borderRadius: 1 }}>
-                  {(fileDialog.file.size / 1024).toFixed(1)} KB
-                </Typography>
-              )}
-              {fileDialog.file?.uploadedAt && (
-                <Typography variant="caption" sx={{ color: '#7d82a8', bgcolor: '#2c2d4a', px: 1, py: 0.5, borderRadius: 1 }}>
-                  {new Date(fileDialog.file.uploadedAt).toLocaleDateString()}
-                </Typography>
-              )}
-           </Box>
+        <Box sx={{ width: { xs: '100%', md: 320 }, bgcolor: '#23243a', display: 'flex', flexDirection: 'column', borderLeft: { md: '1px solid #35365a' }, borderTop: { xs: '1px solid #35365a', md: 'none' } }}>
 
+          {/* Comments / Details Area */}
+            {/* File Info */}
+            <Box sx={{ p: 2, borderBottom: '1px solid #35365a' }}>
+              <Typography variant="subtitle2" sx={{ color: '#7d82a8', mb: 1, textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 700 }}>
+                Details
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
+                {fileDialog.file?.size && (
+                  <Chip size="small" label={`${(fileDialog.file.size / 1024).toFixed(1)} KB`} sx={{ bgcolor: '#2c2d4a', color: '#bfc8e0' }} />
+                )}
+                {fileDialog.file?.uploadedAt && (
+                  <Typography variant="caption" sx={{ color: '#7d82a8' }}>
+                    {new Date(fileDialog.file.uploadedAt).toLocaleDateString()}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+
+            {/* Comments List */}
+            <Box sx={{ flex: 1, overflowY: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="subtitle2" sx={{ color: '#7d82a8', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 700 }}>
+                Comments
+              </Typography>
+              
+              {(!fileDialog.file?.comments || fileDialog.file.comments.length === 0) && (
+                <Typography variant="body2" sx={{ color: '#5a5b7a', fontStyle: 'italic', textAlign: 'center', mt: 4 }}>
+                  No comments yet
+                </Typography>
+              )}
+
+              {fileDialog.file?.comments?.map((comment: any) => (
+                <Box key={comment.id} sx={{ display: 'flex', gap: 1.5 }}>
+                  <Avatar sx={{ width: 28, height: 28, fontSize: 12, bgcolor: '#0073ea' }}>
+                    {comment.user ? comment.user.charAt(0).toUpperCase() : 'U'}
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: '#fff' }}>{comment.user}</Typography>
+                      <Typography variant="caption" sx={{ color: '#5a5b7a', fontSize: '0.7rem' }}>
+                        {dayjs(comment.createdAt).fromNow()}
+                      </Typography>
+                    </Box>
+                    <Paper sx={{ p: 1.5, mt: 0.5, bgcolor: '#2c2d4a', color: '#bfc8e0', borderRadius: '0 8px 8px 8px' }}>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{comment.text}</Typography>
+                    </Paper>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+
+            {/* Comment Input */}
+            <Box sx={{ p: 2, borderTop: '1px solid #35365a', bgcolor: '#2c2d4a' }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Write a comment..."
+                value={fileComment}
+                onChange={(e) => setFileComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleFileCommentSubmit();
+                  }
+                }}
+                multiline
+                maxRows={3}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton 
+                        size="small" 
+                        onClick={handleFileCommentSubmit}
+                        disabled={!fileComment.trim()}
+                        sx={{ color: '#0073ea', '&.Mui-disabled': { color: '#4a4b6a' } }}
+                      >
+                        <SendIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                  sx: { color: '#fff', fontSize: '0.875rem', bgcolor: '#1e1f2b', borderRadius: 2, pr: 0.5 }
+                }}
+                sx={{ '& fieldset': { border: 'none' } }}
+              />
+            </Box>
+          </Box>
+        </Box>
+        
+        <DialogActions sx={{ justifyContent: 'flex-end', px: 3, py: 2, bgcolor: '#23243a', borderTop: '1px solid #35365a', flexShrink: 0 }}>
            <Box sx={{ display: 'flex', gap: 2 }}>
              <Button 
                onClick={handleFileDelete}

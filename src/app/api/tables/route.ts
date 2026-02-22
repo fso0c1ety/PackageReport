@@ -1,7 +1,7 @@
 
 export const runtime = 'nodejs';
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { readTables, writeTables } from '../../../../server/data/db';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -10,7 +10,7 @@ export async function GET() {
 	return NextResponse.json(tables);
 }
 
-export async function POST(request) {
+export async function POST(request: NextRequest) {
 	const body = await request.json();
 	const tables = readTables();
 	const newTable = {
