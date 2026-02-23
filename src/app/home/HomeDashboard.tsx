@@ -30,8 +30,16 @@ const DashboardContainer = styled(Box)(({ theme }) => ({
   color: "#fff",
   fontFamily: "'Inter', sans-serif",
   padding: theme.spacing(4),
+  width: '100%',
+  boxSizing: 'border-box',
+  overflowX: 'hidden',
   [theme.breakpoints.up("md")]: {
-    padding: theme.spacing(4.5), // Slightly reduced from 6
+    padding: theme.spacing(3, 4), // More horizontal padding
+  },
+  [theme.breakpoints.up("lg")]: {
+    width: "100%", // Limit max width on very large screens for better readability
+    maxWidth: "100%",
+    margin: "0 auto",
   },
   [theme.breakpoints.down("sm")]: {
     padding: theme.spacing(2),
@@ -176,7 +184,7 @@ export default function HomeDashboard() {
   return (
     <DashboardContainer>
       {/* Header */}
-      <Box sx={{ mb: { xs: 4, md: 5 }, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <Box sx={{ mb: { xs: 7, md: 5 }, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Box>
           <Typography variant="h4" fontWeight={800} sx={{ mb: 1, letterSpacing: "-0.02em", fontSize: { md: "2.25rem" } }}>
             {greeting}, Valon
@@ -187,9 +195,9 @@ export default function HomeDashboard() {
         </Box>
       </Box>
 
-      <Grid container spacing={4} sx={{ width: '100%', maxWidth: '100%', margin: 0 }}>
+      <Grid container spacing={3}>
         {/* Main Content Column */}
-        <Grid item xs={12} md={8} sx={{ paddingLeft: '0 !important' }}>
+        <Grid item xs={12} md={6} lg={6}>
           {/* Recently Visited */}
           <Box sx={{ mb: 5 }}>
             <SectionTitle>
@@ -198,7 +206,7 @@ export default function HomeDashboard() {
             </SectionTitle>
             <Grid container spacing={3} alignItems="stretch">
               {/* Dashboard Card - Takes 12 on mobile, 6 on desktop (half width) */}
-              <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
+              <Grid item xs={12} sm={6} md={6} sx={{ display: 'flex' }}>
                 <RecentCard onClick={() => (window.location.href = "/dashboard")} sx={{ width: '100%' }}>
                   <Box
                     sx={{
@@ -460,13 +468,13 @@ export default function HomeDashboard() {
         </Grid>
 
         {/* Right Sidebar - Inbox */}
-        <Grid item xs={12} md={4}>
-          <Box sx={{ position: "sticky", top: 24 }}>
+        <Grid item xs={12} md={6} lg={6}>
+          <Box sx={{ position: "sticky", top: 0, mt: -2, height: { xs: 'auto', md: 'calc(80vh - 150px)' }, width: { xs: '100%', md: '70vh' }, display: 'flex', flexDirection: 'column' }}>
             <SectionTitle>
               <NotificationsnoneIcon sx={{ color: "#6366f1", fontSize: 20 }} />
               Inbox & Updates
             </SectionTitle>
-            <StyledCard sx={{ maxHeight: 600, display: "flex", flexDirection: "column" }}>
+            <StyledCard sx={{ flex: 1, display: "flex", flexDirection: "column", height: '100%', maxHeight: { xs: '400px', md: 'none' } }}>
                {/* Inbox Header */}
                <Box sx={{ p: { xs: 2, md: 2.5 }, borderBottom: "1px solid rgba(255,255,255,0.05)", bgcolor: "rgba(0,0,0,0.1)" }}>
                   <Typography variant="subtitle2" fontWeight={600} sx={{ color: "#94a3b8", fontSize: { md: "0.95rem" } }}>
@@ -505,7 +513,7 @@ export default function HomeDashboard() {
                             p: 1.5, 
                             bgcolor: "rgba(0,0,0,0.2)", 
                             borderRadius: 2, 
-                            border: "1px solid rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255, 255, 255, 0.05)",
                             "& h2": { fontSize: "0.85rem", fontWeight: 700, mt: 0, mb: 0.5, color: "#e2e8f0" },
                             "& ul": { m: 0, pl: 2, fontSize: "0.75rem", color: "#94a3b8" },
                             "& li": { mb: 0.25 },

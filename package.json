@@ -19,6 +19,7 @@
     "cors": "^2.8.6",
     "dayjs": "^1.11.19",
     "express": "^5.2.1",
+    "framer-motion": "^12.34.3",
     "multer": "^2.0.2",
     "next": "16.1.5",
     "node-fetch": "^2.7.0",

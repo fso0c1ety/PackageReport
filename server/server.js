@@ -334,19 +334,71 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
       return res.status(400).json({ error: 'Invalid request body' });
     }
     let found = false;
-    let oldTask = null;
-    table.tasks = table.tasks.map(task => {
-      if (task.id === id) {
-        found = true;
-        oldTask = { ...task };
-        return { ...task, values };
-      }
-      return task;
-    });
-    if (!found) {
-      log('Task not found for update', id);
-      return res.status(404).json({ error: 'Task not found' });
+    let oldTask = null; // Declare outside to make it accessible for automation check
+    
+    // Find task index first to avoid map overhead if possible, but map is cleaner for replacement
+    const taskIndex = table.tasks.findIndex(t => t.id === id);
+    if (taskIndex === -1) {
+       log('Task not found in table ' + req.params.tableId, id);
+       return res.status(404).json({ error: 'Task not found' });
     }
+    
+    const task = table.tasks[taskIndex];
+    oldTask = JSON.parse(JSON.stringify(task)); // Deep copy for automation/logging
+    
+    // --- Activity Logging Logic ---
+    const oldValues = task.values || {};
+    const newValues = values || {};
+    const timestamp = new Date().toISOString();
+    const newActivity = [];
+    const oldActivity = task.activity || [];
+
+    Object.keys(newValues).forEach(key => {
+      if (key === 'message') return; // Skip chat messages
+      
+      const oldVal = oldValues[key];
+      const newVal = newValues[key];
+      const oldStr = JSON.stringify(oldVal);
+      const newStr = JSON.stringify(newVal);
+      
+      if (oldStr !== newStr) {
+        log(`[ACTIVITY] Change detected for ${key}`, { from: oldStr, to: newStr });
+        const col = (table.columns || []).find(c => c.id === key);
+        const colName = col ? col.name : (key === 'priority' ? 'Priority' : (key === 'status' ? 'Status' : 'Unknown Column'));
+        
+        let logText = `Updated ${colName}`;
+        // Add specific details for status or priority
+        if (col && (col.type === 'Status' || col.type === 'Priority' || col.id === 'priority')) {
+          logText += ` to "${newVal}"`;
+        } else if (!col && (key === 'priority' || key === 'status')) {
+          logText += ` to "${newVal}"`;
+        } else if (newVal && typeof newVal !== 'object') {
+           // For simple text fields show the value
+           if (newVal.toString().length < 20) {
+              logText += ` to "${newVal}"`;
+           }
+        }
+
+        newActivity.push({
+          text: logText,
+          time: timestamp,
+          user: "User"
+        });
+      }
+    });
+
+    // Update task
+    task.values = values; 
+    if (newActivity.length > 0) {
+      task.activity = [...newActivity, ...oldActivity];
+    } else if (!task.activity) {
+      task.activity = [];
+    }
+    
+    // Update in array
+    table.tasks[taskIndex] = task;
+    found = true;
+
     writeJson(tablesFile, tables);
     // Re-read file to confirm write
     const afterWrite = readJson(tablesFile);
@@ -547,6 +599,59 @@ app.put('/api/tables/:tableId/tasks/order', (req, res) => {
   });
   writeJson(tablesFile, tables);
   res.json({ success: true });
+});
+
+
+// --- Table Chat Endpoints ---
+const tableChatsFile = path.join(dataDir, 'tableChats.json');
+
+// Get chat messages for a table
+app.get('/api/tables/:tableId/chat', (req, res) => {
+  let allChats = {};
+  if (fs.existsSync(tableChatsFile)) {
+    try {
+      allChats = JSON.parse(fs.readFileSync(tableChatsFile, 'utf-8'));
+    } catch (e) {
+      allChats = {};
+    }
+  }
+  const tableId = req.params.tableId;
+  const messages = allChats[tableId] || [];
+  res.json(messages);
+});
+
+// Post a new chat message
+app.post('/api/tables/:tableId/chat', (req, res) => {
+  let allChats = {};
+  if (fs.existsSync(tableChatsFile)) {
+    try {
+      allChats = JSON.parse(fs.readFileSync(tableChatsFile, 'utf-8'));
+    } catch (e) {
+      allChats = {};
+    }
+  }
+  const tableId = req.params.tableId;
+  
+  if (!allChats[tableId]) {
+    allChats[tableId] = [];
+  }
+  
+  const newMessage = {
+    id: uuidv4(),
+    ...req.body,
+    // Ensure vital fields if missing
+    timestamp: req.body.timestamp || Date.now(),
+  };
+  
+  allChats[tableId].push(newMessage);
+  
+  try {
+    fs.writeFileSync(tableChatsFile, JSON.stringify(allChats, null, 2));
+  } catch (err) {
+    console.error('Error writing tableChats.json:', err);
+  }
+  
+  res.json(newMessage);
 });
 
 app.listen(PORT, () => {

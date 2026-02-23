@@ -15,7 +15,9 @@ export type ColumnType =
   | 'Extract'
   | 'Priority'
   | 'Country'
-  | 'Message';
+  | 'Message'
+  | 'Link'
+  | 'Number';
 
 export interface ColumnOption {
   value: string;
@@ -39,6 +41,7 @@ export interface Row {
   id: string;
   values: Record<string, any>; // key: columnId, value: cell value
   archived?: boolean;
+  activity?: { text: string; time: string; user: string }[];
 }
 
 export interface Table {

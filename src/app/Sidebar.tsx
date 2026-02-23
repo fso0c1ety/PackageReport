@@ -370,17 +370,24 @@ export default function Sidebar({
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: "#23243a",
-            color: "#fff",
+            bgcolor: '#1e1f2b',
+            color: '#fff',
             borderRadius: 3,
-            border: "1px solid rgba(255,255,255,0.1)",
-          },
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
         }}
       >
-        <DialogTitle sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
           Create New Workspace
         </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
+        <DialogContent sx={{ pb: 3, pt: 1 }}>
           <TextField
             autoFocus
             label="Workspace Name"
@@ -389,22 +396,27 @@ export default function Sidebar({
             fullWidth
             variant="outlined"
             size="medium"
-            sx={{
-              mt: 1,
-              "& .MuiOutlinedInput-root": {
-                color: "#fff",
-                bgcolor: "rgba(0,0,0,0.2)",
-                "& fieldset": { borderColor: "rgba(255,255,255,0.2)" },
-                "&:hover fieldset": { borderColor: "#6366f1" },
-                "&.Mui-focused fieldset": { borderColor: "#6366f1" },
-              },
-              "& .MuiInputLabel-root": { color: "#94a3b8" },
-              "& .MuiInputLabel-root.Mui-focused": { color: "#6366f1" },
+            InputLabelProps={{
+              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
             }}
+            InputProps={{
+              sx: {
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+              }
+            }}
+            sx={{ mt: 1 }}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-          <Button onClick={() => setDialogOpen(false)} sx={{ color: "#94a3b8" }}>
+        <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
+          <Button 
+            onClick={() => setDialogOpen(false)} 
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
             Cancel
           </Button>
           <Button
@@ -412,11 +424,12 @@ export default function Sidebar({
             disabled={!newWorkspaceName.trim()}
             variant="contained"
             sx={{
-              bgcolor: "#6366f1",
-              "&:hover": { bgcolor: "#4f46e5" },
-              textTransform: "none",
-              fontWeight: 600,
-              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.4)",
+               bgcolor: '#6366f1',
+               '&:hover': { bgcolor: '#5558dd' },
+               '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+               boxShadow: 'none',
+               textTransform: 'none',
+               fontWeight: 600
             }}
           >
             Create

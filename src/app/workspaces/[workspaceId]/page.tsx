@@ -3,12 +3,14 @@
 import { use, useState, useEffect } from "react";
 import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 export default function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = use(params);
+  const theme = useTheme();
   // Set last opened workspace in localStorage for HomeDashboard
   useEffect(() => {
     if (typeof window !== 'undefined' && workspaceId) {
@@ -153,7 +155,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
           sx={{
             minHeight: 48,
             '& .MuiTabs-indicator': {
-              backgroundColor: '#0073ea',
+              backgroundColor: theme.palette.primary.main,
               height: 3,
               borderRadius: '3px 3px 0 0'
             },
@@ -162,14 +164,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
               minHeight: 48,
               fontWeight: 500,
               fontSize: '0.95rem',
-              color: '#8d90b5',
+              color: '#ffffff',
               mr: 2,
               '&:hover': {
-                color: '#fff',
-                bgcolor: 'rgba(255,255,255,0.03)'
+                color: '#ffffff',
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'
               },
               '&.Mui-selected': {
-                color: '#fff',
+                color: '#ffffff',
                 fontWeight: 600
               }
             }
@@ -192,7 +194,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
                        color: 'inherit',
                        opacity: selected === table.id ? 1 : 0.5,
                        '&:hover': {
-                         bgcolor: 'rgba(255,255,255,0.1)',
+                         bgcolor: theme.palette.action.hover,
                          opacity: 1
                        }
                     }}
@@ -232,15 +234,15 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
         onClose={handleMenuClose}
         PaperProps={{
           sx: {
-            bgcolor: '#2c2d4a',
-            color: '#fff',
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
             borderRadius: 2,
             minWidth: 150,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            boxShadow: theme.shadows[4],
             '& .MuiMenuItem-root': {
                fontSize: '0.9rem',
                py: 1,
-               '&:hover': { bgcolor: '#3d3e5a' }
+               '&:hover': { bgcolor: theme.palette.action.hover }
             }
           }
         }}
@@ -257,53 +259,71 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
       <Dialog 
         open={renameDialogOpen} 
         onClose={handleRenameCancel}
+        maxWidth="xs"
+        fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#23243a',
+            bgcolor: '#1e1f2b',
             color: '#fff',
             borderRadius: 3,
-            p: 1
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
           }
         }}
       >
-        <DialogTitle sx={{ fontWeight: 600 }}>Rename Table</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1 }}>Rename Table</DialogTitle>
+        <DialogContent sx={{ pb: 3 }}>
           <TextField
+            autoFocus
+            margin="dense"
+            label="Table Name"
+            type="text"
+            fullWidth
+            variant="outlined"
             value={renameValue}
             onChange={e => {
               setRenameValue(e.target.value);
               setRenameError(null);
             }}
-            fullWidth
-            autoFocus
-            variant="outlined"
-            placeholder="Table Name"
             error={!!renameError}
             helperText={renameError}
-            sx={{
-              mt: 1,
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': { borderColor: '#35365a' },
-                '&:hover fieldset': { borderColor: '#45466a' },
-                '&.Mui-focused fieldset': { borderColor: '#0073ea' },
-              },
-              '& .MuiInputLabel-root': { color: '#bfc8e0' },
-              '& .MuiInputBase-input': { p: 1.5 }
+            InputLabelProps={{
+              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
             }}
+            InputProps={{
+              sx: {
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+              }
+            }}
+            sx={{ mt: 1 }}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleRenameCancel} sx={{ color: '#bfc8e0', textTransform: 'none' }}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button 
+            onClick={handleRenameCancel} 
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Cancel
+          </Button>
           <Button 
             onClick={handleRenameSave} 
             disabled={!renameValue.trim()} 
             variant="contained" 
-            sx={{ 
-               bgcolor: '#0073ea', 
-               textTransform: 'none',
-               '&:hover': { bgcolor: '#0060c2' },
-               boxShadow: 'none'
+            sx={{
+               bgcolor: '#6366f1',
+               '&:hover': { bgcolor: '#5558dd' },
+               '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
             }}
           >
             Save

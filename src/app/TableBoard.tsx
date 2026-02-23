@@ -1,37 +1,161 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
-function TaskRowMenu({ row, onDelete, onView }: { row: Row, onDelete: () => void, onView: () => void }) {
+import {
+  ListItemIcon,
+  Divider,
+} from "@mui/material";
+
+function TaskRowMenu({ 
+  row, 
+  onDelete, 
+  onView,
+  onMoveUp,
+  onMoveDown,
+  onMoveTop,
+  onMoveBottom,
+  onExportPdf,
+  onExportExcel
+}: { 
+  row: Row, 
+  onDelete: () => void, 
+  onView: () => void,
+  onMoveUp?: () => void,
+  onMoveDown?: () => void,
+  onMoveTop?: () => void,
+  onMoveBottom?: () => void,
+  onExportPdf?: () => void,
+  onExportExcel?: () => void
+}) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
   const handleView = () => {
-    // Blur the currently focused element before closing the menu
     if (typeof window !== 'undefined' && document && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     handleClose();
     onView();
   };
+  
+  const menuSx = {
+    color: '#d0d4e4',
+    py: 1.5,
+    px: 2,
+    gap: 1.5,
+    minHeight: 'auto',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+  };
+  
+  const iconSx = {
+    minWidth: 0,
+    color: 'inherit',
+    '& .MuiSvgIcon-root': { fontSize: 20 }
+  };
+
+  const textSx = {
+    fontSize: '0.9rem',
+    fontWeight: 500,
+    color: 'inherit'
+  };
+
   return (
     <>
-      <IconButton onClick={handleOpen} sx={{ color: '#bfc8e0' }}>
-        <MoreVertIcon />
+      <IconButton onClick={handleOpen} sx={{ color: '#bfc8e0', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}>
+        <MoreVertIcon fontSize="small" />
       </IconButton>
-      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={handleClose} PaperProps={{ sx: { bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}>
-        <MenuItem onClick={handleView} sx={{ color: '#fff' }}>
-          <Typography sx={{ color: '#fff' }}>View</Typography>
+      <Menu 
+        anchorEl={anchorEl} 
+        open={!!anchorEl} 
+        onClose={handleClose} 
+        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'top' }}
+        PaperProps={{ 
+          sx: { 
+            bgcolor: '#1e1f2b', 
+            color: '#fff', 
+            borderRadius: 3, 
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            border: '1px solid #3a3b5a',
+            minWidth: 200,
+            ml: 1, // Add some margin to the left
+            overflow: 'visible',
+            '& .MuiList-root': { py: 1 }
+          } 
+        }}
+      >
+        <Box sx={{ px: 2, py: 1, pb: 1.5 }}>
+           <Typography variant="overline" sx={{ color: '#7d82a8', fontWeight: 700, letterSpacing: 1, fontSize: '0.7rem' }}>ACTIONS</Typography>
+        </Box>
+        
+        <MenuItem onClick={handleView} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><Box component="span" sx={{ fontSize: 18 }}>👁</Box></ListItemIcon>
+          <Typography sx={textSx}>Open Details</Typography>
         </MenuItem>
-        <MenuItem onClick={() => { handleClose(); onDelete(); }} sx={{ color: '#e2445c' }}>
-          <DeleteIcon fontSize="small" sx={{ mr: 1, color: '#e2445c' }} />
-          <Typography sx={{ color: '#e2445c' }}>Delete</Typography>
+        
+        <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+        
+        <MenuItem onClick={() => { handleClose(); if (onMoveUp) onMoveUp(); }} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><ArrowUpwardIcon /></ListItemIcon>
+          <Typography sx={textSx}>Move Up</Typography>
+        </MenuItem>
+        
+        <MenuItem onClick={() => { handleClose(); if (onMoveDown) onMoveDown(); }} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><ArrowDownwardIcon /></ListItemIcon>
+          <Typography sx={textSx}>Move Down</Typography>
+        </MenuItem>
+        
+        <MenuItem onClick={() => { handleClose(); if (onMoveTop) onMoveTop(); }} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><VerticalAlignTopIcon /></ListItemIcon>
+          <Typography sx={textSx}>Move to Top</Typography>
+        </MenuItem>
+        
+        <MenuItem onClick={() => { handleClose(); if (onMoveBottom) onMoveBottom(); }} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><VerticalAlignBottomIcon /></ListItemIcon>
+          <Typography sx={textSx}>Move to Bottom</Typography>
+        </MenuItem>
+        
+        <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+        
+        <MenuItem onClick={() => { handleClose(); if (onExportPdf) onExportPdf(); }} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><PictureAsPdfIcon /></ListItemIcon>
+          <Typography sx={textSx}>Export PDF</Typography>
+        </MenuItem>
+        
+        <MenuItem onClick={() => { handleClose(); if (onExportExcel) onExportExcel(); }} sx={menuSx}>
+          <ListItemIcon sx={iconSx}><TableViewIcon /></ListItemIcon>
+          <Typography sx={textSx}>Export Excel</Typography>
+        </MenuItem>
+
+        <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+
+        <MenuItem onClick={() => { handleClose(); onDelete(); }} sx={{ 
+          ...menuSx, 
+          color: '#ff4d4d',
+          '&:hover': { bgcolor: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d' }
+        }}>
+          <ListItemIcon sx={{ ...iconSx, color: 'inherit' }}><DeleteIcon /></ListItemIcon>
+          <Typography sx={textSx}>Delete Task</Typography>
         </MenuItem>
       </Menu>
     </>
   );
 }
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import VerticalAlignTopIcon from '@mui/icons-material/VerticalAlignTop';
+import VerticalAlignBottomIcon from '@mui/icons-material/VerticalAlignBottom';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import FirstPageIcon from '@mui/icons-material/FirstPage';
+import LastPageIcon from '@mui/icons-material/LastPage';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableViewIcon from '@mui/icons-material/TableView';
 import React, { useState, useEffect } from "react";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import HistoryIcon from "@mui/icons-material/History";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DateRangeIcon from "@mui/icons-material/DateRange";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -75,7 +199,12 @@ import {
   ListItemText,
   Switch,
   Popover,
-  InputAdornment
+  InputAdornment,
+  useTheme,
+  useMediaQuery,
+  Drawer,
+  List,
+  ListItem
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -84,7 +213,6 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ColumnTypeSelector from "./ColumnTypeSelector";
@@ -113,6 +241,8 @@ const initialRows: Row[] = [
 ];
 
 export default function TableBoard({ tableId }: TableBoardProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
       // Workspace view state
       const [workspaceView, setWorkspaceView] = useState<'table' | 'kanban' | 'gantt' | 'calendar' | 'doc' | 'gallery'>('table');
       const [filterText, setFilterText] = useState("");
@@ -120,6 +250,110 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       const [filterStatus, setFilterStatus] = useState<string[]>([]);
       // Current date for calendar view
       const [currentDate, setCurrentDate] = useState(dayjs());
+      // Chat view state
+      const [isChatOpen, setIsChatOpen] = useState(false);
+      const [boardChatMessages, setBoardChatMessages] = useState<{
+          id: string; 
+          text: string; 
+          sender: string; 
+          time: string;
+          attachment?: { name: string, type: string, url: string };
+      }[]>([]); 
+      const [newBoardChatMessage, setNewBoardChatMessage] = useState("");
+      const fileInputRef = React.useRef<HTMLInputElement>(null);
+      const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string } | null>(null);
+
+      // Fetch chat messages
+      useEffect(() => {
+        fetch(getApiUrl(`/tables/${tableId}/chat`))
+          .then((res) => res.json())
+          .then((data) => {
+            if (Array.isArray(data)) {
+                setBoardChatMessages(data);
+            }
+          })
+          .catch((err) => console.error("Failed to fetch chat messages", err));
+      }, [tableId]);
+
+      const handleSendBoardChat = async () => {
+        if (!newBoardChatMessage.trim()) return;
+        
+        const tempId = uuidv4();
+        const msg = {
+          id: tempId,
+          text: newBoardChatMessage,
+          sender: 'You',
+          time: dayjs().format('HH:mm')
+        };
+        
+        // Optimistic update
+        setBoardChatMessages(prev => [...prev, msg]);
+        setNewBoardChatMessage("");
+
+        try {
+          await fetch(getApiUrl(`/tables/${tableId}/chat`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(msg)
+          });
+        } catch (err) {
+          console.error("Failed to send message", err);
+        }
+      };
+
+      const handleBoardFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file); // Use 'file' as the key to match upload.single('file')
+
+        try {
+          // Adjust API call to point directly to /api/upload since getApiUrl handles the /api part
+          // Wait, getApiUrl returns `${SERVER_URL}/api...`
+          // Server endpoint is app.post('/api/upload')
+          // So getApiUrl('/upload') is correct: http://...:4000/api/upload
+          
+          const uploadRes = await fetch(getApiUrl('/upload'), {
+             method: 'POST',
+             body: formData
+          });
+          
+          if (!uploadRes.ok) throw new Error('Upload failed');
+          
+          const uploadData = await uploadRes.json();
+          const fileUrl = uploadData.url.startsWith('http') ? uploadData.url : (SERVER_URL + uploadData.url);
+
+          const attachment = {
+             name: uploadData.name,
+             type: uploadData.type,
+             url: fileUrl
+          };
+          
+          const msg = {
+              id: uuidv4(),
+              text: `Sent a file: ${file.name}`,
+              sender: 'You',
+              time: dayjs().format('HH:mm'),
+              attachment
+          };
+
+          setBoardChatMessages(prev => [...prev, msg]);
+          
+          await fetch(getApiUrl(`/tables/${tableId}/chat`), {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify(msg)
+          });
+        } catch (err) {
+           console.error("Failed to upload file or send message", err);
+           alert("Failed to send file");
+        }
+        
+        // Clear input value so same file can be selected again
+        event.target.value = '';
+      };
+
       // Document view state
       const [docContent, setDocContent] = useState("");
       const [docSaving, setDocSaving] = useState(false);
@@ -138,9 +372,27 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const handleCloseReview = () => {
     setReviewTask(null);
     setShowEmailAutomation(false);
+    setMobileTab('details'); // Reset tab on close
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
+  const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'files' | 'activity'>('details');
+  const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'files' | 'activity'>('chat');
+
+  // Sync mobile tab to right panel
+  useEffect(() => {
+    if (mobileTab !== 'details') {
+      setRightPanelTab(mobileTab as any);
+    }
+  }, [mobileTab]);
+  
+  // Sync right panel tab to mobile tab (when not in details mode)
+  useEffect(() => {
+      if (mobileTab !== 'details') {
+          setMobileTab(rightPanelTab);
+      }
+  }, [rightPanelTab]);
+
   // Email Automation UI state
   const [showEmailAutomation, setShowEmailAutomation] = useState(false);
   const [emailTriggerCol, setEmailTriggerCol] = useState<string>("");
@@ -177,6 +429,209 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [showColSelector, setShowColSelector] = useState(false);
   const [colSelectorAnchor, setColSelectorAnchor] = useState<null | HTMLElement>(null);
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
+
+  const handleMoveColumn = (colId: string, direction: 'left' | 'right' | 'start' | 'end') => {
+    // Current column object
+    const currentIndex = columns.findIndex(c => c.id === colId);
+    if (currentIndex === -1) return;
+    const col = columns[currentIndex];
+
+    // Create a new array
+    const newColumns = [...columns];
+    
+    // Remove the column
+    newColumns.splice(currentIndex, 1);
+    
+    // Insert at new position
+    if (direction === 'start') {
+        // Move to start (after title if needed? Assuming after title or sticky if any)
+        newColumns.unshift(col);
+    } else if (direction === 'end') {
+        newColumns.push(col);
+    } else if (direction === 'left') {
+        if (currentIndex > 0) {
+            newColumns.splice(currentIndex - 1, 0, col);
+        } else {
+            // Already at start
+            newColumns.unshift(col);
+        }
+    } else if (direction === 'right') {
+        if (currentIndex < columns.length - 1) {
+            newColumns.splice(currentIndex + 1, 0, col);
+        } else {
+            // Already at end
+            newColumns.push(col);
+        }
+    }
+
+    // Update 'order' property for all columns
+    newColumns.forEach((c, idx) => c.order = idx);
+    
+    setColumns(newColumns);
+    
+    // Persist column order to backend
+    fetch(getApiUrl(`/tables/${tableId}/columns`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ columns: newColumns }),
+    }).catch(err => console.error("Failed to persist column order", err));
+  };
+    
+  const handleMoveRow = (rowId: string, direction: 'up' | 'down' | 'top' | 'bottom') => {
+    const index = rows.findIndex(r => r.id === rowId);
+    if (index === -1) return;
+    
+    // Create new array
+    const newRows = [...rows];
+    
+    if (direction === 'top') {
+      const [item] = newRows.splice(index, 1);
+      newRows.unshift(item);
+    } else if (direction === 'bottom') {
+      const [item] = newRows.splice(index, 1);
+      newRows.push(item);
+    } else if (direction === 'up') {
+      if (index === 0) return;
+      const [item] = newRows.splice(index, 1);
+      newRows.splice(index - 1, 0, item);
+    } else if (direction === 'down') {
+      if (index === rows.length - 1) return;
+      const [item] = newRows.splice(index, 1);
+      newRows.splice(index + 1, 0, item);
+    }
+    
+    setRows(newRows);
+    // Persist new row order to backend (send only orderedTaskIds)
+    fetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedTaskIds: newRows.map(r => r.id) }),
+    }).catch(err => console.error("Failed to persist row order", err));
+  };
+
+  const handleExportExcel = (row: Row) => {
+    try {
+      // Create CSV content
+      const headers = columns.map(c => `"${c.name.replace(/"/g, '""')}"`).join(',');
+      const values = columns.map(col => {
+        let val = row.values[col.id];
+        if (val === null || val === undefined) return '""';
+        let strVal = '';
+        
+        if (typeof val === 'object') {
+            if (col.type === 'People' && Array.isArray(val)) {
+                strVal = val.map((p: any) => p.name).join('; ');
+            } else if (col.type === 'Status' && val.label) {
+                strVal = val.label;
+            } else if (col.type === 'Date' && val) {
+                strVal = dayjs(val).format('YYYY-MM-DD');
+            } else {
+                strVal = JSON.stringify(val);
+            }
+        } else {
+            strVal = String(val);
+        }
+        return `"${strVal.replace(/"/g, '""')}"`;
+      }).join(',');
+      
+      const csvContent = headers + "\n" + values;
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `task_${row.id}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error("Export failed", e);
+      alert("Export failed");
+    }
+  };
+
+  const handleExportPdf = (row: Row) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+        alert("Please allow popups/new tabs to export PDF");
+        return;
+    }
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Task Details - ${row.id}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 40px; line-height: 1.5; color: #333; }
+          h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 30px; font-size: 24px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; }
+          th { background-color: #f8f9fa; font-weight: 600; width: 30%; }
+          .meta { margin-bottom: 20px; color: #666; font-size: 0.9em; }
+        </style>
+      </head>
+      <body>
+        <h1>Task Details</h1>
+        <div class="meta">
+          <p><strong>Task ID:</strong> ${row.id}</p>
+          <p><strong>Export Date:</strong> ${dayjs().format('YYYY-MM-DD HH:mm')}</p>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${columns.map(col => {
+              let val = row.values[col.id];
+              let displayVal = '';
+              if (val === null || val === undefined) displayVal = '-';
+              else if (typeof val === 'object') {
+                  if (col.type === 'People' && Array.isArray(val)) {
+                      displayVal = val.map((p: any) => p.name).join(', ');
+                  } else if (col.type === 'Status' && val.label) {
+                      displayVal = val.label;
+                  } else if (col.type === 'Date' && val) {
+                      displayVal = dayjs(val).format('YYYY-MM-DD');
+                  } else {
+                      displayVal = JSON.stringify(val);
+                  }
+              } else {
+                  displayVal = String(val);
+              }
+              
+              // Escape HTML
+              const escaped = displayVal.replace(/&/g, "&amp;")
+                                        .replace(/</g, "&lt;")
+                                        .replace(/>/g, "&gt;");
+              
+              return `
+                <tr>
+                  <td>${col.name}</td>
+                  <td>${escaped}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+        <script>
+          // Auto print when loaded
+          window.onload = function() { 
+            setTimeout(function() {
+                window.print(); 
+            }, 500);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
   const [renameValue, setRenameValue] = useState("");
   const [deleteColId, setDeleteColId] = useState<string | null>(null);
   const [fileDialog, setFileDialog] = useState<{ open: boolean; file: any | null; rowId: string | null; colId: string | null }>({ open: false, file: null, rowId: null, colId: null });
@@ -383,6 +838,15 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Edit cell
   const handleCellClick = (rowId: string, colId: string, value: any, colType?: string, anchor?: HTMLElement) => {
+    // Mobile: Open task details only when clicking the first column
+    if (isMobile && columns.length > 0 && columns[0].id === colId) {
+      const row = rows.find(r => r.id === rowId);
+      if (row) {
+        setReviewTask(row);
+        return;
+      }
+    }
+
     // Only enter edit mode if not already editing this cell
     // Set anchor for popover-based editors
     if (anchor) setEditAnchorEl(anchor);
@@ -425,7 +889,15 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ name: p.name, email: p.email })) : [];
     }
     if (colType === "Date") {
-      newValue = newValue && dayjs.isDayjs(newValue) && newValue.isValid() ? newValue.format("YYYY-MM-DD") : "";
+      if (dayjs.isDayjs(newValue)) {
+        newValue = newValue.isValid() ? newValue.format("YYYY-MM-DD") : "";
+      } else if (typeof newValue === 'string' && newValue) {
+        // Allow string inputs (e.g. from native date picker)
+        const d = dayjs(newValue);
+        newValue = d.isValid() ? d.format("YYYY-MM-DD") : "";
+      } else {
+        newValue = "";
+      }
     }
     if (colType === "Timeline") {
         const start = newValue?.start && dayjs(newValue.start).isValid() ? dayjs(newValue.start).format("YYYY-MM-DD") : null;
@@ -469,6 +941,19 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: updatedRow.id, values: updatedRow.values }),
       });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('Backend Response for Save:', responseData);
+        if (responseData.success && responseData.task) {
+          // If the edited row is the one currently being reviewed, update the reviewTask state
+          if (reviewTask && responseData.task.id === reviewTask.id) {
+            console.log('Updating reviewTask with new data:', responseData.task);
+            setReviewTask(responseData.task);
+          }
+        }
+      }
+
       // Log backend debug logs if present
       const debugLogsHeader = response.headers.get("X-Debug-Logs");
       if (debugLogsHeader) {
@@ -1060,22 +1545,25 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               color: '#fff',
               borderRadius: '4px',
               textAlign: 'center',
-              py: 0.5,
-              px: 1,
+              py: isMobile ? 0.25 : 0.5,
+              px: isMobile ? 0.5 : 1,
               cursor: 'pointer',
               fontWeight: 600,
-              fontSize: '0.85rem',
-              minWidth: 100,
+              fontSize: isMobile ? '0.75rem' : '0.85rem',
+              minWidth: isMobile ? 70 : 100,
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               transition: 'filter 0.2s',
               '&:hover': { filter: 'brightness(1.1)' },
-              border: '1px solid rgba(255,255,255,0.1)'
+              border: '1px solid rgba(255,255,255,0.1)',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis'
             }}
           >
-            <Typography variant="body2" sx={{ fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.2)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%' }}>
               {currentOption.value}
             </Typography>
           </Box>
@@ -1130,7 +1618,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                         textAlign: 'center',
                         fontWeight: 500,
                         transition: 'transform 0.1s',
-                        '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)' }
+                        '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)' },
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis'
                       }}
                     >
                       {opt.value}
@@ -1258,7 +1749,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       
       // Calculate displayed people vs overflow
-      const maxDisplay = 3;
+      const maxDisplay = isMobile ? 2 : 3;
       const displayPeople = people.slice(0, maxDisplay);
       const overflow = people.length - maxDisplay;
 
@@ -1274,7 +1765,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               display: 'flex',
               alignItems: 'center',
               cursor: 'pointer',
-              minHeight: 32,
+              minHeight: isMobile ? 28 : 32,
               borderRadius: '18px',
               transition: 'all 0.2s',
               gap: 0.5,
@@ -1283,8 +1774,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           >
             {people.length === 0 ? (
               <Box sx={{ 
-                width: 28, 
-                height: 28, 
+                width: isMobile ? 24 : 28, 
+                height: isMobile ? 24 : 28, 
                 borderRadius: '50%', 
                 border: '1px dashed #5a5b7a', 
                 display: 'flex', 
@@ -1292,7 +1783,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 justifyContent: 'center',
                 color: '#7d82a8'
               }}>
-                <AddIcon sx={{ fontSize: 16 }} />
+                <AddIcon sx={{ fontSize: isMobile ? 14 : 16 }} />
               </Box>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5 }}>
@@ -1300,9 +1791,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   <Tooltip key={p.email || i} title={p.name}>
                     <Avatar 
                       sx={{ 
-                        width: 28, 
-                        height: 28, 
-                        fontSize: 12, 
+                        width: isMobile ? 24 : 28, 
+                        height: isMobile ? 24 : 28, 
+                        fontSize: isMobile ? 10 : 12, 
                         bgcolor: '#0073ea',
                         border: '2px solid #23243a',
                         ml: i > 0 ? -1 : 0,
@@ -1315,12 +1806,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 ))}
                 {overflow > 0 && (
                   <Box sx={{ 
-                    width: 28, 
-                    height: 28, 
+                    width: isMobile ? 24 : 28, 
+                    height: isMobile ? 24 : 28, 
                     borderRadius: '50%', 
                     bgcolor: '#3b3c5a', 
                     color: '#fff', 
-                    fontSize: 11, 
+                    fontSize: isMobile ? 10 : 11, 
                     fontWeight: 600, 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -1500,7 +1991,14 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
 
       // Message column: show chat popover trigger in edit mode
-      // ...existing code...
+      if (col.type === "Message") {
+        return (
+          <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
+            Chat
+          </Button>
+        );
+      }
+
       // Date
       if (col.type === "Date") {
         return (
@@ -1695,12 +2193,24 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       return (
         <Box 
           onClick={() => handleCellClick(row.id, col.id, value)} 
-          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: 2, bgcolor: '#23234a', minHeight: 44, minWidth: 160, cursor: 'pointer', '&:hover': { bgcolor: '#2c2d4a', cursor: 'pointer' } }}
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: isMobile ? 0.5 : 1, 
+            px: isMobile ? 1 : 1.5, 
+            py: isMobile ? 0.25 : 0.5, 
+            borderRadius: 2, 
+            bgcolor: '#23234a', 
+            minHeight: isMobile ? 32 : 44, 
+            minWidth: isMobile ? 120 : 160, 
+            cursor: 'pointer', 
+            '&:hover': { bgcolor: '#2c2d4a', cursor: 'pointer' } 
+          }}
         >
           {countryCodeMap[value as keyof typeof countryCodeMap] ? (
-            <Flag country={countryCodeMap[value as keyof typeof countryCodeMap]} size={24} style={{ marginRight: 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
+            <Flag country={countryCodeMap[value as keyof typeof countryCodeMap]} size={isMobile ? 18 : 24} style={{ marginRight: isMobile ? 5 : 10, borderRadius: 4, boxShadow: '0 1px 4px #0002' }} />
           ) : null}
-          <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: 15 }}>{value || <span style={{ color: '#888' }}>Select Country</span>}</Typography>
+          <Typography sx={{ color: '#fff', fontWeight: 500, fontSize: isMobile ? 13 : 15 }}>{value || <span style={{ color: '#888' }}>Select Country</span>}</Typography>
         </Box>
       );
     }
@@ -1712,7 +2222,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       // Hidden file input ref
       const fileInputId = `file-input-${row.id}-${col.id}`;
       return (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, cursor: 'pointer' }}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, cursor: 'pointer' }}
           onClick={e => {
             e.stopPropagation();
             const input = document.getElementById(fileInputId) as HTMLInputElement | null;
@@ -1723,11 +2233,17 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             <Chip
               key={i}
               label={f.name}
+              size={isMobile ? "small" : "medium"}
               onClick={ev => { ev.stopPropagation(); handleFileClick(f, row.id, col.id); }}
-              sx={{ cursor: 'pointer', bgcolor: '#e0e4ef' }}
+              sx={{ 
+                cursor: 'pointer', 
+                bgcolor: '#e0e4ef', 
+                height: isMobile ? 24 : 32,
+                fontSize: isMobile ? '0.75rem' : '0.8125rem'
+              }}
             />
           )) : (
-            <Typography variant="body2" color="text.secondary">Upload file</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}>Upload file</Typography>
           )}
           <input
             id={fileInputId}
@@ -1746,14 +2262,21 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
     if (col.type === "Doc") {
       return (
-        <Typography variant="body2" color="primary" sx={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => handleCellClick(row.id, col.id, value)}>
+        <Typography variant="body2" color="primary" sx={{ 
+          textDecoration: 'underline', 
+          cursor: 'pointer',
+          fontSize: isMobile ? '0.75rem' : '0.875rem'
+        }} onClick={() => handleCellClick(row.id, col.id, value)}>
           {value ? value : 'Add doc link'}
         </Typography>
       );
     }
     if (col.type === "Connect") {
       return (
-        <Typography variant="body2" color="secondary" sx={{ cursor: 'pointer' }} onClick={() => handleCellClick(row.id, col.id, value)}>
+        <Typography variant="body2" color="secondary" sx={{ 
+          cursor: 'pointer',
+          fontSize: isMobile ? '0.75rem' : '0.875rem' 
+        }} onClick={() => handleCellClick(row.id, col.id, value)}>
           {value ? value : 'Link to board/row'}
         </Typography>
       );
@@ -1768,15 +2291,18 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             alignItems: 'center', 
             cursor: 'pointer', 
             width: '100%',
-            height: 32,
-            px: 1,
+            height: isMobile ? 28 : 32,
+            px: isMobile ? 0.5 : 1,
             borderRadius: 2,
             transition: 'all 0.2s',
             '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
           }}
         >
-          <TimelineIcon sx={{ fontSize: 16, mr: 1, color: '#7d82a8' }} />
-          <Typography variant="body2" sx={{ color: value?.start ? '#fff' : '#7d82a8', fontSize: '0.875rem' }}>
+          <TimelineIcon sx={{ fontSize: isMobile ? 14 : 16, mr: 1, color: '#7d82a8' }} />
+          <Typography variant="body2" sx={{ 
+            color: value?.start ? '#fff' : '#7d82a8', 
+            fontSize: isMobile ? '0.75rem' : '0.875rem'
+          }}>
              {value && value.start && value.end ? `${value.start} - ${value.end}` : 'Set timeline'}
           </Typography>
         </Box>
@@ -1817,17 +2343,17 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         <Box 
           sx={{ 
             cursor: 'pointer', 
-            minHeight: 32, 
+            minHeight: isMobile ? 28 : 32, 
             display: 'flex', 
             alignItems: 'center', 
             borderRadius: 2, 
-            px: 1.5,
+            px: isMobile ? 1 : 1.5,
             transition: 'all 0.2s',
             '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
           }}
           onClick={() => handleCellClick(row.id, col.id, value, col.type)}
         >
-          <Typography variant="body2" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: '#fff', fontWeight: 600, fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
             {value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : '-'}
           </Typography>
         </Box>
@@ -1837,7 +2363,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       <Box 
         sx={{ 
           cursor: 'pointer', 
-          minHeight: 32, 
+          minHeight: isMobile ? 28 : 32, 
           display: 'flex', 
           alignItems: 'center', 
           borderRadius: 2, 
@@ -1848,7 +2374,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         }}
         onClick={() => handleCellClick(row.id, col.id, value)}
       >
-        <Typography variant="body2" sx={{ color: '#d0d4e4', fontSize: '0.875rem' }}>
+        <Typography variant="body2" sx={{ color: '#d0d4e4', fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
           {value || "-"}
         </Typography>
       </Box>
@@ -1859,15 +2385,36 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   return (
     <Box>
       {/* Rename Column Dialog */}
-      <Dialog open={!!renamingColId} onClose={() => setRenamingColId(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Rename Column</DialogTitle>
-        <DialogContent>
+      <Dialog 
+        open={!!renamingColId} 
+        onClose={() => setRenamingColId(null)} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1 }}>Rename Column</DialogTitle>
+        <DialogContent sx={{ pb: 3 }}>
           <TextField
             autoFocus
             margin="dense"
             label="Column Name"
             type="text"
             fullWidth
+            variant="outlined"
             value={renameValue}
             onChange={e => setRenameValue(e.target.value)}
             onKeyDown={e => {
@@ -1876,10 +2423,28 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 setRenamingColId(null);
               }
             }}
+            InputLabelProps={{
+              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+            }}
+            InputProps={{
+              sx: {
+                 color: '#fff',
+                 bgcolor: '#26273b',
+                 borderRadius: 2,
+                 '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                 '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+              }
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRenamingColId(null)}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button 
+            onClick={() => setRenamingColId(null)} 
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Cancel
+          </Button>
           <Button
             onClick={() => {
               if (renamingColId && renameValue.trim()) {
@@ -1889,6 +2454,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             }}
             variant="contained"
             disabled={!renameValue.trim()}
+            sx={{
+               bgcolor: '#6366f1',
+               '&:hover': { bgcolor: '#5558dd' },
+               '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
+            }}
           >
             Save
           </Button>
@@ -1896,13 +2466,38 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       </Dialog>
 
       {/* Delete Column Dialog */}
-      <Dialog open={!!deleteColId} onClose={() => setDeleteColId(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Column</DialogTitle>
+      <Dialog 
+        open={!!deleteColId} 
+        onClose={() => setDeleteColId(null)} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+           sx: {
+             bgcolor: 'rgba(0, 0, 0, 0.5)',
+             backdropFilter: 'blur(4px)'
+           }
+         }}
+      >
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600 }}>Delete Column</DialogTitle>
         <DialogContent>
-          <Typography>Are you sure you want to delete this column? This cannot be undone.</Typography>
+          <Typography sx={{ color: '#d0d4e4' }}>Are you sure you want to delete this column? This cannot be undone.</Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteColId(null)}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button 
+             onClick={() => setDeleteColId(null)}
+             sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Cancel
+          </Button>
           <Button
             onClick={() => {
               if (deleteColId) {
@@ -1910,40 +2505,420 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 setDeleteColId(null);
               }
             }}
-            color="error"
             variant="contained"
+            color="error"
+            sx={{
+               bgcolor: '#ff4d4d',
+               '&:hover': { bgcolor: '#ff3333' }
+            }}
           >
             Delete
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Board Chat Drawer */}
+      <Drawer
+        anchor="right"
+        open={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        PaperProps={{
+          sx: {
+            width: 380,
+            bgcolor: '#151621', // Darker background for contrast
+            color: '#fff',
+            borderLeft: '1px solid #3a3b5a',
+            boxShadow: '-10px 0 30px rgba(0,0,0,0.5)'
+          }
+        }}
+        BackdropProps={{
+           sx: { bgcolor: 'transparent' }
+         }}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Header */}
+            <Box sx={{ 
+                p: 2.5, 
+                borderBottom: '1px solid #2e2f45', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                bgcolor: '#1e1f2b'
+            }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Avatar sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#818cf8' }}>
+                         <ChatBubbleOutlineIcon fontSize="small" />
+                    </Avatar>
+                    <Box>
+                         <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>Board Chat</Typography>
+                         <Typography variant="caption" sx={{ color: '#7d82a8' }}>Team collaboration</Typography>
+                    </Box>
+                </Box>
+                <IconButton 
+                    onClick={() => setIsChatOpen(false)} 
+                    size="small" 
+                    sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+                >
+                    <Box component="span" sx={{ fontSize: 24, lineHeight: 1 }}>×</Box>
+                </IconButton>
+            </Box>
+            
+            {/* Messages */}
+            <Box sx={{ 
+                flex: 1, 
+                overflowY: 'auto', 
+                p: 2.5, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 2.5,
+                backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 50%)',
+                backgroundSize: '100% 100%',
+                backgroundRepeat: 'no-repeat'
+            }}>
+                {boardChatMessages.map((msg) => {
+                    const isMe = msg.sender === 'You';
+                    return (
+                        <Box key={msg.id} sx={{ 
+                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                            maxWidth: '85%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: isMe ? 'flex-end' : 'flex-start'
+                        }}>
+                             <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, flexDirection: isMe ? 'row-reverse' : 'row' }}>
+                                {!isMe && (
+                                     <Avatar sx={{ width: 28, height: 28, bgcolor: isMe ? '#6366f1' : '#3a3b5a', fontSize: '0.75rem' }}>
+                                         {msg.sender.charAt(0)}
+                                     </Avatar>
+                                )}
+                                <Box sx={{ 
+                                    bgcolor: isMe ? '#6366f1' : '#26273b',
+                                    color: '#fff',
+                                    p: 2,
+                                    borderRadius: 3,
+                                    borderTopRightRadius: isMe ? 4 : 20,
+                                    borderTopLeftRadius: isMe ? 20 : 4,
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                    position: 'relative'
+                                }}>
+                                     {msg.attachment && (
+                                       <Box 
+                                          onClick={() => setPreviewFile(msg.attachment!)}
+                                          sx={{ 
+                                            mb: 1, 
+                                            p: 1.5, 
+                                            bgcolor: 'rgba(0,0,0,0.2)', 
+                                            borderRadius: 2, 
+                                            display: 'flex', alignItems: 'center', gap: 1.5,
+                                            maxWidth: 200,
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.2s',
+                                            '&:hover': { bgcolor: 'rgba(0,0,0,0.3)' }
+                                          }}
+                                       >
+                                          <Box sx={{ p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1.5 }}>
+                                            <InsertDriveFileIcon sx={{ fontSize: 20, color: '#fff' }} />
+                                          </Box>
+                                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                              {msg.attachment.name}
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.7rem' }}>
+                                              Click to preview
+                                            </Typography>
+                                          </Box>
+                                        </Box>
+                                     )}
+                                     <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{msg.text}</Typography>
+                                </Box>
+                             </Box>
+                             <Typography variant="caption" sx={{ color: '#565875', mt: 0.5, px: 1, fontSize: '0.7rem' }}>
+                                 {isMe ? 'You' : msg.sender} • {msg.time}
+                             </Typography>
+                        </Box>
+                    );
+                })}
+            </Box>
+
+            {/* Input */}
+            <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
+                 <input 
+                   type="file" 
+                   hidden 
+                   ref={fileInputRef} 
+                   onChange={handleBoardFileUpload} 
+                 />
+                 <Box sx={{ 
+                     display: 'flex', 
+                     gap: 1.5, 
+                     bgcolor: '#151621', 
+                     p: 1, 
+                     borderRadius: 4,
+                     border: '1px solid #2e2f45',
+                     alignItems: 'flex-end',
+                     transition: 'border-color 0.2s',
+                     '&:focus-within': { borderColor: '#6366f1' }
+                 }}>
+                     <IconButton 
+                        size="small" 
+                        sx={{ color: '#7d82a8', mb: 0.5, ml: 0.5, '&:hover': { color: '#fff' } }}
+                        onClick={() => fileInputRef.current?.click()}
+                     >
+                         <AttachFileIcon fontSize="small" />
+                     </IconButton>
+                     <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Type a message..."
+                        value={newBoardChatMessage}
+                        onChange={(e) => setNewBoardChatMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendBoardChat();
+                            }
+                        }}
+                        multiline
+                        maxRows={4}
+                        InputProps={{
+                            disableUnderline: true,
+                            sx: {
+                                color: '#fff',
+                                p: 1,
+                                fontSize: '0.9rem',
+                                '& textarea': {
+                                    '&::-webkit-scrollbar': { width: 4 },
+                                    '&::-webkit-scrollbar-track': { background: 'transparent' },
+                                    '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 }
+                                }
+                            }
+                        }}
+                        variant="standard"
+                     />
+                     <IconButton 
+                        onClick={handleSendBoardChat}
+                        disabled={!newBoardChatMessage.trim()}
+                        sx={{ 
+                            color: '#fff', 
+                            bgcolor: newBoardChatMessage.trim() ? '#6366f1' : '#2e2f45', 
+                            borderRadius: '50%',
+                            width: 36,
+                            height: 36,
+                            mb: 0.5,
+                            mr: 0.5,
+                            transition: 'all 0.2s',
+                            '&:hover': { bgcolor: newBoardChatMessage.trim() ? '#5558dd' : '#2e2f45', transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none' },
+                            '&.Mui-disabled': { bgcolor: '#2e2f45', color: 'rgba(255,255,255,0.2)' }
+                        }}
+                     >
+                        <SendIcon fontSize="small" sx={{ ml: 0.2 }} />
+                     </IconButton>
+                 </Box>
+            </Box>
+        </Box>
+      </Drawer>
+
+      {/* File Preview Dialog */}
+      <Dialog 
+        open={!!previewFile} 
+        onClose={() => setPreviewFile(null)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none',
+            height: '80vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }
+        }}
+        BackdropProps={{
+           sx: {
+             bgcolor: 'rgba(0, 0, 0, 0.8)',
+             backdropFilter: 'blur(4px)'
+           }
+         }}
+      >
+        <DialogTitle sx={{ 
+            color: '#fff', 
+            fontWeight: 600, 
+            borderBottom: '1px solid #3a3b5a',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            py: 1.5
+        }}>
+           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <InsertDriveFileIcon sx={{ color: '#7d82a8' }} />
+              <Typography variant="subtitle1">{previewFile?.name}</Typography>
+           </Box>
+           <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                    href={previewFile?.url} 
+                    download={previewFile?.name}
+                    target="_blank"
+                    startIcon={<Box component="span" sx={{ fontSize: 18 }}>⬇</Box>}
+                    sx={{ color: '#7d82a8', borderColor: '#3a3b5a', '&:hover': { color: '#fff', borderColor: '#fff' } }}
+                    variant="outlined"
+                    size="small"
+                >
+                    Download
+                </Button>
+               <IconButton onClick={() => setPreviewFile(null)} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                   <Box component="span" sx={{ fontSize: 24, lineHeight: 1 }}>×</Box>
+               </IconButton>
+           </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, flex: 1, bgcolor: '#151621', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {previewFile?.type.startsWith('image/') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img 
+                    src={previewFile.url} 
+                    alt={previewFile.name} 
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
+                />
+            ) : (
+                <iframe 
+                    src={previewFile?.url} 
+                    title={previewFile?.name}
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+            )}
+        </DialogContent>
+      </Dialog>
+
       {/* Column menu for rename/delete */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl) && !!colMenuId}
         onClose={handleColMenuClose}
-        PaperProps={{ sx: { bgcolor: '#2c2d4a', color: '#fff', borderRadius: 2 } }}
+        PaperProps={{ 
+          sx: { 
+            bgcolor: '#1e1f2b', 
+            color: '#fff', 
+            borderRadius: 3, 
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            border: '1px solid #3a3b5a',
+            minWidth: 200,
+            overflow: 'visible',
+            '& .MuiList-root': { py: 1 }
+          }
+        }}
+        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'top' }}
       >
+        <Box sx={{ px: 2, py: 1, pb: 1.5 }}>
+           <Typography variant="overline" sx={{ color: '#7d82a8', fontWeight: 700, letterSpacing: 1, fontSize: '0.7rem' }}>COLUMN ACTIONS</Typography>
+        </Box>
+        
+        <MenuItem
+            onClick={() => {
+                if (colMenuId) handleMoveColumn(colMenuId, 'left');
+                handleColMenuClose();
+            }}
+            sx={{ 
+                color: '#d0d4e4',
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+            }}
+        >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><ArrowBackIcon fontSize="small" /></ListItemIcon>
+            <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Move Left</Typography>
+        </MenuItem>
+        
+        <MenuItem
+            onClick={() => {
+                if (colMenuId) handleMoveColumn(colMenuId, 'right');
+                handleColMenuClose();
+            }}
+             sx={{ 
+                color: '#d0d4e4',
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+            }}
+        >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><ArrowForwardIcon fontSize="small" /></ListItemIcon>
+            <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Move Right</Typography>
+        </MenuItem>
+        
+        <MenuItem
+            onClick={() => {
+                if (colMenuId) handleMoveColumn(colMenuId, 'start');
+                handleColMenuClose();
+            }}
+             sx={{ 
+                color: '#d0d4e4',
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+            }}
+        >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><FirstPageIcon fontSize="small" /></ListItemIcon>
+             <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Move to Start</Typography>
+        </MenuItem>
+        
+        <MenuItem
+            onClick={() => {
+                if (colMenuId) handleMoveColumn(colMenuId, 'end');
+                handleColMenuClose();
+            }}
+             sx={{ 
+                color: '#d0d4e4',
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+            }}
+        >
+             <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><LastPageIcon fontSize="small" /></ListItemIcon>
+             <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Move to End</Typography>
+        </MenuItem>
+        
+        <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+        
         <MenuItem
           onClick={() => {
             setRenamingColId(colMenuId);
             setRenameValue(columns.find(c => c.id === colMenuId)?.name || '');
             handleColMenuClose();
           }}
-          sx={{ color: '#fff' }}
+           sx={{ 
+                color: '#d0d4e4',
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+            }}
         >
-          <EditIcon fontSize="small" sx={{ mr: 1, color: '#fff' }} />
-          Rename
+           <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><EditIcon fontSize="small" /></ListItemIcon>
+           <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Rename</Typography>
         </MenuItem>
+        
+        <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+
         <MenuItem
           onClick={() => {
             setDeleteColId(colMenuId);
             handleColMenuClose();
           }}
-          sx={{ color: '#e2445c' }}
+          sx={{ 
+                color: '#ff4d4d',
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                '&:hover': { bgcolor: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d' }
+            }}
         >
-          <DeleteIcon fontSize="small" sx={{ mr: 1, color: '#e2445c' }} />
-          Delete
+           <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><DeleteIcon fontSize="small" /></ListItemIcon>
+           <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Delete Column</Typography>
         </MenuItem>
       </Menu>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
@@ -2012,125 +2987,155 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           Add column
         </Button>
         <Box sx={{ width: 12, display: { xs: 'none', sm: 'block' } }} />
+        
+        {/* Filters Container */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: { xs: 1.5, md: 1 }, 
+          alignItems: { xs: 'stretch', md: 'center' }, 
+          flexGrow: 1, 
+          width: { xs: '100%', md: 'auto' },
+          mt: { xs: 2, md: 0 },
+        }}>
+          
+          {/* Search */}
+          <TextField
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            placeholder="Search tasks..."
+            size="small"
+            fullWidth={false}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#94a3b8', fontSize: 18 }} />
+                </InputAdornment>
+              ),
+              sx: {
+                bgcolor: 'rgba(255,255,255,0.03)',
+                color: '#fff',
+                borderRadius: '8px',
+                fontSize: '0.875rem',
+                height: 36,
+                paddingLeft: '8px',
+                '& fieldset': { border: '1px solid #3a3b5a' },
+                '&:hover fieldset': { borderColor: '#6366f1' },
+                '&.Mui-focused fieldset': { borderColor: '#6366f1', borderWidth: '1px' },
+                width: { xs: '100%', md: 200 },
+                transition: 'all 0.2s',
+              }
+            }}
+          />
+
+          {/* Filter Group */}
           <Box sx={{ 
             display: 'flex', 
             gap: 1, 
-            alignItems: 'center', 
-            flexGrow: 1, 
             width: { xs: '100%', md: 'auto' },
-            mt: { xs: 1.5, md: 0 },
-            overflowX: 'auto',
-            pb: 0.5,
-            '::-webkit-scrollbar': { height: 4 },
-            '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 2 }
+            flexWrap: { xs: 'nowrap', md: 'wrap' }
           }}>
-        {/* Text Filter */}
-        <TextField
-          value={filterText}
-          onChange={(e) => setFilterText(e.target.value)}
-          placeholder="Search..."
-          size="small"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: '#7d82a8', fontSize: 18 }} />
-              </InputAdornment>
-            ),
-            sx: {
-              bgcolor: 'rgba(255,255,255,0.05)',
-              color: '#d0d4e4',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              '& fieldset': { border: '1px solid #3a3b5a' },
-              '&:hover fieldset': { borderColor: '#4f51c0' },
-              '&.Mui-focused fieldset': { borderColor: '#4f51c0' },
-              width: { xs: 120, sm: 180 },
-              height: 36
-            }
-          }}
-        />
-        {/* People Filter */}
-        <FormControl size="small" sx={{ minWidth: { xs: 100, sm: 120 } }}>
-          <Select
-            multiple
-            displayEmpty
-            value={filterPerson}
-            onChange={(e) => {
-               const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
-               setFilterPerson(val as string[]);
-            }}
-            renderValue={(selected) => {
-              if (selected.length === 0) {
-                return <Typography sx={{ color: '#7d82a8', fontSize: '0.8rem' }}>Person</Typography>;
-              }
-              return <Typography sx={{ color: '#d0d4e4', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(selected as string[]).join(', ')}</Typography>;
-            }}
-            sx={{
-               bgcolor: 'rgba(255,255,255,0.05)',
-               color: '#d0d4e4',
-               borderRadius: '8px',
-               height: 36,
-               fontSize: '0.8rem',
-               '.MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-               '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
-               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
-               '.MuiSvgIcon-root': { color: '#7d82a8' }
-            }}
-            MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a' } } }}
-          >
-            {availablePeople.length === 0 ? (
-               <MenuItem disabled sx={{ color: '#7d82a8' }}>No people found</MenuItem>
-            ) : (
-               availablePeople.map((name) => (
-                 <MenuItem key={name} value={name} sx={{ '&.Mui-selected': { bgcolor: 'rgba(79, 81, 192, 0.2)' }, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
-                    <Checkbox checked={filterPerson.includes(name)} sx={{ color: '#7d82a8', '&.Mui-checked': { color: '#00c875' } }} />
-                    <ListItemText primary={name} primaryTypographyProps={{ color: '#d0d4e4' }} />
-                 </MenuItem>
-               ))
-            )}
-          </Select>
-        </FormControl>
-        {/* Status Filter */}
-        <FormControl size="small" sx={{ minWidth: { xs: 100, sm: 120 } }}>
-          <Select
-            multiple
-            displayEmpty
-            value={filterStatus}
-            onChange={(e) => {
-               const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
-               setFilterStatus(val as string[]);
-            }}
-            renderValue={(selected) => {
-              if (selected.length === 0) {
-                return <Typography sx={{ color: '#7d82a8', fontSize: '0.8rem' }}>Status</Typography>;
-              }
-              return <Typography sx={{ color: '#d0d4e4', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(selected as string[]).join(', ')}</Typography>;
-            }}
-            sx={{
-               bgcolor: 'rgba(255,255,255,0.05)',
-               color: '#d0d4e4',
-               borderRadius: '8px',
-               height: 36,
-               fontSize: '0.8rem',
-               '.MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-               '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
-               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#4f51c0' },
-               '.MuiSvgIcon-root': { color: '#7d82a8' }
-            }}
-            MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a' } } }}
-          >
-             {availableStatuses.length === 0 ? (
-                <MenuItem disabled sx={{ color: '#7d82a8' }}>No statuses found</MenuItem>
-             ) : (
-                availableStatuses.map((status) => (
-                  <MenuItem key={status} value={status} sx={{ '&.Mui-selected': { bgcolor: 'rgba(79, 81, 192, 0.2)' }, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
-                     <Checkbox checked={filterStatus.includes(status)} sx={{ color: '#7d82a8', '&.Mui-checked': { color: '#00c875' } }} />
-                     <ListItemText primary={status} primaryTypographyProps={{ color: '#d0d4e4' }} />
-                  </MenuItem>
-                ))
-             )}
-          </Select>
-        </FormControl>
+            
+            {/* People Filter */}
+            <FormControl size="small" sx={{ flex: { xs: 1, md: 'none' }, minWidth: { xs: 0, md: 120 } }}>
+              <Select
+                multiple
+                displayEmpty
+                value={filterPerson}
+                onChange={(e) => {
+                   const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                   setFilterPerson(val as string[]);
+                }}
+                renderValue={(selected) => {
+                  if (selected.length === 0) {
+                    return <Typography sx={{ color: '#94a3b8', fontSize: '0.875rem' }}>Person</Typography>;
+                  }
+                  return <Typography sx={{ color: '#fff', fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(selected as string[]).join(', ')}</Typography>;
+                }}
+                sx={{
+                   bgcolor: 'rgba(255,255,255,0.03)',
+                   color: '#fff',
+                   borderRadius: '8px',
+                   height: 36,
+                   fontSize: '0.875rem',
+                   width: '100%',
+                   '.MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                   '.MuiSvgIcon-root': { color: '#94a3b8' }
+                }}
+                MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a', maxHeight: 300 } } }}
+              >
+                {availablePeople.map((name) => (
+                   <MenuItem key={name} value={name} sx={{ '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.15)' }, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                      <Checkbox checked={filterPerson.includes(name)} sx={{ color: '#7d82a8', '&.Mui-checked': { color: '#6366f1' }, p: 0.5, mr: 1 }} />
+                      <ListItemText primary={name} primaryTypographyProps={{ fontSize: '0.875rem' }} />
+                   </MenuItem>
+                ))}
+                {availablePeople.length === 0 && <MenuItem disabled>No people found</MenuItem>}
+              </Select>
+            </FormControl>
+
+            {/* Status Filter */}
+            <FormControl size="small" sx={{ flex: { xs: 1, md: 'none' }, minWidth: { xs: 0, md: 120 } }}>
+              <Select
+                multiple
+                displayEmpty
+                value={filterStatus}
+                onChange={(e) => {
+                   const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                   setFilterStatus(val as string[]);
+                }}
+                renderValue={(selected) => {
+                  if (selected.length === 0) {
+                    return <Typography sx={{ color: '#94a3b8', fontSize: '0.875rem' }}>Status</Typography>;
+                  }
+                  return <Typography sx={{ color: '#fff', fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(selected as string[]).join(', ')}</Typography>;
+                }}
+                sx={{
+                   bgcolor: 'rgba(255,255,255,0.03)',
+                   color: '#fff',
+                   borderRadius: '8px',
+                   height: 36,
+                   fontSize: '0.875rem',
+                   width: '100%',
+                   '.MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                   '.MuiSvgIcon-root': { color: '#94a3b8' }
+                }}
+                MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a', maxHeight: 300 } } }}
+              >
+                 {availableStatuses.map((status) => (
+                    <MenuItem key={status} value={status} sx={{ '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.15)' }, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                       <Checkbox checked={filterStatus.includes(status)} sx={{ color: '#7d82a8', '&.Mui-checked': { color: '#6366f1' }, p: 0.5, mr: 1 }} />
+                       <ListItemText primary={status} primaryTypographyProps={{ fontSize: '0.875rem' }} />
+                    </MenuItem>
+                  ))}
+                  {availableStatuses.length === 0 && <MenuItem disabled>No statuses found</MenuItem>}
+              </Select>
+            </FormControl>
+
+             {/* Board Chat Button */}
+            <Tooltip title="Board Chat">
+              <IconButton 
+                onClick={() => setIsChatOpen(true)}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.03)',
+                  color: '#94a3b8',
+                  borderRadius: '8px',
+                  border: '1px solid #3a3b5a',
+                  height: 36,
+                  width: 36,
+                  flexShrink: 0,
+                  transition: 'all 0.2s',
+                  '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', borderColor: '#6366f1' }
+                }}
+              >
+                <ChatBubbleOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
         {/* Column Selector Popover */}
@@ -2259,7 +3264,17 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   {(provided) => (
                     <TableRow ref={provided.innerRef} {...provided.droppableProps} sx={{ '& th': { borderBottom: 'none', color: '#bfc8e0', fontSize: 13, fontWeight: 600 } }}>
                       {/* Drag Handle Header Placeholder */}
-                      <TableCell sx={{ width: 40, p: 0.5, borderBottom: 'none' }} />
+                      <TableCell sx={{ 
+                        width: 60, 
+                        p: 0.5, 
+                        borderBottom: 'none',
+                        ...(isMobile && {
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 11,
+                          bgcolor: '#23243a' // Match table row background
+                        })
+                      }} />
                       
                       {columns.map((col, index) => (
                         <Draggable key={col.id} draggableId={col.id} index={index}>
@@ -2269,11 +3284,17 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                               {...provided.draggableProps}
                               sx={{
                                 ...provided.draggableProps.style,
-                                minWidth: col.width || 150,
+                                minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
                                 userSelect: 'none',
                                 p: 0.5,
                                 borderBottom: 'none',
                                 bgcolor: 'transparent',
+                                ...(isMobile && index === 0 && {
+                                  position: 'sticky',
+                                  left: 60,
+                                  zIndex: 10,
+                                  bgcolor: '#23243a'
+                                })
                               }}
                             >
                               <Box sx={{ 
@@ -2282,11 +3303,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                 justifyContent: 'space-between', 
                                 bgcolor: snapshot.isDragging ? '#3b3c5a' : '#23243a', 
                                 borderRadius: '8px', 
-                                px: 1.5, 
-                                py: 1.2, 
+                                px: isMobile ? 1 : 1.5, 
+                                py: isMobile ? 0.8 : 1.2, 
                                 borderBottom: '2px solid #3a3b5a',
                                 transition: 'all 0.2s ease',
-                                '&:hover': { bgcolor: '#2c2d4a' }
+                                '&:hover': { bgcolor: '#2c2d4a' },
                               }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }} {...provided.dragHandleProps}>
                                   {col.type === "Status" && <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: '#00c875', flexShrink: 0 }} />}
@@ -2296,7 +3317,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                   <Typography variant="subtitle2" sx={{ 
                                     fontWeight: 600, 
                                     color: '#d0d4e4', 
-                                    fontSize: '0.875rem',
+                                    fontSize: isMobile ? '0.75rem' : '0.875rem',
                                     letterSpacing: '0.02em',
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
@@ -2365,7 +3386,20 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             }}
                           >
                            {/* Row Drag Handle, Menu, and Message Icon */}
-                           <TableCell sx={{ width: 60, p: 0, borderBottom: 'none', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>
+                           <TableCell sx={{ 
+                             width: 60, 
+                             p: 0, 
+                             borderBottom: 'none', 
+                             borderTopLeftRadius: 12, 
+                             borderBottomLeftRadius: 12,
+                             ...(isMobile && {
+                               position: 'sticky',
+                               left: 0,
+                               zIndex: 11, // Higher than first data col (zIndex 10)
+                               bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
+                               borderRight: '1px solid #2e2f45'
+                             })
+                           }}>
                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
                                <div {...provided.dragHandleProps} style={{ display: 'flex', alignItems: 'center', cursor: 'grab' }}>
                                  <MoreVertIcon sx={{ color: '#555', fontSize: 16 }} />
@@ -2374,6 +3408,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                <TaskRowMenu
                                  row={row}
                                  onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
+                                 onMoveUp={() => handleMoveRow(row.id, 'up')}
+                                 onMoveDown={() => handleMoveRow(row.id, 'down')}
+                                 onMoveTop={() => handleMoveRow(row.id, 'top')}
+                                 onMoveBottom={() => handleMoveRow(row.id, 'bottom')}
+                                 onExportPdf={() => handleExportPdf(row)}
+                                 onExportExcel={() => handleExportExcel(row)}
                                  onDelete={async () => {
                                    if (confirm('Are you sure you want to delete this task?')) {
                                      // Optimistic update
@@ -2497,20 +3537,31 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                            </TableCell>
 
                             {/* Render Cells */}
-                            {columns.map((col) => (
+                            {columns.map((col, idx) => (
                                <TableCell
                                  key={col.id}
                                  align="left"
                                  sx={{
                                    borderBottom: '1px solid #2e2f45',
-                                   p: 1.5,
+                                   p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
                                    color: '#d0d4e4',
-                                   fontSize: '0.875rem',
-                                   minWidth: col.width || 150,
-                                   maxWidth: 300,
+                                   fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
+                                   minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
+                                   maxWidth: isMobile ? 240 : 300,
                                    overflow: 'hidden',
                                    textOverflow: 'ellipsis',
-                                   whiteSpace: 'nowrap'
+                                   whiteSpace: 'nowrap',
+                                   ...(isMobile && idx === 0 ? {
+                                     position: 'sticky',
+                                     left: 60, // Width of the drag handle column
+                                     zIndex: 10,
+                                     bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
+                                     borderRight: '1px solid #2e2f45',
+                                     boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                                   } : {
+                                     position: 'relative',
+                                     zIndex: 1
+                                   })
                                  }}
                                >
                                  {renderCell(row, col)}
@@ -2723,11 +3774,30 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                          borderRadius: 2,
                          '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
                        }}
-                       onClick={() => {
-                         // Pre-fill status
-                         const newRow: Row = { id: uuidv4(), values: { [statusCol.id]: opt.value } };
-                         setRows(prev => [...prev, newRow]);
-                         setEditingCell({ rowId: newRow.id, colId: columns[0]?.id || '' });
+                       onClick={async () => {
+                         // Create task on backend immediately
+                         const initialValues = { [statusCol.id]: opt.value };
+                         // Ensure other columns have default values
+                         columns.forEach(c => {
+                            if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : '';
+                         });
+                         
+                         try {
+                           const res = await fetch(getApiUrl(`/tables/${tableId}/tasks`), {
+                             method: "POST",
+                             headers: { "Content-Type": "application/json" },
+                             body: JSON.stringify({ values: initialValues }),
+                           });
+                           
+                           if (res.ok) {
+                             const createdTask = await res.json();
+                             setRows(prev => [...prev, createdTask]);
+                             // Open detailed view for immediate editing
+                             setReviewTask(createdTask);
+                           }
+                         } catch (e) {
+                           console.error("Failed to create task", e);
+                         }
                        }}
                     >
                       New Task
@@ -3081,46 +4151,338 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       <Dialog
         open={!!reviewTask}
         onClose={handleCloseReview}
-        maxWidth="sm"
+        maxWidth="lg"
         fullWidth
         PaperProps={{
           sx: {
-            m: 1,
+            m: { xs: 0, lg: 2 },
             width: '100%',
-            maxWidth: { xs: '100vw', sm: 600 },
-            minHeight: 200,
-            bgcolor: '#23243a',
+            maxWidth: { xs: '100vw', lg: 1100 },
+            height: '80vh', // Fixed height to ensure internal scrolling works
+            bgcolor: '#1C1D26', // Modern Dark Neutral
             color: '#fff',
-            borderRadius: 3,
-            boxShadow: 6,
-            p: { xs: 1, sm: 3 },
+            borderRadius: { xs: 0, lg: 4 },
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+            p: 0,
+            overflow: 'hidden',
+             display: 'flex',
+             flexDirection: 'column',
             '@media (max-width: 600px)': {
               maxWidth: '100vw',
               m: 0,
+              borderRadius: 0,
+              height: '100%'
             },
           },
         }}
       >
-        <DialogTitle sx={{ bgcolor: '#2c2d4a', color: '#fff', fontWeight: 700, fontSize: 22, borderRadius: 2, mb: 1, px: 3, py: 2 }}>
-          Task Details
-        </DialogTitle>
-        <DialogContent dividers sx={{ bgcolor: '#23243a', color: '#fff', px: { xs: 1, sm: 3 }, py: 2 }}>
-          {reviewTask && !showEmailAutomation && (
-            <Box>
-              {columns.map((col) => (
-                <Box key={col.id} sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#bfc8e0', fontWeight: 600, fontSize: 15 }}>{col.name}</Typography>
-                  <Typography variant="body1" sx={{ wordBreak: 'break-word', color: '#fff', fontWeight: 500, fontSize: 16 }}>
-                    {Array.isArray(reviewTask.values[col.id])
-                      ? reviewTask.values[col.id].map((v: any, i: number) => typeof v === 'object' && v !== null ? v.name || v.email || JSON.stringify(v) : String(v)).join(', ')
-                      : String(reviewTask.values[col.id] ?? "-")}
-                  </Typography>
-                </Box>
+        <DialogTitle sx={{ 
+          bgcolor: '#1C1D26', 
+          color: '#fff', 
+          borderBottom: '1px solid rgba(255,255,255,0.06)', 
+          px: 4, 
+          py: 2.5, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <Typography component="div" variant="h6" sx={{ fontWeight: 700, fontSize: 20, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {reviewTask?.values && columns.length > 0 ? (reviewTask.values[columns[0].id] || 'Task Details') : 'Task Details'}
+          </Typography>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Mobile Navigation Toggle (Pill Style) */}
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 99, p: 0.5, gap: 0.5 }}>
+              {(['details', 'chat', 'files', 'activity'] as const).map((tab) => (
+                <Button 
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  size="small"
+                  sx={{ 
+                    color: mobileTab === tab ? '#fff' : '#9CA3AF', 
+                    bgcolor: mobileTab === tab ? '#6366f1' : 'transparent',
+                    minWidth: 'auto',
+                    borderRadius: 99,
+                    px: 2,
+                    py: 0.5,
+                    fontWeight: 600,
+                    fontSize: 11,
+                    textTransform: 'capitalize',
+                    '&:hover': { bgcolor: mobileTab === tab ? '#5558DD' : 'rgba(255,255,255,0.05)' }
+                  }}
+                >
+                  {tab}
+                </Button>
               ))}
-              <Box sx={{ mt: 3 }}>
-                <Typography variant="subtitle1" fontWeight={700} mb={1} sx={{ color: '#bfc8e0' }}>Options</Typography>
+            </Box>
+            <IconButton onClick={handleCloseReview} size="small" sx={{ color: '#9CA3AF', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}>
+              <span style={{ fontSize: 24, lineHeight: 1 }}>×</span>
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ bgcolor: '#1C1D26', color: '#fff', p: 0, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, flex: 1, overflow: 'hidden' }}>
+          
+          {/* Left Panel: Task Properties */}
+          <Box 
+            hidden={isMobile && mobileTab !== 'details'}
+            sx={{ 
+            flex: { xs: 1, md: 7 }, 
+            p: { xs: 3, md: 4 }, 
+            overflowY: 'auto', 
+            borderRight: { md: '1px solid rgba(255,255,255,0.06)' },
+            maxHeight: { xs: '100%', md: '100%' }, 
+            display: { xs: (isMobile && mobileTab === 'details') ? 'block' : (isMobile ? 'none' : 'block'), md: 'block' },
+            width: { xs: '100%', md: 'auto' },
+            bgcolor: '#1C1D26' 
+          }}>
+            {reviewTask && !showEmailAutomation && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
+              {columns.map((col) => {
+                return (
+                <Box key={col.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', pl: 0.5 }}>
+                    {col.name}
+                  </Typography>
+                  
+                  {/* Text / Link / Number */}
+                  {(col.type === undefined || col.type === "Text" || col.type === "Link" || col.type === "Number" || col.type === "Country") && (
+                    <TextField
+                      fullWidth
+                      variant="standard"
+                      placeholder="Empty"
+                      value={reviewTask.values[col.id] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                      }}
+                      onBlur={(e) => {
+                         handleCellSave(reviewTask.id, col.id, col.type, e.target.value);
+                      }}
+                      InputProps={{ disableUnderline: true }}
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          color: '#F3F4F6',
+                          fontSize: 14,
+                          fontWeight: 500,
+                          bgcolor: 'rgba(255,255,255,0.03)',
+                          borderRadius: 2,
+                          px: 1.5,
+                          py: 0.75,
+                          transition: 'all 0.2s',
+                          border: '1px solid transparent',
+                          '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' },
+                          '&.Mui-focused': { bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid #6366f1', boxShadow: '0 0 0 2px rgba(99, 102, 241, 0.2)' },
+                        }
+                      }}
+                    />
+                  )}
+
+                  {/* Status / Dropdown / Priority */}
+                  {(col.type === "Status" || col.type === "Dropdown" || col.type === "Priority" || col.id === "priority") && (
+                    <Select
+                      fullWidth
+                      variant="standard"
+                      disableUnderline
+                      displayEmpty
+                      value={reviewTask.values[col.id] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                        handleCellSave(reviewTask.id, col.id, col.type, val);
+                      }}
+                       sx={{
+                        color: '#F3F4F6',
+                        fontSize: 14,
+                        fontWeight: 500,
+                        bgcolor: 'rgba(255,255,255,0.03)',
+                        borderRadius: 2,
+                        px: 1.5,
+                        py: 0.75,
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
+                        '& .MuiSelect-select': { py: 0, pr: '32px !important', minHeight: 'unset' },
+                        '& .MuiSvgIcon-root': { color: '#6B7280', right: 8 }
+                      }}
+                      MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1 } } }}
+                    >
+                      <MenuItem value="" sx={{ color: '#9CA3AF', fontStyle: 'italic', fontSize: 13 }}>Select option</MenuItem>
+                      {(col.options || (col.id === 'priority' ? [{value:'High', color:'#e2445c'}, {value:'Medium', color:'#fdab3d'}, {value:'Low', color:'#00c875'}] : [])).map((opt) => (
+                        <MenuItem 
+                          key={opt.value} 
+                          value={opt.value}
+                          sx={{ 
+                            color: '#fff', 
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
+                            '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.3)' } }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: opt.color || '#ccc' }} />
+                            <Typography sx={{ fontSize: 14 }}>{opt.value}</Typography>
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+
+                  {/* Date */}
+                  {col.type === "Date" && (
+                     <input
+                      type="date"
+                      value={reviewTask.values[col.id] || ''}
+                      onChange={(e) => {
+                         const val = e.target.value;
+                         setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                         handleCellSave(reviewTask.id, col.id, col.type, val);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid transparent',
+                        borderRadius: '8px',
+                        color: '#F3F4F6',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                      }}
+                    />
+                  )}
+
+                  {/* Checkbox */}
+                  {col.type === "Checkbox" && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'rgba(255,255,255,0.03)', p: 1, borderRadius: 2 }}>
+                      <Checkbox
+                        checked={Boolean(reviewTask.values[col.id])}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                          handleCellSave(reviewTask.id, col.id, col.type, val);
+                        }}
+                        sx={{ color: '#6B7280', '&.Mui-checked': { color: '#6366f1' }, p: 0.5 }}
+                      />
+                      <Typography sx={{ ml: 1.5, color: Boolean(reviewTask.values[col.id]) ? '#fff' : '#9CA3AF', fontSize: 14 }}>
+                        {Boolean(reviewTask.values[col.id]) ? 'Completed' : 'To Do'}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* People */}
+                  {col.type === "People" && (
+                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2, p: 0.5 }}>
+                    <PeopleSelector
+                      people={samplePeople}
+                      selectedPeople={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
+                      onChange={(newPeople) => {
+                         setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: newPeople } }) : null);
+                         handleCellSave(reviewTask.id, col.id, col.type, newPeople);
+                      }}
+                    />
+                    </Box>
+                  )}
+
+                   {/* Timeline */}
+                   {col.type === "Timeline" && (
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', bgcolor: 'rgba(255,255,255,0.03)', p: 1, borderRadius: 2 }}>
+                       <input
+                        type="date"
+                        value={reviewTask.values[col.id]?.start || ''}
+                        onChange={(e) => {
+                           const val = { ...(reviewTask.values[col.id] || {}), start: e.target.value };
+                           setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                           handleCellSave(reviewTask.id, col.id, col.type, val);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '4px 8px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#fff',
+                          fontSize: 13
+                        }}
+                      />
+                      <Typography sx={{ color: '#6B7280', fontSize: 12 }}>to</Typography>
+                      <input
+                        type="date"
+                        value={reviewTask.values[col.id]?.end || ''}
+                        onChange={(e) => {
+                           const val = { ...(reviewTask.values[col.id] || {}), end: e.target.value };
+                           setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                           handleCellSave(reviewTask.id, col.id, col.type, val);
+                        }}
+                        style={{
+                           flex: 1,
+                           padding: '4px 8px',
+                           background: 'transparent',
+                           border: 'none',
+                           color: '#fff',
+                           fontSize: 13
+                        }}
+                      />
+                    </Box>
+                  )}
+
+                  {/* Files */}
+                  {col.type === "Files" && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, bgcolor: 'rgba(255,255,255,0.03)', p: 1.5, borderRadius: 2 }}>
+                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {(Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []).map((file: any, index: number) => (
+                           <Chip
+                             key={index}
+                             icon={<InsertDriveFileIcon sx={{ fontSize: 16, color: '#818CF8' }} />}
+                             label={file.name}
+                             onClick={() => handleFileClick(file, reviewTask.id, col.id)}
+                             sx={{ 
+                               bgcolor: 'rgba(255,255,255,0.1)', 
+                               color: '#fff', 
+                               cursor: 'pointer',
+                               '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } 
+                             }}
+                           />
+                        ))}
+                        {(!reviewTask.values[col.id] || reviewTask.values[col.id].length === 0) && (
+                           <Typography variant="caption" sx={{ color: '#6B7280', fontStyle: 'italic' }}>No files attached</Typography>
+                        )}
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        startIcon={<AttachFileIcon />}
+                        component="label"
+                        size="small"
+                        sx={{ 
+                          width: 'fit-content', 
+                          color: '#9CA3AF', 
+                          borderColor: 'rgba(255,255,255,0.1)', 
+                          textTransform: 'none',
+                          borderRadius: 2,
+                          py: 0.5,
+                          '&:hover': { borderColor: 'rgba(255,255,255,0.3)', bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+                        }}
+                      >
+                        Upload File
+                        <input
+                          type="file"
+                          multiple
+                          hidden
+                          onChange={(e) => {
+                             if (e.target.files && e.target.files.length > 0) {
+                                handleFileUpload(reviewTask.id, col.id, e.target.files);
+                             }
+                             // Reset
+                             e.target.value = '';
+                          }}
+                        />
+                      </Button>
+                    </Box>
+                  )}
+                </Box>
+              )})}
+              <Box sx={{ mt: 2, pt: 3, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <Button
-                  variant="outlined"
+                  startIcon={<SendIcon />}
+                  variant="contained"
                   onClick={async () => {
                     if (!reviewTask || !reviewTask.id || reviewTask.id === 'placeholder') {
                       setShowEmailAutomation(true);
@@ -3148,88 +4510,129 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                     setAutomationLoading(false);
                     setShowEmailAutomation(true);
                   }}
-                  sx={{ color: '#fff', borderColor: '#4f51c0', borderRadius: 2, fontWeight: 600, px: 3, py: 1, '&:hover': { bgcolor: '#35365a', borderColor: '#4f51c0' } }}
+                  sx={{ 
+                    width: '100%', 
+                    bgcolor: 'rgba(99, 102, 241, 0.1)', 
+                    color: '#818CF8', 
+                    borderRadius: 3, 
+                    fontWeight: 600, 
+                    py: 1.5,
+                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    boxShadow: 'none',
+                    '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.4)', boxShadow: 'none' } 
+                  }}
                 >
-                  Email Automation
+                  Configure Email Automation
                 </Button>
               </Box>
             </Box>
           )}
           {reviewTask && showEmailAutomation && (
             <Box>
-              {automationLoading && <Typography sx={{ color: '#bfc8e0', mb: 2 }}>Loading automation settings...</Typography>}
-              <Typography variant="h6" mb={2} sx={{ color: '#fff', fontWeight: 700 }}>Email Automation</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Typography sx={{ color: '#bfc8e0', fontWeight: 600, mr: 2 }}>Automation Enabled</Typography>
+              {automationLoading && <Typography sx={{ color: '#9CA3AF', mb: 2 }}>Loading automation settings...</Typography>}
+              <Typography variant="h6" mb={3} sx={{ color: '#F3F4F6', fontWeight: 700 }}>Email Automation</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, p: 2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }}>
+                <Typography sx={{ color: '#D1D5DB', fontWeight: 600, mr: 2, flex: 1 }}>Enable Automation for this Task</Typography>
                 <Switch
                   checked={automationEnabled}
                   onChange={e => setAutomationEnabled(e.target.checked)}
-                  color="primary"
-                  sx={{ '& .MuiSwitch-thumb': { bgcolor: automationEnabled ? '#4f51c0' : '#888' } }}
+                  sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#818CF8' }, '& .MuiSwitch-track': { bgcolor: '#4B5563' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#818CF8' } }}
                 />
               </Box>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="email-trigger-col-label" sx={{ color: '#bfc8e0' }}>Send email when column is edited</InputLabel>
+              
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="email-trigger-col-label" sx={{ color: '#9CA3AF', '&.Mui-focused': { color: '#818CF8' } }}>Send email when column is edited</InputLabel>
                 <Select
                   labelId="email-trigger-col-label"
+                  variant="outlined"
                   value={emailTriggerCol || ''}
                   label="Send email when column is edited"
                   onChange={e => setEmailTriggerCol(e.target.value)}
-                  sx={{ color: '#fff', bgcolor: '#2c2d4a', borderRadius: 2 }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff' } } }}
+                  sx={{ 
+                    color: '#F3F4F6', 
+                    bgcolor: 'rgba(255,255,255,0.03)', 
+                    borderRadius: 2,
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#818CF8' },
+                    '& .MuiSvgIcon-root': { color: '#6B7280' }
+                  }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1 } } }}
                 >
                   {columns.map(col => (
-                    <MenuItem key={col.id} value={col.id} sx={{ color: '#fff', bgcolor: '#23243a', '&.Mui-selected': { bgcolor: '#35365a' } }}>{col.name}</MenuItem>
+                    <MenuItem key={col.id} value={col.id} sx={{ color: '#F3F4F6', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }, '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' } }}>{col.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="email-cols-label" sx={{ color: '#bfc8e0' }}>Columns to include in email</InputLabel>
+
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="email-cols-label" sx={{ color: '#9CA3AF', '&.Mui-focused': { color: '#818CF8' } }}>Columns to include in email</InputLabel>
                 <Select
                   labelId="email-cols-label"
                   multiple
+                  variant="outlined"
                   value={emailCols}
                   onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
                   renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
-                  sx={{ color: '#fff', bgcolor: '#2c2d4a', borderRadius: 2 }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff' } } }}
+                  sx={{ 
+                    color: '#F3F4F6', 
+                    bgcolor: 'rgba(255,255,255,0.03)', 
+                    borderRadius: 2,
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#818CF8' },
+                    '& .MuiSvgIcon-root': { color: '#6B7280' }
+                  }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1 } } }}
                 >
                   {columns.map((col) => (
-                    <MenuItem key={col.id} value={col.id} sx={{ color: '#fff', bgcolor: '#23243a', '&.Mui-selected': { bgcolor: '#35365a' } }}>
-                      <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#4f51c0' }} />
+                    <MenuItem key={col.id} value={col.id} sx={{ color: '#F3F4F6', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }, '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' } }}>
+                      <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
                       <ListItemText primary={col.name} />
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="email-recipients-label" sx={{ color: '#bfc8e0' }}>Recipients</InputLabel>
+
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="email-recipients-label" sx={{ color: '#9CA3AF', '&.Mui-focused': { color: '#818CF8' } }}>Recipients</InputLabel>
                 <Select
                   labelId="email-recipients-label"
                   multiple
+                  variant="outlined"
                   value={emailRecipients}
                   onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
                   renderValue={(selected) => selected.map((email: string) => {
                     const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
                     return person ? person.name : email;
                   }).join(', ')}
-                  sx={{ color: '#fff', bgcolor: '#2c2d4a', borderRadius: 2 }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: '#23243a', color: '#fff' } } }}
+                   sx={{ 
+                    color: '#F3F4F6', 
+                    bgcolor: 'rgba(255,255,255,0.03)', 
+                    borderRadius: 2,
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#818CF8' },
+                    '& .MuiSvgIcon-root': { color: '#6B7280' }
+                  }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1 } } }}
                 >
                   {peopleOptions.map((person: { name: string; email: string }) => (
-                    <MenuItem key={person.email} value={person.email} sx={{ color: '#fff', bgcolor: '#23243a', '&.Mui-selected': { bgcolor: '#35365a' } }}>
-                      <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#4f51c0' }} />
+                    <MenuItem key={person.email} value={person.email} sx={{ color: '#F3F4F6', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }, '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' } }}>
+                      <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
                       <ListItemText primary={person.name} />
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                <Button variant="outlined" onClick={() => setShowEmailAutomation(false)} sx={{ color: '#fff', borderColor: '#4f51c0', borderRadius: 2, fontWeight: 600, px: 3, py: 1, '&:hover': { bgcolor: '#35365a', borderColor: '#4f51c0' } }}>Back</Button>
+
+              <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
+                <Button variant="text" onClick={() => setShowEmailAutomation(false)} sx={{ color: '#9CA3AF', borderRadius: 2, fontWeight: 600, px: 3, py: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)', color: '#fff' } }}>Back</Button>
+                <Box sx={{ flex: 1 }} />
                 <Button
                   variant="contained"
                   color="primary"
-                  sx={{ bgcolor: '#4f51c0', color: '#fff', borderRadius: 2, fontWeight: 700, px: 3, py: 1, boxShadow: 2, '&:hover': { bgcolor: '#35365a' } }}
+                  sx={{ bgcolor: '#818CF8', color: '#fff', borderRadius: 2.5, fontWeight: 700, px: 4, py: 1.5, boxShadow: 'none', '&:hover': { bgcolor: '#6366F1', boxShadow: 'none' } }}
                   onClick={async () => {
                     // Save automation settings to backend
                     const body = {
@@ -3254,10 +4657,277 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               </Box>
             </Box>
           )}
+           </Box>
+
+          {/* Right Panel: Discussion / Chat / Files / Activity */}
+          <Box 
+            hidden={isMobile && mobileTab === 'details'}
+            sx={{ 
+            flex: { xs: 1, md: 5 }, 
+            display: { xs: (isMobile && mobileTab !== 'details') ? 'flex' : (isMobile ? 'none' : 'flex'), md: 'flex' },
+            flexDirection: 'column', 
+            bgcolor: '#1C1D26', 
+            p: 0, 
+            height: '100%', 
+            overflow: 'hidden', 
+            width: { xs: '100%', md: 'auto' },
+            borderLeft: { md: '1px solid rgba(255,255,255,0.06)' }
+          }}>
+             {/* Desktop Right Panel Tabs */}
+             <Box sx={{ p: 0.5, borderBottom: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26', display: { xs: 'none', md: 'flex' }, gap: 0.5 }}>
+                {['chat', 'files', 'activity'].map((tab) => (
+                  <Button 
+                    key={tab}
+                    onClick={() => setRightPanelTab(tab as any)}
+                    startIcon={
+                      tab === 'chat' ? <ChatBubbleOutlineIcon fontSize="small" /> :
+                      tab === 'files' ? <AttachFileIcon fontSize="small" /> :
+                      <HistoryIcon fontSize="small" />
+                    }
+                    sx={{ 
+                      flex: 1, 
+                      color: rightPanelTab === tab ? '#818CF8' : '#6B7280', 
+                      bgcolor: rightPanelTab === tab ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                      borderRadius: 2,
+                      py: 1.5,
+                      textTransform: 'capitalize',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      '&:hover': { bgcolor: rightPanelTab === tab ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.03)', color: rightPanelTab === tab ? '#818CF8' : '#F3F4F6' }
+                    }}
+                  >
+                    {tab}
+                  </Button>
+                ))}
+             </Box>
+             
+             {/* Mobile Header (For Right Panel Context) */}
+             <Box sx={{ display: { xs: 'block', md: 'none' }, p: 2, borderBottom: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+               <Typography variant="h6" sx={{ fontWeight: 600, fontSize: 16, color: '#fff' }}>
+                 {(mobileTab === 'chat' || rightPanelTab === 'chat') && 'Discussion'}
+                 {(mobileTab === 'files' || rightPanelTab === 'files') && 'Files'}
+                 {(mobileTab === 'activity' || rightPanelTab === 'activity') && 'Activity Log'}
+               </Typography>
+               <Typography variant="caption" sx={{ color: '#7d82a8' }}>
+                 {(mobileTab === 'chat' || rightPanelTab === 'chat') && 'Updates related to this task'}
+                 {(mobileTab === 'files' || rightPanelTab === 'files') && 'Attachments and documents'}
+                 {(mobileTab === 'activity' || rightPanelTab === 'activity') && 'History of changes'}
+               </Typography>
+             </Box>
+
+             {/* Content Area */}
+             <Box sx={{ flex: 1, overflow: 'hidden', p: 0, display: 'flex', flexDirection: 'column' }}>
+               
+               {/* --- CHAT VIEW --- */}
+               {((isMobile && mobileTab === 'chat') || (!isMobile && rightPanelTab === 'chat')) && (
+                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                    <Box sx={{ flex: 1, overflowY: 'auto', p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {(!reviewTask?.values.message || reviewTask.values.message.length === 0) ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.7, py: 8 }}>
+                        <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.03)', mb: 2 }}>
+                          <ChatBubbleOutlineIcon sx={{ fontSize: 32, color: '#6B7280' }} />
+                        </Box>
+                        <Typography variant="body2" sx={{ color: '#9CA3AF', fontWeight: 500 }}>No updates yet</Typography>
+                        <Typography variant="caption" sx={{ color: '#6B7280' }}>Start the conversation below</Typography>
+                    </Box>
+                  ) : (
+                    (reviewTask.values.message || []).map((msg: any) => (
+                      <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75, ml: 0.5 }}>
+                          <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600 }}>{msg.sender?.[0] || 'U'}</Avatar>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
+                          <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
+                            {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ 
+                          bgcolor: 'rgba(255,255,255,0.03)', 
+                          px: 2, 
+                          py: 1.5, 
+                          borderRadius: '4px 16px 16px 16px',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                        }}>
+                          <Typography variant="body2" sx={{ color: '#E5E7EB', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontSize: 14 }}>{msg.text}</Typography>
+                        </Box>
+                      </Box>
+                    ))
+                  )}
+                    </Box>
+                    <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26' }}>
+                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        placeholder="Write an update..."
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter' && chatInput.trim() && reviewTask) {
+                            const newMsg = {
+                              id: uuidv4(),
+                              sender: "Valon Halili", // Replace with real user
+                              text: chatInput,
+                              timestamp: new Date().toISOString()
+                            };
+                             // Optimistic update
+                            const currentMessages = reviewTask.values.message || [];
+                            const updatedMessages = [...currentMessages, newMsg];
+                            
+                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, message: updatedMessages } }) : null);
+                            setChatInput("");
+                            
+                            // Backend save
+                            handleCellSave(reviewTask.id, 'message', 'text', updatedMessages);
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          backgroundColor: 'rgba(255,255,255,0.03)',
+                          border: '1px solid transparent',
+                          borderRadius: '12px',
+                          padding: '12px 48px 12px 16px',
+                          color: '#F3F4F6',
+                          fontSize: '14px',
+                          outline: 'none',
+                          transition: 'all 0.2s',
+                          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <IconButton 
+                        onClick={async () => {
+                          if (chatInput.trim() && reviewTask) {
+                            const newMsg = {
+                              id: uuidv4(),
+                              sender: "Valon Halili", // Replace with real user
+                              text: chatInput,
+                              timestamp: new Date().toISOString()
+                            };
+                             // Optimistic update
+                            const currentMessages = reviewTask.values.message || [];
+                            const updatedMessages = [...currentMessages, newMsg];
+                            
+                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, message: updatedMessages } }) : null);
+                            setChatInput("");
+                            
+                            // Backend save
+                            handleCellSave(reviewTask.id, 'message', 'text', updatedMessages);
+                          }
+                        }}
+                        disabled={!chatInput.trim()} 
+                        size="small"
+                        sx={{ 
+                          position: 'absolute', 
+                          right: 8, 
+                          color: chatInput.trim() ? '#818CF8' : '#4B5563',
+                          bgcolor: chatInput.trim() ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                          '&:hover': { bgcolor: chatInput.trim() ? 'rgba(99, 102, 241, 0.2)' : 'transparent' }
+                        }}
+                      >
+                        <SendIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                 </Box>
+               )}
+
+               {/* --- FILES VIEW --- */}
+               {((isMobile && mobileTab === 'files') || (!isMobile && rightPanelTab === 'files')) && (
+                 <Box sx={{ p: 3, flex: 1, overflowY: 'auto' }}>
+                   {(() => {
+                      // Collect files for THIS task only
+                      let taskFiles: any[] = [];
+                      if (reviewTask) {
+                        const fileCols = columns.filter(c => c.type === 'Files');
+                        fileCols.forEach(col => {
+                          const cellFiles = Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : [];
+                          cellFiles.forEach((f: any) => {
+                             taskFiles.push({ file: f, colId: col.id, colName: col.name });
+                          });
+                        });
+                      }
+
+                      if (taskFiles.length === 0) {
+                        return (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.7, py: 8 }}>
+                             <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.03)', mb: 2 }}>
+                               <AttachFileIcon sx={{ fontSize: 32, color: '#6B7280' }} />
+                             </Box>
+                             <Typography variant="body2" sx={{ color: '#9CA3AF', fontWeight: 500 }}>No files attached</Typography>
+                             <Typography variant="caption" sx={{ color: '#6B7280' }}>Upload files in the task columns</Typography>
+                          </Box>
+                        );
+                      }
+
+                      return (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 2 }}>
+                           {taskFiles.map((item, idx) => {
+                              const isImage = (item.file.type && item.file.type.startsWith('image/')) || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file.name);
+                              const fileUrl = item.file.url ? (item.file.url.startsWith('http') ? item.file.url : `${SERVER_URL}${item.file.url}`) : null;
+                              return (
+                                <Paper key={idx} sx={{ bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)', boxShadow: 'none', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', transform: 'translateY(-2px)' } }}>
+                                   <Box 
+                                     onClick={() => handleFileClick(item.file, reviewTask!.id, item.colId)}
+                                     sx={{ height: 100, bgcolor: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                   >
+                                      {isImage && fileUrl ? (
+                                        <img src={fileUrl} alt={item.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      ) : (
+                                        <InsertDriveFileIcon sx={{ fontSize: 32, color: '#818CF8' }} />
+                                      )}
+                                   </Box>
+                                   <Box sx={{ p: 1.5 }}>
+                                      <Typography noWrap variant="caption" sx={{ display: 'block', color: '#F3F4F6', fontWeight: 600, mb: 0.5 }}>{item.file.name}</Typography>
+                                      <Typography variant="caption" sx={{ color: '#9CA3AF', display: 'block', fontSize: 10 }}>{item.colName}</Typography>
+                                   </Box>
+                                </Paper>
+                              )
+                           })}
+                        </Box>
+                      )
+                   })()}
+                 </Box>
+               )}
+
+               {/* --- ACTIVITY VIEW --- */}
+               {((isMobile && mobileTab === 'activity') || (!isMobile && rightPanelTab === 'activity')) && (
+                 <Box sx={{ p: 3, flex: 1, overflowY: 'auto' }}>
+                    <Box sx={{ position: 'relative', pl: 2 }}>
+                       {/* Line */}
+                       <Box sx={{ position: 'absolute', top: 0, bottom: 0, left: 7, width: 2, bgcolor: 'rgba(255,255,255,0.06)' }} />
+                       
+                       {/* Real Activity Data */}
+                       {(!reviewTask?.activity || reviewTask.activity.length === 0) ? (
+                            <Box sx={{ pl: 2, py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                               <Typography variant="body2" sx={{ color: '#6B7280', fontStyle: 'italic' }}>No activity recorded yet</Typography>
+                            </Box>
+                       ) : (
+                         (reviewTask.activity || []).map((log, idx) => (
+                           <Box key={idx} sx={{ mb: 3, position: 'relative', pl: 2 }}>
+                              <Box sx={{ 
+                                position: 'absolute', 
+                                left: -9, 
+                                top: 4, 
+                                width: 10, 
+                                height: 10, 
+                                borderRadius: '50%', 
+                                bgcolor: '#818CF8', 
+                                border: '2px solid #1C1D26' 
+                              }} />
+                              <Typography variant="body2" sx={{ color: '#E5E7EB', mb: 0.5, fontSize: 13 }}>{log.text}</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                 <Typography variant="caption" sx={{ color: '#9CA3AF', fontSize: 11 }}>{log.user}</Typography>
+                                 <Typography variant="caption" sx={{ color: '#4B5563' }}>•</Typography>
+                                 <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>{log.time}</Typography>
+                              </Box>
+                           </Box>
+                         ))
+                       )}
+                    </Box>
+                 </Box>
+               )}
+
+             </Box>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ bgcolor: '#2c2d4a', borderRadius: 2, p: 2 }}>
-          <Button onClick={handleCloseReview} sx={{ color: '#fff', fontWeight: 600, borderRadius: 2, px: 3, py: 1, '&:hover': { bgcolor: '#35365a' } }}>Close</Button>
-        </DialogActions>
       </Dialog>
 
       {/* File Preview / Actions Dialog */}
@@ -3266,107 +4936,124 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         onClose={() => setFileDialog({ ...fileDialog, open: false })}
         maxWidth="lg"
         fullWidth
-        PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 3, p: 0, border: '1px solid #35365a', overflow: 'hidden', height: '80vh', display: 'flex', flexDirection: 'column' } }}
+        PaperProps={{ sx: { bgcolor: '#1C1D26', color: '#fff', borderRadius: 3, p: 0, border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden', height: '80vh', display: 'flex', flexDirection: 'column' } }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid #35365a', bgcolor: '#2c2d4a' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26' }}>
           <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600 }}>
              {fileDialog.file?.name || 'File Preview'}
           </Typography>
-          <IconButton onClick={() => setFileDialog({ ...fileDialog, open: false })} sx={{ color: '#bfc8e0' }}>
+          <IconButton onClick={() => setFileDialog({ ...fileDialog, open: false })} sx={{ color: '#9CA3AF', '&:hover': { color: '#fff' } }}>
             <span style={{ fontSize: 20 }}>✕</span>
           </IconButton>
         </Box>
 
+        {/* File Preview Container */}
         <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', flexDirection: { xs: 'column', md: 'row' } }}>
-        <Box sx={{ flex: 1, bgcolor: '#1e1f2b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'auto', borderRight: { md: '1px solid #35365a' }, borderBottom: { xs: '1px solid #35365a', md: 'none' } }}>
-           {fileDialog.file && (
-             <>
-               {fileDialog.file.url ? (
-                 <Box sx={{ width: '100%', height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000' }}>
-                   {(fileDialog.file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileDialog.file.name)) ? (
-                     <img 
-                       src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`} 
-                       alt={fileDialog.file.name} 
-                       style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }} 
-                     />
-                   ) : (fileDialog.file.type === 'application/pdf' || /\.pdf$/i.test(fileDialog.file.name)) ? (
-                     <iframe 
-                       src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`} 
-                       style={{ width: '100%', height: '60vh', border: 'none' }} 
-                       title="PDF Preview"
-                     />
-                   ) : (
-                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, p: 5 }}>
-                        <InsertDriveFileIcon sx={{ fontSize: 80, color: '#0073ea', opacity: 0.8 }} />
-                        <Typography sx={{ color: '#bfc8e0', textAlign: 'center' }}>Preview not available for this file type</Typography>
-                     </Box>
-                   )}
-                 </Box>
-               ) : (
-                 <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography variant="body1" sx={{ color: '#fdab3d' }}>
-                      File not uploaded to server
-                    </Typography>
-                 </Box>
-               )}
-             </>
-           )}
-        </Box>
-        
-        <Box sx={{ width: { xs: '100%', md: 320 }, bgcolor: '#23243a', display: 'flex', flexDirection: 'column', borderLeft: { md: '1px solid #35365a' }, borderTop: { xs: '1px solid #35365a', md: 'none' } }}>
+          
+          {/* Main Preview */}
+          <Box sx={{ flex: 1, bgcolor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRight: { md: '1px solid rgba(255,255,255,0.06)' }, borderBottom: { xs: '1px solid rgba(255,255,255,0.06)', md: 'none' }, position: 'relative' }}>
+             {fileDialog.file && (
+               <>
+                 {fileDialog.file.url ? (
+                   <Box sx={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000' }}>
+                     {(fileDialog.file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileDialog.file.name)) ? (
+                       <img 
+                         src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`} 
+                         alt={fileDialog.file.name} 
+                         style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
+                       />
+                     ) : (fileDialog.file.type === 'application/pdf' || /\.pdf$/i.test(fileDialog.file.name)) ? (
+                       <iframe 
+                         src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`} 
+                         style={{ width: '100%', height: '100%', border: 'none' }} 
+                         title="PDF Preview"
+                       />
+                     ) : (
+                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, p: 5 }}>
+                          <InsertDriveFileIcon sx={{ fontSize: 80, color: '#0073ea', opacity: 0.8 }} />
+                          <Typography sx={{ color: '#9CA3AF', textAlign: 'center' }}>Preview not available for this file type</Typography>
+                       </Box>
+                     )}
+                   </Box>
+                 ) : (
+                   <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <Typography variant="body1" sx={{ color: '#fdab3d' }}>
+                        File not uploaded to server
+                      </Typography>
+                   </Box>
+                 )}
+               </>
+             )}
+          </Box>
+          
+          {/* Right Sidebar: Details & Comments */}
+          <Box sx={{ width: { xs: '100%', md: 320 }, bgcolor: '#1C1D26', display: 'flex', flexDirection: 'column', borderLeft: { md: '1px solid rgba(255,255,255,0.06)' }, borderTop: { xs: '1px solid rgba(255,255,255,0.06)', md: 'none' } }}>
 
-          {/* Comments / Details Area */}
-            {/* File Info */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #35365a' }}>
-              <Typography variant="subtitle2" sx={{ color: '#7d82a8', mb: 1, textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 700 }}>
-                Details
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
-                {fileDialog.file?.size && (
-                  <Chip size="small" label={`${(fileDialog.file.size / 1024).toFixed(1)} KB`} sx={{ bgcolor: '#2c2d4a', color: '#bfc8e0' }} />
-                )}
-                {fileDialog.file?.uploadedAt && (
-                  <Typography variant="caption" sx={{ color: '#7d82a8' }}>
-                    {new Date(fileDialog.file.uploadedAt).toLocaleDateString()}
-                  </Typography>
-                )}
+            {/* Header: File Details */}
+            <Box sx={{ p: 2.5, borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="overline" sx={{ color: '#6B7280', fontWeight: 700, letterSpacing: 1 }}>
+                  Details
+                </Typography>
+                <Chip 
+                  label={fileDialog.file?.size ? `${(fileDialog.file.size / 1024).toFixed(1)} KB` : 'Unknown Size'} 
+                  size="small" 
+                  sx={{ bgcolor: 'rgba(255,255,255,0.05)', color: '#9CA3AF', fontSize: 11, height: 20 }} 
+                />
+              </Box>
+              
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ display: 'block', color: '#6B7280', mb: 0.5 }}>Uploaded</Typography>
+                    <Typography variant="body2" sx={{ color: '#E5E7EB', fontSize: 13 }}>
+                       {fileDialog.file?.uploadedAt ? new Date(fileDialog.file.uploadedAt).toLocaleDateString() : 'Unknown'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                     <Typography variant="caption" sx={{ display: 'block', color: '#6B7280', mb: 0.5 }}>Type</Typography>
+                     <Typography variant="body2" sx={{ color: '#E5E7EB', fontSize: 13, textTransform: 'uppercase' }}>
+                       {fileDialog.file?.name?.split('.').pop() || 'FILE'}
+                     </Typography>
+                  </Box>
               </Box>
             </Box>
 
-            {/* Comments List */}
-            <Box sx={{ flex: 1, overflowY: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Typography variant="subtitle2" sx={{ color: '#7d82a8', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 700 }}>
+            {/* Comments Section */}
+            <Typography variant="overline" sx={{ px: 2.5, pt: 2, color: '#6B7280', fontWeight: 700, letterSpacing: 1 }}>
                 Comments
-              </Typography>
+            </Typography>
+
+            <Box sx={{ flex: 1, overflowY: 'auto', p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
               
               {(!fileDialog.file?.comments || fileDialog.file.comments.length === 0) && (
-                <Typography variant="body2" sx={{ color: '#5a5b7a', fontStyle: 'italic', textAlign: 'center', mt: 4 }}>
-                  No comments yet
-                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 4, opacity: 0.6 }}>
+                  <ChatBubbleOutlineIcon sx={{ fontSize: 32, mb: 1, color: '#6B7280' }} />
+                  <Typography variant="body2" sx={{ color: '#9CA3AF' }}>No comments yet</Typography>
+                </Box>
               )}
 
               {fileDialog.file?.comments?.map((comment: any) => (
                 <Box key={comment.id} sx={{ display: 'flex', gap: 1.5 }}>
-                  <Avatar sx={{ width: 28, height: 28, fontSize: 12, bgcolor: '#0073ea' }}>
+                  <Avatar sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600 }}>
                     {comment.user ? comment.user.charAt(0).toUpperCase() : 'U'}
                   </Avatar>
-                  <Box sx={{ flex: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <Typography variant="caption" sx={{ fontWeight: 600, color: '#fff' }}>{comment.user}</Typography>
-                      <Typography variant="caption" sx={{ color: '#5a5b7a', fontSize: '0.7rem' }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6' }}>{comment.user}</Typography>
+                      <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
                         {dayjs(comment.createdAt).fromNow()}
                       </Typography>
                     </Box>
-                    <Paper sx={{ p: 1.5, mt: 0.5, bgcolor: '#2c2d4a', color: '#bfc8e0', borderRadius: '0 8px 8px 8px' }}>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{comment.text}</Typography>
-                    </Paper>
+                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.05)', p: 1.5, borderRadius: '0 12px 12px 12px', color: '#E5E7EB' }}>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.5 }}>{comment.text}</Typography>
+                    </Box>
                   </Box>
                 </Box>
               ))}
             </Box>
 
             {/* Comment Input */}
-            <Box sx={{ p: 2, borderTop: '1px solid #35365a', bgcolor: '#2c2d4a' }}>
+            <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26' }}>
               <TextField
                 fullWidth
                 size="small"
@@ -3376,7 +5063,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleFileCommentSubmit();
+                    if(fileComment.trim()) handleFileCommentSubmit();
                   }
                 }}
                 multiline
@@ -3388,46 +5075,63 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                         size="small" 
                         onClick={handleFileCommentSubmit}
                         disabled={!fileComment.trim()}
-                        sx={{ color: '#0073ea', '&.Mui-disabled': { color: '#4a4b6a' } }}
+                        sx={{ 
+                          color: '#818CF8', 
+                          bgcolor: fileComment.trim() ? 'rgba(99, 102, 241, 0.1)' : 'transparent', 
+                          '&.Mui-disabled': { color: '#4B5563', bgcolor: 'transparent' }, 
+                          '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' },
+                          mr: -0.5
+                        }}
                       >
                         <SendIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
                   ),
-                  sx: { color: '#fff', fontSize: '0.875rem', bgcolor: '#1e1f2b', borderRadius: 2, pr: 0.5 }
+                  sx: { 
+                    color: '#F3F4F6', 
+                    fontSize: '0.875rem', 
+                    bgcolor: 'rgba(255,255,255,0.05)', 
+                    borderRadius: 3, 
+                    pr: 1,
+                    pl: 2,
+                    py: 1,
+                    '& fieldset': { border: 'none' } 
+                  }
                 }}
-                sx={{ '& fieldset': { border: 'none' } }}
               />
             </Box>
           </Box>
         </Box>
         
-        <DialogActions sx={{ justifyContent: 'flex-end', px: 3, py: 2, bgcolor: '#23243a', borderTop: '1px solid #35365a', flexShrink: 0 }}>
+        {/* Footer Actions */}
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 2, bgcolor: '#1C1D26', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+           <Button 
+             onClick={handleFileDelete}
+             sx={{ color: '#EF4444', fontWeight: 600, px: 2, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+             startIcon={<DeleteIcon fontSize="small" />}
+           >
+             Delete File
+           </Button>
+           
            <Box sx={{ display: 'flex', gap: 2 }}>
-             <Button 
-               onClick={handleFileDelete}
-               sx={{ color: '#e2445c', '&:hover': { bgcolor: 'rgba(226, 68, 92, 0.1)' } }}
-               startIcon={<DeleteIcon />}
-             >
-               Delete
-             </Button>
-             
              {fileDialog.file?.url && (
                <Button
                  variant="contained"
                  component="a"
                  href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
-                 download={fileDialog.file.name} // HTML5 download attribute
+                 download={fileDialog.file.name} 
                  target="_blank"
                  rel="noopener noreferrer"
                  startIcon={<InsertDriveFileIcon />}
                  sx={{ 
-                   bgcolor: '#0073ea', 
+                   bgcolor: '#4F46E5', 
                    color: '#fff', 
                    borderRadius: 2, 
                    textTransform: 'none', 
                    fontWeight: 600,
-                   '&:hover': { bgcolor: '#0060c2' }
+                   px: 3,
+                   boxShadow: 'none',
+                   '&:hover': { bgcolor: '#4338CA', boxShadow: 'none' }
                  }}
                >
                  Download

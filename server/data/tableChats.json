@@ -1,0 +1,23 @@
+{
+  "43270b9c-3951-4a16-b917-d0f9bc73ee1a": [
+    {
+      "id": "69628547-eb8d-447e-8d07-35627f53bd8f",
+      "text": "hello",
+      "sender": "You",
+      "time": "16:14",
+      "timestamp": 1771805671101
+    },
+    {
+      "id": "e6b7f4ab-65ce-412e-96b9-06de0c8cd351",
+      "text": "Sent a file: 20260222_030157.jpg",
+      "sender": "You",
+      "time": "01:15",
+      "attachment": {
+        "name": "20260222_030157.jpg",
+        "type": "image/jpeg",
+        "url": "http://192.168.0.28:4000/uploads/1771805717841-747508718-20260222_030157.jpg"
+      },
+      "timestamp": 1771805721791
+    }
+  ]
+}

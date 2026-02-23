@@ -14,6 +14,7 @@ import Avatar from "@mui/material/Avatar";
 import TopBar from "./TopBar";
 import Box from "@mui/material/Box";
 import "./globals.css";
+import PageTransition from "./PageTransition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   boxSizing: 'border-box',
                 }}
               >
-                {children}
+                <PageTransition>{children}</PageTransition>
               </Box>
             </Box>
           </Box>

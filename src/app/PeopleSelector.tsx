@@ -18,7 +18,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  useTheme,
+  alpha
 } from "@mui/material";
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import NotificationsOffIcon from '@mui/icons-material/NotificationsOff';
@@ -39,6 +41,7 @@ interface PeopleSelectorProps {
 }
 
 export default function PeopleSelector({ value = [], onChange, onClose, embed = false }: PeopleSelectorProps & { embed?: boolean }) {
+  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
   const [people, setPeople] = useState<Person[]>(defaultPeople);
@@ -194,10 +197,9 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
         value={search}
         onChange={e => setSearch(e.target.value)}
         onKeyDown={handleSearchKeyDown}
-        sx={{ mb: 2, bgcolor: '#2c2d4a', borderRadius: 1, '& .MuiOutlinedInput-notchedOutline': { border: 'none' }, '& .MuiInputBase-input': { color: '#fff' } }}
-        InputProps={{ style: { color: '#fff' } }}
+        sx={{ mb: 2, bgcolor: 'action.hover', borderRadius: 1, '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
       />
-      <Typography variant="caption" sx={{ color: '#7d82a8', fontWeight: 600, textTransform: 'uppercase', mb: 1, display: 'block' }}>Suggested people</Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', mb: 1, display: 'block' }}>Suggested people</Typography>
       <List dense sx={{ maxHeight: 200, overflowY: 'auto' }}>
         {filteredPeople.map((person) => {
           const isSelected = value.some(p => p.email === person.email);
@@ -214,11 +216,11 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
                 width: '100%', 
                 textAlign: 'left', 
                 cursor: 'pointer', 
-                color: '#fff', 
-                bgcolor: isSelected ? 'rgba(0, 115, 234, 0.1)' : 'transparent',
+                color: 'text.primary', 
+                bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
                 borderRadius: 2,
                 mb: 0.5,
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
+                '&:hover': { bgcolor: 'action.hover' }
               }}
             >
               <ListItemAvatar>
@@ -260,7 +262,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
         Invite a new member by email
       </Button>
       {/* Invite dialog */}
-      <Dialog open={inviteDialogOpen} onClose={() => setInviteDialogOpen(false)} PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff' } }}>
+      <Dialog open={inviteDialogOpen} onClose={() => setInviteDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', color: 'text.primary' } }}>
         <DialogTitle>Invite a new member</DialogTitle>
         <DialogContent>
           <TextField
@@ -271,7 +273,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
             fullWidth
             value={inviteEmail}
             onChange={e => setInviteEmail(e.target.value)}
-            sx={{ mb: 2, '& input': { color: '#fff' }, '& label': { color: '#7d82a8' }, '& .MuiOutlinedInput-root': { color: '#fff', '& fieldset': { borderColor: '#3a3b5a' } } }}
+            sx={{ mb: 2 }}
           />
           <TextField
             margin="dense"
@@ -279,13 +281,12 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
             fullWidth
             value={inviteName}
             onChange={e => setInviteName(e.target.value)}
-            sx={{ '& input': { color: '#fff' }, '& label': { color: '#7d82a8' }, '& .MuiOutlinedInput-root': { color: '#fff', '& fieldset': { borderColor: '#3a3b5a' } } }}
           />
           {inviteError && <Typography color="error" variant="body2">{inviteError}</Typography>}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setInviteDialogOpen(false)} sx={{ color: '#7d82a8' }}>Cancel</Button>
-          <Button onClick={handleInviteSubmit} variant="contained" sx={{ bgcolor: '#0073ea' }}>Invite</Button>
+          <Button onClick={() => setInviteDialogOpen(false)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+          <Button onClick={handleInviteSubmit} variant="contained" sx={{ bgcolor: 'primary.main' }}>Invite</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -303,7 +304,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
         anchorEl={anchorEl}
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        PaperProps={{ sx: { bgcolor: '#23243a', color: '#fff', borderRadius: 2, border: '1px solid #3a3b5a' } }}
+        PaperProps={{ sx: { bgcolor: 'background.paper', color: 'text.primary', borderRadius: 2, border: 1, borderColor: 'divider' } }}
       >
         {Content}
       </Popover>
