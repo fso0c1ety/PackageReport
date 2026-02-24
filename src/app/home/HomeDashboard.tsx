@@ -197,7 +197,7 @@ export default function HomeDashboard() {
 
       <Grid container spacing={3}>
         {/* Main Content Column */}
-        <Grid size={{ xs: 12, md: 6, lg: 6 }}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           {/* Recently Visited */}
           <Box sx={{ mb: 5 }}>
             <SectionTitle>
@@ -468,8 +468,8 @@ export default function HomeDashboard() {
         </Grid>
 
         {/* Right Sidebar - Inbox */}
-        <Grid size={{ xs: 12, md: 6, lg: 6 }}>
-          <Box sx={{ position: "sticky", top: 0, mt: -2, height: { xs: 'auto', md: 'calc(80vh - 150px)' }, width: { xs: '100%', md: '70vh' }, display: 'flex', flexDirection: 'column' }}>
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Box sx={{ position: "sticky", top: 24, height: { xs: 'auto', lg: 'calc(100vh - 100px)' }, width: '100%', display: 'flex', flexDirection: 'column' }}>
             <SectionTitle>
               <NotificationsnoneIcon sx={{ color: "#6366f1", fontSize: 20 }} />
               Inbox & Updates
