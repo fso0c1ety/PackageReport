@@ -197,7 +197,7 @@ export default function HomeDashboard() {
 
       <Grid container spacing={3}>
         {/* Main Content Column */}
-        <Grid item xs={12} md={6} lg={6}>
+        <Grid size={{ xs: 12, md: 6, lg: 6 }}>
           {/* Recently Visited */}
           <Box sx={{ mb: 5 }}>
             <SectionTitle>
@@ -206,7 +206,7 @@ export default function HomeDashboard() {
             </SectionTitle>
             <Grid container spacing={3} alignItems="stretch">
               {/* Dashboard Card - Takes 12 on mobile, 6 on desktop (half width) */}
-              <Grid item xs={12} sm={6} md={6} sx={{ display: 'flex' }}>
+              <Grid size={{ xs: 12, sm: 6, md: 6 }} sx={{ display: 'flex' }}>
                 <RecentCard onClick={() => (window.location.href = "/dashboard")} sx={{ width: '100%' }}>
                   <Box
                     sx={{
@@ -259,8 +259,8 @@ export default function HomeDashboard() {
               
               {/* Last Workspace Card - Takes 12 on mobile, 6 on desktop (half width) */}
               {lastWorkspace && (
-                <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
-                  <RecentCard onClick={() => (window.location.href = `/workspaces/${lastWorkspace.id}`)} sx={{ width: '100%' }}>
+                <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex' }}>
+                  <RecentCard onClick={() => (window.location.href = `/workspace?id=${lastWorkspace.id}`)} sx={{ width: '100%' }}>
                      <Box
                       sx={{
                         height: 'auto',
@@ -350,13 +350,13 @@ export default function HomeDashboard() {
             <Grid container spacing={{ xs: 1, md: 3 }}>
               {loading
                 ? [1, 2, 3].map((n) => (
-                    <Grid item xs={6} sm={6} md={6} key={n}>
+                    <Grid size={{ xs: 6, sm: 6, md: 6 }} key={n}>
                       <Skeleton variant="rectangular" height={100} sx={{ bgcolor: "rgba(255,255,255,0.05)", borderRadius: 2 }} />
                     </Grid>
                   ))
                 : workspaces.map((ws) => (
-                    <Grid item xs={6} sm={6} md={6} key={ws.id}>
-                      <WorkspaceCard onClick={() => (window.location.href = `/workspaces/${ws.id}`)}>
+                    <Grid size={{ xs: 6, sm: 6, md: 6 }} key={ws.id}>
+                      <WorkspaceCard onClick={() => (window.location.href = `/workspace?id=${ws.id}`)}>
                         <Avatar
                           variant="rounded"
                           sx={{
@@ -425,7 +425,7 @@ export default function HomeDashboard() {
                 { title: "CRM & Sales", color: "#2563eb", icon: "💼" },
                 { title: "Content Calendar", color: "#d97706", icon: "📅" },
               ].map((template) => (
-                <Grid item lg={4} key={template.title}>
+                <Grid size={{ lg: 4 }} key={template.title}>
                   <StyledCard
                     sx={{
                       cursor: "pointer",
@@ -468,7 +468,7 @@ export default function HomeDashboard() {
         </Grid>
 
         {/* Right Sidebar - Inbox */}
-        <Grid item xs={12} md={6} lg={6}>
+        <Grid size={{ xs: 12, md: 6, lg: 6 }}>
           <Box sx={{ position: "sticky", top: 0, mt: -2, height: { xs: 'auto', md: 'calc(80vh - 150px)' }, width: { xs: '100%', md: '70vh' }, display: 'flex', flexDirection: 'column' }}>
             <SectionTitle>
               <NotificationsnoneIcon sx={{ color: "#6366f1", fontSize: 20 }} />

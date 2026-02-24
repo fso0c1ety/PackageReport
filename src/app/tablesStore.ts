@@ -1,10 +1,10 @@
-import { Column, Task } from "../types";
+import { Column, Row } from "../types";
 
 export interface Table {
   id: string;
   name: string;
   columns: Column[];
-  tasks: Task[];
+  rows: Row[];
 }
 
 let tables: Table[] = [];
@@ -24,24 +24,24 @@ export function updateTable(id: string, columns: Column[]) {
   return table;
 }
 
-export function addTaskToTable(tableId: string, task: Task) {
+export function addTaskToTable(tableId: string, row: Row) {
   const table = tables.find((t) => t.id === tableId);
-  if (table) table.tasks.push(task);
+  if (table) table.rows.push(row);
   return table;
 }
 
-export function updateTaskInTable(tableId: string, task: Task) {
+export function updateTaskInTable(tableId: string, row: Row) {
   const table = tables.find((t) => t.id === tableId);
   if (table) {
-    table.tasks = table.tasks.map((t) => (t.id === task.id ? task : t));
+    table.rows = table.rows.map((r) => (r.id === row.id ? row : r));
   }
   return table;
 }
 
-export function deleteTaskFromTable(tableId: string, taskId: string) {
+export function deleteTaskFromTable(tableId: string, rowId: string) {
   const table = tables.find((t) => t.id === tableId);
   if (table) {
-    table.tasks = table.tasks.filter((t) => t.id !== taskId);
+    table.rows = table.rows.filter((r) => r.id !== rowId);
   }
   return table;
 }

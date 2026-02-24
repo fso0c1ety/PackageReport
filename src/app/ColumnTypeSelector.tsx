@@ -75,7 +75,7 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
       </Typography>
       <MuiGrid container spacing={{ xs: 1, sm: 2 }}>
         {columnOptions.slice(0, 6).map((opt) => (
-          <MuiGrid item xs={4} key={opt.label}>
+          <MuiGrid size={{ xs: 4 }} key={opt.label}>
             <Box
               sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: '#23243a', '&:hover': { bgcolor: '#35365a' } }}
               onClick={() => onSelect(opt.type as ColumnType, opt.label)}
@@ -91,7 +91,7 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
       </Typography>
       <MuiGrid container spacing={{ xs: 1, sm: 2 }}>
         {columnOptions.slice(6).map((opt) => (
-          <MuiGrid item xs={4} key={opt.label}>
+          <MuiGrid size={{ xs: 4 }} key={opt.label}>
             <Box
               sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: '#23243a', '&:hover': { bgcolor: '#35365a' } }}
               onClick={() => onSelect(opt.type as ColumnType, opt.label)}

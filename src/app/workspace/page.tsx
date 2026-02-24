@@ -1,15 +1,17 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
-import TableBoard from "../../TableBoard";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import TableBoard from "../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
-export default function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = use(params);
+function WorkspaceContent() {
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get('id');
   const theme = useTheme();
   // Set last opened workspace in localStorage for HomeDashboard
   useEffect(() => {
@@ -333,5 +335,13 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 
       <TableBoard tableId={selected || (tables[0]?.id ?? null)} />
     </Box>
+  );
+}
+
+export default function WorkspacePage() {
+  return (
+    <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}>
+      <WorkspaceContent />
+    </Suspense>
   );
 }

@@ -2165,7 +2165,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
       // Default: text input
       // Message column: show chat popover trigger
-      if (col.type === "Message") {
+      if ((col.type as string) === "Message") {
         return (
           <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
             Chat
@@ -3779,7 +3779,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                          const initialValues = { [statusCol.id]: opt.value };
                          // Ensure other columns have default values
                          columns.forEach(c => {
-                            if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : '';
+                            if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : ('' as any);
                          });
                          
                          try {
@@ -4373,8 +4373,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   {col.type === "People" && (
                     <Box sx={{ bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2, p: 0.5 }}>
                     <PeopleSelector
-                      people={samplePeople}
-                      selectedPeople={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
+                      value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
                       onChange={(newPeople) => {
                          setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: newPeople } }) : null);
                          handleCellSave(reviewTask.id, col.id, col.type, newPeople);

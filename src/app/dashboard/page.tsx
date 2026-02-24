@@ -379,7 +379,7 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <Grid container spacing={2} sx={{ mb: { xs: 2, md: 4 } }}>
           {/* Total Tasks */}
-          <Grid item xs={6} sm={6} md={3}>
+          <Grid size={{ xs: 6, sm: 6, md: 3 }}>
             <StatCard>
               <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexDirection={{ xs: "column", sm: "row" }} gap={1}>
                  <Box>
@@ -399,7 +399,7 @@ export default function DashboardPage() {
           </Grid>
           
           {/* Completion Rate */}
-          <Grid item xs={6} sm={6} md={3}>
+          <Grid size={{ xs: 6, sm: 6, md: 3 }}>
             <StatCard>
               <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexDirection={{ xs: "column", sm: "row" }} gap={1}>
                  <Box>
@@ -426,7 +426,7 @@ export default function DashboardPage() {
           </Grid>
 
           {/* In Progress */}
-          <Grid item xs={6} sm={6} md={3}>
+          <Grid size={{ xs: 6, sm: 6, md: 3 }}>
             <StatCard>
                <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexDirection={{ xs: "column", sm: "row" }} gap={1}>
                  <Box>
@@ -444,7 +444,7 @@ export default function DashboardPage() {
           </Grid>
 
            {/* Stuck */}
-           <Grid item xs={6} sm={6} md={3}>
+           <Grid size={{ xs: 6, sm: 6, md: 3 }}>
             <StatCard>
                <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexDirection={{ xs: "column", sm: "row" }} gap={1}>
                  <Box>

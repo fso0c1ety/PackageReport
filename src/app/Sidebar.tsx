@@ -155,7 +155,7 @@ export default function Sidebar({
       setDialogOpen(false);
       setNewWorkspaceName("");
       if (table && onClose) onClose(); // Close drawer on mobile if open
-      if (table) router.push(`/workspaces/${ws.id}`);
+      if (table) router.push(`/workspace?id=${ws.id}`);
     } catch (err) {
       alert("Failed to create workspace. Please try again.");
     }

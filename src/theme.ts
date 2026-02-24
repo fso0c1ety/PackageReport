@@ -1,8 +1,8 @@
 // src/theme.ts - Custom MUI theme for premium SaaS To-Do app
-import { extendTheme } from '@mui/material/styles';
+import { createTheme } from '@mui/material/styles';
 import { red, blue, green, orange, grey } from '@mui/material/colors';
 
-const theme = extendTheme({
+const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {

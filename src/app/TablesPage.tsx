@@ -5,7 +5,7 @@ import { getApiUrl } from "./apiUrl";
 import { Box, Typography, Paper, Tabs, Tab } from "@mui/material";
 import TableManager from "./TableManager";
 import { TodoList } from "./TodoList";
-import { Column, Row } from "../types";
+import { Column, Row, Table } from "../types";
 
 
 

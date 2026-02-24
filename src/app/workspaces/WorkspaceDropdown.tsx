@@ -49,7 +49,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
   const handleChange = (event: SelectChangeEvent) => {
     const val = event.target.value;
     setSelected(val);
-    router.push(`/workspaces/${val}`);
+    router.push(`/workspace?id=${val}`);
   };
 
   if (loading) {
