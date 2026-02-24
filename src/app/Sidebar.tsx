@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image"; // Added Image import
 import { usePathname, useRouter } from "next/navigation";
 import {
   Box,
@@ -33,6 +34,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
 import WorkspaceDropdown from "./workspaces/WorkspaceDropdown";
+import appLogo from "./icon.png";
 
 // --- Components ---
 
@@ -174,26 +176,35 @@ export default function Sidebar({
       <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 2 }}>
         <Box
           sx={{
-            width: 36,
-            height: 36,
-            borderRadius: "10px",
-            background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
+            width: 48,
+            height: 48,
+            position: 'relative',
+            borderRadius: "8px",
+            overflow: "hidden",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(99, 102, 241, 0.4)",
           }}
         >
-          <Typography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>S</Typography>
+          <Image
+            src={appLogo}
+            alt="App Logo"
+            fill
+            style={{ objectFit: 'contain' }}
+            priority
+          />
         </Box>
         <Typography
           variant="h6"
           sx={{
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
+            fontWeight: 800,
+            fontFamily: "var(--font-outfit)",
+            fontSize: "1.25rem",
+            letterSpacing: "-0.02em",
             background: "linear-gradient(to right, #fff, #cbd5e1)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
+            textShadow: "0 2px 10px rgba(255,255,255,0.1)",
           }}
         >
           SmartManage

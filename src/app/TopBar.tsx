@@ -1,5 +1,6 @@
 import React from "react";
-import { Box, Avatar, IconButton, Badge, Tooltip } from "@mui/material";
+import Image from "next/image";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';

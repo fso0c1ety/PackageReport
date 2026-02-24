@@ -1178,7 +1178,7 @@
           "6": "o",
           "7": "r",
           "8": "t",
-          "9b16eaad-3c63-4e9f-8a3c-384fa2eec742": "Transportii",
+          "9b16eaad-3c63-4e9f-8a3c-384fa2eec742": "Transporti",
           "50277a3c-a512-4505-a341-cd3f19a3f296": [
             {
               "name": "vsas",
@@ -1295,6 +1295,16 @@
         "order": 0,
         "activity": [
           {
+            "text": "Updated Task to \"Transporti\"",
+            "time": "2026-02-23T12:52:35.025Z",
+            "user": "User"
+          },
+          {
+            "text": "Updated Task to \"Transportii1\"",
+            "time": "2026-02-23T12:52:08.855Z",
+            "user": "User"
+          },
+          {
             "text": "Updated Files",
             "time": "2026-02-22T23:56:13.457Z",
             "user": "User"
@@ -1380,7 +1390,8 @@
           "80844a72-7b93-4f24-ab8d-7a5a990d30d0": "",
           "204faca1-5b2e-421f-8401-595d23fea2af": ""
         },
-        "order": 3
+        "order": 3,
+        "activity": []
       },
       {
         "id": "e3765798-fdf0-411b-a27e-4910320756f0",
@@ -1909,62 +1920,5 @@
       }
     ],
     "workspaceId": "0546702b-5015-45aa-b69b-3afbc62ed926"
-  },
-  {
-    "id": "5085b84b-03bf-4751-97f3-1731f3dfe8ac",
-    "name": "New Group 2",
-    "columns": [
-      {
-        "id": "task",
-        "name": "Task",
-        "type": "Text",
-        "order": 0
-      },
-      {
-        "id": "people",
-        "name": "People",
-        "type": "People",
-        "order": 1,
-        "options": []
-      },
-      {
-        "id": "status",
-        "name": "Status",
-        "type": "Status",
-        "order": 2,
-        "options": [
-          {
-            "value": "Working on it",
-            "color": "#fdab3d"
-          },
-          {
-            "value": "Done",
-            "color": "#00c875"
-          },
-          {
-            "value": "Stuck",
-            "color": "#e2445c"
-          }
-        ]
-      }
-    ],
-    "createdAt": 1771721403718,
-    "tasks": [
-      {
-        "id": "44f071aa-03da-45d8-b90b-62f35e2a3ac4",
-        "values": {
-          "0": "H",
-          "1": "e",
-          "2": "l",
-          "3": "l",
-          "4": "o",
-          "task": "Hello",
-          "people": [],
-          "status": "Working on it"
-        }
-      }
-    ],
-    "workspaceId": "7241c9f2-3666-47dd-af2b-8d282306a475",
-    "docContent": ""
   }
 ]

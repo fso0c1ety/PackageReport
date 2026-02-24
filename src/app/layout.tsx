@@ -2,7 +2,7 @@
 "use client";
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Outfit } from "next/font/google";
 
 
 import ThemeRegistry from "./ThemeRegistry";
@@ -26,12 +26,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+});
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} style={{ background: '#23243a', color: '#fff', overflowX: 'hidden' }}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`} style={{ background: '#23243a', color: '#fff', overflowX: 'hidden' }}>
         <ThemeRegistry>
           <Box
             sx={{

@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
   reactCompiler: true,
   allowedDevOrigins: [
     "http://localhost:3000",
