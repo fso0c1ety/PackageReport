@@ -11,6 +11,13 @@ const multer = require('multer');
 const app = express();
 // Enable CORS for all routes before anything else
 app.use(cors());
+
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
+  next();
+});
+
 // Register people and automation routes at /api
 
 app.use(express.json());
