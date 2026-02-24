@@ -655,5 +655,5 @@ app.post('/api/tables/:tableId/chat', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Express server running on http://192.168.0.14:${PORT}`);
+  console.log(`Express server running on port :${PORT}`);
 });
