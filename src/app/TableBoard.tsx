@@ -221,7 +221,7 @@ import { Column, Row, ColumnType, ColumnOption } from "../types";
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];
 
-import { getApiUrl, SERVER_URL } from "./apiUrl";
+import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL } from "./apiUrl";
 
 interface TableBoardProps {
   tableId: string;
