@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Box,
   Typography,
@@ -128,6 +130,7 @@ function getLastWorkspace() {
 // --- Main Component ---
 
 export default function HomeDashboard() {
+  const router = useRouter();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
   // Start with null to prevent hydration mismatch
@@ -207,7 +210,8 @@ export default function HomeDashboard() {
             <Grid container spacing={3} alignItems="stretch">
               {/* Dashboard Card - Takes 12 on mobile, 6 on desktop (half width) */}
               <Grid size={{ xs: 12, sm: 6, md: 6 }} sx={{ display: 'flex' }}>
-                <RecentCard onClick={() => (window.location.href = "/dashboard")} sx={{ width: '100%' }}>
+                <Link href="/dashboard" style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
+                   <RecentCard sx={{ width: '100%' }}>
                   <Box
                     sx={{
                       height: 'auto',
@@ -255,12 +259,14 @@ export default function HomeDashboard() {
                     </Typography>
                   </CardContent>
                 </RecentCard>
+                </Link>
               </Grid>
               
               {/* Last Workspace Card - Takes 12 on mobile, 6 on desktop (half width) */}
               {lastWorkspace && (
                 <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex' }}>
-                  <RecentCard onClick={() => (window.location.href = `/workspace?id=${lastWorkspace.id}`)} sx={{ width: '100%' }}>
+                  <Link href={`/workspace?id=${lastWorkspace.id}`} style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
+                  <RecentCard sx={{ width: '100%' }}>
                      <Box
                       sx={{
                         height: 'auto',
@@ -307,6 +313,7 @@ export default function HomeDashboard() {
                       </Typography>
                     </CardContent>
                   </RecentCard>
+                  </Link>
                 </Grid>
               )}
             </Grid>
@@ -356,7 +363,7 @@ export default function HomeDashboard() {
                   ))
                 : workspaces.map((ws) => (
                     <Grid size={{ xs: 6, sm: 6, md: 6 }} key={ws.id}>
-                      <WorkspaceCard onClick={() => (window.location.href = `/workspace?id=${ws.id}`)}>
+                      <WorkspaceCard onClick={() => router.push(`/workspace?id=${ws.id}`)}>
                         <Avatar
                           variant="rounded"
                           sx={{

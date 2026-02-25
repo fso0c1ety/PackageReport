@@ -198,6 +198,8 @@ function getStatusValue(task: any, table: any) {
   return task.values?.status || task.values?.['83dabc09-ba5a-4e4b-84f4-e3892536aa8d'] || task.values?.['Statusi'] || 'Unknown';
 }
 
+import { getApiUrl } from "../apiUrl";
+
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
@@ -211,8 +213,8 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const [wsRes, tablesRes] = await Promise.all([
-          fetch("http://192.168.0.28:4000/api/workspaces"),
-          fetch("http://192.168.0.28:4000/api/tables"),
+          fetch(getApiUrl("workspaces")),
+          fetch(getApiUrl("tables")),
         ]);
         const wsData = await wsRes.json();
         const tablesData = await tablesRes.json();

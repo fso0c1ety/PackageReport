@@ -169,6 +169,7 @@ export default function Sidebar({
         flexDirection: "column",
         bgcolor: "#292a43", // Slightly lighter distinct background
         color: "#ffffff",
+        paddingTop: { xs: "env(safe-area-inset-top)", md: 0 }, // Add padding for safe area on mobile
         // Removed borderRight as the container has rounded edges and shadow
       }}
     >
