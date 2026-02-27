@@ -1,1 +1,1 @@
-export { default } from '../DatePickerTest';
+export { default } from '../../DatePickerTest';

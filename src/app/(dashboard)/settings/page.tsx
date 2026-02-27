@@ -12,7 +12,7 @@ import {
   CircularProgress
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
-import { DEFAULT_SERVER_URL } from "../apiUrl";
+import { DEFAULT_SERVER_URL } from "../../apiUrl";
 
 export default function SettingsPage() {
   const [serverUrl, setServerUrl] = useState("");
@@ -47,14 +47,14 @@ export default function SettingsPage() {
       // Test connection
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      
+
       const testUrl = url.includes('/api') ? `${url}/people` : `${url}/api/people`;
-      
-      const res = await fetch(testUrl, { 
+
+      const res = await fetch(testUrl, {
         method: 'GET',
-        signal: controller.signal 
+        signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
 
       if (res.ok) {
@@ -101,9 +101,9 @@ export default function SettingsPage() {
             label="Server URL"
             value={serverUrl}
             onChange={(e) => {
-                setServerUrl(e.target.value);
-                setSaved(false);
-                setError("");
+              setServerUrl(e.target.value);
+              setSaved(false);
+              setError("");
             }}
             placeholder="http://192.168.0.28:4000"
             variant="outlined"
@@ -160,23 +160,23 @@ export default function SettingsPage() {
             >
               {loading ? "Testing Connection..." : "Save Connection"}
             </Button>
-            
+
             <Button
-                variant="outlined"
-                onClick={handleReset}
-                sx={{
-                    color: "#94a3b8",
-                    borderColor: "rgba(255,255,255,0.1)",
-                    "&:hover": { 
-                        borderColor: "#fff", 
-                        color: "#fff",
-                        bgcolor: "rgba(255,255,255,0.05)" 
-                    },
-                    textTransform: "none",
-                    borderRadius: 2
-                }}
+              variant="outlined"
+              onClick={handleReset}
+              sx={{
+                color: "#94a3b8",
+                borderColor: "rgba(255,255,255,0.1)",
+                "&:hover": {
+                  borderColor: "#fff",
+                  color: "#fff",
+                  bgcolor: "rgba(255,255,255,0.05)"
+                },
+                textTransform: "none",
+                borderRadius: 2
+              }}
             >
-                Reset to Default
+              Reset to Default
             </Button>
           </Box>
         </CardContent>

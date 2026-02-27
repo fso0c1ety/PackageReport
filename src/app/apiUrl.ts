@@ -1,6 +1,9 @@
 // Utility to get API URL (adjust as needed for your environment)
 // Default fallback
-export const DEFAULT_SERVER_URL = "https://packagereport.onrender.com";
+const IS_PROD = process.env.NODE_ENV === 'production';
+export const DEFAULT_SERVER_URL = IS_PROD
+  ? "https://packagereport.onrender.com"
+  : "http://localhost:4000";
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {

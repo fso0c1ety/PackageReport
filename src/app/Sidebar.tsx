@@ -34,7 +34,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SearchIcon from "@mui/icons-material/Search";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
-import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown.tsx";
+import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 
 // --- Components ---
@@ -426,8 +426,8 @@ export default function Sidebar({
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
-          <Button 
-            onClick={() => setDialogOpen(false)} 
+          <Button
+            onClick={() => setDialogOpen(false)}
             sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
           >
             Cancel
@@ -437,12 +437,12 @@ export default function Sidebar({
             disabled={!newWorkspaceName.trim()}
             variant="contained"
             sx={{
-               bgcolor: '#6366f1',
-               '&:hover': { bgcolor: '#5558dd' },
-               '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
-               boxShadow: 'none',
-               textTransform: 'none',
-               fontWeight: 600
+              bgcolor: '#6366f1',
+              '&:hover': { bgcolor: '#5558dd' },
+              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              boxShadow: 'none',
+              textTransform: 'none',
+              fontWeight: 600
             }}
           >
             Create
@@ -486,22 +486,22 @@ export default function Sidebar({
           display: { xs: "none", md: "block" },
           "& .MuiDrawer-paper": {
             boxSizing: "border-box",
-            
+
             // Adjust width to fit within the container with margins
-            width: `calc(${drawerWidth}px - 32px)`, 
-            
+            width: `calc(${drawerWidth}px - 32px)`,
+
             bgcolor: "transparent", // Base transparent to show rounded corners
             border: "none", // Remove border
-            
+
             // Floating margins
             mt: 2,
             mb: 2,
             ml: 2,
             mr: 0, // No right margin needed as container has padding/space
-            
+
             height: "calc(100vh - 32px)", // Full height minus vertical margins
             borderRadius: "24px", // Rounded corners
-            overflow: "hidden", 
+            overflow: "hidden",
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)", // Shadow
           },
         }}
