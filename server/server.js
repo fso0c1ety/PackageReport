@@ -33,6 +33,16 @@ app.use('/api', authRoute);
 app.use('/api', peopleRoute);
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
+// Serve frontend static export if it exists
+const outDir = path.join(__dirname, '../out');
+if (fs.existsSync(outDir)) {
+  app.use(express.static(outDir));
+  // Handle SPA routing: serve index.html for unknown routes
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.sendFile(path.join(outDir, 'index.html'));
+  });
+}
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
@@ -150,25 +160,29 @@ app.post('/api/workspaces', authenticateToken, async (req, res) => {
 
 
 // Delete a workspace
-app.delete('/api/workspaces/:workspaceId', authenticateToken, (req, res) => {
+app.delete('/api/workspaces/:workspaceId', authenticateToken, async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const workspaces = readJson(workspacesFile);
-  const idx = workspaces.findIndex(w => w.id === req.params.workspaceId);
-  if (idx === -1) return res.status(404).json({ error: 'Workspace not found' });
 
-  if (workspaces[idx].ownerId !== req.user.id) {
-    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    // Check ownership first
+    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [req.params.workspaceId]);
+    const workspace = wsResult.rows[0];
+
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+    if (workspace.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Delete workspace (cascading will handle tables and rows if set up in schema)
+    await db.query('DELETE FROM workspaces WHERE id = $1', [req.params.workspaceId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting workspace:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  workspaces.splice(idx, 1);
-  writeJson(workspacesFile, workspaces);
-  // Optionally, delete all tables belonging to this workspace
-  let tables = readJson(tablesFile);
-  tables = tables.filter(t => t.workspaceId !== req.params.workspaceId);
-  writeJson(tablesFile, tables);
-  res.json({ success: true });
 });
 
 // List tables for a workspace
@@ -498,31 +512,38 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
 
     await db.query('UPDATE rows SET values = $1 WHERE id = $2', [JSON.stringify(mergedValues), id]);
 
-    // 4. Automation Logic (keeping JSON for now as fallback, but ideally should be in DB)
-    const automationFile = path.join(dataDir, 'automation.json');
-    let automations = [];
-    try { automations = JSON.parse(fs.readFileSync(automationFile, 'utf-8')); } catch { }
+    // 4. Automation Logic
+    const autoResult = await db.query(
+      'SELECT * FROM automations WHERE (task_id = $1 OR (table_id = $2 AND task_id IS NULL)) AND enabled = true',
+      [id, req.params.tableId]
+    );
+    const automation = autoResult.rows[0];
 
-    const automation = automations.find(a => (a.taskId === id || (a.tableId === req.params.tableId && !a.taskId)) && a.enabled);
-
-    if (automation && automation.triggerCol) {
-      const triggerCol = automation.triggerCol;
+    if (automation && automation.trigger_col) {
+      const triggerCol = automation.trigger_col;
       if (oldValues[triggerCol] !== newValues[triggerCol]) {
-        // Trigger automation... (shortened for brevity in refactor since the logic is similar)
+        // Trigger automation...
         const subject = `Task updated: ${table.name}`;
         let html = `<h2>Task Update</h2><ul>`;
-        (automation.cols || []).forEach(colId => {
-          const col = (table.columns || []).filter(c => c.id === colId)[0];
+        const columns = table.columns || [];
+        const automationCols = automation.cols || [];
+
+        automationCols.forEach(colId => {
+          const col = columns.find(c => c.id === colId);
           if (col) html += `<li><b>${col.name}:</b> ${JSON.stringify(newValues[colId])}</li>`;
         });
         html += `</ul>`;
 
-        if (automation.recipients && automation.recipients.length > 0) {
+        const recipients = automation.recipients;
+        if (recipients && recipients.length > 0) {
           // Log to PostgreSQL activity_logs
           await db.query(
             'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id) VALUES ($1, $2, $3, $4, $5, $6)',
-            [JSON.stringify(automation.recipients), subject, html, Date.now(), table.id, id]
+            [JSON.stringify(recipients), subject, html, Date.now(), table.id, id]
           );
+
+          // Note: Actual email sending is often handled by a background process or another endpoint
+          // For now, we just log it as the previous logic did.
         }
       }
     }
