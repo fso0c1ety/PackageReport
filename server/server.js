@@ -547,11 +547,12 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
 
         const recipients = automation.recipients;
         if (recipients && recipients.length > 0) {
-          // 1. Log to PostgreSQL activity_logs
-          await db.query(
-            'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id) VALUES ($1, $2, $3, $4, $5, $6)',
-            [JSON.stringify(recipients), subject, html, Date.now(), table.id, id]
+          // 1. Log to PostgreSQL activity_logs (initial)
+          const logRes = await db.query(
+            'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+            [JSON.stringify(recipients), subject, html, Date.now(), table.id, id, 'pending']
           );
+          const logId = logRes.rows[0].id;
 
           // 2. Actually send the email
           try {
@@ -560,8 +561,10 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
               subject,
               html
             });
+            await db.query('UPDATE activity_logs SET status = $1 WHERE id = $2', ['sent', logId]);
           } catch (mailErr) {
             console.error('[AUTOMATION] Failed to send email:', mailErr);
+            await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', mailErr.message, logId]);
           }
         }
       }

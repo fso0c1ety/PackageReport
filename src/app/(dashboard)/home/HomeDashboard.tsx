@@ -520,6 +520,14 @@ export default function HomeDashboard() {
                       {update.badge && (
                         <Chip label={update.badge} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: "#22c55e", color: "#fff", fontWeight: 700 }} />
                       )}
+                      {update.status && (
+                        <Chip
+                          label={update.status.toUpperCase()}
+                          size="small"
+                          color={update.status === 'sent' ? 'success' : update.status === 'error' ? 'error' : 'warning'}
+                          sx={{ height: 16, fontSize: "0.5rem", fontWeight: 700, ml: 0.5 }}
+                        />
+                      )}
                     </Box>
 
                     <Box
@@ -535,6 +543,11 @@ export default function HomeDashboard() {
                       }}
                     >
                       <div dangerouslySetInnerHTML={{ __html: update.html }} />
+                      {update.error_message && (
+                        <Typography variant="caption" sx={{ color: "#ef4444", display: "block", mt: 1, p: 0.5, bgcolor: "rgba(239, 68, 68, 0.1)", borderRadius: 1 }}>
+                          Error: {update.error_message}
+                        </Typography>
+                      )}
                     </Box>
                   </InboxItem>
                 ))}
