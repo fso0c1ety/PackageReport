@@ -600,12 +600,14 @@ app.get('/api/email-updates', authenticateToken, async (req, res) => {
     // 1. Get workspaces owned by this user
     const wsResult = await db.query('SELECT id FROM workspaces WHERE owner_id = $1', [req.user.id]);
     const userWorkspaceIds = wsResult.rows.map(ws => ws.id);
+    console.log(`[ACTIVITY] User ${req.user.id} has workspaces:`, userWorkspaceIds);
 
     if (userWorkspaceIds.length === 0) return res.json([]);
 
     // 2. Get tables belonging to those workspaces
     const tablesResult = await db.query('SELECT id FROM tables WHERE workspace_id = ANY($1)', [userWorkspaceIds]);
     const userTableIds = tablesResult.rows.map(t => t.id);
+    console.log(`[ACTIVITY] User ${req.user.id} has tables:`, userTableIds);
 
     if (userTableIds.length === 0) return res.json([]);
 
