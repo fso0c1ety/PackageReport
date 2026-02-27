@@ -39,10 +39,12 @@ app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
 const outDir = path.join(__dirname, '../out');
 if (fs.existsSync(outDir)) {
   app.use(express.static(outDir));
-  // Handle SPA routing: serve index.html for unknown routes
-  app.get('/*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
-    res.sendFile(path.join(outDir, 'index.html'));
+  // Handle SPA routing: serve index.html for unknown routes if it's a GET request
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      return res.sendFile(path.join(outDir, 'index.html'));
+    }
+    next();
   });
 }
 
