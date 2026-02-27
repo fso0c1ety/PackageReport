@@ -6,6 +6,7 @@
     "dev": "set TURBOPACK=0 && next dev",
     "build": "next build",
     "start": "next start",
+    "start-server": "node server/server.js",
     "lint": "eslint"
   },
   "dependencies": {

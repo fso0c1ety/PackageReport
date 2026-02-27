@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
 const peopleFile = path.join(__dirname, '../data/people.json');
-const SECRET_KEY = 'your_secret_key_here'; // In production, use environment variable
+const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_here'; // In production, use environment variable
 
 // Helper function to read people
 function getPeople() {
@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
   // If user has no password stored (legacy user), we can't authenticate them securely directly.
   // They should register or reset password. For simplicity here, we'll specificy:
   if (!user.password) {
-     return res.status(401).json({ error: 'Account not set up for password login. Please register again with the same email to set a password.' });
+    return res.status(401).json({ error: 'Account not set up for password login. Please register again with the same email to set a password.' });
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
@@ -61,7 +61,7 @@ router.post('/login', async (req, res) => {
 // Register Endpoint
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
-  
+
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'All fields are required' });
   }
@@ -74,15 +74,15 @@ router.post('/register', async (req, res) => {
   if (existingUserIndex !== -1) {
     // Determine if we are "updating" a legacy user or if user already has password
     if (people[existingUserIndex].password) {
-        return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ error: 'User already exists' });
     }
-    
+
     // Update legacy user with password
     people[existingUserIndex].password = hashedPassword;
     // Update name if provided, or keep existing? Let's update.
     people[existingUserIndex].name = name;
     if (!people[existingUserIndex].id) people[existingUserIndex].id = uuidv4();
-    
+
     savePeople(people);
     return res.json({ success: true, message: 'Account updated with password successfully' });
   }

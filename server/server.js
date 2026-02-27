@@ -68,7 +68,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
 // app.use('/api', tableTasksRoute);
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 
 const dataDir = path.join(__dirname, 'data');
 const workspacesFile = path.join(dataDir, 'workspaces.json');
