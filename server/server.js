@@ -9,6 +9,7 @@ const cors = require('cors');
 const multer = require('multer');
 const db = require('./db');
 const authenticateToken = require('./middleware/authenticateToken');
+const { sendEmail } = require('./mailer');
 
 
 const app = express();
@@ -407,7 +408,10 @@ app.post('/api/tables', authenticateToken, async (req, res) => {
 // Get all tasks for a table
 app.get('/api/tables/:tableId/tasks', async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM rows WHERE table_id = $1', [req.params.tableId]);
+    const result = await db.query(
+      "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::integer ASC NULLS LAST, id ASC",
+      [req.params.tableId]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching tasks:', err);
@@ -505,7 +509,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     });
 
     // 3. Update task in database
-    const mergedValues = { ...newValues };
+    const mergedValues = { ...oldValues, ...newValues };
     if (newActivity.length > 0) {
       mergedValues.activity = [...newActivity, ...oldActivity];
     } else {
@@ -538,14 +542,22 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
 
         const recipients = automation.recipients;
         if (recipients && recipients.length > 0) {
-          // Log to PostgreSQL activity_logs
+          // 1. Log to PostgreSQL activity_logs
           await db.query(
             'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id) VALUES ($1, $2, $3, $4, $5, $6)',
             [JSON.stringify(recipients), subject, html, Date.now(), table.id, id]
           );
 
-          // Note: Actual email sending is often handled by a background process or another endpoint
-          // For now, we just log it as the previous logic did.
+          // 2. Actually send the email
+          try {
+            await sendEmail({
+              to: recipients,
+              subject,
+              html
+            });
+          } catch (mailErr) {
+            console.error('[AUTOMATION] Failed to send email:', mailErr);
+          }
         }
       }
     }
