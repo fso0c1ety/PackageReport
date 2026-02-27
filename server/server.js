@@ -524,9 +524,14 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
       [id, req.params.tableId]
     );
     const automation = autoResult.rows[0];
+    console.log('[AUTOMATION] Found automations:', autoResult.rows.length);
 
     if (automation && automation.trigger_col) {
       const triggerCol = automation.trigger_col;
+      console.log(`[AUTOMATION] Checking trigger "${triggerCol}":`, {
+        old: oldValues[triggerCol],
+        new: newValues[triggerCol]
+      });
       if (oldValues[triggerCol] !== newValues[triggerCol]) {
         // Trigger automation...
         const subject = `Task updated: ${table.name}`;

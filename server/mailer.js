@@ -9,6 +9,7 @@ const transporter = nodemailer.createTransport({
 });
 
 async function sendEmail({ to, subject, text, html }) {
+    console.log('[MAILER] Attempting to send email:', { to, subject });
     if (!to || (Array.isArray(to) && to.length === 0)) {
         console.log('[MAILER] No recipients provided');
         return;
