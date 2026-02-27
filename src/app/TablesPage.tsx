@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getApiUrl } from "./apiUrl";
+import { getApiUrl, authenticatedFetch } from "./apiUrl";
 import { Box, Typography, Paper, Tabs, Tab } from "@mui/material";
 import TableManager from "./TableManager";
 import { TodoList } from "./TodoList";
@@ -14,7 +14,7 @@ export default function TablesPage() {
   const [selected, setSelected] = useState(0);
 
   const fetchTables = async () => {
-    const res = await fetch(getApiUrl("/tables"));
+    const res = await authenticatedFetch(getApiUrl("/tables"));
     const data = await res.json();
     setTables(data);
   };

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import TableBoard from "../TableBoard";
+import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import { authenticatedFetch } from "../../apiUrl";
 
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -16,16 +17,24 @@ function WorkspaceContent() {
   // Set last opened workspace in localStorage for HomeDashboard
   useEffect(() => {
     if (typeof window !== 'undefined' && workspaceId) {
+      const userJson = localStorage.getItem("user");
+      if (!userJson) return;
+      const user = JSON.parse(userJson);
+      const userId = user.id;
+      if (!userId) return;
+
+      const storageKey = `lastWorkspace_${userId}`;
+
       // Try to get workspace name from API or fallback to id
-      fetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}`)
+      authenticatedFetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}`)
         .then(res => res.json())
         .then(ws => {
           if (ws && ws.id) {
-            localStorage.setItem('lastWorkspace', JSON.stringify({ id: ws.id, name: ws.name || ws.id }));
+            localStorage.setItem(storageKey, JSON.stringify({ id: ws.id, name: ws.name || ws.id }));
           }
         })
         .catch(() => {
-          localStorage.setItem('lastWorkspace', JSON.stringify({ id: workspaceId, name: workspaceId }));
+          localStorage.setItem(storageKey, JSON.stringify({ id: workspaceId, name: workspaceId }));
         });
     }
   }, [workspaceId]);
@@ -62,7 +71,7 @@ function WorkspaceContent() {
       return;
     }
     try {
-      const res = await fetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
+      const res = await authenticatedFetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: renameValue }),
@@ -82,7 +91,7 @@ function WorkspaceContent() {
   };
   const handleDelete = async () => {
     if (!menuTableId) return;
-    await fetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
+    await authenticatedFetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
       method: "DELETE",
     });
     handleMenuClose();
@@ -92,7 +101,7 @@ function WorkspaceContent() {
 
   const fetchTables = async () => {
     setLoading(true);
-    const res = await fetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`);
+    const res = await authenticatedFetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`);
     const data = await res.json();
     setTables(data);
     // If no tab is selected, select the first one
@@ -110,15 +119,17 @@ function WorkspaceContent() {
     setCreating(true);
     // Default columns for new group/table
     const defaultColumns = [
-      { id: 'task', name: 'Task', type: 'Text', order: 0 },
-      { id: 'people', name: 'People', type: 'People', order: 1, options: [] },
-      { id: 'status', name: 'Status', type: 'Status', order: 2, options: [
-        { value: 'Working on it', color: '#fdab3d' },
-        { value: 'Done', color: '#00c875' },
-        { value: 'Stuck', color: '#e2445c' }
-      ] }
+      { id: 'text', name: 'Text', type: 'Text', order: 0 },
+      {
+        id: 'status', name: 'Status', type: 'Status', order: 1, options: [
+          { value: 'Started', color: '#1976d2' },
+          { value: 'Working on it', color: '#fdab3d' },
+          { value: 'Done', color: '#00c875' }
+        ]
+      },
+      { id: 'date', name: 'Date', type: 'Date', order: 2 }
     ];
-    const res = await fetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`, {
+    const res = await authenticatedFetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: `New Group ${tables.length + 1}`, columns: defaultColumns }),
@@ -142,11 +153,11 @@ function WorkspaceContent() {
   return (
     <Box sx={{ p: 0 }}>
       {/* Table tabs and actions - Redesigned */}
-      <Box sx={{ 
-        display: "flex", 
-        alignItems: "center", 
-        mb: 2, 
-        px: 3, 
+      <Box sx={{
+        display: "flex",
+        alignItems: "center",
+        mb: 2,
+        px: 3,
         pt: 2
       }}>
         <Tabs
@@ -189,20 +200,20 @@ function WorkspaceContent() {
                   <Box
                     component="span"
                     sx={{
-                       display: 'flex', 
-                       alignItems: 'center', 
-                       padding: '2px',
-                       borderRadius: '4px',
-                       color: 'inherit',
-                       opacity: selected === table.id ? 1 : 0.5,
-                       '&:hover': {
-                         bgcolor: theme.palette.action.hover,
-                         opacity: 1
-                       }
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '2px',
+                      borderRadius: '4px',
+                      color: 'inherit',
+                      opacity: selected === table.id ? 1 : 0.5,
+                      '&:hover': {
+                        bgcolor: theme.palette.action.hover,
+                        opacity: 1
+                      }
                     }}
-                    onClick={e => { 
-                      e.stopPropagation(); 
-                      handleMenuOpen(e, tables.findIndex(t => t.id === table.id)); 
+                    onClick={e => {
+                      e.stopPropagation();
+                      handleMenuOpen(e, tables.findIndex(t => t.id === table.id));
                     }}
                   >
                     <MoreVertIcon sx={{ fontSize: 18 }} />
@@ -212,14 +223,14 @@ function WorkspaceContent() {
             />
           ))}
         </Tabs>
-        <IconButton 
-          onClick={handleAddTable} 
+        <IconButton
+          onClick={handleAddTable}
           disabled={creating}
           size="small"
-          sx={{ 
-            ml: 1, 
-            bgcolor: '#0073ea', 
-            color: '#fff', 
+          sx={{
+            ml: 1,
+            bgcolor: '#0073ea',
+            color: '#fff',
             '&:hover': { bgcolor: '#0060c2' },
             width: 32,
             height: 32
@@ -230,9 +241,9 @@ function WorkspaceContent() {
       </Box>
 
       {/* Table menu */}
-      <Menu 
-        anchorEl={menuAnchor} 
-        open={!!menuAnchor} 
+      <Menu
+        anchorEl={menuAnchor}
+        open={!!menuAnchor}
         onClose={handleMenuClose}
         PaperProps={{
           sx: {
@@ -242,9 +253,9 @@ function WorkspaceContent() {
             minWidth: 150,
             boxShadow: theme.shadows[4],
             '& .MuiMenuItem-root': {
-               fontSize: '0.9rem',
-               py: 1,
-               '&:hover': { bgcolor: theme.palette.action.hover }
+              fontSize: '0.9rem',
+              py: 1,
+              '&:hover': { bgcolor: theme.palette.action.hover }
             }
           }
         }}
@@ -258,8 +269,8 @@ function WorkspaceContent() {
       </Menu>
 
       {/* Rename dialog */}
-      <Dialog 
-        open={renameDialogOpen} 
+      <Dialog
+        open={renameDialogOpen}
         onClose={handleRenameCancel}
         maxWidth="xs"
         fullWidth
@@ -312,20 +323,20 @@ function WorkspaceContent() {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button 
-            onClick={handleRenameCancel} 
+          <Button
+            onClick={handleRenameCancel}
             sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleRenameSave} 
-            disabled={!renameValue.trim()} 
-            variant="contained" 
+          <Button
+            onClick={handleRenameSave}
+            disabled={!renameValue.trim()}
+            variant="contained"
             sx={{
-               bgcolor: '#6366f1',
-               '&:hover': { bgcolor: '#5558dd' },
-               '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
+              bgcolor: '#6366f1',
+              '&:hover': { bgcolor: '#5558dd' },
+              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
             }}
           >
             Save

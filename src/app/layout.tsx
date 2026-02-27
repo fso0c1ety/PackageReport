@@ -1,6 +1,5 @@
 
 import { Geist, Geist_Mono, Outfit } from "next/font/google";
-import ClientLayout from "./ClientLayout";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,9 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`} style={{ background: '#23243a', color: '#fff', overflowX: 'hidden' }}>
-        <ClientLayout>
-            {children}
-        </ClientLayout>
+        {children}
       </body>
     </html>
   );

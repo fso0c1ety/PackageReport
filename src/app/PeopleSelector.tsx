@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { getApiUrl } from "./apiUrl";
+import { getApiUrl, authenticatedFetch } from "./apiUrl";
 import {
   Box,
   Avatar,
@@ -54,7 +54,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   useEffect(() => {
     async function fetchPeople() {
       try {
-        const res = await fetch(getApiUrl('/people'));
+        const res = await authenticatedFetch(getApiUrl('/people'));
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -164,7 +164,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
     const newPerson = { name, email, avatar: null };
     // Persist to backend
     try {
-      await fetch(getApiUrl('/people'), {
+      await authenticatedFetch(getApiUrl('/people'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email })

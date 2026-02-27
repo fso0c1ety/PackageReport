@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getApiUrl } from "./apiUrl";
+import { getApiUrl, authenticatedFetch } from "./apiUrl";
 import { v4 as uuidv4 } from "uuid";
 import { Box, Button, Typography, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, MenuItem, Select, Chip, Stack } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -88,7 +88,7 @@ export default function TableManager({ onTableCreated }: { onTableCreated: () =>
       return col;
     });
     console.log('Creating table with columns:', safeColumns);
-    await fetch(getApiUrl("/tables"), {
+    await authenticatedFetch(getApiUrl("/tables"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, columns: safeColumns }),

@@ -1,17 +1,51 @@
 [
   {
-    "name": "vsas",
+    "name": "Toni",
     "email": "valitv73@gmail.com",
-    "avatar": null
+    "avatar": null,
+    "id": "2d9c3bf2-8d0d-4549-a831-2bc8ef8c149c",
+    "password": "$2b$10$t3GFSLuvlaAFGIEblSe1cuc2LCD.4I/5tXdsLxNURYro46q5MY8NC"
   },
   {
-    "name": "Valoni",
+    "name": "valon halili",
     "email": "valonhalili74@gmail.com",
-    "avatar": null
+    "avatar": null,
+    "password": "$2b$10$oipDkd9lRQMcMNrecP.B9Ovk2hWg2vWbr4KMCTLFtGHYPj07oNFpC",
+    "id": "user-valon-12345"
   },
   {
-    "name": "Valoni2",
+    "name": "Valon Halili",
     "email": "valitv7@gmail.com",
-    "avatar": null
+    "avatar": null,
+    "id": "7967fda3-71e9-4f85-a83a-1c1a4446b261",
+    "password": "$2b$10$fBdi3vh5I.MsITXrsKPmJOEoyGuw9VX5op83Rt7/wnYiGthNZxODq"
+  },
+  {
+    "id": "e0aae799-f930-4663-b2d3-6c999aadb4f6",
+    "name": "Valoni",
+    "email": "valitv777@gmail.com",
+    "avatar": null,
+    "password": "$2b$10$HJO60QN.ZIYJnpMIPhf6n.n.MmWe7kpqU/Br4Eai06hbMwArKtY9i"
+  },
+  {
+    "id": "180ed84e-6fd9-43a0-918b-d76b2a2820e2",
+    "name": "Valonii",
+    "email": "valonhalili73@gmail.com",
+    "avatar": null,
+    "password": "$2b$10$Sjc2QAjX2O/ELfrQH.jNo.9tULqAVwo/xviy63XCGttMO0JZ0VBcy"
+  },
+  {
+    "id": "b27a3eb9-4691-40ad-bd15-479367ced28a",
+    "name": "Valonii",
+    "email": "valonhalili7554@gmail.com",
+    "avatar": null,
+    "password": "$2b$10$jsM.yhQwFJDjZorRXF6LQOWFGQ4N86zzy7ZjdoDux/.BbrV7wbKI2"
+  },
+  {
+    "id": "29c55cf4-4e5d-4874-b6a6-f61f8e74165d",
+    "name": "valon halili",
+    "email": "valonhalili7433@gmail.com",
+    "avatar": null,
+    "password": "$2b$10$qh26ea3Wtwaw8tAShx6Pxe0UGXn7yofzu9TLC6GvGWZyd0amFV222"
   }
 ]

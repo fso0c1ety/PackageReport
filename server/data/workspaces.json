@@ -1,18 +1,52 @@
 [
   {
     "id": "69d78b1d-40e6-4cd5-9a0e-36d6737125ba",
-    "name": "Test"
+    "name": "Test",
+    "ownerId": "user-valon-12345"
   },
   {
     "id": "0546702b-5015-45aa-b69b-3afbc62ed926",
-    "name": "New "
+    "name": "New ",
+    "ownerId": "user-valon-12345"
   },
   {
     "id": "7241c9f2-3666-47dd-af2b-8d282306a475",
-    "name": "Main Workspace"
+    "name": "Main Workspace",
+    "ownerId": "user-valon-12345"
   },
   {
     "id": "0ce4fd2a-2bb7-4973-b75f-2f6bd84eddb7",
-    "name": "Importusi"
+    "name": "Importusi",
+    "ownerId": "user-valon-12345"
+  },
+  {
+    "id": "493971d6-fa36-4b37-b3c0-482c9f134ad3",
+    "name": "Valon",
+    "ownerId": "7967fda3-71e9-4f85-a83a-1c1a4446b261"
+  },
+  {
+    "id": "f56660ce-876f-4288-8684-b5efc60ad446",
+    "name": "Valon",
+    "ownerId": "2d9c3bf2-8d0d-4549-a831-2bc8ef8c149c"
+  },
+  {
+    "id": "452d0b80-a3d1-4216-a922-d63e4da4df98",
+    "name": "Valoni's Workspace",
+    "ownerId": "e0aae799-f930-4663-b2d3-6c999aadb4f6"
+  },
+  {
+    "id": "fcb99a5d-66c5-4750-a12f-95afb6094990",
+    "name": "Valonii's Workspace",
+    "ownerId": "180ed84e-6fd9-43a0-918b-d76b2a2820e2"
+  },
+  {
+    "id": "b80c6284-5cd3-41af-9d26-6cb4d96d10c5",
+    "name": "Valonii's Workspace",
+    "ownerId": "b27a3eb9-4691-40ad-bd15-479367ced28a"
+  },
+  {
+    "id": "d2b52390-c94c-4dc5-81c1-f3d77a484279",
+    "name": "valon halili's Workspace",
+    "ownerId": "29c55cf4-4e5d-4874-b6a6-f61f8e74165d"
   }
 ]

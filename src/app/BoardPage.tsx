@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Box, Typography, Button, Stack } from "@mui/material";
-import { getApiUrl } from "./apiUrl";
+import { getApiUrl, authenticatedFetch } from "./apiUrl";
 import GroupMenu from "./GroupMenu";
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -73,13 +73,13 @@ function BoardPage() {
   };
   const confirmWorkspaceDelete = async () => {
     if (workspaceToDelete) {
-      await fetch(getApiUrl(`/workspaces/${workspaceToDelete}`), { method: 'DELETE' });
+      await authenticatedFetch(getApiUrl(`/workspaces/${workspaceToDelete}`), { method: 'DELETE' });
       setWorkspaceToDelete(null);
       setWorkspaceNameToDelete(null);
       await fetchTables();
     }
   };
-  
+
   // Table delete dialog handlers
   const handleTableDelete = (id: string, name: string) => {
     setTableToDelete({ id, name });
@@ -89,7 +89,7 @@ function BoardPage() {
   };
   const confirmTableDelete = async () => {
     if (tableToDelete) {
-      await fetch(getApiUrl(`/tables/${tableToDelete.id}`), { method: 'DELETE' });
+      await authenticatedFetch(getApiUrl(`/tables/${tableToDelete.id}`), { method: 'DELETE' });
       setTableToDelete(null);
       await fetchTables();
     }
@@ -97,26 +97,26 @@ function BoardPage() {
 
   // Fetch all tables from backend
   const fetchTables = async () => {
-      // Workspace delete handler (to be passed to GroupMenu)
-      const handleWorkspaceDelete = (id: string, name: string) => {
-        setWorkspaceToDelete(id);
-        setWorkspaceNameToDelete(name);
-      };
+    // Workspace delete handler (to be passed to GroupMenu)
+    const handleWorkspaceDelete = (id: string, name: string) => {
+      setWorkspaceToDelete(id);
+      setWorkspaceNameToDelete(name);
+    };
 
-      const confirmWorkspaceDelete = async () => {
-        if (workspaceToDelete) {
-          await fetch(getApiUrl(`/workspaces/${workspaceToDelete}`), { method: 'DELETE' });
-          setWorkspaceToDelete(null);
-          setWorkspaceNameToDelete(null);
-          await fetchTables();
-        }
-      };
-
-      const cancelWorkspaceDelete = () => {
+    const confirmWorkspaceDelete = async () => {
+      if (workspaceToDelete) {
+        await authenticatedFetch(getApiUrl(`/workspaces/${workspaceToDelete}`), { method: 'DELETE' });
         setWorkspaceToDelete(null);
         setWorkspaceNameToDelete(null);
-      };
-    const res = await fetch(getApiUrl(`/tables`));
+        await fetchTables();
+      }
+    };
+
+    const cancelWorkspaceDelete = () => {
+      setWorkspaceToDelete(null);
+      setWorkspaceNameToDelete(null);
+    };
+    const res = await authenticatedFetch(getApiUrl(`/tables`));
     const allTables: Table[] = await res.json();
     setTables(allTables);
     // Set default to the correct tableId for automation
@@ -139,7 +139,7 @@ function BoardPage() {
   const handleModalSubmit = async (name: string) => {
     setModalOpen(false);
     // 1. Create workspace
-    const res = await fetch(getApiUrl("/workspaces"), {
+    const res = await authenticatedFetch(getApiUrl("/workspaces"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
@@ -147,15 +147,17 @@ function BoardPage() {
     const created = await res.json();
     // 2. Create a default table for the new workspace
     const defaultColumns = [
-      { id: "task", name: "Task", type: "Text", order: 0 },
-      { id: "status", name: "Status", type: "Status", order: 1, options: [
-        { value: "Started", color: "#1976d2" },
-        { value: "Working on it", color: "#fdab3d" },
-        { value: "Done", color: "#00c875" }
-      ] },
-      { id: "number", name: "Number", type: "Numbers", order: 2 }
+      { id: "text", name: "Text", type: "Text", order: 0 },
+      {
+        id: "status", name: "Status", type: "Status", order: 1, options: [
+          { value: "Started", color: "#1976d2" },
+          { value: "Working on it", color: "#fdab3d" },
+          { value: "Done", color: "#00c875" }
+        ]
+      },
+      { id: "date", name: "Date", type: "Date", order: 2 }
     ];
-    await fetch(getApiUrl(`/workspaces/${created.id}/tables`), {
+    await authenticatedFetch(getApiUrl(`/workspaces/${created.id}/tables`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, columns: defaultColumns }),

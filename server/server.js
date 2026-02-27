@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
 const cors = require('cors');
 const multer = require('multer');
+const authenticateToken = require('./middleware/authenticateToken');
 
 const app = express();
 // Enable CORS for all routes before anything else
@@ -21,10 +22,12 @@ app.use((req, res, next) => {
 // Register people and automation routes at /api
 
 app.use(express.json());
+const authRoute = require('./routes/auth');
 const peopleRoute = require('./routes/people');
 const automationRoute = require('./routes/automation');
 const emailerRoute = require('./routes/emailer');
 // const tableTasksRoute = require('./routes/tableTasks');
+app.use('/api', authRoute);
 app.use('/api', peopleRoute);
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
@@ -73,28 +76,43 @@ const tablesFile = path.join(dataDir, 'tables.json');
 const tasksFile = path.join(dataDir, 'tasks.json');
 // --- Workspace Endpoints ---
 
-// List all workspaces
-app.get('/api/workspaces', (req, res) => {
-  res.json(readJson(workspacesFile));
+// List all workspaces for the authenticated user
+app.get('/api/workspaces', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const workspaces = readJson(workspacesFile);
+  const userWorkspaces = workspaces.filter(w => w.ownerId === req.user.id);
+  res.json(userWorkspaces);
 });
 
-// Get a single workspace by ID
-app.get('/api/workspaces/:workspaceId', (req, res) => {
+// Get a single workspace by ID (if owned by user)
+app.get('/api/workspaces/:workspaceId', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const workspaces = readJson(workspacesFile);
   const workspace = workspaces.find(w => w.id === req.params.workspaceId);
   if (!workspace) {
     return res.status(404).json({ error: 'Workspace not found' });
   }
+  if (workspace.ownerId !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   res.json(workspace);
 });
 
 // Create a new workspace
-app.post('/api/workspaces', (req, res) => {
+app.post('/api/workspaces', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const workspaces = readJson(workspacesFile);
   const tables = readJson(tablesFile);
   const newWorkspace = {
     id: uuidv4(),
-    name: req.body.name || 'Untitled Workspace'
+    name: req.body.name || 'Untitled Workspace',
+    ownerId: req.user.id
   };
   workspaces.push(newWorkspace);
   writeJson(workspacesFile, workspaces);
@@ -103,9 +121,15 @@ app.post('/api/workspaces', (req, res) => {
     id: uuidv4(),
     name: `${newWorkspace.name} Table`,
     columns: [
-      { id: uuidv4(), name: 'Task', type: 'Text', order: 0 },
-      { id: uuidv4(), name: 'Cuntry', type: 'Text', order: 1 },
-      { id: uuidv4(), name: 'Message', type: 'Text', order: 2 }
+      { id: uuidv4(), name: 'Text', type: 'Text', order: 0 },
+      {
+        id: uuidv4(), name: 'Status', type: 'Status', order: 1, options: [
+          { value: 'Started', color: '#1976d2' },
+          { value: 'Working on it', color: '#fdab3d' },
+          { value: 'Done', color: '#00c875' }
+        ]
+      },
+      { id: uuidv4(), name: 'Date', type: 'Date', order: 2 }
     ],
     createdAt: Date.now(),
     tasks: [],
@@ -118,10 +142,18 @@ app.post('/api/workspaces', (req, res) => {
 
 
 // Delete a workspace
-app.delete('/api/workspaces/:workspaceId', (req, res) => {
+app.delete('/api/workspaces/:workspaceId', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const workspaces = readJson(workspacesFile);
   const idx = workspaces.findIndex(w => w.id === req.params.workspaceId);
   if (idx === -1) return res.status(404).json({ error: 'Workspace not found' });
+
+  if (workspaces[idx].ownerId !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   workspaces.splice(idx, 1);
   writeJson(workspacesFile, workspaces);
   // Optionally, delete all tables belonging to this workspace
@@ -132,23 +164,48 @@ app.delete('/api/workspaces/:workspaceId', (req, res) => {
 });
 
 // List tables for a workspace
-app.get('/api/workspaces/:workspaceId/tables', (req, res) => {
+app.get('/api/workspaces/:workspaceId/tables', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  // Check ownership
+  const workspaces = readJson(workspacesFile);
+  const workspace = workspaces.find(w => w.id === req.params.workspaceId);
+  if (!workspace || workspace.ownerId !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' }); // Or 404
+  }
+
   const tables = readJson(tablesFile);
   const filtered = tables.filter(t => t.workspaceId === req.params.workspaceId);
   res.json(filtered);
 });
 
 // Create a table for a workspace
-app.post('/api/workspaces/:workspaceId/tables', (req, res) => {
+app.post('/api/workspaces/:workspaceId/tables', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  // Check ownership
+  const workspaces = readJson(workspacesFile);
+  const workspace = workspaces.find(w => w.id === req.params.workspaceId);
+  if (!workspace || workspace.ownerId !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const tables = readJson(tablesFile);
   let columns = req.body.columns;
   if (!columns || !Array.isArray(columns) || columns.length === 0) {
-    columns = [{
-      id: uuidv4(),
-      name: 'Task',
-      type: 'Text',
-      order: 0
-    }];
+    columns = [
+      { id: uuidv4(), name: 'Text', type: 'Text', order: 0 },
+      {
+        id: uuidv4(), name: 'Status', type: 'Status', order: 1, options: [
+          { value: 'Started', color: '#1976d2' },
+          { value: 'Working on it', color: '#fdab3d' },
+          { value: 'Done', color: '#00c875' }
+        ]
+      },
+      { id: uuidv4(), name: 'Date', type: 'Date', order: 2 }
+    ];
   }
   const newTable = {
     id: uuidv4(),
@@ -169,7 +226,7 @@ function readJson(file) {
   try {
     if (!fs.existsSync(file)) return [];
     const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    console.log(`Read from ${file}:`, data);
+    // console.log(`Read from ${file}:`, data);
     return data;
   } catch (err) {
     console.error(`Error reading ${file}:`, err);
@@ -179,15 +236,26 @@ function readJson(file) {
 function writeJson(file, data) {
   try {
     fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    console.log(`Wrote to ${file}:`, data);
+    // console.log(`Wrote to ${file}:`, data);
   } catch (err) {
     console.error(`Error writing ${file}:`, err);
   }
 }
-app.patch('/api/tables/:tableId', (req, res) => {
+
+// Helper to check table ownership
+function getWorkspaceForTable(workspaces, table) {
+  return workspaces.find(w => w.id === table.workspaceId);
+}
+
+app.patch('/api/tables/:tableId', authenticateToken, (req, res) => {
   const tables = readJson(tablesFile);
   const table = tables.find(t => t.id === req.params.tableId);
   if (!table) return res.status(404).json({ error: 'Table not found' });
+
+  const workspaces = readJson(workspacesFile);
+  const workspace = getWorkspaceForTable(workspaces, table);
+  if (!workspace || workspace.ownerId !== req.user.id) return res.sendStatus(403);
+
   if (typeof req.body.name === 'string') {
     table.name = req.body.name;
     writeJson(tablesFile, tables);
@@ -195,19 +263,31 @@ app.patch('/api/tables/:tableId', (req, res) => {
   }
   res.status(400).json({ error: 'Missing or invalid name' });
 });
-app.delete('/api/tables/:tableId', (req, res) => {
+
+app.delete('/api/tables/:tableId', authenticateToken, (req, res) => {
   const tables = readJson(tablesFile);
   const idx = tables.findIndex(t => t.id === req.params.tableId);
   if (idx === -1) return res.status(404).json({ error: 'Table not found' });
+
+  const workspaces = readJson(workspacesFile);
+  const workspace = getWorkspaceForTable(workspaces, tables[idx]);
+  if (!workspace || workspace.ownerId !== req.user.id) return res.sendStatus(403);
+
   tables.splice(idx, 1);
   writeJson(tablesFile, tables);
   res.json({ success: true });
 });
+
 // Update table columns
-app.put('/api/tables/:tableId/columns', (req, res) => {
+app.put('/api/tables/:tableId/columns', authenticateToken, (req, res) => {
   const tables = readJson(tablesFile);
   const table = tables.find(t => t.id === req.params.tableId);
   if (!table) return res.status(404).json({ error: 'Table not found' });
+
+  const workspaces = readJson(workspacesFile);
+  const workspace = getWorkspaceForTable(workspaces, table);
+  if (!workspace || workspace.ownerId !== req.user.id) return res.sendStatus(403);
+
   table.columns = req.body.columns;
   writeJson(tablesFile, tables);
   res.json({ success: true, columns: table.columns });
@@ -220,29 +300,55 @@ app.use((req, res, next) => {
 });
 
 // Tables endpoints
-// List all tables (optionally filter by workspaceId)
-app.get('/api/tables', (req, res) => {
-  const tables = readJson(tablesFile);
-  if (req.query.workspaceId) {
-    return res.json(tables.filter(t => t.workspaceId === req.query.workspaceId));
+// List all tables (filter by ownership / workspaceId)
+app.get('/api/tables', authenticateToken, (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-  res.json(tables);
+  const tables = readJson(tablesFile);
+  const workspaces = readJson(workspacesFile);
+
+  if (req.query.workspaceId) {
+    const workspace = workspaces.find(w => w.id === req.query.workspaceId);
+    if (!workspace || workspace.ownerId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    return res.json(tables.filter(t => t.workspaceId === req.query.workspaceId));
+  } else {
+    // Return all tables in all workspaces owned by user
+    const userWorkspaceIds = workspaces.filter(w => w.ownerId === req.user.id).map(w => w.id);
+    const userTables = tables.filter(t => userWorkspaceIds.includes(t.workspaceId));
+    res.json(userTables);
+  }
 });
 
 // Create a table (must provide workspaceId)
-app.post('/api/tables', (req, res) => {
+app.post('/api/tables', authenticateToken, (req, res) => {
   const tables = readJson(tablesFile);
+  const workspaces = readJson(workspacesFile);
+
+  if (!req.body.workspaceId) {
+    return res.status(400).json({ error: 'workspaceId is required' });
+  }
+
+  const workspace = workspaces.find(w => w.id === req.body.workspaceId);
+  if (!workspace || workspace.ownerId !== req.user.id) return res.sendStatus(403);
+
   let columns = req.body.columns;
   const fullCountryList = [
-    "Afghanistan","Albania","Algeria","Andorra","Angola","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Cape Verde","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo (Brazzaville)","Congo (Kinshasa)","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic","East Timor","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Korea, North","Korea, South","Kosovo","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+    "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Canada", "Cape Verde", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Brazzaville)", "Congo (Kinshasa)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "East Timor", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Korea, North", "Korea, South", "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
   ];
   if (!columns || !Array.isArray(columns) || columns.length === 0) {
-    columns = [{
-      id: uuidv4(),
-      name: 'Task',
-      type: 'Text',
-      order: 0
-    }];
+    columns = [
+      { id: uuidv4(), name: 'Text', type: 'Text', order: 0 },
+      {
+        id: uuidv4(), name: 'Status', type: 'Status', order: 1, options: [
+          { value: 'Started', color: '#1976d2' },
+          { value: 'Working on it', color: '#fdab3d' },
+          { value: 'Done', color: '#00c875' }
+        ]
+      },
+      { id: uuidv4(), name: 'Date', type: 'Date', order: 2 }
+    ];
   }
   columns = columns.map(col => {
     if (col.type && col.type.toLowerCase() === 'country') {
@@ -342,17 +448,17 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     }
     let found = false;
     let oldTask = null; // Declare outside to make it accessible for automation check
-    
+
     // Find task index first to avoid map overhead if possible, but map is cleaner for replacement
     const taskIndex = table.tasks.findIndex(t => t.id === id);
     if (taskIndex === -1) {
-       log('Task not found in table ' + req.params.tableId, id);
-       return res.status(404).json({ error: 'Task not found' });
+      log('Task not found in table ' + req.params.tableId, id);
+      return res.status(404).json({ error: 'Task not found' });
     }
-    
+
     const task = table.tasks[taskIndex];
     oldTask = JSON.parse(JSON.stringify(task)); // Deep copy for automation/logging
-    
+
     // --- Activity Logging Logic ---
     const oldValues = task.values || {};
     const newValues = values || {};
@@ -362,17 +468,17 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
 
     Object.keys(newValues).forEach(key => {
       if (key === 'message') return; // Skip chat messages
-      
+
       const oldVal = oldValues[key];
       const newVal = newValues[key];
       const oldStr = JSON.stringify(oldVal);
       const newStr = JSON.stringify(newVal);
-      
+
       if (oldStr !== newStr) {
         log(`[ACTIVITY] Change detected for ${key}`, { from: oldStr, to: newStr });
         const col = (table.columns || []).find(c => c.id === key);
         const colName = col ? col.name : (key === 'priority' ? 'Priority' : (key === 'status' ? 'Status' : 'Unknown Column'));
-        
+
         let logText = `Updated ${colName}`;
         // Add specific details for status or priority
         if (col && (col.type === 'Status' || col.type === 'Priority' || col.id === 'priority')) {
@@ -380,10 +486,10 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
         } else if (!col && (key === 'priority' || key === 'status')) {
           logText += ` to "${newVal}"`;
         } else if (newVal && typeof newVal !== 'object') {
-           // For simple text fields show the value
-           if (newVal.toString().length < 20) {
-              logText += ` to "${newVal}"`;
-           }
+          // For simple text fields show the value
+          if (newVal.toString().length < 20) {
+            logText += ` to "${newVal}"`;
+          }
         }
 
         newActivity.push({
@@ -395,13 +501,13 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     });
 
     // Update task
-    task.values = values; 
+    task.values = values;
     if (newActivity.length > 0) {
       task.activity = [...newActivity, ...oldActivity];
     } else if (!task.activity) {
       task.activity = [];
     }
-    
+
     // Update in array
     table.tasks[taskIndex] = task;
     found = true;
@@ -419,7 +525,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     // --- EMAIL AUTOMATION LOGIC ---
     const automationFile = path.join(dataDir, 'automation.json');
     let automations = [];
-    try { automations = JSON.parse(fs.readFileSync(automationFile, 'utf-8')); } catch {}
+    try { automations = JSON.parse(fs.readFileSync(automationFile, 'utf-8')); } catch { }
     // Check for per-task automation config
     const perTaskAutomation = automations.find(a => a.taskId === id);
     if (perTaskAutomation && perTaskAutomation.triggerCol && perTaskAutomation.enabled) {
@@ -460,7 +566,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
             // Log the sent email to email_updates.json
             const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
             let emailUpdates = [];
-            try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+            try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch { }
             emailUpdates.push({
               recipients: perTaskAutomation.recipients,
               subject,
@@ -527,7 +633,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
             // Log the sent email to email_updates.json
             const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
             let emailUpdates = [];
-            try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+            try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch { }
             emailUpdates.push({
               recipients: tableAutomation.recipients,
               subject,
@@ -568,9 +674,9 @@ app.delete('/api/tables/:tableId/tasks/:taskId', (req, res) => {
   const taskId = req.params.taskId;
   const initialLength = table.tasks.length;
   table.tasks = table.tasks.filter(task => task.id !== taskId);
-  
+
   if (table.tasks.length === initialLength) {
-     return res.status(404).json({ error: 'Task not found' });
+    return res.status(404).json({ error: 'Task not found' });
   }
 
   writeJson(tablesFile, tables);
@@ -578,10 +684,39 @@ app.delete('/api/tables/:tableId/tasks/:taskId', (req, res) => {
 });
 
 // Endpoint to get recent email updates
-app.get('/api/email-updates', (req, res) => {
+app.get('/api/email-updates', authenticateToken, (req, res) => {
   const emailUpdatesFile = path.join(dataDir, 'email_updates.json');
+  const workspacesFile = path.join(dataDir, 'workspaces.json');
+  const tablesFile = path.join(dataDir, 'tables.json');
+
   let emailUpdates = [];
-  try { emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8')); } catch {}
+  try {
+    emailUpdates = JSON.parse(fs.readFileSync(emailUpdatesFile, 'utf-8'));
+
+    if (req.user && (req.user.id || req.user.email)) {
+      // 1. Get workspaces owned by this user
+      let workspaces = [];
+      try { workspaces = JSON.parse(fs.readFileSync(workspacesFile, 'utf-8')); } catch (e) { }
+      const userWorkspaceIds = workspaces
+        .filter(ws => ws.ownerId === req.user.id)
+        .map(ws => ws.id);
+
+      // 2. Get tables belonging to those workspaces
+      let tables = [];
+      try { tables = JSON.parse(fs.readFileSync(tablesFile, 'utf-8')); } catch (e) { }
+      const userTableIds = tables
+        .filter(t => userWorkspaceIds.includes(t.workspaceId))
+        .map(t => t.id);
+
+      // 3. STRICTLY filter updates by table ownership only.
+      // (Remove the recipients match to prevent shared data appearing in different accounts)
+      emailUpdates = emailUpdates.filter(update =>
+        update.tableId && userTableIds.includes(update.tableId)
+      );
+    }
+  } catch (err) {
+    console.error('Error filtering email updates:', err);
+  }
   res.json(emailUpdates);
 });
 
@@ -638,26 +773,26 @@ app.post('/api/tables/:tableId/chat', (req, res) => {
     }
   }
   const tableId = req.params.tableId;
-  
+
   if (!allChats[tableId]) {
     allChats[tableId] = [];
   }
-  
+
   const newMessage = {
     id: uuidv4(),
     ...req.body,
     // Ensure vital fields if missing
     timestamp: req.body.timestamp || Date.now(),
   };
-  
+
   allChats[tableId].push(newMessage);
-  
+
   try {
     fs.writeFileSync(tableChatsFile, JSON.stringify(allChats, null, 2));
   } catch (err) {
     console.error('Error writing tableChats.json:', err);
   }
-  
+
   res.json(newMessage);
 });
 

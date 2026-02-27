@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image"; // Added Image import
 import { usePathname, useRouter } from "next/navigation";
+import { authenticatedFetch } from "./apiUrl";
 import {
   Box,
   Typography,
@@ -33,7 +34,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SearchIcon from "@mui/icons-material/Search";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
-import WorkspaceDropdown from "./workspaces/WorkspaceDropdown";
+import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown.tsx";
 import appLogo from "./icon.png";
 
 // --- Components ---
@@ -109,7 +110,7 @@ export default function Sidebar({
 
   // Fetch workspaces
   useEffect(() => {
-    fetch("http://192.168.0.28:4000/api/workspaces")
+    authenticatedFetch("http://192.168.0.28:4000/api/workspaces")
       .then((res) => res.json())
       .then(setWorkspaces)
       .catch((err) => console.error("Failed to fetch workspaces", err));
@@ -118,7 +119,7 @@ export default function Sidebar({
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
     try {
-      const wsRes = await fetch("http://192.168.0.28:4000/api/workspaces", {
+      const wsRes = await authenticatedFetch("http://192.168.0.28:4000/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newWorkspaceName }),
@@ -133,7 +134,7 @@ export default function Sidebar({
       let attempts = 0;
       while (!table && attempts < 3) {
         try {
-          const tableRes = await fetch(
+          const tableRes = await authenticatedFetch(
             `http://192.168.0.28:4000/api/workspaces/${ws.id}/tables`,
             {
               method: "POST",

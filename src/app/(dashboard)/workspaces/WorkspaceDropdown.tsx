@@ -10,6 +10,7 @@ import {
   Typography 
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import { authenticatedFetch } from "../../apiUrl";
 
 interface Workspace {
   id: string;
@@ -24,7 +25,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
 
   useEffect(() => {
     let mounted = true;
-    fetch("http://192.168.0.28:4000/api/workspaces")
+    authenticatedFetch("http://192.168.0.28:4000/api/workspaces")
       .then((res) => {
         if (!res.ok) throw new Error("Failed");
         return res.json();
