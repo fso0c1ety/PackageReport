@@ -519,8 +519,9 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     await db.query('UPDATE rows SET values = $1 WHERE id = $2', [JSON.stringify(mergedValues), id]);
 
     // 4. Automation Logic
+    // Prioritize task-specific automation over table-level
     const autoResult = await db.query(
-      'SELECT * FROM automations WHERE (task_id = $1 OR (table_id = $2 AND task_id IS NULL)) AND enabled = true',
+      'SELECT * FROM automations WHERE (task_id = $1 OR (table_id = $2 AND task_id IS NULL)) AND enabled = true ORDER BY task_id DESC NULLS LAST',
       [id, req.params.tableId]
     );
     const automation = autoResult.rows[0];
@@ -613,7 +614,19 @@ app.get('/api/email-updates', authenticateToken, async (req, res) => {
       'SELECT * FROM activity_logs WHERE table_id = ANY($1) ORDER BY timestamp DESC LIMIT 20',
       [userTableIds]
     );
-    res.json(logsResult.rows);
+    // Map snake_case to camelCase for frontend consistency
+    const mappedLogs = logsResult.rows.map(log => ({
+      id: log.id,
+      recipients: log.recipients,
+      subject: log.subject,
+      html: log.html,
+      timestamp: log.timestamp,
+      tableId: log.table_id,
+      taskId: log.task_id,
+      status: log.status,
+      errorMessage: log.error_message
+    }));
+    res.json(mappedLogs);
   } catch (err) {
     console.error('Error fetching activity logs:', err);
     res.status(500).json({ error: 'Internal server error' });

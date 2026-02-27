@@ -9,7 +9,6 @@ router.post('/automation/:tableId', async (req, res) => {
 
   try {
     if (taskId) {
-      // Upsert per-task automation config
       await db.query(`
         INSERT INTO automations (table_id, task_id, trigger_col, enabled, recipients, cols)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -17,15 +16,14 @@ router.post('/automation/:tableId', async (req, res) => {
           trigger_col = $3, enabled = $4, recipients = $5, cols = $6
       `, [tableId, taskId, triggerCol, enabled, JSON.stringify(recipients), JSON.stringify(cols)]);
     } else {
-      // Upsert table-level automation config
-      // Note: We need a unique constraint or manual check for (table_id) WHERE task_id IS NULL if we want ON CONFLICT
-      // For simplicity, let's delete and insert if not using a complex unique index
-      await db.query('DELETE FROM automations WHERE table_id = $1 AND task_id IS NULL', [tableId]);
       await db.query(`
         INSERT INTO automations (table_id, task_id, trigger_col, enabled, recipients, cols)
         VALUES ($1, NULL, $2, $3, $4, $5)
+        ON CONFLICT (table_id) WHERE task_id IS NULL DO UPDATE SET
+          trigger_col = $2, enabled = $3, recipients = $4, cols = $5
       `, [tableId, triggerCol, enabled, JSON.stringify(recipients), JSON.stringify(cols)]);
     }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error saving automation:', err);
@@ -37,7 +35,17 @@ router.post('/automation/:tableId', async (req, res) => {
 router.get('/automation/:tableId', async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM automations WHERE table_id = $1', [req.params.tableId]);
-    res.json(result.rows);
+    // Map snake_case to camelCase for frontend
+    const mapped = result.rows.map(row => ({
+      id: row.id,
+      tableId: row.table_id,
+      taskId: row.task_id,
+      triggerCol: row.trigger_col,
+      enabled: row.enabled,
+      recipients: row.recipients,
+      cols: row.cols
+    }));
+    res.json(mapped);
   } catch (err) {
     console.error('Error fetching automations:', err);
     res.status(500).json({ error: 'Internal server error' });
