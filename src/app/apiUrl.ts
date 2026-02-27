@@ -1,6 +1,6 @@
 // Utility to get API URL (adjust as needed for your environment)
 // Default fallback
-export const DEFAULT_SERVER_URL = "http://192.168.0.28:4000";
+export const DEFAULT_SERVER_URL = "https://packagereport.onrender.com";
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {

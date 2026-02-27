@@ -1,60 +1,33 @@
-// API endpoint to get all unique people (name/email) from all tasks in all tables
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
-const path = require('path');
+const db = require('../db');
 
-const dataDir = path.join(__dirname, '../data');
-const tablesFile = path.join(dataDir, 'tables.json');
-const peopleFile = path.join(dataDir, 'people.json');
-
-function readJson(file) {
+// GET all people (registered users)
+router.get('/people', async (req, res) => {
   try {
-    if (!fs.existsSync(file)) return [];
-    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const result = await db.query('SELECT id, name, email, avatar FROM users');
+    res.json(result.rows);
   } catch (err) {
-    return [];
+    console.error('Error fetching people:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-}
-
-
-// GET all people: union of invited and assigned
-router.get('/people', (req, res) => {
-  const tables = readJson(tablesFile);
-  const invited = readJson(peopleFile);
-  const peopleMap = {};
-  // Add assigned people from tasks
-  tables.forEach(table => {
-    if (Array.isArray(table.tasks)) {
-      table.tasks.forEach(task => {
-        const owners = task.values && Array.isArray(task.values.owner) ? task.values.owner : [];
-        owners.forEach(person => {
-          if (person && person.email) {
-            peopleMap[person.email] = { name: person.name, email: person.email, avatar: null };
-          }
-        });
-      });
-    }
-  });
-  // Add invited people
-  invited.forEach(person => {
-    if (person && person.email) {
-      peopleMap[person.email] = { name: person.name, email: person.email, avatar: null };
-    }
-  });
-  res.json(Object.values(peopleMap));
 });
 
-// POST to invite a new person
-router.post('/people', (req, res) => {
+// POST to invite/add a person (already handled by register, but keeping for compatibility)
+router.post('/people', async (req, res) => {
   const { name, email } = req.body;
   if (!email) return res.status(400).json({ error: 'Missing email' });
-  let people = readJson(peopleFile);
-  if (!people.some(p => p.email === email)) {
-    people.push({ name, email, avatar: null });
-    fs.writeFileSync(peopleFile, JSON.stringify(people, null, 2));
+  try {
+    const existing = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (existing.rowCount === 0) {
+      const { v4: uuidv4 } = require('uuid');
+      await db.query('INSERT INTO users (id, name, email) VALUES ($1, $2, $3)', [uuidv4(), name, email]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error adding person:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  res.json({ success: true });
 });
 
 module.exports = router;
