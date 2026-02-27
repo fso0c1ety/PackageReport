@@ -1,16 +1,16 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Box, 
-  MenuItem, 
-  Select, 
-  SelectChangeEvent, 
-  CircularProgress, 
-  Typography 
+import {
+  Box,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  CircularProgress,
+  Typography
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { authenticatedFetch } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 
 interface Workspace {
   id: string;
@@ -25,7 +25,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
 
   useEffect(() => {
     let mounted = true;
-    authenticatedFetch("http://192.168.0.28:4000/api/workspaces")
+    authenticatedFetch(getApiUrl("workspaces"))
       .then((res) => {
         if (!res.ok) throw new Error("Failed");
         return res.json();
@@ -43,7 +43,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
         console.error("Failed to load workspaces", err);
         if (mounted) setLoading(false);
       });
-      
+
     return () => { mounted = false; };
   }, [currentId]);
 
@@ -66,7 +66,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       value={selected}
       onChange={handleChange}
       displayEmpty
-      IconComponent={KeyboardArrowDownIcon} 
+      IconComponent={KeyboardArrowDownIcon}
       variant="outlined"
       MenuProps={{
         PaperProps: {

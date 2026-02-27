@@ -18,7 +18,7 @@ import {
 import { styled } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { authenticatedFetch } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
 import AddIcon from "@mui/icons-material/Add";
@@ -161,8 +161,8 @@ export default function HomeDashboard() {
     const fetchData = async () => {
       try {
         const [wsRes, updatesRes] = await Promise.all([
-          authenticatedFetch("http://192.168.0.28:4000/api/workspaces"),
-          authenticatedFetch("http://192.168.0.28:4000/api/email-updates"),
+          authenticatedFetch(getApiUrl("workspaces")),
+          authenticatedFetch(getApiUrl("email-updates")),
         ]);
         const wsData = await wsRes.json();
         const updatesData = await updatesRes.json();

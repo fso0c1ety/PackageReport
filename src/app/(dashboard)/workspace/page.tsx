@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { authenticatedFetch } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -26,7 +26,7 @@ function WorkspaceContent() {
       const storageKey = `lastWorkspace_${userId}`;
 
       // Try to get workspace name from API or fallback to id
-      authenticatedFetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}`)
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`))
         .then(res => res.json())
         .then(ws => {
           if (ws && ws.id) {
@@ -71,7 +71,7 @@ function WorkspaceContent() {
       return;
     }
     try {
-      const res = await authenticatedFetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
+      const res = await authenticatedFetch(getApiUrl(`tables/${menuTableId}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: renameValue }),
@@ -91,7 +91,7 @@ function WorkspaceContent() {
   };
   const handleDelete = async () => {
     if (!menuTableId) return;
-    await authenticatedFetch(`http://192.168.0.28:4000/api/tables/${menuTableId}`, {
+    await authenticatedFetch(getApiUrl(`tables/${menuTableId}`), {
       method: "DELETE",
     });
     handleMenuClose();
@@ -101,7 +101,7 @@ function WorkspaceContent() {
 
   const fetchTables = async () => {
     setLoading(true);
-    const res = await authenticatedFetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`);
+    const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
     const data = await res.json();
     setTables(data);
     // If no tab is selected, select the first one
@@ -129,7 +129,7 @@ function WorkspaceContent() {
       },
       { id: 'date', name: 'Date', type: 'Date', order: 2 }
     ];
-    const res = await authenticatedFetch(`http://192.168.0.28:4000/api/workspaces/${workspaceId}/tables`, {
+    const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: `New Group ${tables.length + 1}`, columns: defaultColumns }),
