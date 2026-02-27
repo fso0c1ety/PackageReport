@@ -31,6 +31,8 @@ const emailerRoute = require('./routes/emailer');
 // const tableTasksRoute = require('./routes/tableTasks');
 app.use('/api', authRoute);
 app.use('/api', peopleRoute);
+app.use('/api', automationRoute);
+app.use('/api', emailerRoute);
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
 // Serve frontend static export if it exists
@@ -38,7 +40,7 @@ const outDir = path.join(__dirname, '../out');
 if (fs.existsSync(outDir)) {
   app.use(express.static(outDir));
   // Handle SPA routing: serve index.html for unknown routes
-  app.get('*', (req, res, next) => {
+  app.get('/*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     res.sendFile(path.join(outDir, 'index.html'));
   });
@@ -77,9 +79,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   });
 });
 
-app.use('/api', automationRoute);
-app.use('/api', emailerRoute);
-// app.use('/api', tableTasksRoute);
+// Port is handled after route registration
 const PORT = process.env.PORT || 4000;
 
 // --- Workspace Endpoints ---
