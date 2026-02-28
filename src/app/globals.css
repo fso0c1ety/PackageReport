@@ -57,3 +57,13 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
 }
+
+/* Remove default blue focus outline / borders from buttons */
+*:focus-visible {
+  outline: none !important;
+}
+
+button:focus, 
+.MuiButtonBase-root:focus {
+  outline: none !important;
+}
