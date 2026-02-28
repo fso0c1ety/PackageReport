@@ -29,12 +29,12 @@
     "multer": "^2.0.2",
     "next": "16.1.5",
     "node-fetch": "^2.7.0",
-    "nodemailer": "^7.0.13",
     "pg": "^8.19.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-flagkit": "^2.0.4",
     "recharts": "^3.7.0",
+    "resend": "^6.9.3",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
