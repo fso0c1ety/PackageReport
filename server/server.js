@@ -607,7 +607,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px 20px; background-color: #f3f4f6; color: #111827;">
   <div style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">
     <div style="background-color: #2563eb; padding: 32px 24px; text-align: center;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;">PackageReport</h1>
+      <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;">Smart Manage</h1>
     </div>
     <div style="padding: 40px 32px;">
       <h2 style="margin-top: 0; color: #1f2937; font-size: 22px; font-weight: 600; margin-bottom: 16px;">Task Updated</h2>
@@ -625,7 +625,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
       
       <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e5e7eb; text-align: center;">
         <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0;">
-          This is an automated notification from your <strong>PackageReport</strong> workspace.
+          This is an automated notification from your <strong>Smart Manage</strong> workspace.
         </p>
       </div>
     </div>

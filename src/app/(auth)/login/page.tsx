@@ -189,7 +189,7 @@ export default function LoginPage() {
           <Typography variant="body2" sx={{ color: '#94a3b8', mb: 4, textAlign: 'center' }}>
             {isLogin
               ? 'Enter your credentials to access your workspaces'
-              : 'Join PackageReport to start managing your projects'}
+              : 'Join Smart Manage to start managing your projects'}
           </Typography>
 
           <Box component="form" onSubmit={handleSubmit} noValidate sx={{ width: '100%' }}>

@@ -18,7 +18,7 @@ async function sendEmail({ to, subject, text, html }) {
 
     const payload = {
         sender: {
-            name: "PackageReport App",
+            name: "Smart Manage App",
             email: "valonhalili74@gmail.com" // This MUST be the verified sender in Brevo
         },
         to: brevoTo,
@@ -33,7 +33,7 @@ async function sendEmail({ to, subject, text, html }) {
     }
     // If neither is provided, Brevo requires at least one content type
     if (!html && !text) {
-        payload.textContent = "Message from PackageReport";
+        payload.textContent = "Message from Smart Manage";
     }
 
     // Create a timeout promise to prevent hanging

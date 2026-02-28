@@ -209,7 +209,7 @@ export default function Sidebar({
             textShadow: "0 2px 10px rgba(255,255,255,0.1)",
           }}
         >
-          SmartManage
+          Smart Manage
         </Typography>
       </Box>
 
