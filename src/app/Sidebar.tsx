@@ -23,10 +23,8 @@ import {
   ListItemText,
   useTheme,
   useMediaQuery,
-  Select,
-  MenuItem,
+  Autocomplete,
   FormControl,
-  InputLabel
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
@@ -121,10 +119,10 @@ export default function Sidebar({
   // Share Boards State
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [usersToShare, setUsersToShare] = useState<any[]>([]);
-  const [shareSelectedUser, setShareSelectedUser] = useState("");
-  const [shareSelectedWorkspace, setShareSelectedWorkspace] = useState("");
+  const [shareSelectedUser, setShareSelectedUser] = useState<any>(null);
+  const [shareSelectedWorkspace, setShareSelectedWorkspace] = useState<any>(null);
   const [tablesInWorkspace, setTablesInWorkspace] = useState<any[]>([]);
-  const [shareSelectedTable, setShareSelectedTable] = useState("");
+  const [shareSelectedTable, setShareSelectedTable] = useState<any>(null);
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
 
@@ -225,11 +223,15 @@ export default function Sidebar({
     } catch (err) { console.error(err); }
   };
 
-  const handleShareWorkspaceChange = async (wsId: string) => {
-    setShareSelectedWorkspace(wsId);
-    setShareSelectedTable("");
+  const handleShareWorkspaceChange = async (ws: any) => {
+    setShareSelectedWorkspace(ws);
+    setShareSelectedTable(null);
+    if (!ws) {
+      setTablesInWorkspace([]);
+      return;
+    }
     try {
-      const res = await authenticatedFetch(getApiUrl(`workspaces/${wsId}/tables`));
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${ws.id}/tables`));
       if (res.ok) {
         setTablesInWorkspace(await res.json());
       }
@@ -239,17 +241,17 @@ export default function Sidebar({
   const handleShareSubmit = async () => {
     if (!shareSelectedTable || !shareSelectedUser) return;
     try {
-      const res = await authenticatedFetch(getApiUrl(`tables/${shareSelectedTable}/share`), {
+      const res = await authenticatedFetch(getApiUrl(`tables/${shareSelectedTable.id}/share`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: shareSelectedUser })
+        body: JSON.stringify({ userId: shareSelectedUser.id })
       });
       if (!res.ok) throw new Error("Failed to share");
       alert("Successfully shared table!");
       setShareDialogOpen(false);
-      setShareSelectedUser("");
-      setShareSelectedWorkspace("");
-      setShareSelectedTable("");
+      setShareSelectedUser(null);
+      setShareSelectedWorkspace(null);
+      setShareSelectedTable(null);
     } catch (err) {
       alert("Error sharing table. Make sure you are the workspace owner.");
     }
@@ -679,99 +681,102 @@ export default function Sidebar({
             Select a user and choose which table to share with them. They will be able to access the board and chat.
           </Typography>
 
-          <FormControl fullWidth variant="outlined">
-            <InputLabel sx={{ color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }}>Select User</InputLabel>
-            <Select
-              label="Select User"
+          <FormControl fullWidth>
+            <Autocomplete
+              options={usersToShare}
+              getOptionLabel={(option) => `${option.name} (${option.email})`}
               value={shareSelectedUser}
-              onChange={(e) => setShareSelectedUser(e.target.value)}
-              sx={{
-                color: '#fff',
-                bgcolor: '#26273b',
-                borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
-                '& .MuiSvgIcon-root': { color: '#7d82a8' }
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    bgcolor: '#26273b', color: '#fff',
-                    '& .MuiMenuItem-root:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
-                    '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.25)' }
-                  }
-                }
-              }}
-            >
-              {usersToShare.map(u => (
-                <MenuItem key={u.id} value={u.id}>{u.name} ({u.email})</MenuItem>
-              ))}
-            </Select>
+              onChange={(e, newValue) => setShareSelectedUser(newValue)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select User"
+                  variant="outlined"
+                  InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#fff',
+                      bgcolor: '#26273b',
+                      borderRadius: 2,
+                      '& fieldset': { borderColor: '#3a3b5a' },
+                      '&:hover fieldset': { borderColor: '#4a4b6a' },
+                      '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                    },
+                    '& .MuiSvgIcon-root': { color: '#7d82a8' } // dropdown icon color
+                  }}
+                />
+              )}
+              PaperComponent={({ children }) => (
+                <Box sx={{ bgcolor: '#26273b', color: '#fff' }}>{children}</Box>
+              )}
+            />
           </FormControl>
 
-          <FormControl fullWidth variant="outlined">
-            <InputLabel sx={{ color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }}>Select Workspace</InputLabel>
-            <Select
-              label="Select Workspace"
+          <FormControl fullWidth>
+            <Autocomplete
+              options={workspaces}
+              getOptionLabel={(option) => option.name}
               value={shareSelectedWorkspace}
-              onChange={(e) => handleShareWorkspaceChange(e.target.value)}
-              sx={{
-                color: '#fff',
-                bgcolor: '#26273b',
-                borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
-                '& .MuiSvgIcon-root': { color: '#7d82a8' }
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    bgcolor: '#26273b', color: '#fff',
-                    '& .MuiMenuItem-root:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
-                    '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.25)' }
-                  }
-                }
-              }}
-            >
-              {workspaces.map(ws => (
-                <MenuItem key={ws.id} value={ws.id}>{ws.name}</MenuItem>
-              ))}
-            </Select>
+              onChange={(e, newValue) => handleShareWorkspaceChange(newValue)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Workspace"
+                  variant="outlined"
+                  InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#fff',
+                      bgcolor: '#26273b',
+                      borderRadius: 2,
+                      '& fieldset': { borderColor: '#3a3b5a' },
+                      '&:hover fieldset': { borderColor: '#4a4b6a' },
+                      '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                    },
+                    '& .MuiSvgIcon-root': { color: '#7d82a8' }
+                  }}
+                />
+              )}
+              PaperComponent={({ children }) => (
+                <Box sx={{ bgcolor: '#26273b', color: '#fff' }}>{children}</Box>
+              )}
+            />
           </FormControl>
 
-          <FormControl fullWidth variant="outlined">
-            <InputLabel sx={{ color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }}>Select Table</InputLabel>
-            <Select
-              label="Select Table"
+          <FormControl fullWidth>
+            <Autocomplete
+              options={tablesInWorkspace}
+              getOptionLabel={(option) => option.name}
               value={shareSelectedTable}
-              onChange={(e) => setShareSelectedTable(e.target.value)}
+              onChange={(e, newValue) => setShareSelectedTable(newValue)}
               disabled={!shareSelectedWorkspace || tablesInWorkspace.length === 0}
-              sx={{
-                color: '#fff',
-                bgcolor: '#26273b',
-                borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
-                '& .MuiSvgIcon-root': { color: '#7d82a8' }
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    bgcolor: '#26273b', color: '#fff',
-                    '& .MuiMenuItem-root:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
-                    '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.25)' }
-                  }
-                }
-              }}
-            >
-              {tablesInWorkspace.map(t => (
-                <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
-              ))}
-            </Select>
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Table"
+                  variant="outlined"
+                  InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#fff',
+                      bgcolor: '#26273b',
+                      borderRadius: 2,
+                      '& fieldset': { borderColor: '#3a3b5a' },
+                      '&:hover fieldset': { borderColor: '#4a4b6a' },
+                      '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                      '&.Mui-disabled': { opacity: 0.6 }
+                    },
+                    '& .MuiSvgIcon-root': { color: '#7d82a8' }
+                  }}
+                />
+              )}
+              PaperComponent={({ children }) => (
+                <Box sx={{ bgcolor: '#26273b', color: '#fff' }}>{children}</Box>
+              )}
+            />
           </FormControl>
+
+
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button

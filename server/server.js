@@ -127,13 +127,15 @@ app.get('/api/workspaces/:workspaceId', authenticateToken, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    const result = await db.query('SELECT * FROM workspaces WHERE id = $1', [req.params.workspaceId]);
+    const result = await db.query(`
+      SELECT DISTINCT w.* 
+      FROM workspaces w
+      LEFT JOIN tables t ON w.id = t.workspace_id
+      WHERE w.id = $1 AND (w.owner_id = $2 OR t.shared_users @> $3::jsonb)
+    `, [req.params.workspaceId, req.user.id, JSON.stringify([req.user.id])]);
     const workspace = result.rows[0];
     if (!workspace) {
-      return res.status(404).json({ error: 'Workspace not found' });
-    }
-    if (workspace.owner_id !== req.user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return res.status(403).json({ error: 'Workspace not found or forbidden' });
     }
     res.json(workspace);
   } catch (err) {
@@ -324,7 +326,9 @@ app.patch('/api/tables/:tableId', authenticateToken, async (req, res) => {
 
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
     const workspace = wsResult.rows[0];
-    if (!workspace || workspace.owner_id !== req.user.id) return res.sendStatus(403);
+    const isOwner = workspace && workspace.owner_id === req.user.id;
+    const isShared = table.shared_users && table.shared_users.includes(req.user.id);
+    if (!isOwner && !isShared) return res.sendStatus(403);
 
     if (typeof req.body.name === 'string') {
       await db.query('UPDATE tables SET name = $1 WHERE id = $2', [req.body.name, req.params.tableId]);
