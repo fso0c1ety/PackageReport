@@ -8,8 +8,14 @@ const transporter = nodemailer.createTransport({
         user: 'valonhalili74@gmail.com',
         pass: 'aoyojljhvpwhrswg',
     },
-    connectionTimeout: 10000, // 10s
-    greetingTimeout: 10000,
+    connectionTimeout: 30000, // 30s
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    debug: true,
+    logger: true,
+    tls: {
+        rejectUnauthorized: false // Help debug if it's a certificate issue
+    }
 });
 
 async function sendEmail({ to, subject, text, html }) {
