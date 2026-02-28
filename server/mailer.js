@@ -21,14 +21,22 @@ async function sendEmail({ to, subject, text, html }) {
 
     const recipients = Array.isArray(to) ? to.join(', ') : to;
 
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email sending timed out after 30 seconds')), 30000)
+    );
+
     try {
-        const info = await transporter.sendMail({
-            from: 'valonhalili74@gmail.com',
-            to: recipients,
-            subject,
-            text,
-            html,
-        });
+        const info = await Promise.race([
+            transporter.sendMail({
+                from: 'valonhalili74@gmail.com',
+                to: recipients,
+                subject,
+                text,
+                html,
+            }),
+            timeoutPromise
+        ]);
         console.log('[MAILER] Email sent:', info.messageId);
         return info;
     } catch (err) {
