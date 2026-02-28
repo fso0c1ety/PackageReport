@@ -116,13 +116,28 @@ export default function Sidebar({
   const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  // Share Boards State
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [usersToShare, setUsersToShare] = useState<any[]>([]);
   const [shareSelectedUser, setShareSelectedUser] = useState<any>(null);
   const [shareSelectedWorkspace, setShareSelectedWorkspace] = useState<any>(null);
   const [tablesInWorkspace, setTablesInWorkspace] = useState<any[]>([]);
   const [shareSelectedTable, setShareSelectedTable] = useState<any>(null);
+  const [userSearchInputValue, setUserSearchInputValue] = useState("");
+
+  useEffect(() => {
+    if (!shareDialogOpen) return;
+
+    // Simple debounce
+    const timeoutId = setTimeout(() => {
+      const query = userSearchInputValue ? `?q=${encodeURIComponent(userSearchInputValue)}` : '';
+      authenticatedFetch(getApiUrl(`people${query}`))
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setUsersToShare(data || []))
+        .catch(err => console.error("Failed to fetch users", err));
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [userSearchInputValue, shareDialogOpen]);
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
 
@@ -215,12 +230,8 @@ export default function Sidebar({
 
   const openShareDialog = async () => {
     setShareDialogOpen(true);
-    try {
-      const res = await authenticatedFetch(getApiUrl("people"));
-      if (res.ok) {
-        setUsersToShare(await res.json());
-      }
-    } catch (err) { console.error(err); }
+    setUserSearchInputValue("");
+    // Initial fetch handled by userSearchInputValue effect
   };
 
   const handleShareWorkspaceChange = async (ws: any) => {
@@ -687,10 +698,33 @@ export default function Sidebar({
               getOptionLabel={(option) => `${option.name} (${option.email})`}
               value={shareSelectedUser}
               onChange={(e, newValue) => setShareSelectedUser(newValue)}
+              inputValue={userSearchInputValue}
+              onInputChange={(event, newInputValue) => setUserSearchInputValue(newInputValue)}
+              filterOptions={(x) => x} // Disable local filtering, let backend handle it
+              renderOption={(props, option) => (
+                <li {...props} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {option.avatar && (
+                    <Box
+                      component="img"
+                      src={option.avatar}
+                      alt={option.name}
+                      sx={{ width: 28, height: 28, borderRadius: '50%' }}
+                    />
+                  )}
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
+                      {option.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                      {option.email}
+                    </Typography>
+                  </Box>
+                </li>
+              )}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Select User"
+                  label="Search user by name or email"
                   variant="outlined"
                   InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
                   sx={{
