@@ -38,6 +38,9 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import ShareIcon from "@mui/icons-material/Share";
+import AddLinkIcon from "@mui/icons-material/AddLink";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 
@@ -123,6 +126,11 @@ export default function Sidebar({
   const [tablesInWorkspace, setTablesInWorkspace] = useState<any[]>([]);
   const [shareSelectedTable, setShareSelectedTable] = useState<any>(null);
   const [userSearchInputValue, setUserSearchInputValue] = useState("");
+
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [inviteCodeValue, setInviteCodeValue] = useState("");
+  const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
   useEffect(() => {
     if (!shareDialogOpen) return;
@@ -237,6 +245,7 @@ export default function Sidebar({
   const handleShareWorkspaceChange = async (ws: any) => {
     setShareSelectedWorkspace(ws);
     setShareSelectedTable(null);
+    setCurrentTableInviteCode(null);
     if (!ws) {
       setTablesInWorkspace([]);
       return;
@@ -248,6 +257,22 @@ export default function Sidebar({
       }
     } catch (err) { console.error(err); }
   };
+
+  const fetchInviteCode = async (tableId: string) => {
+    setIsGeneratingCode(true);
+    try {
+      const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/invite-code`), { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentTableInviteCode(data.invite_code);
+      }
+    } catch (err) {
+      console.error("Failed to fetch invite code", err);
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
 
   const handleShareSubmit = async () => {
     if (!shareSelectedTable || !shareSelectedUser) return;
@@ -265,6 +290,35 @@ export default function Sidebar({
       setShareSelectedTable(null);
     } catch (err) {
       alert("Error sharing table. Make sure you are the workspace owner.");
+    }
+  };
+
+  const handleJoinBoard = async () => {
+    if (!inviteCodeValue.trim()) return;
+    try {
+      const res = await authenticatedFetch(getApiUrl("tables/join"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteCode: inviteCodeValue.trim() })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to join board");
+      }
+      const data = await res.json();
+      alert("Successfully joined board!");
+      setJoinDialogOpen(false);
+      setInviteCodeValue("");
+
+      // Refresh workspaces to show the new table
+      const wsRes = await authenticatedFetch(getApiUrl("workspaces"));
+      if (wsRes.ok) {
+        setWorkspaces(await wsRes.json());
+      }
+
+      router.push(`/workspace?id=${data.workspaceId}`);
+    } catch (err: any) {
+      alert(err.message || "Error joining board. Please check the code.");
     }
   };
 
@@ -452,21 +506,59 @@ export default function Sidebar({
               </Tooltip>
             )}
           </Box>
-          <Box sx={{ px: 2, mt: 2 }}>
+          {/* Actions */}
+          <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
             <Button
               fullWidth
-              startIcon={<PersonAddIcon />}
-              onClick={openShareDialog}
+              variant="contained"
+              startIcon={<ShareIcon />}
+              onClick={() => setShareDialogOpen(true)}
               sx={{
-                color: "#94a3b8",
-                textTransform: "none",
-                justifyContent: "flex-start",
-                py: 1,
+                bgcolor: '#6366f1',
+                '&:hover': { bgcolor: '#5558dd' },
                 borderRadius: 2,
-                "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.05)" }
+                textTransform: 'none',
+                fontWeight: 600,
+                py: 1
               }}
             >
               Share Boards
+            </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<AddLinkIcon />}
+              onClick={() => setJoinDialogOpen(true)}
+              sx={{
+                color: '#fff',
+                borderColor: '#3a3b5a',
+                '&:hover': { borderColor: '#6366f1', bgcolor: 'rgba(99, 102, 241, 0.1)' },
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                py: 1
+              }}
+            >
+              Join with Code
+            </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<SettingsIcon />}
+              // onClick={() => setSettingsDialogOpen(true)} // Assuming a settings dialog exists or will be added
+              sx={{
+                color: '#94a3b8',
+                borderColor: '#3a3b5a',
+                '&:hover': { borderColor: '#4b4d6d', color: '#fff' },
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                py: 1
+              }}
+            >
+              Settings
             </Button>
           </Box>
         </Box>
@@ -782,7 +874,11 @@ export default function Sidebar({
               options={tablesInWorkspace}
               getOptionLabel={(option) => option.name}
               value={shareSelectedTable}
-              onChange={(e, newValue) => setShareSelectedTable(newValue)}
+              onChange={(e, newValue) => {
+                setShareSelectedTable(newValue);
+                if (newValue) fetchInviteCode(newValue.id);
+                else setCurrentTableInviteCode(null);
+              }}
               disabled={!shareSelectedWorkspace || tablesInWorkspace.length === 0}
               renderInput={(params) => (
                 <TextField
@@ -809,6 +905,46 @@ export default function Sidebar({
               )}
             />
           </FormControl>
+
+          {shareSelectedTable && (
+            <Box sx={{
+              mt: 1,
+              p: 2,
+              borderRadius: 2,
+              bgcolor: 'rgba(99, 102, 241, 0.1)',
+              border: '1px dashed rgba(99, 102, 241, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                INVITE CODE FOR THIS BOARD
+              </Typography>
+              {isGeneratingCode ? (
+                <Typography variant="h6" sx={{ color: '#fff', letterSpacing: 2 }}>Loading...</Typography>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="h5" sx={{ color: '#6366f1', fontWeight: 700, letterSpacing: 4 }}>
+                    {currentTableInviteCode || "------"}
+                  </Typography>
+                  <Tooltip title="Copy Code">
+                    <IconButton size="small" onClick={() => {
+                      if (currentTableInviteCode) {
+                        navigator.clipboard.writeText(currentTableInviteCode);
+                        alert("Code copied!");
+                      }
+                    }} sx={{ color: '#6366f1' }}>
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
+              <Typography variant="caption" sx={{ color: '#94a3b8', textAlign: 'center' }}>
+                Share this code with teammates so they can join this table.
+              </Typography>
+            </Box>
+          )}
 
 
         </DialogContent>

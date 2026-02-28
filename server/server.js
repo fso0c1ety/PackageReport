@@ -20,9 +20,10 @@ const app = express();
     await db.query(`
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS status TEXT;
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
-      ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;
     `);
-    console.log('[DB] activity_logs schema checked/updated.');
+    await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;`);
+    await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;`);
+    console.log('[DB] Schema checked/updated.');
   } catch (err) {
     console.error('[DB] Schema migration error:', err);
   }
@@ -252,11 +253,24 @@ app.get('/api/workspaces/:workspaceId/tables', authenticateToken, async (req, re
   try {
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [req.params.workspaceId]);
     const workspace = wsResult.rows[0];
-    if (!workspace || workspace.owner_id !== req.user.id) {
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+
+    // Allow access if user is owner OR has at least one shared table in this workspace
+    const isOwner = workspace.owner_id === req.user.id;
+    const sharedTablesCount = await db.query(
+      'SELECT COUNT(*) FROM tables WHERE workspace_id = $1 AND shared_users @> $2::jsonb',
+      [req.params.workspaceId, JSON.stringify([req.user.id])]
+    );
+    const hasSharedTables = parseInt(sharedTablesCount.rows[0].count) > 0;
+
+    if (!isOwner && !hasSharedTables) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const tablesResult = await db.query('SELECT * FROM tables WHERE workspace_id = $1', [req.params.workspaceId]);
+    const tablesResult = await db.query(
+      'SELECT * FROM tables WHERE workspace_id = $1 AND ($2 = $3 OR shared_users @> $4::jsonb)',
+      [req.params.workspaceId, workspace.owner_id, req.user.id, JSON.stringify([req.user.id])]
+    );
     res.json(tablesResult.rows);
   } catch (err) {
     console.error('Error fetching workspace tables:', err);
@@ -527,6 +541,56 @@ app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Get or Generate invite code for a table
+app.post('/api/tables/:tableId/invite-code', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
+    const table = result.rows[0];
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+
+    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
+    const workspace = wsResult.rows[0];
+    if (!workspace || workspace.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only workspace owners can manage invite codes' });
+    }
+
+    let inviteCode = table.invite_code;
+    if (!inviteCode) {
+      inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      await db.query('UPDATE tables SET invite_code = $1 WHERE id = $2', [inviteCode, req.params.tableId]);
+    }
+
+    res.json({ invite_code: inviteCode });
+  } catch (err) {
+    console.error('Error managing invite code:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Join a table using an invite code
+app.post('/api/tables/join', authenticateToken, async (req, res) => {
+  const { inviteCode } = req.body;
+  if (!inviteCode) return res.status(400).json({ error: 'Invite code is required' });
+
+  try {
+    const result = await db.query('SELECT * FROM tables WHERE invite_code = $1', [inviteCode.toUpperCase()]);
+    const table = result.rows[0];
+    if (!table) return res.status(404).json({ error: 'Invalid invite code' });
+
+    const sharedUsers = table.shared_users || [];
+    if (!sharedUsers.includes(req.user.id)) {
+      sharedUsers.push(req.user.id);
+      await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), table.id]);
+    }
+
+    res.json({ success: true, tableId: table.id, workspaceId: table.workspace_id });
+  } catch (err) {
+    console.error('Error joining table:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 
