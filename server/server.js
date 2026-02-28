@@ -611,8 +611,9 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
             });
             await db.query('UPDATE activity_logs SET status = $1 WHERE id = $2', ['sent', logId]);
           } catch (mailErr) {
-            console.error('[AUTOMATION] Failed to send email:', mailErr);
-            await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', mailErr.message, logId]);
+            console.error('[AUTOMATION] Failed to send email to recipients:', recipients, 'Error:', mailErr);
+            const detailedError = mailErr.stack || mailErr.message || String(mailErr);
+            await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', detailedError, logId]);
           }
         }
       }

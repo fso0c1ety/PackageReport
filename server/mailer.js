@@ -4,14 +4,14 @@ const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true, // true for 465
-    pool: true, // Enable connection pooling
+    pool: false, // Disable connection pooling to ensure fresh connections
     auth: {
         user: 'valonhalili74@gmail.com',
         pass: 'aoyojljhvpwhrswg',
     },
-    connectionTimeout: 30000, // 30s
-    greetingTimeout: 30000,
-    socketTimeout: 30000,
+    connectionTimeout: 15000, // 15s
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
     tls: {
         rejectUnauthorized: false
     }
