@@ -175,6 +175,40 @@ app.post('/api/workspaces', authenticateToken, async (req, res) => {
   }
 });
 
+// Update a workspace (rename)
+app.put('/api/workspaces/:workspaceId', authenticateToken, async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Workspace name is required' });
+  }
+
+  try {
+    // Check ownership
+    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [req.params.workspaceId]);
+    const workspace = wsResult.rows[0];
+
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+    if (workspace.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Update name
+    const result = await db.query(
+      'UPDATE workspaces SET name = $1 WHERE id = $2 RETURNING *',
+      [name.trim(), req.params.workspaceId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating workspace:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 // Delete a workspace
 app.delete('/api/workspaces/:workspaceId', authenticateToken, async (req, res) => {

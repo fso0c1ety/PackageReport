@@ -32,8 +32,8 @@ import PsychologyIcon from "@mui/icons-material/Psychology";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SearchIcon from "@mui/icons-material/Search";
-import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
+import EditIcon from "@mui/icons-material/Edit";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 
@@ -108,6 +108,12 @@ export default function Sidebar({
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
 
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
+
   // Fetch workspaces
   useEffect(() => {
     authenticatedFetch(getApiUrl("workspaces"))
@@ -159,6 +165,39 @@ export default function Sidebar({
       if (table) router.push(`/workspace?id=${ws.id}`);
     } catch (err) {
       alert("Failed to create workspace. Please try again.");
+    }
+  };
+
+  const handleRenameWorkspace = async () => {
+    if (!renameValue.trim() || !editingWorkspace) return;
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${editingWorkspace.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+
+      if (!res.ok) throw new Error("Failed to rename workspace");
+      const updated = await res.json();
+
+      setWorkspaces((prev) =>
+        prev.map((ws) => (ws.id === updated.id ? updated : ws))
+      );
+      setRenameDialogOpen(false);
+      setEditingWorkspace(null);
+      // Trigger a refresh of the dropdown or reload if needed
+      window.dispatchEvent(new CustomEvent('workspaceUpdated'));
+    } catch (err) {
+      alert("Failed to rename workspace. Please try again.");
+    }
+  };
+
+  const openRenameDialog = () => {
+    const currentWs = workspaces.find(ws => ws.id === currentWorkspaceId);
+    if (currentWs) {
+      setEditingWorkspace(currentWs);
+      setRenameValue(currentWs.name);
+      setRenameDialogOpen(true);
     }
   };
 
@@ -329,8 +368,22 @@ export default function Sidebar({
               </IconButton>
             </Tooltip>
           </Box>
-          <Box sx={{ px: 2 }}>
+          <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1 }}>
             <WorkspaceDropdown />
+            {currentWorkspaceId && (
+              <Tooltip title="Rename Workspace">
+                <IconButton
+                  size="small"
+                  onClick={openRenameDialog}
+                  sx={{
+                    color: "#94a3b8",
+                    "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
+                  }}
+                >
+                  <EditIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
         </Box>
       </Box>
@@ -375,7 +428,7 @@ export default function Sidebar({
         </Box>
       </Box>
 
-      {/* Dialog */}
+      {/* Create Workspace Dialog */}
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -446,6 +499,81 @@ export default function Sidebar({
             }}
           >
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Rename Workspace Dialog */}
+      <Dialog
+        open={renameDialogOpen}
+        onClose={() => setRenameDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+          Rename Workspace
+        </DialogTitle>
+        <DialogContent sx={{ pb: 3, pt: 1 }}>
+          <TextField
+            autoFocus
+            label="New Workspace Name"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            fullWidth
+            variant="outlined"
+            size="medium"
+            InputLabelProps={{
+              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+            }}
+            InputProps={{
+              sx: {
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+              }
+            }}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
+          <Button
+            onClick={() => setRenameDialogOpen(false)}
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRenameWorkspace}
+            disabled={!renameValue.trim() || renameValue.trim() === editingWorkspace?.name}
+            variant="contained"
+            sx={{
+              bgcolor: '#6366f1',
+              '&:hover': { bgcolor: '#5558dd' },
+              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              boxShadow: 'none',
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
+            Save
           </Button>
         </DialogActions>
       </Dialog>

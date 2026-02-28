@@ -23,28 +23,38 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    let mounted = true;
+  const fetchWorkspaces = () => {
     authenticatedFetch(getApiUrl("workspaces"))
       .then((res) => {
         if (!res.ok) throw new Error("Failed");
         return res.json();
       })
       .then((data: Workspace[]) => {
-        if (!mounted) return;
         setWorkspaces(data);
         setLoading(false);
-        // If currentId is provided, use it
-        if (currentId) {
-          setSelected(currentId);
-        }
       })
       .catch((err) => {
         console.error("Failed to load workspaces", err);
-        if (mounted) setLoading(false);
+        setLoading(false);
       });
+  };
 
-    return () => { mounted = false; };
+  useEffect(() => {
+    fetchWorkspaces();
+
+    // Initial selection
+    if (currentId) {
+      setSelected(currentId);
+    }
+
+    const handleUpdate = () => {
+      fetchWorkspaces();
+    };
+
+    window.addEventListener('workspaceUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('workspaceUpdated', handleUpdate);
+    };
   }, [currentId]);
 
   const handleChange = (event: SelectChangeEvent) => {
