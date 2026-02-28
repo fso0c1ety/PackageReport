@@ -12,7 +12,7 @@ router.post('/automation/:tableId', async (req, res) => {
       await db.query(`
         INSERT INTO automations (table_id, task_id, trigger_col, enabled, recipients, cols)
         VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (table_id, task_id) DO UPDATE SET
+        ON CONFLICT (table_id, task_id) WHERE task_id IS NOT NULL DO UPDATE SET
           trigger_col = $3, enabled = $4, recipients = $5, cols = $6
       `, [tableId, taskId, triggerCol, enabled, JSON.stringify(recipients), JSON.stringify(cols)]);
     } else {

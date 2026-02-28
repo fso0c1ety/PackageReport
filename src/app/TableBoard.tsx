@@ -880,7 +880,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
   // Accept optional valueOverride for immediate save from PeopleSelector
   const handleCellSave = async (rowId: string, colId: string, colType?: string, valueOverride?: any) => {
-    console.log('handleCellSave called', { rowId, colId, colType, valueOverride });
     // Find and update the row before calling setRows
     const prevRows = [...rows];
     const rowIdx = prevRows.findIndex((row) => row.id === rowId);
@@ -937,7 +936,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
     // Persist to backend for real rows
     if (updatedRow) {
-      console.log('Sending PUT to backend:', getApiUrl(`/tables/${tableId}/tasks`), { id: updatedRow.id, values: updatedRow.values });
       const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -946,11 +944,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
       if (response.ok) {
         const responseData = await response.json();
-        console.log('Backend Response for Save:', responseData);
         if (responseData.success && responseData.task) {
           // If the edited row is the one currently being reviewed, update the reviewTask state
           if (reviewTask && responseData.task.id === reviewTask.id) {
-            console.log('Updating reviewTask with new data:', responseData.task);
             setReviewTask(responseData.task);
           }
         }
@@ -962,7 +958,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         try {
           const logs = JSON.parse(decodeURIComponent(debugLogsHeader));
           logs.forEach((log: { msg: string; obj?: any }) => {
-            console.log(`[BACKEND] ${log.msg}`, log.obj);
           });
         } catch (e) {
           console.warn("Failed to parse backend debug logs:", e, debugLogsHeader);
@@ -989,7 +984,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     if (!files || files.length === 0) return;
 
     try {
-      console.log('Starting file upload for row:', rowId, 'files:', files.length);
 
       // 1. Upload each file to server
       const uploadPromises = Array.from(files).map(async (file) => {
@@ -1031,7 +1025,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         return;
       }
 
-      console.log('Successfully uploaded files:', validFiles);
 
       // 2. Update Row State & Persist
 
