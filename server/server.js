@@ -13,6 +13,20 @@ const { sendEmail } = require('./mailer');
 
 
 const app = express();
+
+// --- Database Schema Migrations ---
+(async () => {
+  try {
+    await db.query(`
+      ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS status TEXT;
+      ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+    `);
+    console.log('[DB] activity_logs schema checked/updated.');
+  } catch (err) {
+    console.error('[DB] Schema migration error:', err);
+  }
+})();
+
 // Enable CORS for all routes before anything else
 app.use(cors());
 

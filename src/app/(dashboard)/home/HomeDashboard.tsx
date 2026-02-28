@@ -514,7 +514,7 @@ export default function HomeDashboard() {
                           {update.subject || "Task Update"}
                         </Typography>
                         <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
-                          {update.timestamp ? new Date(update.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                          {update.timestamp ? new Date(Number(update.timestamp)).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                         </Typography>
                       </Box>
                       {update.badge && (
