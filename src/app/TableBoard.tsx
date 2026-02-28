@@ -1513,19 +1513,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     // Force Priority column to always use Dropdown logic for editing
     const effectiveCol = col.id === "priority" ? { ...col, type: "Dropdown" } : col;
     let value = row.values ? row.values[col.id] : "";
-    // Debug logging for country column rendering
-    if (effectiveCol.type && effectiveCol.options) {
-      console.log({
-        type: effectiveCol.type,
-        options: effectiveCol.options,
-        value,
-        editValue,
-        editingCell,
-        colId: effectiveCol.id,
-        rowId: row.id,
-      });
-    }
-
     // Status/Dropdown/Priority - Modern status picker
     // Moved ABOVE the generic editing block so it takes precedence
     if (effectiveCol.type === "Status" || effectiveCol.type === "Dropdown" || effectiveCol.id === "priority") {

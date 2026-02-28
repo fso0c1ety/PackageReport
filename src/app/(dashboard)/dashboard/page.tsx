@@ -207,6 +207,11 @@ export default function DashboardPage() {
   const [selectedPerson, setSelectedPerson] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch Data
   useEffect(() => {
@@ -476,30 +481,32 @@ export default function DashboardPage() {
               </SectionHeader>
             </Box>
             <Box sx={{ width: "100%", height: 300, minWidth: 0, position: "relative" }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={80}
-                    outerRadius={110}
-                    paddingAngle={2}
-                    tooltipType="none"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getStatusColor(String(entry.name))} strokeWidth={0} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
-                    itemStyle={{ color: '#fff', fontWeight: 600 }}
-                  />
-                  <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
+              {mounted && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={80}
+                      outerRadius={110}
+                      paddingAngle={2}
+                      tooltipType="none"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getStatusColor(String(entry.name))} strokeWidth={0} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
+                      itemStyle={{ color: '#fff', fontWeight: 600 }}
+                    />
+                    <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </Box>
           </StyledCard>
 
@@ -512,40 +519,42 @@ export default function DashboardPage() {
               </SectionHeader>
             </Box>
             <Box sx={{ width: "100%", height: 300, minWidth: 0, position: "relative" }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    stroke="#64748b"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={10}
-                  />
-                  <YAxis
-                    stroke="#64748b"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                    contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8 }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                  <Bar
-                    dataKey="count"
-                    fill="#6366f1"
-                    radius={[6, 6, 0, 0]}
-                    barSize={32}
-                  >
-                    {barData.map((entry: any, index: any) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {mounted && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#64748b"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={10}
+                    />
+                    <YAxis
+                      stroke="#64748b"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                      contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8 }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                    <Bar
+                      dataKey="count"
+                      fill="#6366f1"
+                      radius={[6, 6, 0, 0]}
+                      barSize={32}
+                    >
+                      {barData.map((entry: any, index: any) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </Box>
           </StyledCard>
         </Box>
@@ -574,7 +583,10 @@ export default function DashboardPage() {
                   return (
                     <TableRow key={idx} hover sx={{ '&:hover': { bgcolor: "rgba(255,255,255,0.02)" } }}>
                       <TableCell sx={{ color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.05)", fontWeight: 500 }}>
-                        {task.values?.task || Object.values(task.values || {})[0] || 'Untitled'}
+                        {(() => {
+                          const taskName = task.values?.task || Object.values(task.values || {})[0];
+                          return (typeof taskName === 'string' || typeof taskName === 'number') ? taskName : (task.values?.task_name || 'Untitled');
+                        })()}
                       </TableCell>
                       <TableCell sx={{ color: "#94a3b8", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                         {task._table?.name}
