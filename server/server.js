@@ -582,15 +582,56 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
       if (oldValues[triggerCol] !== newValues[triggerCol]) {
         // Trigger automation...
         const subject = `Task updated: ${table.name}`;
-        let html = `<h2>Task Update</h2><ul>`;
+
+        let htmlRows = '';
         const columns = table.columns || [];
         const automationCols = automation.cols || [];
 
         automationCols.forEach(colId => {
           const col = columns.find(c => c.id === colId);
-          if (col) html += `<li><b>${col.name}:</b> ${JSON.stringify(newValues[colId])}</li>`;
+          if (col) {
+            let val = newValues[colId];
+            if (typeof val === 'object' && val !== null) {
+              val = JSON.stringify(val);
+            }
+            htmlRows += `
+              <tr>
+                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 14px; font-weight: 500; width: 40%; vertical-align: top;">${col.name}</td>
+                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">${val}</td>
+              </tr>
+            `;
+          }
         });
-        html += `</ul>`;
+
+        const html = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px 20px; background-color: #f3f4f6; color: #111827;">
+  <div style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">
+    <div style="background-color: #2563eb; padding: 32px 24px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;">PackageReport</h1>
+    </div>
+    <div style="padding: 40px 32px;">
+      <h2 style="margin-top: 0; color: #1f2937; font-size: 22px; font-weight: 600; margin-bottom: 16px;">Task Updated</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin-bottom: 32px;">
+        An update occurred in the <strong style="color: #2563eb;">${table.name}</strong> table. The recorded changes are listed below:
+      </p>
+      
+      <div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse; background-color: #fafafa;">
+          <tbody>
+            ${htmlRows}
+          </tbody>
+        </table>
+      </div>
+      
+      <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e5e7eb; text-align: center;">
+        <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0;">
+          This is an automated notification from your <strong>PackageReport</strong> workspace.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+        `;
 
         const recipients = automation.recipients;
         if (recipients && recipients.length > 0) {
