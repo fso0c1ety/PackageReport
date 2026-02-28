@@ -395,7 +395,7 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
     if (req.query.workspaceId) {
       const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [req.query.workspaceId]);
       const workspace = wsResult.rows[0];
-      if (!workspace || workspace.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+      if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
 
       const tablesResult = await db.query(`
         SELECT 
