@@ -9,6 +9,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
+import PersonIcon from '@mui/icons-material/Person';
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 
@@ -45,6 +46,24 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     window.location.href = '/login';
   };
 
+  const [user, setUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+      }
+    }
+  }, []);
+
+  const getInitials = (name: string) => {
+    if (!name) return '??';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  };
+
   return (
     <Box
       component="header"
@@ -66,8 +85,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         {onMenuClick && (
           <IconButton
             onClick={onMenuClick}
-            sx={{ 
-              color: '#fff', 
+            sx={{
+              color: '#fff',
               display: { md: 'none' },
               mr: 1
             }}
@@ -78,10 +97,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       </Box>
 
       {/* Right Side Options */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
           gap: { xs: 1, sm: 2 },
           bgcolor: "rgba(255, 255, 255, 0.03)",
           p: 0.5,
@@ -92,29 +111,29 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         }}
       >
         <Tooltip title="Search">
-            <StyledIconButton size="small">
-                <SearchIcon fontSize="small" />
-            </StyledIconButton>
+          <StyledIconButton size="small">
+            <SearchIcon fontSize="small" />
+          </StyledIconButton>
         </Tooltip>
-        
+
         <Tooltip title="Notifications">
-            <StyledIconButton size="small">
-                <Badge color="error" variant="dot">
-                    <NotificationsNoneIcon fontSize="small" />
-                </Badge>
-            </StyledIconButton>
+          <StyledIconButton size="small">
+            <Badge color="error" variant="dot">
+              <NotificationsNoneIcon fontSize="small" />
+            </Badge>
+          </StyledIconButton>
         </Tooltip>
 
         <Tooltip title="Messages">
-            <StyledIconButton size="small">
-                <MailOutlineIcon fontSize="small" />
-            </StyledIconButton>
+          <StyledIconButton size="small">
+            <MailOutlineIcon fontSize="small" />
+          </StyledIconButton>
         </Tooltip>
 
         <Tooltip title="Help">
-            <StyledIconButton size="small">
-                <HelpOutlineIcon fontSize="small" />
-            </StyledIconButton>
+          <StyledIconButton size="small">
+            <HelpOutlineIcon fontSize="small" />
+          </StyledIconButton>
         </Tooltip>
 
         <Box sx={{ width: 1, height: 24, bgcolor: "rgba(255,255,255,0.1)", mx: 0.5 }} />
@@ -128,69 +147,76 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             aria-haspopup="true"
             aria-expanded={open ? 'true' : undefined}
           >
-            <Avatar 
-                sx={{ 
-                    width: 36, 
-                    height: 36, 
-                    bgcolor: '#6366f1', 
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: '2px solid rgba(35, 36, 58, 1)',
-                    boxShadow: '0 0 0 2px #6366f1',
-                    transition: "all 0.2s",
-                    "&:hover": {
-                        transform: "scale(1.05)"
-                    }
-                }}
+            <Avatar
+              src={user?.avatar}
+              sx={{
+                width: 36,
+                height: 36,
+                bgcolor: '#6366f1',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: '2px solid rgba(35, 36, 58, 1)',
+                boxShadow: '0 0 0 2px #6366f1',
+                transition: "all 0.2s",
+                "&:hover": {
+                  transform: "scale(1.05)"
+                }
+              }}
             >
-                VH
+              {getInitials(user?.name)}
             </Avatar>
           </IconButton>
         </Tooltip>
         <Menu
-            anchorEl={anchorEl}
-            id="account-menu"
-            open={open}
-            onClose={handleClose}
-            onClick={handleClose}
-            PaperProps={{
-              elevation: 0,
-              sx: {
-                overflow: 'visible',
-                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
-                mt: 1.5,
-                bgcolor: '#2b2c40', 
-                color: '#fff',
-                '& .MuiAvatar-root': {
-                  width: 32,
-                  height: 32,
-                  ml: -0.5,
-                  mr: 1,
-                },
-                '&:before': {
-                  content: '""',
-                  display: 'block',
-                  position: 'absolute',
-                  top: 0,
-                  right: 14,
-                  width: 10,
-                  height: 10,
-                  bgcolor: '#2b2c40',
-                  transform: 'translateY(-50%) rotate(45deg)',
-                  zIndex: 0,
-                },
+          anchorEl={anchorEl}
+          id="account-menu"
+          open={open}
+          onClose={handleClose}
+          onClick={handleClose}
+          PaperProps={{
+            elevation: 0,
+            sx: {
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+              mt: 1.5,
+              bgcolor: '#2b2c40',
+              color: '#fff',
+              '& .MuiAvatar-root': {
+                width: 32,
+                height: 32,
+                ml: -0.5,
+                mr: 1,
               },
-            }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+              '&:before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 14,
+                width: 10,
+                height: 10,
+                bgcolor: '#2b2c40',
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+              },
+            },
+          }}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <LogoutIcon fontSize="small" sx={{ color: '#fff' }} />
-              </ListItemIcon>
-              Logout
-            </MenuItem>
+          <MenuItem onClick={() => router.push('/settings')}>
+            <ListItemIcon>
+              <PersonIcon fontSize="small" sx={{ color: '#fff' }} />
+            </ListItemIcon>
+            Profile Settings
+          </MenuItem>
+          <MenuItem onClick={handleLogout}>
+            <ListItemIcon>
+              <LogoutIcon fontSize="small" sx={{ color: '#fff' }} />
+            </ListItemIcon>
+            Logout
+          </MenuItem>
         </Menu>
       </Box>
     </Box>

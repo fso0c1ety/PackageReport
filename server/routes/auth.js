@@ -66,19 +66,21 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ error: 'User already exists' });
       }
 
-      // Update legacy user with password
+      // Update legacy user with password and generate avatar
+      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
       await db.query(
-        'UPDATE users SET name = $1, password = $2 WHERE id = $3',
-        [name, hashedPassword, existingUser.id]
+        'UPDATE users SET name = $1, password = $2, avatar = $3 WHERE id = $4',
+        [name, hashedPassword, avatarUrl, existingUser.id]
       );
-      return res.json({ success: true, message: 'Account updated with password successfully' });
+      return res.json({ success: true, message: 'Account updated with password and avatar successfully' });
     }
 
-    // Create new user
+    // Create new user with generated avatar
     const userId = uuidv4();
+    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
     await db.query(
       'INSERT INTO users (id, name, email, avatar, password) VALUES ($1, $2, $3, $4, $5)',
-      [userId, name, email, null, hashedPassword]
+      [userId, name, email, avatarUrl, hashedPassword]
     );
 
     res.json({ success: true, message: 'User registered successfully' });
