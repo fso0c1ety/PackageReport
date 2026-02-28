@@ -475,7 +475,7 @@ export default function DashboardPage() {
                 Status
               </SectionHeader>
             </Box>
-            <Box sx={{ width: "100%", height: 300 }}>
+            <Box sx={{ width: "100%", height: 300, minWidth: 0, position: "relative" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -511,7 +511,7 @@ export default function DashboardPage() {
                 Team Workload
               </SectionHeader>
             </Box>
-            <Box sx={{ width: "100%", height: 300 }}>
+            <Box sx={{ width: "100%", height: 300, minWidth: 0, position: "relative" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />

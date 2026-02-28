@@ -2361,6 +2361,25 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         </Box>
       );
     }
+    if ((col.type as string) === "Message") {
+      return (
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 14 }} />}
+          onClick={e => handleOpenChat(e, row.id, value || [], col.id)}
+          sx={{
+            color: '#7d82a8',
+            borderColor: '#3a3b5a',
+            textTransform: 'none',
+            fontSize: '0.75rem',
+            '&:hover': { color: '#fff', borderColor: '#4f51c0', bgcolor: 'rgba(79, 81, 192, 0.1)' }
+          }}
+        >
+          Chat
+        </Button>
+      );
+    }
     return (
       <Box
         sx={{
