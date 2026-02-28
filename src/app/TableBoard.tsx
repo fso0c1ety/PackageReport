@@ -2348,7 +2348,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         </Box>
       );
     }
-    if ((col.type as string) === "Message") {
+    if (col.type && col.type.toLowerCase() === "message") {
       return (
         <Button
           variant="outlined"
