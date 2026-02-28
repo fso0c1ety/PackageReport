@@ -351,14 +351,46 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
       const workspace = wsResult.rows[0];
       if (!workspace || workspace.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
-      const tablesResult = await db.query('SELECT * FROM tables WHERE workspace_id = $1', [req.query.workspaceId]);
+      const tablesResult = await db.query(`
+        SELECT 
+            t.*, 
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id', r.id, 
+                        'table_id', r.table_id, 
+                        'values', r.values
+                    )
+                ) FILTER (WHERE r.id IS NOT NULL), 
+                '[]'
+            ) as tasks
+        FROM tables t 
+        LEFT JOIN rows r ON t.id = r.table_id 
+        WHERE t.workspace_id = $1
+        GROUP BY t.id
+      `, [req.query.workspaceId]);
       return res.json(tablesResult.rows);
     } else {
-      // Return all tables in all workspaces owned by user
-      const result = await db.query(
-        'SELECT t.* FROM tables t JOIN workspaces w ON t.workspace_id = w.id WHERE w.owner_id = $1',
-        [req.user.id]
-      );
+      // Return all tables in all workspaces owned by user, including aggregated tasks
+      const result = await db.query(`
+        SELECT 
+            t.*, 
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id', r.id, 
+                        'table_id', r.table_id, 
+                        'values', r.values
+                    )
+                ) FILTER (WHERE r.id IS NOT NULL), 
+                '[]'
+            ) as tasks
+        FROM tables t 
+        JOIN workspaces w ON t.workspace_id = w.id 
+        LEFT JOIN rows r ON t.id = r.table_id 
+        WHERE w.owner_id = $1 
+        GROUP BY t.id
+      `, [req.user.id]);
       res.json(result.rows);
     }
   } catch (err) {
