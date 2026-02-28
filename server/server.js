@@ -595,6 +595,7 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
         const recipients = automation.recipients;
         if (recipients && recipients.length > 0) {
           // 1. Log to PostgreSQL activity_logs (initial)
+          console.log('[AUTOMATION] Triggering email for recipients:', recipients);
           const logRes = await db.query(
             'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
             [JSON.stringify(recipients), subject, html, Date.now(), table.id, id, 'pending']
