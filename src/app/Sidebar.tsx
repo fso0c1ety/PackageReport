@@ -23,6 +23,10 @@ import {
   ListItemText,
   useTheme,
   useMediaQuery,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
@@ -32,8 +36,10 @@ import PsychologyIcon from "@mui/icons-material/Psychology";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SearchIcon from "@mui/icons-material/Search";
+import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
 import EditIcon from "@mui/icons-material/Edit";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 
@@ -111,6 +117,14 @@ export default function Sidebar({
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Share Boards State
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [usersToShare, setUsersToShare] = useState<any[]>([]);
+  const [shareSelectedUser, setShareSelectedUser] = useState("");
+  const [shareSelectedWorkspace, setShareSelectedWorkspace] = useState("");
+  const [tablesInWorkspace, setTablesInWorkspace] = useState<any[]>([]);
+  const [shareSelectedTable, setShareSelectedTable] = useState("");
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
 
@@ -198,6 +212,46 @@ export default function Sidebar({
       setEditingWorkspace(currentWs);
       setRenameValue(currentWs.name);
       setRenameDialogOpen(true);
+    }
+  };
+
+  const openShareDialog = async () => {
+    setShareDialogOpen(true);
+    try {
+      const res = await authenticatedFetch(getApiUrl("people"));
+      if (res.ok) {
+        setUsersToShare(await res.json());
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleShareWorkspaceChange = async (wsId: string) => {
+    setShareSelectedWorkspace(wsId);
+    setShareSelectedTable("");
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${wsId}/tables`));
+      if (res.ok) {
+        setTablesInWorkspace(await res.json());
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleShareSubmit = async () => {
+    if (!shareSelectedTable || !shareSelectedUser) return;
+    try {
+      const res = await authenticatedFetch(getApiUrl(`tables/${shareSelectedTable}/share`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: shareSelectedUser })
+      });
+      if (!res.ok) throw new Error("Failed to share");
+      alert("Successfully shared table!");
+      setShareDialogOpen(false);
+      setShareSelectedUser("");
+      setShareSelectedWorkspace("");
+      setShareSelectedTable("");
+    } catch (err) {
+      alert("Error sharing table. Make sure you are the workspace owner.");
     }
   };
 
@@ -384,6 +438,23 @@ export default function Sidebar({
                 </IconButton>
               </Tooltip>
             )}
+          </Box>
+          <Box sx={{ px: 2, mt: 2 }}>
+            <Button
+              fullWidth
+              startIcon={<PersonAddIcon />}
+              onClick={openShareDialog}
+              sx={{
+                color: "#94a3b8",
+                textTransform: "none",
+                justifyContent: "flex-start",
+                py: 1,
+                borderRadius: 2,
+                "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.05)" }
+              }}
+            >
+              Share Boards
+            </Button>
           </Box>
         </Box>
       </Box>
@@ -574,6 +645,155 @@ export default function Sidebar({
             }}
           >
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Share Boards Dialog */}
+      <Dialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+          Share Board
+        </DialogTitle>
+        <DialogContent sx={{ pb: 3, pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="body2" sx={{ color: '#94a3b8', mb: 1 }}>
+            Select a user and choose which table to share with them. They will be able to access the board and chat.
+          </Typography>
+
+          <FormControl fullWidth variant="outlined">
+            <InputLabel sx={{ color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }}>Select User</InputLabel>
+            <Select
+              label="Select User"
+              value={shareSelectedUser}
+              onChange={(e) => setShareSelectedUser(e.target.value)}
+              sx={{
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                '& .MuiSvgIcon-root': { color: '#7d82a8' }
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    bgcolor: '#26273b', color: '#fff',
+                    '& .MuiMenuItem-root:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
+                    '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.25)' }
+                  }
+                }
+              }}
+            >
+              {usersToShare.map(u => (
+                <MenuItem key={u.id} value={u.id}>{u.name} ({u.email})</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth variant="outlined">
+            <InputLabel sx={{ color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }}>Select Workspace</InputLabel>
+            <Select
+              label="Select Workspace"
+              value={shareSelectedWorkspace}
+              onChange={(e) => handleShareWorkspaceChange(e.target.value)}
+              sx={{
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                '& .MuiSvgIcon-root': { color: '#7d82a8' }
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    bgcolor: '#26273b', color: '#fff',
+                    '& .MuiMenuItem-root:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
+                    '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.25)' }
+                  }
+                }
+              }}
+            >
+              {workspaces.map(ws => (
+                <MenuItem key={ws.id} value={ws.id}>{ws.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth variant="outlined">
+            <InputLabel sx={{ color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }}>Select Table</InputLabel>
+            <Select
+              label="Select Table"
+              value={shareSelectedTable}
+              onChange={(e) => setShareSelectedTable(e.target.value)}
+              disabled={!shareSelectedWorkspace || tablesInWorkspace.length === 0}
+              sx={{
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                '& .MuiSvgIcon-root': { color: '#7d82a8' }
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    bgcolor: '#26273b', color: '#fff',
+                    '& .MuiMenuItem-root:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
+                    '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.25)' }
+                  }
+                }
+              }}
+            >
+              {tablesInWorkspace.map(t => (
+                <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
+          <Button
+            onClick={() => setShareDialogOpen(false)}
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleShareSubmit}
+            disabled={!shareSelectedUser || !shareSelectedTable}
+            variant="contained"
+            sx={{
+              bgcolor: '#6366f1',
+              '&:hover': { bgcolor: '#5558dd' },
+              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              boxShadow: 'none',
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
+            Share
           </Button>
         </DialogActions>
       </Dialog>

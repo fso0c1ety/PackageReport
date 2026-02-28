@@ -20,6 +20,7 @@ const app = express();
     await db.query(`
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS status TEXT;
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+      ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;
     `);
     console.log('[DB] activity_logs schema checked/updated.');
   } catch (err) {
@@ -107,7 +108,12 @@ app.get('/api/workspaces', authenticateToken, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    const result = await db.query('SELECT * FROM workspaces WHERE owner_id = $1', [req.user.id]);
+    const result = await db.query(`
+      SELECT DISTINCT w.* 
+      FROM workspaces w
+      LEFT JOIN tables t ON w.id = t.workspace_id
+      WHERE w.owner_id = $1 OR t.shared_users @> $2::jsonb
+    `, [req.user.id, JSON.stringify([req.user.id])]);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching workspaces:', err);
@@ -358,7 +364,9 @@ app.put('/api/tables/:tableId/columns', authenticateToken, async (req, res) => {
 
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
     const workspace = wsResult.rows[0];
-    if (!workspace || workspace.owner_id !== req.user.id) return res.sendStatus(403);
+    const isOwner = workspace && workspace.owner_id === req.user.id;
+    const isShared = table.shared_users && table.shared_users.includes(req.user.id);
+    if (!isOwner && !isShared) return res.sendStatus(403);
 
     await db.query('UPDATE tables SET columns = $1 WHERE id = $2', [JSON.stringify(req.body.columns), req.params.tableId]);
     res.json({ success: true, columns: req.body.columns });
@@ -400,12 +408,12 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
             ) as tasks
         FROM tables t 
         LEFT JOIN rows r ON t.id = r.table_id 
-        WHERE t.workspace_id = $1
+        WHERE t.workspace_id = $1 AND ($2 = $3 OR t.shared_users @> $4::jsonb)
         GROUP BY t.id
-      `, [req.query.workspaceId]);
+      `, [req.query.workspaceId, workspace.owner_id, req.user.id, JSON.stringify([req.user.id])]);
       return res.json(tablesResult.rows);
     } else {
-      // Return all tables in all workspaces owned by user, including aggregated tasks
+      // Return all tables in all workspaces owned by user, or tables explicitly shared with user
       const result = await db.query(`
         SELECT 
             t.*, 
@@ -422,9 +430,9 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
         FROM tables t 
         JOIN workspaces w ON t.workspace_id = w.id 
         LEFT JOIN rows r ON t.id = r.table_id 
-        WHERE w.owner_id = $1 
+        WHERE w.owner_id = $1 OR t.shared_users @> $2::jsonb
         GROUP BY t.id
-      `, [req.user.id]);
+      `, [req.user.id, JSON.stringify([req.user.id])]);
       res.json(result.rows);
     }
   } catch (err) {
@@ -481,6 +489,41 @@ app.post('/api/tables', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Share a table with another user
+app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  try {
+    const result = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
+    const table = result.rows[0];
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+
+    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
+    const workspace = wsResult.rows[0];
+    if (!workspace || workspace.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only workspace owners can share tables' });
+    }
+
+    const sharedUsers = table.shared_users || [];
+    if (!sharedUsers.includes(userId)) {
+      sharedUsers.push(userId);
+      await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), req.params.tableId]);
+    }
+
+    res.json({ success: true, shared_users: sharedUsers });
+  } catch (err) {
+    console.error('Error sharing table:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 // Per-table tasks endpoints
