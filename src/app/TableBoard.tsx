@@ -273,6 +273,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [boardTypingUsers, setBoardTypingUsers] = useState<string[]>([]);
   const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Initialize Socket Connection - depends on tableId
   useEffect(() => {
@@ -679,9 +680,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
   const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // --- Socket.IO Methods ---
   useEffect(() => {
     if (!tableId) return;
 
