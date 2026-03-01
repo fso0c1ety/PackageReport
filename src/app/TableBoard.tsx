@@ -275,23 +275,39 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Initialize Socket Connection - depends on tableId
-  useEffect(() => {
-    if (!tableId) return;
+    // Initialize Socket Connection - depends on tableId
+    useEffect(() => {
+        if (!tableId) return;
 
-    const newSocket = io(SERVER_URL || window.location.origin, {
-      transports: ['websocket', 'polling'], // Try websocket first if possible, fallback to polling
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-    setSocket(newSocket);
+        console.log('Connecting socket to:', SERVER_URL || window.location.origin);
+        
+        const newSocket = io(SERVER_URL || window.location.origin, {
+            path: '/socket.io',
+            transports: ['websocket', 'polling'],
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            autoConnect: true,
+        });
 
-    newSocket.on('connect', () => {
-      console.log('Connected to socket server');
-      newSocket.emit('join_table', tableId);
-    });
+        setSocket(newSocket);
 
-    newSocket.on('typing_board', ({ user }) => {
+        newSocket.on('connect', () => {
+            console.log('Connected to socket server');
+            newSocket.emit('join_table', tableId);
+        });
+
+        newSocket.on('connect_error', (err) => {
+            console.error('Socket connection error:', err);
+             // If websocket fails, force polling on reconnection
+            if (newSocket.io.opts.transports && newSocket.io.opts.transports.indexOf('websocket') !== -1) {
+                 console.log('Falling back to polling transport');
+                 newSocket.io.opts.transports = ['polling', 'websocket'];
+            }
+        });
+        
+        // ... (rest of listeners)
+
+        newSocket.on('typing_board', ({ user }) => {
       setBoardTypingUsers(prev => {
         // Don't show typing indicator for yourself
         // Note: We need access to currentUser ref, but it's a dependency, so we're good.
