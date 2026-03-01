@@ -1149,10 +1149,10 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
         });
       }
 
-      // Remove sender (commented out for testing purposes - uncomment for prod)
-      // recipientIds.delete(req.user.id);
+      // Remove sender (so you don't receive notifications for your own messages)
+      recipientIds.delete(req.user.id);
       
-      console.log(`[Chat Notification] Sender: ${req.user.id}, Potential Recipients: ${Array.from(recipientIds).join(', ')}`);
+      // console.log(`[Chat Notification] Sender: ${req.user.id}, Potential Recipients: ${Array.from(recipientIds).join(', ')}`);
 
       if (recipientIds.size > 0) {
         const recipientsArray = Array.from(recipientIds);
