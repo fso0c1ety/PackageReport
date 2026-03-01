@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
@@ -34,6 +35,7 @@ if (typeof window !== "undefined") {
 
 const NotificationRequester = () => {
     const { showNotification } = useNotification();
+    const router = useRouter();
     useEffect(() => {
         const initPush = async () => {
             // Check if native or web.
@@ -104,6 +106,8 @@ const NotificationRequester = () => {
                             const body = notification.body || notification.data?.body || 'New message';
                             showNotification(`${title}: ${body}`, 'info');
 
+                            const tableId = notification.data?.tableId;
+
                             // ALSO schedule a Local Notification for the System Tray if desired
                             await LocalNotifications.schedule({
                                 notifications: [
@@ -115,7 +119,7 @@ const NotificationRequester = () => {
                                     sound: undefined,
                                     attachments: undefined,
                                     actionTypeId: "",
-                                    extra: null
+                                    extra: { tableId }
                                 }
                                 ]
                             });
@@ -124,6 +128,19 @@ const NotificationRequester = () => {
                          await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
                             console.log('Push action performed: ' + JSON.stringify(notification));
                              // Navigate to chat if needed
+                             const tableId = notification.notification.data?.tableId;
+                             if (tableId) {
+                                 router.push(`/dashboard/board/${tableId}`);
+                             }
+                        });
+                        
+                        // Add Local Notification Action Listener (for foreground notifications clicked)
+                        await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+                            console.log('Local Notification action performed:', notification);
+                            const tableId = notification.notification.extra?.tableId;
+                            if (tableId) {
+                                router.push(`/dashboard/board/${tableId}`);
+                            }
                         });
 
                         // Register with FCM

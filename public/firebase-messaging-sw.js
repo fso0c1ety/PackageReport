@@ -27,8 +27,30 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: '/logo.png' // Customize icon
+    icon: '/logo.png', // Customize icon
+    data: payload.data // Pass data containing tableId
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', function(event) {
+  console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification.data);
+  event.notification.close();
+
+  // Check for tableId in data
+  let urlToOpen = '/';
+  if (event.notification.data && event.notification.data.tableId) {
+    urlToOpen = `/dashboard/board/${event.notification.data.tableId}`;
+  }
+
+  // This looks to see if the current is already open and focuses if it is
+  event.waitUntil(clients.matchAll({
+    type: "window"
+  }).then((clientList) => {
+    for (const client of clientList) {
+      if (client.url.includes(urlToOpen) && 'focus' in client) return client.focus();
+    }
+    if (clients.openWindow) return clients.openWindow(urlToOpen);
+  }));
 });
