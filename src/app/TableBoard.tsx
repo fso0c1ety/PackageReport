@@ -306,10 +306,32 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Track unread messages when chat is closed
   useEffect(() => {
+    // Request notification permission if not yet requested/granted
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     if (!isChatOpen) {
       const newCount = boardChatMessages.length;
       if (newCount > prevMessageCountRef.current) {
-        setUnreadCount(prev => prev + (newCount - prevMessageCountRef.current));
+        // Read current user from localStorage to avoid hook dependency cycle
+        const userJson = localStorage.getItem("user");
+        const user = userJson ? JSON.parse(userJson) : null;
+        const currentUserName = user ? user.name : 'User';
+
+        const newMessages = boardChatMessages.slice(prevMessageCountRef.current);
+        const externalNewMessages = newMessages.filter(m => m.sender !== currentUserName);
+
+        if (externalNewMessages.length > 0) {
+          setUnreadCount(prev => prev + externalNewMessages.length);
+
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            const latestMsg = externalNewMessages[externalNewMessages.length - 1];
+            new Notification('New Board Message', {
+              body: `${latestMsg.sender}: ${latestMsg.text}`,
+            });
+          }
+        }
       }
     }
     prevMessageCountRef.current = boardChatMessages.length;
