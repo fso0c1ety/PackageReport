@@ -274,6 +274,56 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize Socket Connection - depends on tableId
+  useEffect(() => {
+    if (!tableId) return;
+
+    const newSocket = io(SERVER_URL || window.location.origin);
+    setSocket(newSocket);
+
+    newSocket.on('connect', () => {
+      console.log('Connected to socket server');
+      newSocket.emit('join_board', tableId);
+    });
+
+    newSocket.on('typing_board', ({ user }) => {
+      setBoardTypingUsers(prev => {
+        // Don't show typing indicator for yourself
+        // Note: We need access to currentUser ref, but it's a dependency, so we're good.
+        if (currentUser && user === currentUser.name) return prev;
+        if (prev.includes(user)) return prev;
+        return [...prev, user];
+      });
+    });
+
+    newSocket.on('stop_typing_board', ({ user }) => {
+      setBoardTypingUsers(prev => prev.filter(u => u !== user));
+    });
+
+    newSocket.on('typing_task', ({ taskId, user }) => {
+      setTaskTypingUsers(prev => {
+        // Don't show typing indicator for yourself
+        if (currentUser && user === currentUser.name) return prev;
+        
+        const current = prev[taskId] || [];
+        if (current.includes(user)) return prev;
+        return { ...prev, [taskId]: [...current, user] };
+      });
+    });
+
+    newSocket.on('stop_typing_task', ({ taskId, user }) => {
+      setTaskTypingUsers(prev => {
+        const current = prev[taskId] || [];
+        return { ...prev, [taskId]: current.filter(u => u !== user) };
+      });
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [tableId, currentUser]);
+
+
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [boardChatMessages, setBoardChatMessages] = useState<{
     id: string;
@@ -645,6 +695,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
     newSocket.on('typing_board', ({ user }) => {
       setBoardTypingUsers(prev => {
+        // Don't show typing indicator for yourself
+        if (currentUser && user === currentUser.name) return prev;
         if (!prev.includes(user)) return [...prev, user];
         return prev;
       });
@@ -656,6 +708,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
     newSocket.on('typing_task', ({ taskId, user }) => {
       setTaskTypingUsers(prev => {
+        // Don't show typing indicator for yourself
+        if (currentUser && user === currentUser.name) return prev;
+        
         const current = prev[taskId] || [];
         if (!current.includes(user)) {
           return { ...prev, [taskId]: [...current, user] };
@@ -674,11 +729,14 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     return () => {
       newSocket.disconnect();
     };
-  }, [tableId]);
+  }, [tableId, currentUser]);
 
   const handleBoardTyping = () => {
     if (socket) {
       const user = currentUser?.name || 'User';
+      // Optimistically add self to typing users if desired, but usually we don't show "You are typing"
+      // However, we must ensure we don't filter out others just because we are typing
+      
       socket.emit('typing_board', { tableId, user });
       
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -3179,7 +3237,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                           </Box>
                         </Box>
                       )}
-                      <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{msg.text}</Typography>
+                      <Typography variant="body2" sx={{ lineHeight: 1.5, wordWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
                     </Box>
                   </Box>
                   <Typography variant="caption" sx={{ color: '#565875', mt: 0.5, px: 1, fontSize: '0.7rem' }}>
@@ -4145,7 +4203,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                                     borderRadius: '0 12px 12px 12px',
                                                     border: '1px solid #3a3b5a'
                                                   }}>
-                                                    <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5 }}>{msg.text}</Typography>
+                                                    <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5, wordWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
                                                   </Box>
                                                 </Box>
                                               </Box>
