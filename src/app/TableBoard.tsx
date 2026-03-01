@@ -299,7 +299,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         newSocket.on('connect_error', (err) => {
             console.error('Socket connection error:', err);
              // If websocket fails, force polling on reconnection
-            if (newSocket.io.opts.transports && newSocket.io.opts.transports.indexOf('websocket') !== -1) {
+             // @ts-ignore - Transport manipulation is internal but necessary here
+            if (newSocket.io.opts.transports && (newSocket.io.opts.transports as any[]).indexOf('websocket') !== -1) {
                  console.log('Falling back to polling transport');
                  newSocket.io.opts.transports = ['polling', 'websocket'];
             }
