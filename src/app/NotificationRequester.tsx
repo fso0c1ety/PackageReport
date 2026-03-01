@@ -162,9 +162,6 @@ const NotificationRequester = () => {
             } catch (e) {
                 console.error('Error initializing push notifications', e);
             }
-            } catch (e) {
-                console.error('Error initializing push notifications', e);
-            }
         };
 
         initPush();
