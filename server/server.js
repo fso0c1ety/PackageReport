@@ -104,15 +104,20 @@ io.on('connection', (socket) => {
 // Enable CORS for all routes before anything else
 app.use(cors());
 
+// Enable JSON parsing for request bodies
+app.use(express.json());
+
 // Log all incoming requests for debugging
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
+  if (req.method === 'POST') {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip} body: ${JSON.stringify(req.body).substring(0, 100)}`);
+  } else {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
+  }
   next();
 });
 
 // Register people and automation routes at /api
-
-app.use(express.json());
 const authRoute = require('./routes/auth');
 const peopleRoute = require('./routes/people');
 const automationRoute = require('./routes/automation');
