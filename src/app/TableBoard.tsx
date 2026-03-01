@@ -373,6 +373,26 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                            console.error("Failed to schedule local notification", e);
                        }
                         } else if ((document.hidden || !isChatOpen) && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                            new Notification(title, {
+                                body: body,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        prevMessageCountRef.current = boardChatMessages.length;
+    };
+    checkAndNotify();
+  }, [boardChatMessages, isChatOpen]);
+
+  const handleSendBoardChat = async () => {
+    if (!newBoardChatMessage.trim()) return;
+
+    const tempId = uuidv4();
+    const msg = {
+      id: tempId,
+      text: newBoardChatMessage,
       sender: currentUser?.name || 'User',
       senderAvatar: currentUser?.avatar,
       time: dayjs().format('HH:mm')
