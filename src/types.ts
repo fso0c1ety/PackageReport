@@ -41,7 +41,7 @@ export interface Row {
   id: string;
   values: Record<string, any>; // key: columnId, value: cell value
   archived?: boolean;
-  activity?: { text: string; time: string; user: string }[];
+  activity?: { text: string; time: string; user: string; userAvatar?: string; userId?: string }[];
 }
 
 export interface Table {

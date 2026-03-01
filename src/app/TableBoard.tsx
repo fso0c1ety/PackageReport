@@ -264,6 +264,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     id: string;
     text: string;
     sender: string;
+    senderAvatar?: string;
     time: string;
     attachment?: { name: string, type: string, url: string };
   }[]>([]);
@@ -290,7 +291,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     const msg = {
       id: tempId,
       text: newBoardChatMessage,
-      sender: 'You',
+      sender: currentUser?.name || 'User',
+      senderAvatar: currentUser?.avatar,
       time: dayjs().format('HH:mm')
     };
 
@@ -341,7 +343,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       const msg = {
         id: uuidv4(),
         text: `Sent a file: ${file.name}`,
-        sender: 'You',
+        sender: currentUser?.name || 'User',
+        senderAvatar: currentUser?.avatar,
         time: dayjs().format('HH:mm'),
         attachment
       };
@@ -440,6 +443,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
   const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
 
@@ -659,7 +663,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     setLoading(true);
 
     const userJson = localStorage.getItem("user");
-    const currentUserId = userJson ? JSON.parse(userJson).id : null;
+    const user = userJson ? JSON.parse(userJson) : null;
+    setCurrentUser(user);
+    const currentUserId = user ? user.id : null;
 
     // Fetch single table info with owner info
     authenticatedFetch(getApiUrl(`/tables/${tableId}`))
@@ -907,7 +913,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
   // Accept optional valueOverride for immediate save from PeopleSelector
   const handleCellSave = async (rowId: string, colId: string, colType?: string, valueOverride?: any) => {
-    if (userPermission === 'read') return;
+    if (userPermission === 'read' && colId !== 'message') return;
     // Find and update the row before calling setRows
     const prevRows = [...rows];
     const rowIdx = prevRows.findIndex((row) => row.id === rowId);
@@ -1413,6 +1419,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
 
   const openManageAccess = async () => {
+    if (userPermission !== 'owner') {
+      alert("You cant access this you are not the owner");
+      return;
+    }
     setLoadingUsers(true);
     setManageAccessOpen(true);
     try {
@@ -2780,7 +2790,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             backgroundRepeat: 'no-repeat'
           }}>
             {boardChatMessages.map((msg) => {
-              const isMe = msg.sender === 'You';
+              const isMe = msg.sender === 'You' || (currentUser && msg.sender === currentUser.name);
               return (
                 <Box key={msg.id} sx={{
                   alignSelf: isMe ? 'flex-end' : 'flex-start',
@@ -2791,8 +2801,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                     {!isMe && (
-                      <Avatar sx={{ width: 28, height: 28, bgcolor: isMe ? '#6366f1' : '#3a3b5a', fontSize: '0.75rem' }}>
-                        {msg.sender.charAt(0)}
+                      <Avatar
+                        src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                        sx={{ width: 28, height: 28, bgcolor: isMe ? '#6366f1' : '#3a3b5a', fontSize: '0.75rem' }}
+                      >
+                        {!msg.senderAvatar && msg.sender.charAt(0)}
                       </Avatar>
                     )}
                     <Box sx={{
@@ -5009,7 +5022,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       (reviewTask.values.message || []).map((msg: any) => (
                         <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75, ml: 0.5 }}>
-                            <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600 }}>{msg.sender?.[0] || 'U'}</Avatar>
+                            <Avatar
+                              src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                              sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600 }}
+                            >
+                              {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
+                            </Avatar>
                             <Typography variant="caption" sx={{ fontWeight: 600, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
                             <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
                               {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
@@ -5039,7 +5057,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                           if (e.key === 'Enter' && chatInput.trim() && reviewTask) {
                             const newMsg = {
                               id: uuidv4(),
-                              sender: "Valon Halili", // Replace with real user
+                              sender: currentUser?.name || "User",
+                              senderAvatar: currentUser?.avatar,
                               text: chatInput,
                               timestamp: new Date().toISOString()
                             };
@@ -5072,7 +5091,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                           if (chatInput.trim() && reviewTask) {
                             const newMsg = {
                               id: uuidv4(),
-                              sender: "Valon Halili", // Replace with real user
+                              sender: currentUser?.name || "User",
+                              senderAvatar: currentUser?.avatar,
                               text: chatInput,
                               timestamp: new Date().toISOString()
                             };
@@ -5188,9 +5208,14 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             border: '2px solid #1C1D26'
                           }} />
                           <Typography variant="body2" sx={{ color: '#E5E7EB', mb: 0.5, fontSize: 13 }}>{log.text}</Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="caption" sx={{ color: '#9CA3AF', fontSize: 11 }}>{log.user}</Typography>
-                            <Typography variant="caption" sx={{ color: '#4B5563' }}>•</Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75, ml: 0.5 }}>
+                            <Avatar
+                              src={log.userAvatar ? (log.userAvatar.startsWith('http') ? log.userAvatar : `${SERVER_URL}${log.userAvatar}`) : undefined}
+                              sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600 }}
+                            >
+                              {!log.userAvatar && (log.user?.[0] || 'U')}
+                            </Avatar>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#F3F4F6', fontSize: 13 }}>{log.user || 'User'}</Typography>
                             <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>{log.time}</Typography>
                           </Box>
                         </Box>
