@@ -282,6 +282,26 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const prevMessageCountRef = React.useRef(0);
   const isFirstLoadRef = React.useRef(true);
+  const boardChatEndRef = React.useRef<HTMLDivElement>(null);
+  const taskChatEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom of Board Chat when messages update or chat opens
+  useEffect(() => {
+    if (isChatOpen) {
+      setTimeout(() => {
+          boardChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [boardChatMessages, isChatOpen]);
+
+  // Scroll to bottom of Task Chat (Discussion) when open
+  useEffect(() => {
+    if (chatTaskId && (mobileTab === 'chat' || rightPanelTab === 'chat' || !!chatAnchor)) {
+      setTimeout(() => {
+          taskChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [chatMessages, chatTaskId, mobileTab, rightPanelTab, chatAnchor]);
 
   // Reset state when Table ID changes
   useEffect(() => {
@@ -3088,6 +3108,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 </Box>
               );
             })}
+            <div ref={boardChatEndRef} />
           </Box>
 
           {/* Input */}
@@ -4042,7 +4063,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                               </Box>
                                             ))
                                           )}
-                                          <div id="chat-bottom" />
+                                          <div id="chat-bottom" ref={taskChatEndRef} />
                                         </Box>
 
                                         {/* Input */}
