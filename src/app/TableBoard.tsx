@@ -7,6 +7,9 @@ import {
   Divider,
   CircularProgress,
   ListItemAvatar,
+  Snackbar,
+  Alert,
+  AlertColor,
 } from "@mui/material";
 
 function TaskRowMenu({
@@ -371,7 +374,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       });
     } catch (err) {
       console.error("Failed to upload file or send message", err);
-      alert("Failed to send file");
+      showNotification("Failed to send file", "error");
     }
 
     // Clear input value so same file can be selected again
@@ -511,6 +514,20 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
+  const [notification, setNotification] = useState<{ open: boolean; message: string; severity: AlertColor }>({
+    open: false,
+    message: "",
+    severity: "info",
+  });
+
+  const showNotification = (message: string, severity: AlertColor = "info") => {
+    setNotification({ open: true, message, severity });
+  };
+
+  const handleCloseNotification = (_?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') return;
+    setNotification(prev => ({ ...prev, open: false }));
+  };
 
   const handleMoveColumn = (colId: string, direction: 'left' | 'right' | 'start' | 'end') => {
     // Current column object
@@ -627,14 +644,14 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       document.body.removeChild(link);
     } catch (e) {
       console.error("Export failed", e);
-      alert("Export failed");
+      showNotification("Export failed", "error");
     }
   };
 
   const handleExportPdf = (row: Row) => {
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (!printWindow) {
-      alert("Please allow popups/new tabs to export PDF");
+      showNotification("Please allow popups/new tabs to export user", "warning");
       return;
     }
 
@@ -1486,7 +1503,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   const openManageAccess = async () => {
     if (userPermission !== 'owner') {
-      alert("You cant access this you are not the owner");
+      showNotification("You cant access this you are not the owner", "error");
       return;
     }
     setLoadingUsers(true);
@@ -1526,14 +1543,16 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       });
       if (res.ok) {
         setNewSharedUserEmail("");
+        showNotification("Table shared successfully", "success");
         // Refresh list
         openManageAccess();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to invite user");
+        showNotification(err.error || "Failed to invite user", "error");
       }
     } catch (err) {
       console.error(err);
+      showNotification("Failed to invite user", "error");
     }
   };
 
@@ -5529,6 +5548,34 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         </DialogActions>
       </Dialog>
 
+
+      {/* Premium Notification Snackbar */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={4000}
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 2 }}
+      >
+        <Alert
+          onClose={handleCloseNotification}
+          severity={notification.severity}
+          variant="filled"
+          sx={{
+            width: '100%',
+            bgcolor: notification.severity === 'success' ? '#00c875' : notification.severity === 'error' ? '#f44336' : '#1e1f2b',
+            color: '#fff',
+            fontWeight: 600,
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(10px)',
+            '& .MuiAlert-icon': { color: '#fff' }
+          }}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box >
   );
 }
