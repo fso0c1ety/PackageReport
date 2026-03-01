@@ -5,6 +5,8 @@ import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch } from 
 import {
   ListItemIcon,
   Divider,
+  CircularProgress,
+  ListItemAvatar,
 } from "@mui/material";
 
 function TaskRowMenu({
@@ -217,6 +219,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
+import GroupIcon from "@mui/icons-material/Group";
 import ColumnTypeSelector from "./ColumnTypeSelector";
 import { Column, Row, ColumnType, ColumnOption } from "../types";
 
@@ -1686,7 +1689,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       {opt.value}
                     </Box>
                   ))}
-                  {userPermission !== 'read' && (
+                  {true && (
                     <Box sx={{ borderTop: '1px solid #3a3b5a', mt: 1, pt: 1, display: 'flex', justifyContent: 'center' }}>
                       <Button
                         size="small"
