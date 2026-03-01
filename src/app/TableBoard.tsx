@@ -284,7 +284,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
     newSocket.on('connect', () => {
       console.log('Connected to socket server');
-      newSocket.emit('join_board', tableId);
+      newSocket.emit('join_table', tableId);
     });
 
     newSocket.on('typing_board', ({ user }) => {
@@ -434,7 +434,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                    {
                                        title: title,
                                        body: body,
-                                       id: new Date().getTime(), // Unique ID
+                                       id: new Date().getTime() & 0x7FFFFFFF, // Unique ID (safe int)
                                        schedule: { at: new Date(Date.now() + 100) },
                                        sound: undefined,
                                        attachments: undefined,
@@ -690,54 +690,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
 
-  useEffect(() => {
-    if (!tableId) return;
 
-    const newSocket = io(SERVER_URL);
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      console.log('Connected to socket server');
-      newSocket.emit('join_board', tableId);
-    });
-
-    newSocket.on('typing_board', ({ user }) => {
-      setBoardTypingUsers(prev => {
-        // Don't show typing indicator for yourself
-        if (currentUser && user === currentUser.name) return prev;
-        if (!prev.includes(user)) return [...prev, user];
-        return prev;
-      });
-    });
-
-    newSocket.on('stop_typing_board', ({ user }) => {
-      setBoardTypingUsers(prev => prev.filter(u => u !== user));
-    });
-
-    newSocket.on('typing_task', ({ taskId, user }) => {
-      setTaskTypingUsers(prev => {
-        // Don't show typing indicator for yourself
-        if (currentUser && user === currentUser.name) return prev;
-        
-        const current = prev[taskId] || [];
-        if (!current.includes(user)) {
-          return { ...prev, [taskId]: [...current, user] };
-        }
-        return prev;
-      });
-    });
-
-    newSocket.on('stop_typing_task', ({ taskId, user }) => {
-      setTaskTypingUsers(prev => {
-        const current = prev[taskId] || [];
-        return { ...prev, [taskId]: current.filter(u => u !== user) };
-      });
-    });
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [tableId, currentUser]);
 
   const handleBoardTyping = () => {
     if (socket) {
