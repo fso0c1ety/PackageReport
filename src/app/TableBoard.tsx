@@ -1571,7 +1571,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     if (!chatTaskId || !chatInput.trim()) return;
     const newMsg = {
       id: uuidv4(),
-      sender: "User", // Replace with actual user info if available
+      sender: currentUser?.name || "User",
+      senderAvatar: currentUser?.avatar,
       text: chatInput,
       timestamp: new Date().toISOString()
     };
@@ -3769,19 +3770,29 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                             </Box>
                                           ) : (
                                             chatMessages.map(msg => (
-                                              <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
-                                                <Box sx={{
-                                                  bgcolor: '#2c2d4a',
-                                                  px: 2,
-                                                  py: 1.5,
-                                                  borderRadius: '12px 12px 12px 2px',
-                                                  border: '1px solid #3a3b5a'
-                                                }}>
+                                              <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
+                                                <Avatar
+                                                  src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                                                  sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
+                                                >
+                                                  {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
+                                                </Avatar>
+                                                <Box sx={{ flex: 1, minWidth: 0 }}>
                                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#6c6ed6' }}>{msg.sender}</Typography>
-                                                    <Typography variant="caption" sx={{ color: '#5a5b7a', fontSize: 10 }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography>
+                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
+                                                    <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
+                                                      {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                    </Typography>
                                                   </Box>
-                                                  <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5 }}>{msg.text}</Typography>
+                                                  <Box sx={{
+                                                    bgcolor: '#2c2d4a',
+                                                    px: 2,
+                                                    py: 1.5,
+                                                    borderRadius: '0 12px 12px 12px',
+                                                    border: '1px solid #3a3b5a'
+                                                  }}>
+                                                    <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5 }}>{msg.text}</Typography>
+                                                  </Box>
                                                 </Box>
                                               </Box>
                                             ))
