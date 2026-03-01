@@ -129,6 +129,7 @@ export default function Sidebar({
 
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [inviteCodeValue, setInviteCodeValue] = useState("");
+  const [sharePermission, setSharePermission] = useState<'read' | 'edit'>('edit');
   const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
@@ -280,7 +281,7 @@ export default function Sidebar({
       const res = await authenticatedFetch(getApiUrl(`tables/${shareSelectedTable.id}/share`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: shareSelectedUser.id })
+        body: JSON.stringify({ userId: shareSelectedUser.id, permission: sharePermission })
       });
       if (!res.ok) throw new Error("Failed to share");
       alert("Successfully shared table!");
@@ -310,12 +311,10 @@ export default function Sidebar({
       setJoinDialogOpen(false);
       setInviteCodeValue("");
 
-      // Refresh workspaces to show the new table
-      const wsRes = await authenticatedFetch(getApiUrl("workspaces"));
-      if (wsRes.ok) {
-        setWorkspaces(await wsRes.json());
-      }
+      // Dispatch event for components to refresh (like WorkspaceDropdown)
+      window.dispatchEvent(new CustomEvent('workspaceUpdated'));
 
+      // Redirect to the new workspace
       router.push(`/workspace?id=${data.workspaceId}`);
     } catch (err: any) {
       alert(err.message || "Error joining board. Please check the code.");
@@ -905,6 +904,46 @@ export default function Sidebar({
               )}
             />
           </FormControl>
+
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block', fontWeight: 600 }}>
+              PERMISSION
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                size="small"
+                fullWidth
+                onClick={() => setSharePermission('edit')}
+                sx={{
+                  bgcolor: sharePermission === 'edit' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                  color: sharePermission === 'edit' ? '#6366f1' : '#94a3b8',
+                  border: `1px solid ${sharePermission === 'edit' ? '#6366f1' : '#3a3b5a'}`,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.1)' }
+                }}
+              >
+                Editable
+              </Button>
+              <Button
+                size="small"
+                fullWidth
+                onClick={() => setSharePermission('read')}
+                sx={{
+                  bgcolor: sharePermission === 'read' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                  color: sharePermission === 'read' ? '#6366f1' : '#94a3b8',
+                  border: `1px solid ${sharePermission === 'read' ? '#6366f1' : '#3a3b5a'}`,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.1)' }
+                }}
+              >
+                Read-only
+              </Button>
+            </Box>
+          </Box>
 
           {shareSelectedTable && (
             <Box sx={{

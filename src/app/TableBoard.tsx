@@ -431,6 +431,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [showColSelector, setShowColSelector] = useState(false);
   const [colSelectorAnchor, setColSelectorAnchor] = useState<null | HTMLElement>(null);
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
+  const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
+  const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
+  const [manageAccessOpen, setManageAccessOpen] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
 
   const handleMoveColumn = (colId: string, direction: 'left' | 'right' | 'start' | 'end') => {
     // Current column object
@@ -644,27 +649,42 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
+    if (!tableId) return;
     setLoading(true);
-    // Fetch fresh data when tableId changes
-    authenticatedFetch(getApiUrl(`/tables`))
-      .then((res) => res.json())
-      .then((tables) => {
-        const table = tables.find((t: any) => t.id === tableId);
-        if (table) {
-          setColumns(table.columns || []);
-          // Only update docContent if it's different to avoid overwrite or loop
-          // But here, we are mounting/switching table, so we should trust backend
-          setDocContent(table.docContent || "");
+
+    const userJson = localStorage.getItem("user");
+    const currentUserId = userJson ? JSON.parse(userJson).id : null;
+
+    // Fetch single table info with owner info
+    authenticatedFetch(getApiUrl(`/tables/${tableId}`))
+      .then((res) => {
+        if (!res.ok) throw new Error("Forbidden");
+        return res.json();
+      })
+      .then((table) => {
+        setColumns(table.columns || []);
+        setDocContent(table.docContent || "");
+
+        // Determine permission
+        if (table.workspace_owner_id === currentUserId) {
+          setUserPermission('owner');
+        } else {
+          const shared = table.shared_users || [];
+          const myShare = shared.find((u: any) => u.userId === currentUserId);
+          setUserPermission(myShare ? myShare.permission : 'read');
         }
       })
+      .catch((err) => {
+        console.error("Failed to fetch table info", err);
+      })
       .finally(() => setLoading(false));
+
     authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setRows(data);
         } else {
-          // If no tasks, show a placeholder row (not persisted)
           setRows([
             {
               id: 'placeholder',
@@ -674,13 +694,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         }
       })
       .finally(() => setLoading(false));
-  }, [tableId, columns.length]);
+  }, [tableId]); // columns.length should not trigger re-fetch of basic table info
 
 
   // Debounced save for document content
   useEffect(() => {
-    // Save regardless of current view if docContent changes or tableId changes
-    if (docContent === undefined) return;
+    if (docContent === undefined || userPermission === 'read') return;
 
     const timeout = setTimeout(() => {
       setDocSaving(true);
@@ -702,6 +721,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   // --- Handlers and logic ---
   // Add new task
   const handleAddTask = async () => {
+    if (userPermission === 'read') return;
     setLoading(true);
     // Initialize values for all columns
     const values: Record<string, any> = {};
@@ -731,7 +751,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Drag and drop handler
   const onDragEnd = async (result: any) => {
-    if (!result.destination) return;
+    if (!result.destination || userPermission === 'read') return;
     // Column drag
     if (result.type === 'column') {
       const newColumns = Array.from(columns);
@@ -785,6 +805,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Add new column
   const handleAddColumn = async (colType: ColumnType, label: string) => {
+    if (userPermission === 'read') return;
     // Inject full country list for Country columns
     const fullCountryList = [
       "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Canada", "Cape Verde", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Brazzaville)", "Congo (Kinshasa)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "East Timor", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Korea, North", "Korea, South", "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
@@ -880,6 +901,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
   // Accept optional valueOverride for immediate save from PeopleSelector
   const handleCellSave = async (rowId: string, colId: string, colType?: string, valueOverride?: any) => {
+    if (userPermission === 'read') return;
     // Find and update the row before calling setRows
     const prevRows = [...rows];
     const rowIdx = prevRows.findIndex((row) => row.id === rowId);
@@ -981,7 +1003,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // File upload for Files column - UPDATED for Server Upload
   const handleFileUpload = async (rowId: string, colId: string, files: FileList | null) => {
-    if (!files || files.length === 0) return;
+    if (userPermission === 'read' || !files || files.length === 0) return;
 
     try {
 
@@ -1256,6 +1278,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Persist column rename
   const handleRenameColumn = async (colId: string, newName: string) => {
+    if (userPermission === 'read') return;
     setColumns(cols => {
       const updated = cols.map(col =>
         col.id === colId ? { ...col, name: newName } : col
@@ -1271,6 +1294,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Persist column delete
   const handleDeleteColumn = async (colId: string) => {
+    if (userPermission === 'read') return;
     setColumns(cols => {
       const updated = cols.filter(col => col.id !== colId);
       authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
@@ -1375,14 +1399,64 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     });
 
     // Persist immediately
-    authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+    await authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ columns: updatedCols }),
     });
   };
 
+  const openManageAccess = async () => {
+    setLoadingUsers(true);
+    setManageAccessOpen(true);
+    try {
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
+      if (res.ok) {
+        setSharedUsersList(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleRemoveSharedUser = async (userId: string) => {
+    try {
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share/${userId}`), {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setSharedUsersList(prev => prev.filter(u => u.id !== userId));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddSharedUser = async () => {
+    if (!newSharedUserEmail.trim()) return;
+    try {
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newSharedUserEmail, permission: 'edit' })
+      });
+      if (res.ok) {
+        setNewSharedUserEmail("");
+        // Refresh list
+        openManageAccess();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to invite user");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAddStatusLabel = (colId: string) => {
+    if (userPermission === 'read') return;
     if (!newStatusLabel.trim()) return;
     let updatedCols: Column[] = [];
 
@@ -1409,6 +1483,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
 
   const handleDeleteStatusLabel = async (colId: string, idx: number) => {
+    if (userPermission === 'read') return;
     let updatedCols: Column[] = [];
     setColumns(cols => {
       updatedCols = cols.map(col =>
@@ -1519,8 +1594,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           <Box
             onClick={(e) => {
               e.stopPropagation();
-              setStatusAnchor(e.currentTarget);
-              setEditingCell({ rowId: row.id, colId: col.id });
+              if (userPermission !== 'read') {
+                setStatusAnchor(e.currentTarget);
+                setEditingCell({ rowId: row.id, colId: col.id });
+              }
             }}
             sx={{
               bgcolor: currentOption.color,
@@ -1529,7 +1606,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               textAlign: 'center',
               py: isMobile ? 0.25 : 0.5,
               px: isMobile ? 0.5 : 1,
-              cursor: 'pointer',
+              cursor: userPermission !== 'read' ? 'pointer' : 'default',
               fontWeight: 600,
               fontSize: isMobile ? '0.75rem' : '0.85rem',
               minWidth: isMobile ? 70 : 100,
@@ -1538,7 +1615,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               alignItems: 'center',
               justifyContent: 'center',
               transition: 'filter 0.2s',
-              '&:hover': { filter: 'brightness(1.1)' },
+              '&:hover': { filter: userPermission !== 'read' ? 'brightness(1.1)' : 'none' },
               border: '1px solid rgba(255,255,255,0.1)',
               overflow: 'hidden',
               whiteSpace: 'nowrap',
@@ -1551,7 +1628,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Box>
 
           {/* Status Picker Popover */}
-          {isEditing && (
+          {isEditing && userPermission !== 'read' && (
             <Popover
               open={Boolean(statusAnchor)}
               anchorEl={statusAnchor}
@@ -1609,30 +1686,32 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       {opt.value}
                     </Box>
                   ))}
-                  <Box sx={{ borderTop: '1px solid #3a3b5a', mt: 1, pt: 1, display: 'flex', justifyContent: 'center' }}>
-                    <Button
-                      size="small"
-                      startIcon={<EditIcon sx={{ fontSize: 14 }} />}
-                      onClick={() => setEditingLabelsColId(effectiveCol.id)}
-                      sx={{
-                        color: '#7d82a8',
-                        textTransform: 'none',
-                        fontSize: '0.8rem',
-                        background: 'transparent',
-                        backgroundColor: 'transparent',
-                        boxShadow: 'none',
-                        '&:hover': {
-                          color: '#fff',
-                          bgcolor: 'rgba(255,255,255,0.05)',
-                          background: 'rgba(255,255,255,0.05)',
-                          backgroundColor: 'rgba(255,255,255,0.05)',
-                          boxShadow: 'none'
-                        }
-                      }}
-                    >
-                      Edit Labels
-                    </Button>
-                  </Box>
+                  {userPermission !== 'read' && (
+                    <Box sx={{ borderTop: '1px solid #3a3b5a', mt: 1, pt: 1, display: 'flex', justifyContent: 'center' }}>
+                      <Button
+                        size="small"
+                        startIcon={<EditIcon sx={{ fontSize: 14 }} />}
+                        onClick={() => setEditingLabelsColId(effectiveCol.id)}
+                        sx={{
+                          color: '#7d82a8',
+                          textTransform: 'none',
+                          fontSize: '0.8rem',
+                          background: 'transparent',
+                          backgroundColor: 'transparent',
+                          boxShadow: 'none',
+                          '&:hover': {
+                            color: '#fff',
+                            bgcolor: 'rgba(255,255,255,0.05)',
+                            background: 'rgba(255,255,255,0.05)',
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            boxShadow: 'none'
+                          }
+                        }}
+                      >
+                        Edit Labels
+                      </Button>
+                    </Box>
+                  )}
                 </Box>
               ) : (
                 /* Edit Labels Mode */
@@ -1740,18 +1819,20 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           <Box
             onClick={(e) => {
               e.stopPropagation();
-              setStatusAnchor(e.currentTarget);
-              setEditingCell({ rowId: row.id, colId: col.id });
+              if (userPermission !== 'read') {
+                setStatusAnchor(e.currentTarget);
+                setEditingCell({ rowId: row.id, colId: col.id });
+              }
             }}
             sx={{
               display: 'flex',
               alignItems: 'center',
-              cursor: 'pointer',
+              cursor: userPermission !== 'read' ? 'pointer' : 'default',
               minHeight: isMobile ? 28 : 32,
               borderRadius: '18px',
               transition: 'all 0.2s',
               gap: 0.5,
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
+              '&:hover': { bgcolor: userPermission !== 'read' ? 'rgba(255,255,255,0.05)' : 'transparent' }
             }}
           >
             {people.length === 0 ? (
@@ -1808,12 +1889,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               </Box>
             )}
 
-            {/* Quick add button visible on hover or if empty 
+            {/* Quick add button visible on hover or if empty
                (Optional, keeping clean for now)
             */}
           </Box>
 
-          {isEditing && (
+          {isEditing && userPermission !== 'read' && (
             <Popover
               open={Boolean(statusAnchor)}
               anchorEl={statusAnchor}
@@ -1895,7 +1976,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       );
     }
 
-    if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id) {
+    if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id && userPermission !== 'read') {
       // Country column: dropdown in edit mode (case-insensitive)
       if (effectiveCol.type && effectiveCol.type.toLowerCase() === "country" && effectiveCol.options) {
         return (
@@ -2185,8 +2266,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             bgcolor: '#23234a',
             minHeight: isMobile ? 32 : 44,
             minWidth: isMobile ? 120 : 160,
-            cursor: 'pointer',
-            '&:hover': { bgcolor: '#2c2d4a', cursor: 'pointer' }
+            cursor: userPermission !== 'read' ? 'pointer' : 'default',
+            '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', cursor: userPermission !== 'read' ? 'pointer' : 'default' }
           }}
         >
           {countryCodeMap[value as keyof typeof countryCodeMap] ? (
@@ -2204,11 +2285,13 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       // Hidden file input ref
       const fileInputId = `file-input-${row.id}-${col.id}`;
       return (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, cursor: 'pointer' }}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, cursor: userPermission !== 'read' ? 'pointer' : 'default' }}
           onClick={e => {
             e.stopPropagation();
-            const input = document.getElementById(fileInputId) as HTMLInputElement | null;
-            if (input) input.click();
+            if (userPermission !== 'read') {
+              const input = document.getElementById(fileInputId) as HTMLInputElement | null;
+              if (input) input.click();
+            }
           }}
         >
           {files.length > 0 ? files.map((f: File, i: number) => (
@@ -2227,18 +2310,20 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           )) : (
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}>Upload file</Typography>
           )}
-          <input
-            id={fileInputId}
-            type="file"
-            multiple
-            style={{ display: 'none' }}
-            onChange={e => {
-              e.stopPropagation();
-              handleFileUpload(row.id, col.id, e.target.files);
-              // Reset input so same file can be uploaded again if needed
-              (e.target as HTMLInputElement).value = "";
-            }}
-          />
+          {userPermission !== 'read' && (
+            <input
+              id={fileInputId}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={e => {
+                e.stopPropagation();
+                handleFileUpload(row.id, col.id, e.target.files);
+                // Reset input so same file can be uploaded again if needed
+                (e.target as HTMLInputElement).value = "";
+              }}
+            />
+          )}
         </Box>
       );
     }
@@ -2246,9 +2331,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       return (
         <Typography variant="body2" color="primary" sx={{
           textDecoration: 'underline',
-          cursor: 'pointer',
+          cursor: userPermission !== 'read' ? 'pointer' : 'default',
           fontSize: isMobile ? '0.75rem' : '0.875rem'
-        }} onClick={() => handleCellClick(row.id, col.id, value)}>
+        }} onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value)}>
           {value ? value : 'Add doc link'}
         </Typography>
       );
@@ -2256,9 +2341,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     if (col.type === "Connect") {
       return (
         <Typography variant="body2" color="secondary" sx={{
-          cursor: 'pointer',
+          cursor: userPermission !== 'read' ? 'pointer' : 'default',
           fontSize: isMobile ? '0.75rem' : '0.875rem'
-        }} onClick={() => handleCellClick(row.id, col.id, value)}>
+        }} onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value)}>
           {value ? value : 'Link to board/row'}
         </Typography>
       );
@@ -2267,17 +2352,17 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       return (
         <Box
           id={`cell-${row.id}-${col.id}`}
-          onClick={(e) => handleCellClick(row.id, col.id, value, col.type, e.currentTarget)}
+          onClick={(e) => userPermission !== 'read' && handleCellClick(row.id, col.id, value, col.type, e.currentTarget)}
           sx={{
             display: 'flex',
             alignItems: 'center',
-            cursor: 'pointer',
+            cursor: userPermission !== 'read' ? 'pointer' : 'default',
             width: '100%',
             height: isMobile ? 28 : 32,
             px: isMobile ? 0.5 : 1,
             borderRadius: 2,
             transition: 'all 0.2s',
-            '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
+            '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', boxShadow: userPermission !== 'read' ? '0 0 0 1px #3f4060' : 'none' }
           }}
         >
           <TimelineIcon sx={{ fontSize: isMobile ? 14 : 16, mr: 1, color: '#7d82a8' }} />
@@ -2293,8 +2378,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     if (col.type === "Checkbox") {
       return (
         <Box
-          sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1, cursor: 'pointer' }}
-          onClick={() => handleCellSave(row.id, col.id, col.type, !value)}
+          sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1, cursor: userPermission !== 'read' ? 'pointer' : 'default' }}
+          onClick={() => userPermission !== 'read' && handleCellSave(row.id, col.id, col.type, !value)}
         >
           <Checkbox
             checked={!!value}
@@ -2324,16 +2409,16 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       return (
         <Box
           sx={{
-            cursor: 'pointer',
+            cursor: userPermission !== 'read' ? 'pointer' : 'default',
             minHeight: isMobile ? 28 : 32,
             display: 'flex',
             alignItems: 'center',
             borderRadius: 2,
             px: isMobile ? 1 : 1.5,
             transition: 'all 0.2s',
-            '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
+            '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', boxShadow: userPermission !== 'read' ? '0 0 0 1px #3f4060' : 'none' }
           }}
-          onClick={() => handleCellClick(row.id, col.id, value, col.type)}
+          onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value, col.type)}
         >
           <Typography variant="body2" sx={{ color: '#fff', fontWeight: 600, fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
             {value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : '-'}
@@ -2363,7 +2448,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     return (
       <Box
         sx={{
-          cursor: 'pointer',
+          cursor: userPermission !== 'read' ? 'pointer' : 'default',
           minHeight: isMobile ? 28 : 32,
           display: 'flex',
           alignItems: 'center',
@@ -2371,9 +2456,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           px: 1,
           ml: -1, /* Offset the cell padding so it aligns nicely */
           transition: 'all 0.2s',
-          '&:hover': { bgcolor: '#2c2d4a', boxShadow: '0 0 0 1px #3f4060' }
+          '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', boxShadow: userPermission !== 'read' ? '0 0 0 1px #3f4060' : 'none' }
         }}
-        onClick={() => handleCellClick(row.id, col.id, value)}
+        onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value)}
       >
         <Typography variant="body2" sx={{ color: '#d0d4e4', fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
           {value || "-"}
@@ -2517,6 +2602,119 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Manage Access Dialog */}
+      <Dialog
+        open={manageAccessOpen}
+        onClose={() => setManageAccessOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1 }}>Manage Board Access</DialogTitle>
+        <DialogContent sx={{ pb: 3 }}>
+          <Typography variant="body2" sx={{ color: '#d0d4e4', mb: 2 }}>
+            Invite users to collaborate on this board or manage existing access.
+          </Typography>
+
+          {userPermission !== 'read' && (
+            <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Enter email to invite"
+                value={newSharedUserEmail}
+                onChange={(e) => setNewSharedUserEmail(e.target.value)}
+                InputProps={{
+                  sx: {
+                    color: '#fff',
+                    bgcolor: '#26273b',
+                    borderRadius: 2,
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                    '&:hover fieldset': { borderColor: '#4a4b6a' },
+                    '&.Mui-focused fieldset': { borderColor: '#6366f1' }
+                  }
+                }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleAddSharedUser}
+                disabled={!newSharedUserEmail.trim()}
+                sx={{
+                  bgcolor: '#6366f1',
+                  '&:hover': { bgcolor: '#5558dd' },
+                  '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
+                }}
+              >
+                Invite
+              </Button>
+            </Box>
+          )}
+
+          <Typography variant="subtitle2" sx={{ color: '#7d82a8', fontWeight: 600, mb: 1 }}>
+            Users with Access
+          </Typography>
+          {loadingUsers ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} sx={{ color: '#6366f1' }} />
+            </Box>
+          ) : (
+            <List sx={{ bgcolor: '#26273b', borderRadius: 2, border: '1px solid #3a3b5a' }}>
+              {sharedUsersList.length === 0 ? (
+                <ListItem>
+                  <ListItemText primary="No users shared yet." primaryTypographyProps={{ sx: { color: '#7d82a8', fontStyle: 'italic' } }} />
+                </ListItem>
+              ) : (
+                sharedUsersList.map((user) => (
+                  <ListItem
+                    key={user.id}
+                    secondaryAction={
+                      userPermission !== 'read' && (
+                        <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveSharedUser(user.id)} sx={{ color: '#e2445c' }}>
+                          <DeleteIcon />
+                        </IconButton>
+                      )
+                    }
+                  >
+                    <ListItemAvatar>
+                      <Avatar sx={{ bgcolor: '#0073ea' }}>{user.name.charAt(0).toUpperCase()}</Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={user.name}
+                      secondary={user.email}
+                      primaryTypographyProps={{ sx: { color: '#fff', fontWeight: 500 } }}
+                      secondaryTypographyProps={{ sx: { color: '#7d82a8' } }}
+                    />
+                  </ListItem>
+                ))
+              )}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            onClick={() => setManageAccessOpen(false)}
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Board Chat Drawer */}
       <Drawer
         anchor="right"
@@ -2641,80 +2839,82 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Box>
 
           {/* Input */}
-          <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
-            <input
-              type="file"
-              hidden
-              ref={fileInputRef}
-              onChange={handleBoardFileUpload}
-            />
-            <Box sx={{
-              display: 'flex',
-              gap: 1.5,
-              bgcolor: '#151621',
-              p: 1,
-              borderRadius: 4,
-              border: '1px solid #2e2f45',
-              alignItems: 'flex-end',
-              transition: 'border-color 0.2s',
-              '&:focus-within': { borderColor: '#6366f1' }
-            }}>
-              <IconButton
-                size="small"
-                sx={{ color: '#7d82a8', mb: 0.5, ml: 0.5, '&:hover': { color: '#fff' } }}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <AttachFileIcon fontSize="small" />
-              </IconButton>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Type a message..."
-                value={newBoardChatMessage}
-                onChange={(e) => setNewBoardChatMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendBoardChat();
-                  }
-                }}
-                multiline
-                maxRows={4}
-                InputProps={{
-                  disableUnderline: true,
-                  sx: {
-                    color: '#fff',
-                    p: 1,
-                    fontSize: '0.9rem',
-                    '& textarea': {
-                      '&::-webkit-scrollbar': { width: 4 },
-                      '&::-webkit-scrollbar-track': { background: 'transparent' },
-                      '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 }
-                    }
-                  }
-                }}
-                variant="standard"
+          {userPermission !== 'read' && (
+            <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
+              <input
+                type="file"
+                hidden
+                ref={fileInputRef}
+                onChange={handleBoardFileUpload}
               />
-              <IconButton
-                onClick={handleSendBoardChat}
-                disabled={!newBoardChatMessage.trim()}
-                sx={{
-                  color: '#fff',
-                  bgcolor: newBoardChatMessage.trim() ? '#6366f1' : '#2e2f45',
-                  borderRadius: '50%',
-                  width: 36,
-                  height: 36,
-                  mb: 0.5,
-                  mr: 0.5,
-                  transition: 'all 0.2s',
-                  '&:hover': { bgcolor: newBoardChatMessage.trim() ? '#5558dd' : '#2e2f45', transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none' },
-                  '&.Mui-disabled': { bgcolor: '#2e2f45', color: 'rgba(255,255,255,0.2)' }
-                }}
-              >
-                <SendIcon fontSize="small" sx={{ ml: 0.2 }} />
-              </IconButton>
+              <Box sx={{
+                display: 'flex',
+                gap: 1.5,
+                bgcolor: '#151621',
+                p: 1,
+                borderRadius: 4,
+                border: '1px solid #2e2f45',
+                alignItems: 'flex-end',
+                transition: 'border-color 0.2s',
+                '&:focus-within': { borderColor: '#6366f1' }
+              }}>
+                <IconButton
+                  size="small"
+                  sx={{ color: '#7d82a8', mb: 0.5, ml: 0.5, '&:hover': { color: '#fff' } }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <AttachFileIcon fontSize="small" />
+                </IconButton>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Type a message..."
+                  value={newBoardChatMessage}
+                  onChange={(e) => setNewBoardChatMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendBoardChat();
+                    }
+                  }}
+                  multiline
+                  maxRows={4}
+                  InputProps={{
+                    disableUnderline: true,
+                    sx: {
+                      color: '#fff',
+                      p: 1,
+                      fontSize: '0.9rem',
+                      '& textarea': {
+                        '&::-webkit-scrollbar': { width: 4 },
+                        '&::-webkit-scrollbar-track': { background: 'transparent' },
+                        '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 }
+                      }
+                    }
+                  }}
+                  variant="standard"
+                />
+                <IconButton
+                  onClick={handleSendBoardChat}
+                  disabled={!newBoardChatMessage.trim()}
+                  sx={{
+                    color: '#fff',
+                    bgcolor: newBoardChatMessage.trim() ? '#6366f1' : '#2e2f45',
+                    borderRadius: '50%',
+                    width: 36,
+                    height: 36,
+                    mb: 0.5,
+                    mr: 0.5,
+                    transition: 'all 0.2s',
+                    '&:hover': { bgcolor: newBoardChatMessage.trim() ? '#5558dd' : '#2e2f45', transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none' },
+                    '&.Mui-disabled': { bgcolor: '#2e2f45', color: 'rgba(255,255,255,0.2)' }
+                  }}
+                >
+                  <SendIcon fontSize="small" sx={{ ml: 0.2 }} />
+                </IconButton>
+              </Box>
             </Box>
-          </Box>
+          )}
         </Box>
       </Drawer>
 
@@ -2940,33 +3140,61 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         >
           <MoreVertIcon />
         </IconButton>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddTask}
-          sx={{
-            bgcolor: '#0073ea',
-            color: '#fff',
-            fontWeight: 600,
-            textTransform: 'none',
-            borderRadius: '8px',
-            px: 2.5,
-            height: 40,
-            boxShadow: '0 4px 12px rgba(0, 115, 234, 0.2)',
-            '&:hover': { bgcolor: '#0060c2' }
-          }}
-        >
-          New task
-        </Button>
+        {userPermission !== 'read' && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddTask}
+            sx={{
+              bgcolor: '#0073ea',
+              color: '#fff',
+              fontWeight: 600,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2.5,
+              height: 40,
+              boxShadow: '0 4px 12px rgba(0, 115, 234, 0.2)',
+              '&:hover': { bgcolor: '#0060c2' }
+            }}
+          >
+            New task
+          </Button>
+        )}
+        {userPermission !== 'read' && (
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowColSelector(true);
+              setColSelectorAnchor(e.currentTarget);
+            }}
+            sx={{
+              background: 'transparent',
+              backgroundColor: 'transparent',
+              color: '#bfc8e0',
+              borderColor: '#3a3b5a',
+              fontWeight: 500,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2,
+              height: 40,
+              zIndex: 2,
+              '&:hover': {
+                borderColor: '#4f51c0',
+                color: '#fff',
+                bgcolor: 'rgba(79, 81, 192, 0.1)'
+              }
+            }}
+          >
+            Add column
+          </Button>
+        )}
         <Button
           variant="outlined"
-          startIcon={<AddIcon sx={{ fontSize: 18 }} />}
-          onClick={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            setShowColSelector(true);
-            setColSelectorAnchor(e.currentTarget);
-          }}
+          startIcon={<GroupIcon sx={{ fontSize: 18 }} />}
+          onClick={openManageAccess}
           sx={{
             background: 'transparent',
             backgroundColor: 'transparent',
@@ -2985,7 +3213,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             }
           }}
         >
-          Add column
+          Manage Access
         </Button>
         <Box sx={{ width: 12, display: { xs: 'none', sm: 'block' } }} />
 
@@ -3260,115 +3488,76 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         <DragDropContext onDragEnd={onDragEnd}>
           <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto' }}>
             <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
-              <TableHead>
+              <TableHead sx={{ bgcolor: '#191a27' }}>
                 <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
                   {(provided) => (
-                    <TableRow ref={provided.innerRef} {...provided.droppableProps} sx={{ '& th': { borderBottom: 'none', color: '#bfc8e0', fontSize: 13, fontWeight: 600 } }}>
-                      {/* Drag Handle Header Placeholder */}
-                      <TableCell sx={{
-                        width: 60,
-                        p: 0.5,
-                        borderBottom: 'none',
-                        ...(isMobile && {
-                          position: 'sticky',
-                          left: 0,
-                          zIndex: 11,
-                          bgcolor: '#23243a' // Match table row background
-                        })
-                      }} />
-
-                      {columns.map((col, index) => (
-                        <Draggable key={col.id} draggableId={col.id} index={index}>
-                          {(provided, snapshot) => (
+                    <TableRow
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      sx={{
+                        '& .MuiTableCell-root': {
+                          borderBottom: '1px solid #3a3b5a',
+                          color: '#94a3b8',
+                          fontWeight: 600,
+                          fontSize: '0.85rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: 1,
+                          py: 1.5
+                        }
+                      }}
+                    >
+                      <TableCell padding="checkbox" sx={{ minWidth: 48, width: 48, sticky: 0, zIndex: 3, bgcolor: '#191a27' }} />
+                      {columns.sort((a, b) => a.order - b.order).map((col, index) => (
+                        <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
+                          {(provided) => (
                             <TableCell
                               ref={provided.innerRef}
                               {...provided.draggableProps}
+                              {...provided.dragHandleProps}
                               sx={{
-                                ...provided.draggableProps.style,
-                                minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
-                                userSelect: 'none',
-                                p: 0.5,
-                                borderBottom: 'none',
-                                bgcolor: 'transparent',
-                                ...(isMobile && index === 0 && {
-                                  position: 'sticky',
-                                  left: 60,
-                                  zIndex: 10,
-                                  bgcolor: '#23243a'
-                                })
+                                minWidth: 150,
+                                '&:hover .column-actions': { opacity: 1 }
                               }}
                             >
-                              <Box sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                bgcolor: snapshot.isDragging ? '#3b3c5a' : '#23243a',
-                                borderRadius: '8px',
-                                px: isMobile ? 1 : 1.5,
-                                py: isMobile ? 0.8 : 1.2,
-                                borderBottom: '2px solid #3a3b5a',
-                                transition: 'all 0.2s ease',
-                                '&:hover': { bgcolor: '#2c2d4a' },
-                              }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }} {...provided.dragHandleProps}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                   {col.type === "Status" && <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: '#00c875', flexShrink: 0 }} />}
-                                  {col.type === "Timeline" && <TimelineIcon sx={{ fontSize: 18, color: '#fdab3d', flexShrink: 0 }} />}
-                                  {col.type === "Files" && <InsertDriveFileIcon sx={{ fontSize: 18, color: '#579bfc', flexShrink: 0 }} />}
                                   {col.type === "People" && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#a25ddc', flexShrink: 0 }} />}
-                                  <Typography variant="subtitle2" sx={{
-                                    fontWeight: 600,
-                                    color: '#d0d4e4',
-                                    fontSize: isMobile ? '0.75rem' : '0.875rem',
-                                    letterSpacing: '0.02em',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                  }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>
                                     {col.name}
                                   </Typography>
                                 </Box>
-                                <IconButton
-                                  size="small"
-                                  onClick={(e) => handleColMenuOpen(e, col.id)}
-                                  sx={{
-                                    color: '#7d82a8',
-                                    padding: '2px',
-                                    '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' }
-                                  }}
-                                >
-                                  <MoreVertIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
-                                </IconButton>
+                                {userPermission !== 'read' && (
+                                  <IconButton
+                                    className="column-actions"
+                                    size="small"
+                                    onClick={(e) => handleColMenuOpen(e, col.id)}
+                                    sx={{ opacity: 0, color: '#94a3b8', transition: 'opacity 0.2s' }}
+                                  >
+                                    <MoreVertIcon fontSize="inherit" />
+                                  </IconButton>
+                                )}
                               </Box>
                             </TableCell>
                           )}
                         </Draggable>
                       ))}
                       {provided.placeholder}
-
-                      {/* Add Column Button in Header */}
-                      <TableCell sx={{ minWidth: 50, p: 0.5, borderBottom: 'none' }}>
-                        <IconButton
-                          onClick={(e) => {
-                            setShowColSelector(true);
+                      {userPermission !== 'read' && (
+                        <TableCell sx={{ minWidth: 48, width: 48 }}>
+                          <IconButton size="small" onClick={(e) => {
                             setColSelectorAnchor(e.currentTarget);
-                          }}
-                          sx={{
-                            bgcolor: '#23243a',
-                            color: '#7d82a8',
-                            borderRadius: '8px',
-                            width: '100%',
-                            height: 48,
-                            border: '1px dashed #3a3b5a',
-                            '&:hover': { bgcolor: '#2c2d4a', color: '#fff', borderColor: '#4f51c0' }
-                          }}
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </TableCell>
+                            setShowColSelector(true);
+                          }} sx={{ color: '#6366f1' }}>
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      )}
                     </TableRow>
                   )}
                 </Droppable>
               </TableHead>
+
               <Droppable droppableId="rows-droppable" type="row">
                 {(provided) => (
                   <TableBody ref={provided.innerRef} {...provided.droppableProps}>
@@ -3579,9 +3768,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   </TableBody>
                 )}
               </Droppable>
-            </Table>
-          </TableContainer>
-        </DragDropContext>
+            </Table >
+          </TableContainer >
+        </DragDropContext >
       ) : workspaceView === 'kanban' ? (
         <Box sx={{
           display: 'flex',
@@ -4146,7 +4335,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             </Box>
           </Box>
         </Box>
-      ) : null}
+      ) : null
+      }
 
       {/* Task Review Drawer/Dialog with Email Automation */}
       <Dialog
@@ -5142,6 +5332,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         </DialogActions>
       </Dialog>
 
-    </Box>
+    </Box >
   );
 }

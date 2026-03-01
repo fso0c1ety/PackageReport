@@ -7,7 +7,8 @@ import {
   Select,
   SelectChangeEvent,
   CircularProgress,
-  Typography
+  Typography,
+  Tooltip
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
@@ -15,15 +16,28 @@ import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 interface Workspace {
   id: string;
   name: string;
+  owner_id: string;
+  owner_name?: string;
+  owner_avatar?: string;
 }
 
 export default function WorkspaceDropdown({ currentId }: { currentId?: string }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const router = useRouter();
 
   const fetchWorkspaces = () => {
+    // Get current user id from localStorage to identify shared workspaces
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        setUserId(user.id);
+      } catch (e) { console.error(e); }
+    }
+
     authenticatedFetch(getApiUrl("workspaces"))
       .then((res) => {
         if (!res.ok) throw new Error("Failed");
@@ -134,11 +148,33 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       <MenuItem value="" disabled sx={{ color: "rgba(255,255,255,0.4) !important" }}>
         Select Workspace
       </MenuItem>
-      {workspaces.map((ws) => (
-        <MenuItem key={ws.id} value={ws.id}>
-          {ws.name}
-        </MenuItem>
-      ))}
+      {workspaces.map((ws) => {
+        const isShared = userId && ws.owner_id !== userId;
+        return (
+          <MenuItem key={ws.id} value={ws.id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, overflow: 'hidden' }}>
+              <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {ws.name}
+              </Typography>
+            </Box>
+            {isShared && ws.owner_avatar && (
+              <Tooltip title={`Shared by ${ws.owner_name}`}>
+                <Box
+                  component="img"
+                  src={ws.owner_avatar}
+                  sx={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    ml: 'auto'
+                  }}
+                />
+              </Tooltip>
+            )}
+          </MenuItem>
+        );
+      })}
     </Select>
   );
 }

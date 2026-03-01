@@ -113,6 +113,14 @@ function WorkspaceContent() {
     fetchTables();
     // Reset selected tab on workspace change
     setSelected(null);
+
+    const handleUpdate = () => {
+      fetchTables();
+    };
+    window.addEventListener('workspaceUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('workspaceUpdated', handleUpdate);
+    };
   }, [workspaceId]);
 
   const handleAddTable = async () => {
