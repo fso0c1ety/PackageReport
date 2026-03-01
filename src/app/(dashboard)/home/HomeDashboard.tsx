@@ -14,6 +14,15 @@ import {
   Chip,
   Skeleton,
   Divider,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  TextField,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -24,6 +33,9 @@ import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
 import AddIcon from "@mui/icons-material/Add";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import FolderIcon from "@mui/icons-material/Folder"; // Placeholder for workspace icon
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 // --- Styled Components ---
 
@@ -144,6 +156,73 @@ export default function HomeDashboard() {
   const [lastWorkspace, setLastWorkspace] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [greeting, setGreeting] = useState("Good morning");
+
+  // State for Rename/Delete
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<any>(null);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [renameName, setRenameName] = useState("");
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, ws: any) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setAnchorEl(event.currentTarget);
+    setSelectedWorkspace(ws);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedWorkspace(null);
+  };
+
+  const handleRenameStart = () => {
+    setRenameName(selectedWorkspace?.name || "");
+    setIsRenameOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleDeleteStart = () => {
+    setIsDeleteOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (!selectedWorkspace || !renameName.trim()) return;
+
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${selectedWorkspace.id}`), {
+        method: 'PUT',
+        body: JSON.stringify({ name: renameName })
+      });
+
+      if (res.ok) {
+        setWorkspaces(prev => prev.map(w => w.id === selectedWorkspace.id ? { ...w, name: renameName } : w));
+        setIsRenameOpen(false);
+        handleMenuClose();
+      }
+    } catch (err) {
+      console.error("Failed to rename workspace", err);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedWorkspace) return;
+
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${selectedWorkspace.id}`), {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        setWorkspaces(prev => prev.filter(w => w.id !== selectedWorkspace.id));
+        setIsDeleteOpen(false);
+        handleMenuClose();
+      }
+    } catch (err) {
+      console.error("Failed to delete workspace", err);
+    }
+  };
 
   // Load client-only data once mounted
   useEffect(() => {
@@ -370,13 +449,26 @@ export default function HomeDashboard() {
                 ))
                 : workspaces.map((ws) => (
                   <Grid size={{ xs: 6, sm: 6, md: 6 }} key={ws.id}>
-                    <WorkspaceCard onClick={() => router.push(`/workspace?id=${ws.id}`)}>
+                    <WorkspaceCard onClick={() => router.push(`/workspace?id=${ws.id}`)} sx={{ position: "relative" }}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => handleMenuOpen(e, ws)}
+                        sx={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          color: "#94a3b8",
+                          "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" }
+                        }}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
                       <Avatar
                         variant="rounded"
                         sx={{
                           bgcolor: "rgba(99, 102, 241, 0.15)",
                           color: "#818cf8",
-                          width: { xs: 48, md: 52 }, // Reduced from 56
+                          width: { xs: 48, md: 52 },
                           height: { xs: 48, md: 52 },
                           fontWeight: 700,
                           fontSize: { md: "1.35rem" },
@@ -397,6 +489,94 @@ export default function HomeDashboard() {
                 ))}
             </Grid>
           </Box>
+
+      {/* Menus and Dialogs */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        PaperProps={{
+          sx: {
+            bgcolor: "#1e1f2b",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }
+        }}
+      >
+        <MenuItem onClick={handleRenameStart}>
+          <ListItemIcon sx={{ color: "#94a3b8" }}>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          Rename
+        </MenuItem>
+        <MenuItem onClick={handleDeleteStart} sx={{ color: "#ef4444" }}>
+          <ListItemIcon sx={{ color: "#ef4444" }}>
+            <DeleteOutlineIcon fontSize="small" />
+          </ListItemIcon>
+          Delete
+        </MenuItem>
+      </Menu>
+
+      <Dialog
+        open={isRenameOpen}
+        onClose={() => setIsRenameOpen(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: "#1e1f2b",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }
+        }}
+      >
+        <DialogTitle>Rename Workspace</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Workspace Name"
+            type="text"
+            fullWidth
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            sx={{
+              input: { color: "#fff" },
+              label: { color: "#94a3b8" },
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
+                '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
+                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsRenameOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
+          <Button onClick={handleRenameSubmit} sx={{ color: "#6366f1" }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: "#1e1f2b",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }
+        }}
+      >
+        <DialogTitle>Delete Workspace?</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#94a3b8" }}>
+            Are you sure you want to delete this workspace? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsDeleteOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} sx={{ color: "#ef4444" }}>Delete</Button>
+        </DialogActions>
+      </Dialog>
 
           {/* Templates Section - Desktop Only */}
           <Box sx={{ display: { xs: "none", lg: "block" }, mt: 5 }}>
