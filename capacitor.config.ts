@@ -11,7 +11,12 @@ const config: CapacitorConfig = {
       '192.168.0.*',
       '192.168.0.28:4000'
     ]
-  }
+  },
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
+  },
 };
 
 export default config;

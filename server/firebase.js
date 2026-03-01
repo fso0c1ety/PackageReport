@@ -38,9 +38,18 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
       title,
       body,
     },
+    android: {
+      notification: {
+        channelId: 'chat_messages',
+        priority: 'high',
+        defaultSound: true,
+        defaultVibrateTimings: true,
+        clickAction: 'FLUTTER_NOTIFICATION_CLICK' // Keep for compatibility if needed, though Capacitor uses standard intents
+      }
+    },
     data: {
       ...data,
-      click_action: 'FLUTTER_NOTIFICATION_CLICK' // Standard for many frameworks, ensures click opens app
+      click_action: 'FLUTTER_NOTIFICATION_CLICK' 
     },
     tokens: tokens,
   };

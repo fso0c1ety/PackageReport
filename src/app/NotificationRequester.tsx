@@ -41,7 +41,7 @@ const NotificationRequester = () => {
                             console.log('Push Registration Token: ', token.value);
                             // Send token to backend
                             try {
-                                const response = await authenticatedFetch(getApiUrl('/users/fcm'), {
+                                const response = await authenticatedFetch(getApiUrl('users/fcm'), {
                                     method: 'PUT',
                                     body: JSON.stringify({ token: token.value })
                                 });
@@ -53,6 +53,15 @@ const NotificationRequester = () => {
                             } catch (err) {
                                 console.error('Error sending FCM token to server:', err);
                             }
+                        });
+
+                        await PushNotifications.createChannel({
+                            id: 'chat_messages',
+                            name: 'Chat Messages',
+                            description: 'Notifications for new chat messages',
+                            importance: 5,
+                            visibility: 1,
+                            vibration: true,
                         });
             
                         await PushNotifications.addListener('registrationError', (error: any) => {
