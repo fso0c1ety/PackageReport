@@ -1066,6 +1066,25 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   }
 });
 
+// --- Test Notification Endpoint ---
+app.post('/api/test-notification', authenticateToken, async (req, res) => {
+    try {
+        const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [req.user.id]);
+        if (userRes.rows.length === 0 || !userRes.rows[0].fcm_token) {
+            return res.status(400).json({ error: 'No FCM token found for user' });
+        }
+        
+        const token = userRes.rows[0].fcm_token;
+        console.log(`Sending test notification to user ${req.user.id} with token ${token.substring(0, 10)}...`);
+        
+        await sendPushNotification([token], 'Test Notification', 'This is a test from SmartManage!');
+        res.json({ success: true, message: 'Notification sent' });
+    } catch (err) {
+        console.error('Error sending test notification:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // --- Table Chat Endpoints ---
 // Using a table in PostgreSQL for chats
 app.get('/api/tables/:tableId/chat', async (req, res) => {

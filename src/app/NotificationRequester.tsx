@@ -5,6 +5,7 @@ import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
 import { authenticatedFetch, getApiUrl } from "./apiUrl";
+import { useNotification } from "./NotificationContext";
 
 // WEB: To use Push Notifications on Web, you must initialize Firebase here.
 import { initializeApp } from "firebase/app";
@@ -31,7 +32,9 @@ if (typeof window !== "undefined") {
     }
 }
 
-const NotificationRequester = () => {
+consconst { showNotification } = useNotification();
+    
+    t NotificationRequester = () => {
     useEffect(() => {
         const initPush = async () => {
             // Check if native or web.
@@ -118,7 +121,28 @@ const NotificationRequester = () => {
 
                     await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
                         console.log('Push received: ' + JSON.stringify(notification));
-                        // Here you might want to show a toast/snackbar if the app is open
+                        
+                        // Show visible in-app notification (Snackbar)
+                        const title = notification.title || notification.data?.title || 'Notification';
+                        const body = notification.body || notification.data?.body || 'New message';
+                        showNotification(`${title}: ${body}`, 'info');
+
+                        // ALSO schedule a Local Notification for the System Tray if desired
+                        // This ensures the user sees it in the status bar even if they are in the app
+                        await LocalNotifications.schedule({
+                            notifications: [
+                                {
+                                    title,
+                                    body,
+                                    id: new Date().getTime(),
+                                    schedule: { at: new Date(Date.now() + 100) }, // Schedule for "now"
+                                    sound: undefined,
+                                    attachments: undefined,
+                                    actionTypeId: "",
+                                    extra: null
+                                }
+                            ]
+                        });
                     });
 
                     await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
