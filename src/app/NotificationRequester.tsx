@@ -43,23 +43,23 @@ const NotificationRequester = () => {
             // 3. For Capacitor Push Notifications on Web, ensure the service worker is registered.
 
             try {
-                let permStatus = await PushNotifications.checkPermissions();
+                if (Capacitor.isNativePlatform()) {
+                    let permStatus = await PushNotifications.checkPermissions();
 
-                if (permStatus.receive === 'prompt') {
-                    permStatus = await PushNotifications.requestPermissions();
-                }
-
-                if (permStatus.receive !== 'granted') {
-                    // Try to request again or show instructions
-                   try {
+                    if (permStatus.receive === 'prompt') {
                         permStatus = await PushNotifications.requestPermissions();
-                   } catch (e) {
-                       console.warn("User denied permissions or error requesting", e);
-                   }
-                }
+                    }
 
-                if (permStatus.receive === 'granted') {
-                    if (Capacitor.isNativePlatform()) {
+                    if (permStatus.receive !== 'granted') {
+                        // Try to request again or show instructions
+                       try {
+                            permStatus = await PushNotifications.requestPermissions();
+                       } catch (e) {
+                           console.warn("User denied permissions or error requesting", e);
+                       }
+                    }
+
+                    if (permStatus.receive === 'granted') {
                         await PushNotifications.createChannel({
                             id: 'chat_messages',
                             name: 'Chat Messages',
@@ -68,68 +68,45 @@ const NotificationRequester = () => {
                             visibility: 1,
                             vibration: true,
                         });
-                    }
 
-                    // Add Listeners
-                    await PushNotifications.removeAllListeners();
+                        // Add Listeners
+                        await PushNotifications.removeAllListeners();
 
-                    await PushNotifications.addListener('registration', async (token) => {
-                        console.log('Push Registration Token: ', token.value);
-                        // Send token to backend
-                        try {
-                            const response = await authenticatedFetch(getApiUrl('users/fcm'), {
-                                method: 'PUT',
-                                body: JSON.stringify({ token: token.value })
-                            });
-                            if (response.ok) {
-                                console.log('FCM Token sent to server successfully');
-                            } else {
-                                console.error('Failed to send FCM token to server', response.status);
-                            }
-                        } catch (err) {
-                            console.error('Error sending FCM token to server:', err);
-                        }
-                    });
-
-                    if (Capacitor.isNativePlatform()) {
-                         await PushNotifications.addListener('registrationError', (error: any) => {
-                             console.error('Error on registration: ' + JSON.stringify(error));
-                         });
-                    } else {
-                        // Web specific registration error handling or manual token retrieval fallback
-                        try {
-                             if (messaging) {
-                                const currentToken = await getToken(messaging, { 
-                                    vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
+                        await PushNotifications.addListener('registration', async (token) => {
+                            console.log('Push Registration Token: ', token.value);
+                            // Send token to backend
+                            try {
+                                const response = await authenticatedFetch(getApiUrl('users/fcm'), {
+                                    method: 'PUT',
+                                    body: JSON.stringify({ token: token.value })
                                 });
-                                if (currentToken) {
-                                    console.log('Web FCM Token:', currentToken);
-                                     // Send token to backend
-                                    await authenticatedFetch(getApiUrl('users/fcm'), {
-                                        method: 'PUT',
-                                        body: JSON.stringify({ token: currentToken })
-                                    });
+                                if (response.ok) {
+                                    console.log('FCM Token sent to server successfully');
                                 } else {
-                                    console.log('No registration token available. Request permission to generate one.');
+                                    console.error('Failed to send FCM token to server', response.status);
                                 }
-                             }
-                        } catch(e) {
-                            console.error('An error occurred while retrieving token on web. ', e);
-                        }
-                    }
+                            } catch (err) {
+                                console.error('Error sending FCM token to server:', err);
+                            }
+                        });
 
-                    await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-                        console.log('Push received: ' + JSON.stringify(notification));
-                        
-                        // Show visible in-app notification (Snackbar)
-                        const title = notification.title || notification.data?.title || 'Notification';
-                        const body = notification.body || notification.data?.body || 'New message';
-                        showNotification(`${title}: ${body}`, 'info');
 
-                        // ALSO schedule a Local Notification for the System Tray if desired
-                        // This ensures the user sees it in the status bar even if they are in the app
-                        await LocalNotifications.schedule({
-                            notifications: [
+                        await PushNotifications.addListener('registrationError', (error: any) => {
+                            console.error('Error on registration: ' + JSON.stringify(error));
+                        });
+
+
+                        await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+                            console.log('Push received: ' + JSON.stringify(notification));
+
+                            // Show visible in-app notification (Snackbar)
+                            const title = notification.title || notification.data?.title || 'Notification';
+                            const body = notification.body || notification.data?.body || 'New message';
+                            showNotification(`${title}: ${body}`, 'info');
+
+                            // ALSO schedule a Local Notification for the System Tray if desired
+                            await LocalNotifications.schedule({
+                                notifications: [
                                 {
                                     title,
                                     body,
@@ -140,18 +117,51 @@ const NotificationRequester = () => {
                                     actionTypeId: "",
                                     extra: null
                                 }
-                            ]
+                                ]
+                            });
                         });
-                    });
 
-                    await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-                        console.log('Push action performed: ' + JSON.stringify(notification));
-                        // Navigate to chat if needed
-                    });
+                         await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                            console.log('Push action performed: ' + JSON.stringify(notification));
+                             // Navigate to chat if needed
+                        });
 
-                    // Register with FCM
-                    await PushNotifications.register();
+                        // Register with FCM
+                        await PushNotifications.register();
+                    }
+                } else {
+                     // WEB Push Logic
+                     try {
+                        const permission = await Notification.requestPermission();
+                        if (permission === 'granted' && messaging) {
+                             const currentToken = await getToken(messaging, { 
+                                 vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
+                             });
+                             if (currentToken) {
+                                 console.log('Web FCM Token:', currentToken);
+                                 // Send token to backend
+                                 await authenticatedFetch(getApiUrl('users/fcm'), {
+                                     method: 'PUT',
+                                     body: JSON.stringify({ token: currentToken })
+                                 });
+                             }
+                             
+                             const { onMessage } = await import("firebase/messaging"); 
+                             onMessage(messaging, (payload) => {
+                                 console.log('Message received. ', payload);
+                                 const title = payload.notification?.title || 'Notification';
+                                 const body = payload.notification?.body || 'New message';
+                                 showNotification(`${title}: ${body}`, 'info');
+                             });
+
+                        }
+                    } catch(e) {
+                        console.error('An error occurred while retrieving token on web. ', e);
+                    }
                 }
+            } catch (e) {
+                console.error('Error initializing push notifications', e);
+            }
             } catch (e) {
                 console.error('Error initializing push notifications', e);
             }
