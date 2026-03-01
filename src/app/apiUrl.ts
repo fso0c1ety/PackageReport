@@ -46,13 +46,16 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     headers,
   });
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
       window.location.href = '/login';
-      // Return a promise that never resolves so we don't proceed with parsing the response
       return new Promise(() => { }) as unknown as Response;
     }
-    throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");
+    throw new Error("Unauthorized");
+  }
+
+  if (response.status === 403) {
+    return response; // Return forbidden response to let caller handle it
   }
 
   return response;

@@ -43,6 +43,7 @@ import AddLinkIcon from "@mui/icons-material/AddLink";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
+import { useNotification } from "./NotificationContext";
 
 // --- Components ---
 
@@ -109,6 +110,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const { showNotification } = useNotification();
 
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -149,6 +151,7 @@ export default function Sidebar({
   }, [userSearchInputValue, shareDialogOpen]);
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
+
 
   // Fetch workspaces
   useEffect(() => {
@@ -199,8 +202,9 @@ export default function Sidebar({
       setNewWorkspaceName("");
       if (table && onClose) onClose(); // Close drawer on mobile if open
       if (table) router.push(`/workspace?id=${ws.id}`);
+      showNotification("Workspace created successfully!", "success");
     } catch (err) {
-      alert("Failed to create workspace. Please try again.");
+      showNotification("Failed to create workspace. Please try again.", "error");
     }
   };
 
@@ -222,9 +226,12 @@ export default function Sidebar({
       setRenameDialogOpen(false);
       setEditingWorkspace(null);
       // Trigger a refresh of the dropdown or reload if needed
+      setEditingWorkspace(null);
+      // Trigger a refresh of the dropdown or reload if needed
       window.dispatchEvent(new CustomEvent('workspaceUpdated'));
+      showNotification("Workspace renamed successfully!", "success");
     } catch (err) {
-      alert("Failed to rename workspace. Please try again.");
+      showNotification("Failed to rename workspace. Please try again.", "error");
     }
   };
 
@@ -283,14 +290,18 @@ export default function Sidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: shareSelectedUser.id, permission: sharePermission })
       });
+      if (res.status === 403) {
+        showNotification("You cant access this you are not the owner", "error");
+        return;
+      }
       if (!res.ok) throw new Error("Failed to share");
-      alert("Successfully shared table!");
+      showNotification("Successfully shared table!", "success");
       setShareDialogOpen(false);
       setShareSelectedUser(null);
       setShareSelectedWorkspace(null);
       setShareSelectedTable(null);
     } catch (err) {
-      alert("Error sharing table. Make sure you are the workspace owner.");
+      showNotification("Error sharing table. Make sure you are the workspace owner.", "error");
     }
   };
 
@@ -307,7 +318,7 @@ export default function Sidebar({
         throw new Error(errData.error || "Failed to join board");
       }
       const data = await res.json();
-      alert("Successfully joined board!");
+      showNotification("Successfully joined board!", "success");
       setJoinDialogOpen(false);
       setInviteCodeValue("");
 
@@ -317,7 +328,7 @@ export default function Sidebar({
       // Redirect to the new workspace
       router.push(`/workspace?id=${data.workspaceId}`);
     } catch (err: any) {
-      alert(err.message || "Error joining board. Please check the code.");
+      showNotification(err.message || "Error joining board. Please check the code.", "error");
     }
   };
 

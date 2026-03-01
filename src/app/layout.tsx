@@ -25,11 +25,15 @@ export const viewport = {
   viewportFit: "cover",
 };
 
+import { NotificationProvider } from "./NotificationContext";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`} style={{ background: '#23243a', color: '#fff', overflowX: 'hidden' }}>
-        {children}
+        <NotificationProvider>
+          {children}
+        </NotificationProvider>
       </body>
     </html>
   );

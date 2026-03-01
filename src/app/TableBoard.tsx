@@ -228,6 +228,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import GroupIcon from "@mui/icons-material/Group";
 import ColumnTypeSelector from "./ColumnTypeSelector";
 import { Column, Row, ColumnType, ColumnOption } from "../types";
+import { useNotification } from "./NotificationContext";
 
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];
@@ -513,20 +514,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
-  const [notification, setNotification] = useState<{ open: boolean; message: string; severity: AlertColor }>({
-    open: false,
-    message: "",
-    severity: "info",
-  });
-
-  const showNotification = (message: string, severity: AlertColor = "info") => {
-    setNotification({ open: true, message, severity });
-  };
+  const { showNotification } = useNotification();
 
   const handleCloseNotification = (_?: React.SyntheticEvent | Event, reason?: string) => {
-    if (reason === 'clickaway') return;
-    setNotification(prev => ({ ...prev, open: false }));
+    // This is now handled by the global NotificationContext, but we can keep it if needed for local cleanup
+    // however, we are removing the local notification state.
   };
 
   const handleMoveColumn = (colId: string, direction: 'left' | 'right' | 'start' | 'end') => {
@@ -752,7 +744,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     // Fetch single table info with owner info
     authenticatedFetch(getApiUrl(`/tables/${tableId}`))
       .then((res) => {
-        if (!res.ok) throw new Error("Forbidden");
+        if (res.status === 403) {
+          showNotification("You cant access this you are not the owner", "error");
+          throw new Error("Forbidden");
+        }
+        if (!res.ok) throw new Error("Failed to fetch table info");
         return res.json();
       })
       .then((table) => {
@@ -5549,33 +5545,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       </Dialog>
 
 
-      {/* Premium Notification Snackbar */}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={4000}
-        onClose={handleCloseNotification}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{ mt: 2 }}
-      >
-        <Alert
-          onClose={handleCloseNotification}
-          severity={notification.severity}
-          variant="filled"
-          sx={{
-            width: '100%',
-            bgcolor: notification.severity === 'success' ? '#00c875' : notification.severity === 'error' ? '#f44336' : '#1e1f2b',
-            color: '#fff',
-            fontWeight: 600,
-            borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(10px)',
-            '& .MuiAlert-icon': { color: '#fff' }
-          }}
-        >
-          {notification.message}
-        </Alert>
-      </Snackbar>
+      {/* Premium Notification Snackbar - MOVED TO GLOBAL CONTEXT */}
     </Box >
   );
 }
