@@ -272,16 +272,29 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string } | null>(null);
 
-  // Fetch chat messages
+  // Fetch chat messages with polling
   useEffect(() => {
-    authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setBoardChatMessages(data);
-        }
-      })
-      .catch((err) => console.error("Failed to fetch chat messages", err));
+    const fetchChat = () => {
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            // Only update if data has actually changed to avoid unnecessary re-renders
+            setBoardChatMessages(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(data)) {
+                return data;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch((err) => console.error("Failed to fetch chat messages", err));
+    };
+
+    fetchChat(); // Initial fetch
+    const intervalId = setInterval(fetchChat, 4000); // Poll every 4 seconds
+
+    return () => clearInterval(intervalId);
   }, [tableId]);
 
   const handleSendBoardChat = async () => {
@@ -403,6 +416,58 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       setMobileTab(rightPanelTab);
     }
   }, [rightPanelTab]);
+
+  // Real-time polling for Task Chat (Side Panel)
+  useEffect(() => {
+    if (!reviewTask || (mobileTab !== 'chat' && rightPanelTab !== 'chat')) return;
+
+    const pollTaskChat = async () => {
+      try {
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${reviewTask.id}`));
+        const updatedRow = await res.json();
+        if (updatedRow && updatedRow.values) {
+          const newMessages = updatedRow.values.message || [];
+          setReviewTask(prev => {
+            if (prev && prev.id === reviewTask.id && JSON.stringify(prev.values.message) !== JSON.stringify(newMessages)) {
+              return { ...prev, values: { ...prev.values, message: newMessages } };
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error("Failed to poll task chat", err);
+      }
+    };
+
+    const intervalId = setInterval(pollTaskChat, 4000);
+    return () => clearInterval(intervalId);
+  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId]);
+
+  // Real-time polling for Task Chat (Discussion Popover)
+  useEffect(() => {
+    if (!chatTaskId || !chatAnchor) return;
+
+    const pollPopoverChat = async () => {
+      try {
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${chatTaskId}`));
+        const updatedRow = await res.json();
+        if (updatedRow && updatedRow.values) {
+          const newMessages = updatedRow.values.message || [];
+          setChatMessages(prev => {
+            if (JSON.stringify(prev) !== JSON.stringify(newMessages)) {
+              return newMessages;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error("Failed to poll popover chat", err);
+      }
+    };
+
+    const intervalId = setInterval(pollPopoverChat, 4000);
+    return () => clearInterval(intervalId);
+  }, [chatTaskId, !!chatAnchor, tableId]);
 
   // Email Automation UI state
   const [showEmailAutomation, setShowEmailAutomation] = useState(false);
