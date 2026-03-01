@@ -501,20 +501,6 @@ export default function Sidebar({
           </Box>
           <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1 }}>
             <WorkspaceDropdown />
-            {currentWorkspaceId && (
-              <Tooltip title="Rename Workspace">
-                <IconButton
-                  size="small"
-                  onClick={openRenameDialog}
-                  sx={{
-                    color: "#94a3b8",
-                    "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
-                  }}
-                >
-                  <EditIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-            )}
           </Box>
           {/* Actions */}
           <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
