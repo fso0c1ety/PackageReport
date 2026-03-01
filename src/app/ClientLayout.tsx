@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import ThemeRegistry from "./ThemeRegistry";
+import NotificationRequester from "./NotificationRequester";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import Box from "@mui/material/Box";
@@ -57,6 +58,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   
   return (
     <ThemeRegistry>
+      <NotificationRequester />
       <Box
         sx={{
           display: 'flex',

@@ -176,6 +176,8 @@ const countryCodeMap: Record<string, string> = {
 };
 import dayjs, { Dayjs } from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core';
 dayjs.extend(relativeTime);
 import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -306,35 +308,58 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Track unread messages when chat is closed
   useEffect(() => {
-    // Request notification permission if not yet requested/granted
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-
-    if (!isChatOpen) {
-      const newCount = boardChatMessages.length;
-      if (newCount > prevMessageCountRef.current) {
-        // Read current user from localStorage to avoid hook dependency cycle
-        const userJson = localStorage.getItem("user");
-        const user = userJson ? JSON.parse(userJson) : null;
-        const currentUserName = user ? user.name : 'User';
-
-        const newMessages = boardChatMessages.slice(prevMessageCountRef.current);
-        const externalNewMessages = newMessages.filter(m => m.sender !== currentUserName);
-
-        if (externalNewMessages.length > 0) {
-          setUnreadCount(prev => prev + externalNewMessages.length);
-
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            const latestMsg = externalNewMessages[externalNewMessages.length - 1];
-            new Notification('New Board Message', {
-              body: `${latestMsg.sender}: ${latestMsg.text}`,
-            });
-          }
+    const checkAndNotify = async () => {
+        // Request notification permission if not yet requested/granted (Web only)
+        if (!Capacitor.isNativePlatform() && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
         }
-      }
-    }
-    prevMessageCountRef.current = boardChatMessages.length;
+
+        if (!isChatOpen) {
+            const newCount = boardChatMessages.length;
+            if (newCount > prevMessageCountRef.current) {
+                // Read current user from localStorage to avoid hook dependency cycle
+                const userJson = localStorage.getItem("user");
+                const user = userJson ? JSON.parse(userJson) : null;
+                const currentUserName = user ? user.name : 'User';
+
+                const newMessages = boardChatMessages.slice(prevMessageCountRef.current);
+                const externalNewMessages = newMessages.filter(m => m.sender !== currentUserName);
+
+                if (externalNewMessages.length > 0) {
+                    setUnreadCount(prev => prev + externalNewMessages.length);
+                    
+                    if (document.hidden || !isChatOpen) { // Only notify if app is in background or chat is closed
+                        const latestMsg = externalNewMessages[externalNewMessages.length - 1];
+                        const title = 'New Board Message';
+                        const body = `${latestMsg.sender}: ${latestMsg.text}`;
+
+                        if (Capacitor.isNativePlatform()) {
+                           try {
+                               await LocalNotifications.schedule({
+                                   notifications: [
+                                       {
+                                           title: title,
+                                           body: body,
+                                           id: new Date().getTime(), // Unique ID
+                                           schedule: { at: new Date(Date.now() + 100) }
+                                       }
+                                   ]
+                               });
+                           } catch (e) {
+                               console.error("Failed to schedule local notification", e);
+                           }
+                        } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                            new Notification(title, {
+                                body: body,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        prevMessageCountRef.current = boardChatMessages.length;
+    };
+    checkAndNotify();
   }, [boardChatMessages, isChatOpen]);
 
   const handleSendBoardChat = async () => {
