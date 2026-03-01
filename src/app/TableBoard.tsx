@@ -342,6 +342,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const isFirstLoadRef = React.useRef(true);
   const boardChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskChatEndRef = React.useRef<HTMLDivElement>(null);
+  const taskDetailsChatEndRef = React.useRef<HTMLDivElement>(null);
 
   // Scroll to bottom of Board Chat when messages update or chat opens
   useEffect(() => {
@@ -591,6 +592,13 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Real-time polling for Task Chat (Side Panel)
   useEffect(() => {
+    // Scroll to bottom when messages change or chat is opened
+    if (reviewTask && (mobileTab === 'chat' || rightPanelTab === 'chat')) {
+        setTimeout(() => {
+            taskDetailsChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    }
+    
     if (!reviewTask || (mobileTab !== 'chat' && rightPanelTab !== 'chat')) return;
 
     const pollTaskChat = async () => {
@@ -613,7 +621,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
     const intervalId = setInterval(pollTaskChat, 4000);
     return () => clearInterval(intervalId);
-  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId]);
+    // Add reviewTask.values.message to dependency array to trigger scroll on new messages
+  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId, JSON.stringify(reviewTask?.values?.message)]);
 
   // Real-time polling for Task Chat (Discussion Popover)
   useEffect(() => {
@@ -5479,12 +5488,13 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                               border: '1px solid rgba(255,255,255,0.06)',
                               boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
                             }}>
-                              <Typography variant="body2" sx={{ color: '#E5E7EB', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontSize: 14 }}>{msg.text}</Typography>
+                              <Typography variant="body2" sx={{ color: '#E5E7EB', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordWrap: 'break-word', wordBreak: 'break-word', fontSize: 14 }}>{msg.text}</Typography>
                             </Box>
                           </Box>
                         </Box>
                       ))
                     )}
+                    <div ref={taskDetailsChatEndRef} />
                   </Box>
                   <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26' }}>
                     {reviewTask && taskTypingUsers[reviewTask.id] && taskTypingUsers[reviewTask.id].length > 0 && (
