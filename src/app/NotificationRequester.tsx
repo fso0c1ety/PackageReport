@@ -4,13 +4,14 @@ import { useEffect } from "react";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
+import { authenticatedFetch, getApiUrl } from "./apiUrl";
 
 const NotificationRequester = () => {
     useEffect(() => {
         const initPush = async () => {
             if (Capacitor.isNativePlatform()) {
                 try {
-                    // Start with Local Notifications as they are safer and don't require external config like firebase
+                    // Start with Local Notifications
                     let localPermStatus = await LocalNotifications.checkPermissions();
                     
                     if (localPermStatus.display === 'prompt') {
@@ -21,9 +22,7 @@ const NotificationRequester = () => {
                         await LocalNotifications.requestPermissions();
                     }
 
-                    // Also Request Push Notification permission for the system dialog 
-                    // (Android 13+ requires this for any notification)
-                    // But DO NOT register if you don't have google-services.json
+                    // Request Push Notification permission
                     let pushPermStatus = await PushNotifications.checkPermissions();
                     
                     if (pushPermStatus.receive === 'prompt') {
@@ -34,7 +33,43 @@ const NotificationRequester = () => {
                          await PushNotifications.requestPermissions();
                     }
                     
-                    // We removed .register() to avoid crashes on devices without google-services.json
+                    if (pushPermStatus.receive === 'granted') {
+                         // Add Listeners first
+                         await PushNotifications.removeAllListeners();
+
+                         await PushNotifications.addListener('registration', async (token) => {
+                            console.log('Push Registration Token: ', token.value);
+                            // Send token to backend
+                            try {
+                                const response = await authenticatedFetch(getApiUrl('/users/fcm'), {
+                                    method: 'PUT',
+                                    body: JSON.stringify({ token: token.value })
+                                });
+                                if (response.ok) {
+                                     console.log('FCM Token sent to server successfully');
+                                } else {
+                                     console.error('Failed to send FCM token to server', response.status);
+                                }
+                            } catch (err) {
+                                console.error('Error sending FCM token to server:', err);
+                            }
+                        });
+            
+                        await PushNotifications.addListener('registrationError', (error: any) => {
+                            console.error('Error on registration: ' + JSON.stringify(error));
+                        });
+            
+                        await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+                            console.log('Push received: ' + JSON.stringify(notification));
+                        });
+            
+                        await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                            console.log('Push action performed: ' + JSON.stringify(notification));
+                        });
+
+                         // Register with FCM
+                         await PushNotifications.register();
+                    }
                     
                 } catch (e) {
                     console.error('Error requesting notification permissions', e);
@@ -43,6 +78,12 @@ const NotificationRequester = () => {
         };
 
         initPush();
+
+        return () => {
+             if (Capacitor.isNativePlatform()) {
+                 PushNotifications.removeAllListeners();
+             }
+        };
     }, []);
 
     // This component renders nothing

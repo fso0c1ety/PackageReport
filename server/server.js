@@ -10,6 +10,7 @@ const multer = require('multer');
 const db = require('./db');
 const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
+const { sendPushNotification } = require('./firebase');
 
 
 const app = express();
@@ -1002,6 +1003,19 @@ app.put('/api/tables/:tableId/tasks/order', async (req, res) => {
 });
 
 
+// --- User FCM Token Endpoint ---
+app.put('/api/users/fcm', authenticateToken, async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+  try {
+    await db.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating FCM token:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // --- Table Chat Endpoints ---
 // Using a table in PostgreSQL for chats
 app.get('/api/tables/:tableId/chat', async (req, res) => {
@@ -1014,12 +1028,12 @@ app.get('/api/tables/:tableId/chat', async (req, res) => {
   }
 });
 
-app.post('/api/tables/:tableId/chat', async (req, res) => {
+app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   try {
     const newMessage = {
       id: uuidv4(),
       table_id: req.params.tableId,
-      sender: req.body.sender,
+      sender: req.body.sender || req.user.name, // Fallback to auth user name if not provided
       text: req.body.text,
       timestamp: req.body.timestamp || Date.now()
     };
@@ -1028,6 +1042,45 @@ app.post('/api/tables/:tableId/chat', async (req, res) => {
       'INSERT INTO table_chats (id, table_id, sender, text, timestamp) VALUES ($1, $2, $3, $4, $5)',
       [newMessage.id, newMessage.table_id, newMessage.sender, newMessage.text, newMessage.timestamp]
     );
+
+    // Send push notification to other users
+    // 1. Get the table name and workspace/shared users
+    const tableRes = await db.query('SELECT name, workspace_id, shared_users FROM tables WHERE id = $1', [newMessage.table_id]);
+    if (tableRes.rows.length > 0) {
+      const table = tableRes.rows[0];
+      const tableName = table.name;
+      
+      // 2. Determine recipients
+      // Start with workspace owner
+      const workspaceRes = await db.query('SELECT owner_id FROM workspaces WHERE id = $1', [table.workspace_id]);
+      let recipientIds = new Set();
+      
+      if (workspaceRes.rows.length > 0) {
+        recipientIds.add(workspaceRes.rows[0].owner_id);
+      }
+
+      // Add shared users
+      if (Array.isArray(table.shared_users)) {
+        table.shared_users.forEach(u => {
+          if (typeof u === 'string') recipientIds.add(u);
+          else if (u.userId) recipientIds.add(u.userId);
+        });
+      }
+
+      // Remove sender
+      recipientIds.delete(req.user.id);
+
+      if (recipientIds.size > 0) {
+        const recipientsArray = Array.from(recipientIds);
+        // Get FCM tokens for these users
+        const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
+        const tokens = tokensRes.rows.map(r => r.fcm_token);
+
+        if (tokens.length > 0) {
+          sendPushNotification(tokens, `New message in ${tableName}`, `${newMessage.sender}: ${newMessage.text}`);
+        }
+      }
+    }
 
     res.json(newMessage);
   } catch (err) {
