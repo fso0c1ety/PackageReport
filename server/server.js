@@ -1149,17 +1149,25 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
         });
       }
 
-      // Remove sender
-      recipientIds.delete(req.user.id);
+      // Remove sender (commented out for testing purposes - uncomment for prod)
+      // recipientIds.delete(req.user.id);
+      
+      console.log(`[Chat Notification] Sender: ${req.user.id}, Potential Recipients: ${Array.from(recipientIds).join(', ')}`);
 
       if (recipientIds.size > 0) {
         const recipientsArray = Array.from(recipientIds);
         // Get FCM tokens for these users
-        const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
+        const tokensRes = await db.query('SELECT id, fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
+        
         const tokens = tokensRes.rows.map(r => r.fcm_token);
+        console.log(`[Chat Notification] Found ${tokens.length} tokens for users: ${tokensRes.rows.map(r => r.id).join(', ')}`);
 
         if (tokens.length > 0) {
-          sendPushNotification(tokens, `New message in ${tableName}`, `${newMessage.sender}: ${newMessage.text}`);
+          await sendPushNotification(tokens, `New message in ${tableName}`, `${newMessage.sender}: ${newMessage.text}`, {
+              type: 'chat_message',
+              tableId: newMessage.table_id,
+              senderId: req.user.id
+          });
         }
       }
     }
