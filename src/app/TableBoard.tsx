@@ -1382,7 +1382,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     });
   };
 
-  const handleEditStatusColor = (colId: string, idx: number, color: string) => {
+  const handleEditStatusColor = async (colId: string, idx: number, color: string) => {
     let updatedCols: Column[] = [];
     setColumns(cols => {
       updatedCols = cols.map(col =>
