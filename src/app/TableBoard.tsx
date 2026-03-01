@@ -1148,7 +1148,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       id: uuidv4(),
       text: fileComment,
       createdAt: new Date().toISOString(),
-      user: "User" // Or use actual user info if available
+      user: currentUser?.name || "User",
+      userAvatar: currentUser?.avatar
     };
 
     let updatedFile: any = null;
@@ -2738,15 +2739,19 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         onClose={() => setIsChatOpen(false)}
         PaperProps={{
           sx: {
-            width: 380,
-            bgcolor: '#151621', // Darker background for contrast
+            width: isMobile ? '100%' : 380,
+            height: isMobile ? 'calc(100% - 60px)' : '100%',
+            mt: isMobile ? '60px' : 0,
+            borderTopLeftRadius: isMobile ? 20 : 0,
+            borderTopRightRadius: isMobile ? 20 : 0,
+            bgcolor: '#151621',
             color: '#fff',
             borderLeft: '1px solid #3a3b5a',
             boxShadow: '-10px 0 30px rgba(0,0,0,0.5)'
           }
         }}
         BackdropProps={{
-          sx: { bgcolor: 'transparent' }
+          sx: { bgcolor: 'rgba(0,0,0,0.5)' }
         }}
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -2858,82 +2863,80 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Box>
 
           {/* Input */}
-          {userPermission !== 'read' && (
-            <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
-              <input
-                type="file"
-                hidden
-                ref={fileInputRef}
-                onChange={handleBoardFileUpload}
-              />
-              <Box sx={{
-                display: 'flex',
-                gap: 1.5,
-                bgcolor: '#151621',
-                p: 1,
-                borderRadius: 4,
-                border: '1px solid #2e2f45',
-                alignItems: 'flex-end',
-                transition: 'border-color 0.2s',
-                '&:focus-within': { borderColor: '#6366f1' }
-              }}>
-                <IconButton
-                  size="small"
-                  sx={{ color: '#7d82a8', mb: 0.5, ml: 0.5, '&:hover': { color: '#fff' } }}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <AttachFileIcon fontSize="small" />
-                </IconButton>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Type a message..."
-                  value={newBoardChatMessage}
-                  onChange={(e) => setNewBoardChatMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendBoardChat();
-                    }
-                  }}
-                  multiline
-                  maxRows={4}
-                  InputProps={{
-                    disableUnderline: true,
-                    sx: {
-                      color: '#fff',
-                      p: 1,
-                      fontSize: '0.9rem',
-                      '& textarea': {
-                        '&::-webkit-scrollbar': { width: 4 },
-                        '&::-webkit-scrollbar-track': { background: 'transparent' },
-                        '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 }
-                      }
-                    }
-                  }}
-                  variant="standard"
-                />
-                <IconButton
-                  onClick={handleSendBoardChat}
-                  disabled={!newBoardChatMessage.trim()}
-                  sx={{
+          <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
+            <input
+              type="file"
+              hidden
+              ref={fileInputRef}
+              onChange={handleBoardFileUpload}
+            />
+            <Box sx={{
+              display: 'flex',
+              gap: 1.5,
+              bgcolor: '#151621',
+              p: 1,
+              borderRadius: 4,
+              border: '1px solid #2e2f45',
+              alignItems: 'flex-end',
+              transition: 'border-color 0.2s',
+              '&:focus-within': { borderColor: '#6366f1' }
+            }}>
+              <IconButton
+                size="small"
+                sx={{ color: '#7d82a8', mb: 0.5, ml: 0.5, '&:hover': { color: '#fff' } }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <AttachFileIcon fontSize="small" />
+              </IconButton>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Type a message..."
+                value={newBoardChatMessage}
+                onChange={(e) => setNewBoardChatMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendBoardChat();
+                  }
+                }}
+                multiline
+                maxRows={4}
+                InputProps={{
+                  disableUnderline: true,
+                  sx: {
                     color: '#fff',
-                    bgcolor: newBoardChatMessage.trim() ? '#6366f1' : '#2e2f45',
-                    borderRadius: '50%',
-                    width: 36,
-                    height: 36,
-                    mb: 0.5,
-                    mr: 0.5,
-                    transition: 'all 0.2s',
-                    '&:hover': { bgcolor: newBoardChatMessage.trim() ? '#5558dd' : '#2e2f45', transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none' },
-                    '&.Mui-disabled': { bgcolor: '#2e2f45', color: 'rgba(255,255,255,0.2)' }
-                  }}
-                >
-                  <SendIcon fontSize="small" sx={{ ml: 0.2 }} />
-                </IconButton>
-              </Box>
+                    p: 1,
+                    fontSize: '0.9rem',
+                    '& textarea': {
+                      '&::-webkit-scrollbar': { width: 4 },
+                      '&::-webkit-scrollbar-track': { background: 'transparent' },
+                      '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 }
+                    }
+                  }
+                }}
+                variant="standard"
+              />
+              <IconButton
+                onClick={handleSendBoardChat}
+                disabled={!newBoardChatMessage.trim()}
+                sx={{
+                  color: '#fff',
+                  bgcolor: newBoardChatMessage.trim() ? '#6366f1' : '#2e2f45',
+                  borderRadius: '50%',
+                  width: 36,
+                  height: 36,
+                  mb: 0.5,
+                  mr: 0.5,
+                  transition: 'all 0.2s',
+                  '&:hover': { bgcolor: newBoardChatMessage.trim() ? '#5558dd' : '#2e2f45', transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none' },
+                  '&.Mui-disabled': { bgcolor: '#2e2f45', color: 'rgba(255,255,255,0.2)' }
+                }}
+              >
+                <SendIcon fontSize="small" sx={{ ml: 0.2 }} />
+              </IconButton>
             </Box>
-          )}
+          </Box>
         </Box>
       </Drawer>
 
@@ -2948,11 +2951,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             bgcolor: '#1e1f2b',
             color: '#fff',
             borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
             border: '1px solid #3a3b5a',
-            backgroundImage: 'none',
-            height: '80vh',
-            display: 'flex',
-            flexDirection: 'column'
+            overflow: 'hidden'
           }
         }}
         BackdropProps={{
@@ -3008,10 +3009,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             />
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Column menu for rename/delete */}
-      <Menu
+      < Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl) && !!colMenuId}
         onClose={handleColMenuClose}
@@ -3140,7 +3141,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><DeleteIcon fontSize="small" /></ListItemIcon>
           <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Delete Column</Typography>
         </MenuItem>
-      </Menu>
+      </Menu >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
         <IconButton
           onClick={e => { e.stopPropagation(); setHeaderMenuAnchor(e.currentTarget); }}
@@ -3503,936 +3504,942 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         </Menu>
       </Box>
 
-      {workspaceView === 'table' ? (
-        <DragDropContext onDragEnd={onDragEnd}>
-          <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto' }}>
-            <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
-              <TableHead>
-                <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
-                  {(provided) => (
-                    <TableRow
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      sx={{
-                        '& .MuiTableCell-root': {
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                          color: '#94a3b8',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          py: 2,
-                          bgcolor: '#191a27',
-                          position: 'relative',
-                          '&::after': {
-                            content: '""',
-                            position: 'absolute',
-                            right: 0,
-                            top: '25%',
-                            height: '50%',
-                            width: '1px',
-                            bgcolor: 'rgba(255, 255, 255, 0.05)'
-                          }
-                        }
-                      }}
-                    >
-                      <TableCell
-                        padding="checkbox"
+      {
+        workspaceView === 'table' ? (
+          <DragDropContext onDragEnd={onDragEnd}>
+            <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto' }}>
+              <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
+                <TableHead>
+                  <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
+                    {(provided) => (
+                      <TableRow
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
                         sx={{
-                          minWidth: 48,
-                          width: 48,
-                          position: 'sticky',
-                          left: 0,
-                          zIndex: 10,
-                          bgcolor: '#191a27 !important',
-                          borderRight: '1px solid rgba(255, 255, 255, 0.08)'
+                          '& .MuiTableCell-root': {
+                            borderBottom: '1px solid rgba(255, 107, 129, 0.2)', // Subtle pinkish/border
+                            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: '0.8125rem',
+                            textTransform: 'none',
+                            letterSpacing: '0.01em',
+                            py: 1.75,
+                            px: 2,
+                            bgcolor: '#191a27',
+                            position: 'relative',
+                            '&::after': {
+                              content: '""',
+                              position: 'absolute',
+                              right: 0,
+                              top: '20%',
+                              height: '60%',
+                              width: '1px',
+                              bgcolor: 'rgba(255, 255, 255, 0.08)'
+                            }
+                          }
                         }}
-                      />
-                      {columns.sort((a, b) => a.order - b.order).map((col, index) => (
-                        <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
-                          {(provided, snapshot) => (
-                            <TableCell
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
+                      >
+                        <TableCell
+                          padding="checkbox"
+                          sx={{
+                            minWidth: 48,
+                            width: 48,
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 10,
+                            bgcolor: '#191a27 !important',
+                            borderRight: '1px solid rgba(255, 255, 255, 0.08)'
+                          }}
+                        />
+                        {columns.sort((a, b) => a.order - b.order).map((col, index) => (
+                          <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
+                            {(provided, snapshot) => (
+                              <TableCell
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                sx={{
+                                  minWidth: 160,
+                                  transition: 'background-color 0.2s',
+                                  bgcolor: snapshot.isDragging ? 'rgba(99, 102, 241, 0.1) !important' : '#191a27',
+                                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.02) !important' },
+                                  '&:hover .column-actions': { opacity: 1 }
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Box sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: '8px',
+                                      bgcolor: col.type === 'Status' ? 'rgba(0, 200, 117, 0.15)' :
+                                        col.type === 'People' ? 'rgba(162, 93, 220, 0.15)' :
+                                          col.type === 'Date' ? 'rgba(226, 68, 92, 0.15)' :
+                                            'rgba(99, 102, 241, 0.15)',
+                                      color: col.type === 'Status' ? '#00c875' :
+                                        col.type === 'People' ? '#a25ddc' :
+                                          col.type === 'Date' ? '#e2445c' :
+                                            '#818cf8',
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                      border: '1px solid rgba(255,255,255,0.05)'
+                                    }}>
+                                      {col.type === 'Status' && <CheckCircleIcon sx={{ fontSize: 16 }} />}
+                                      {col.type === 'People' && <PersonIcon sx={{ fontSize: 16 }} />}
+                                      {col.type === 'Date' && <CalendarMonthIcon sx={{ fontSize: 16 }} />}
+                                      {col.type === 'Timeline' && <TimelineIcon sx={{ fontSize: 16 }} />}
+                                      {col.type === 'Country' && <PublicIcon sx={{ fontSize: 16 }} />}
+                                      {col.type === 'Files' && <AttachFileIcon sx={{ fontSize: 16 }} />}
+                                      {col.type === 'Doc' && <DescriptionIcon sx={{ fontSize: 16 }} />}
+                                      {!['Status', 'People', 'Date', 'Timeline', 'Country', 'Files', 'Doc'].includes(col.type) && <DescriptionIcon sx={{ fontSize: 16 }} />}
+                                    </Box>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontWeight: 600,
+                                        color: '#F3F4F6',
+                                        fontSize: '0.875rem',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {col.name}
+                                    </Typography>
+                                  </Box>
+                                  {userPermission !== 'read' && (
+                                    <IconButton
+                                      className="column-actions"
+                                      size="small"
+                                      onClick={(e) => handleColMenuOpen(e, col.id)}
+                                      sx={{
+                                        opacity: 0,
+                                        color: '#94a3b8',
+                                        transition: 'all 0.2s',
+                                        width: 24,
+                                        height: 24,
+                                        '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' }
+                                      }}
+                                    >
+                                      <MoreVertIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                  )}
+                                </Box>
+                              </TableCell>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        {userPermission !== 'read' && (
+                          <TableCell
+                            sx={{
+                              minWidth: 60,
+                              width: 60,
+                              textAlign: 'center',
+                              '&::after': { display: 'none !important' }
+                            }}
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                setColSelectorAnchor(e.currentTarget);
+                                setShowColSelector(true);
+                              }}
                               sx={{
-                                minWidth: 160,
-                                transition: 'background-color 0.2s',
-                                bgcolor: snapshot.isDragging ? 'rgba(99, 102, 241, 0.1) !important' : '#191a27',
-                                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.02) !important' },
-                                '&:hover .column-actions': { opacity: 1 }
+                                color: '#818cf8',
+                                bgcolor: 'rgba(99, 102, 241, 0.1)',
+                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)', borderColor: '#818cf8' }
                               }}
                             >
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                  <Box sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: 24,
-                                    height: 24,
-                                    borderRadius: '6px',
-                                    bgcolor: col.type === 'Status' ? 'rgba(0, 200, 117, 0.1)' :
-                                      col.type === 'People' ? 'rgba(162, 93, 220, 0.1)' :
-                                        col.type === 'Date' ? 'rgba(226, 68, 92, 0.1)' :
-                                          'rgba(99, 102, 241, 0.1)',
-                                    color: col.type === 'Status' ? '#00c875' :
-                                      col.type === 'People' ? '#a25ddc' :
-                                        col.type === 'Date' ? '#e2445c' :
-                                          '#6366f1'
-                                  }}>
-                                    {col.type === 'Status' && <CheckCircleIcon sx={{ fontSize: 14 }} />}
-                                    {col.type === 'People' && <PersonIcon sx={{ fontSize: 14 }} />}
-                                    {col.type === 'Date' && <CalendarMonthIcon sx={{ fontSize: 14 }} />}
-                                    {col.type === 'Timeline' && <TimelineIcon sx={{ fontSize: 14 }} />}
-                                    {col.type === 'Country' && <PublicIcon sx={{ fontSize: 14 }} />}
-                                    {col.type === 'Files' && <AttachFileIcon sx={{ fontSize: 14 }} />}
-                                    {col.type === 'Doc' && <DescriptionIcon sx={{ fontSize: 14 }} />}
-                                    {!['Status', 'People', 'Date', 'Timeline', 'Country', 'Files', 'Doc'].includes(col.type) && <DescriptionIcon sx={{ fontSize: 14 }} />}
-                                  </Box>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      fontWeight: 700,
-                                      color: '#fff',
-                                      fontSize: '0.8rem',
-                                      letterSpacing: '0.02em'
+                              <AddIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )}
+                  </Droppable>
+                </TableHead>
+
+                <Droppable droppableId="rows-droppable" type="row">
+                  {(provided) => (
+                    <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                      {filteredRows.map((row, index) => (
+                        <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
+                          {(provided, snapshot) => (
+                            <TableRow
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              sx={{
+                                bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
+                                '&:hover': { bgcolor: '#2c2d4a' },
+                                transition: 'background-color 0.2s',
+                                borderRadius: 4, // Attempt to round row corners
+                                ...provided.draggableProps.style
+                              }}
+                            >
+                              {/* Row Drag Handle, Menu, and Message Icon */}
+                              <TableCell sx={{
+                                width: 60,
+                                p: 0,
+                                borderBottom: 'none',
+                                borderTopLeftRadius: 12,
+                                borderBottomLeftRadius: 12,
+                                ...(isMobile && {
+                                  position: 'sticky',
+                                  left: 0,
+                                  zIndex: 11, // Higher than first data col (zIndex 10)
+                                  bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
+                                  borderRight: '1px solid #2e2f45'
+                                })
+                              }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
+                                  <div {...provided.dragHandleProps} style={{ display: 'flex', alignItems: 'center', cursor: 'grab' }}>
+                                    <MoreVertIcon sx={{ color: '#555', fontSize: 16 }} />
+                                    <MoreVertIcon sx={{ color: '#555', fontSize: 16, ml: -1 }} />
+                                  </div>
+                                  <TaskRowMenu
+                                    row={row}
+                                    onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
+                                    onMoveUp={() => handleMoveRow(row.id, 'up')}
+                                    onMoveDown={() => handleMoveRow(row.id, 'down')}
+                                    onMoveTop={() => handleMoveRow(row.id, 'top')}
+                                    onMoveBottom={() => handleMoveRow(row.id, 'bottom')}
+                                    onExportPdf={() => handleExportPdf(row)}
+                                    onExportExcel={() => handleExportExcel(row)}
+                                    onDelete={async () => {
+                                      if (confirm('Are you sure you want to delete this task?')) {
+                                        // Optimistic update
+                                        setRows(prev => prev.filter(r => r.id !== row.id));
+                                        // Backend call
+                                        await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
+                                          method: "DELETE",
+                                        });
+                                      }
                                     }}
-                                  >
-                                    {col.name}
-                                  </Typography>
-                                </Box>
-                                {userPermission !== 'read' && (
-                                  <IconButton
-                                    className="column-actions"
-                                    size="small"
-                                    onClick={(e) => handleColMenuOpen(e, col.id)}
-                                    sx={{
-                                      opacity: 0,
-                                      color: '#94a3b8',
-                                      transition: 'all 0.2s',
-                                      width: 24,
-                                      height: 24,
-                                      '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' }
-                                    }}
-                                  >
-                                    <MoreVertIcon sx={{ fontSize: 16 }} />
+                                  />
+                                  {/* Message Icon for Chat */}
+                                  <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
+                                    <ChatBubbleOutlineIcon sx={{ fontSize: 20 }} />
                                   </IconButton>
-                                )}
-                              </Box>
-                            </TableCell>
+                                  {/* Chat Popover for Message Icon */}
+                                  {chatPopoverKey === `${row.id}-message` && chatAnchor && (
+                                    <Popover
+                                      open={!!chatAnchor}
+                                      anchorEl={chatAnchor}
+                                      onClose={handleCloseChat}
+                                      anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                                      transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                                      PaperProps={{
+                                        sx: {
+                                          p: 0,
+                                          minWidth: 360,
+                                          maxWidth: 400,
+                                          bgcolor: '#1e1f2b',
+                                          borderRadius: 4,
+                                          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                                          border: '1px solid #3a3b5a',
+                                        }
+                                      }}
+                                    >
+                                      <Box sx={{ display: 'flex', flexDirection: 'column', height: 450 }}>
+                                        {/* Header */}
+                                        <Box sx={{
+                                          px: 2.5,
+                                          py: 2,
+                                          borderBottom: '1px solid #2d2e45',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          bgcolor: '#23243a'
+                                        }}>
+                                          <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontSize: 16 }}>Discussion</Typography>
+                                          <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                                            <span style={{ fontSize: 18 }}>✕</span>
+                                          </IconButton>
+                                        </Box>
+
+                                        {/* Messages */}
+                                        <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                          {chatMessages.length === 0 ? (
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
+                                              <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#4f51c0', mb: 1, opacity: 0.5 }} />
+                                              <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
+                                            </Box>
+                                          ) : (
+                                            chatMessages.map(msg => (
+                                              <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
+                                                <Box sx={{
+                                                  bgcolor: '#2c2d4a',
+                                                  px: 2,
+                                                  py: 1.5,
+                                                  borderRadius: '12px 12px 12px 2px',
+                                                  border: '1px solid #3a3b5a'
+                                                }}>
+                                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#6c6ed6' }}>{msg.sender}</Typography>
+                                                    <Typography variant="caption" sx={{ color: '#5a5b7a', fontSize: 10 }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography>
+                                                  </Box>
+                                                  <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5 }}>{msg.text}</Typography>
+                                                </Box>
+                                              </Box>
+                                            ))
+                                          )}
+                                          <div id="chat-bottom" />
+                                        </Box>
+
+                                        {/* Input */}
+                                        <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+                                          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                            <input
+                                              value={chatInput}
+                                              onChange={e => setChatInput(e.target.value)}
+                                              placeholder="Write a reply..."
+                                              onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+                                              style={{
+                                                width: '100%',
+                                                backgroundColor: '#1e1f2b',
+                                                border: '1px solid #3a3b5a',
+                                                borderRadius: '24px',
+                                                padding: '12px 44px 12px 16px',
+                                                color: '#fff',
+                                                fontSize: '14px',
+                                                outline: 'none'
+                                              }}
+                                            />
+                                            <IconButton
+                                              onClick={handleSendChat}
+                                              disabled={!chatInput.trim()}
+                                              size="small"
+                                              sx={{
+                                                position: 'absolute',
+                                                right: 6,
+                                                color: chatInput.trim() ? '#4f51c0' : '#3a3b5a',
+                                                bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.1)' : 'transparent',
+                                                '&:hover': { bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
+                                              }}
+                                            >
+                                              <SendIcon fontSize="small" />
+                                            </IconButton>
+                                          </Box>
+                                        </Box>
+                                      </Box>
+                                    </Popover>
+                                  )}
+                                </Box>
+                              </TableCell>
+
+                              {/* Render Cells */}
+                              {columns.map((col, idx) => (
+                                <TableCell
+                                  key={col.id}
+                                  align="left"
+                                  sx={{
+                                    borderBottom: '1px solid #2e2f45',
+                                    p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
+                                    color: '#d0d4e4',
+                                    fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
+                                    minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
+                                    maxWidth: isMobile ? 240 : 300,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    ...(isMobile && idx === 0 ? {
+                                      position: 'sticky',
+                                      left: 60, // Width of the drag handle column
+                                      zIndex: 10,
+                                      bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
+                                      borderRight: '1px solid #2e2f45',
+                                      boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                                    } : {
+                                      position: 'relative',
+                                      zIndex: 1
+                                    })
+                                  }}
+                                >
+                                  {renderCell(row, col)}
+                                </TableCell>
+                              ))}
+
+                              {/* Empty cell for the Add Column column alignment */}
+                              <TableCell sx={{ borderBottom: 'none', borderTopRightRadius: 12, borderBottomRightRadius: 12 }} />
+                            </TableRow>
                           )}
                         </Draggable>
                       ))}
                       {provided.placeholder}
-                      {userPermission !== 'read' && (
-                        <TableCell
-                          sx={{
-                            minWidth: 60,
-                            width: 60,
-                            textAlign: 'center',
-                            '&::after': { display: 'none !important' }
-                          }}
-                        >
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              setColSelectorAnchor(e.currentTarget);
-                              setShowColSelector(true);
-                            }}
-                            sx={{
-                              color: '#6366f1',
-                              bgcolor: 'rgba(99, 102, 241, 0.05)',
-                              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' }
-                            }}
-                          >
-                            <AddIcon fontSize="small" />
-                          </IconButton>
-                        </TableCell>
-                      )}
-                    </TableRow>
+                    </TableBody>
                   )}
                 </Droppable>
-              </TableHead>
-
-              <Droppable droppableId="rows-droppable" type="row">
-                {(provided) => (
-                  <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                    {filteredRows.map((row, index) => (
-                      <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
-                        {(provided, snapshot) => (
-                          <TableRow
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            sx={{
-                              bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
-                              '&:hover': { bgcolor: '#2c2d4a' },
-                              transition: 'background-color 0.2s',
-                              borderRadius: 4, // Attempt to round row corners
-                              ...provided.draggableProps.style
-                            }}
-                          >
-                            {/* Row Drag Handle, Menu, and Message Icon */}
-                            <TableCell sx={{
-                              width: 60,
-                              p: 0,
-                              borderBottom: 'none',
-                              borderTopLeftRadius: 12,
-                              borderBottomLeftRadius: 12,
-                              ...(isMobile && {
-                                position: 'sticky',
-                                left: 0,
-                                zIndex: 11, // Higher than first data col (zIndex 10)
-                                bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
-                                borderRight: '1px solid #2e2f45'
-                              })
-                            }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
-                                <div {...provided.dragHandleProps} style={{ display: 'flex', alignItems: 'center', cursor: 'grab' }}>
-                                  <MoreVertIcon sx={{ color: '#555', fontSize: 16 }} />
-                                  <MoreVertIcon sx={{ color: '#555', fontSize: 16, ml: -1 }} />
-                                </div>
-                                <TaskRowMenu
-                                  row={row}
-                                  onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
-                                  onMoveUp={() => handleMoveRow(row.id, 'up')}
-                                  onMoveDown={() => handleMoveRow(row.id, 'down')}
-                                  onMoveTop={() => handleMoveRow(row.id, 'top')}
-                                  onMoveBottom={() => handleMoveRow(row.id, 'bottom')}
-                                  onExportPdf={() => handleExportPdf(row)}
-                                  onExportExcel={() => handleExportExcel(row)}
-                                  onDelete={async () => {
-                                    if (confirm('Are you sure you want to delete this task?')) {
-                                      // Optimistic update
-                                      setRows(prev => prev.filter(r => r.id !== row.id));
-                                      // Backend call
-                                      await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
-                                        method: "DELETE",
-                                      });
-                                    }
-                                  }}
-                                />
-                                {/* Message Icon for Chat */}
-                                <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
-                                  <ChatBubbleOutlineIcon sx={{ fontSize: 20 }} />
-                                </IconButton>
-                                {/* Chat Popover for Message Icon */}
-                                {chatPopoverKey === `${row.id}-message` && chatAnchor && (
-                                  <Popover
-                                    open={!!chatAnchor}
-                                    anchorEl={chatAnchor}
-                                    onClose={handleCloseChat}
-                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                                    PaperProps={{
-                                      sx: {
-                                        p: 0,
-                                        minWidth: 360,
-                                        maxWidth: 400,
-                                        bgcolor: '#1e1f2b',
-                                        borderRadius: 4,
-                                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                                        border: '1px solid #3a3b5a',
-                                      }
-                                    }}
-                                  >
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 450 }}>
-                                      {/* Header */}
-                                      <Box sx={{
-                                        px: 2.5,
-                                        py: 2,
-                                        borderBottom: '1px solid #2d2e45',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        bgcolor: '#23243a'
-                                      }}>
-                                        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontSize: 16 }}>Discussion</Typography>
-                                        <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
-                                          <span style={{ fontSize: 18 }}>✕</span>
-                                        </IconButton>
-                                      </Box>
-
-                                      {/* Messages */}
-                                      <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {chatMessages.length === 0 ? (
-                                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
-                                            <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#4f51c0', mb: 1, opacity: 0.5 }} />
-                                            <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
-                                          </Box>
-                                        ) : (
-                                          chatMessages.map(msg => (
-                                            <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
-                                              <Box sx={{
-                                                bgcolor: '#2c2d4a',
-                                                px: 2,
-                                                py: 1.5,
-                                                borderRadius: '12px 12px 12px 2px',
-                                                border: '1px solid #3a3b5a'
-                                              }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#6c6ed6' }}>{msg.sender}</Typography>
-                                                  <Typography variant="caption" sx={{ color: '#5a5b7a', fontSize: 10 }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Typography>
-                                                </Box>
-                                                <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5 }}>{msg.text}</Typography>
-                                              </Box>
-                                            </Box>
-                                          ))
-                                        )}
-                                        <div id="chat-bottom" />
-                                      </Box>
-
-                                      {/* Input */}
-                                      <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
-                                        <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                          <input
-                                            value={chatInput}
-                                            onChange={e => setChatInput(e.target.value)}
-                                            placeholder="Write a reply..."
-                                            onKeyDown={e => e.key === 'Enter' && handleSendChat()}
-                                            style={{
-                                              width: '100%',
-                                              backgroundColor: '#1e1f2b',
-                                              border: '1px solid #3a3b5a',
-                                              borderRadius: '24px',
-                                              padding: '12px 44px 12px 16px',
-                                              color: '#fff',
-                                              fontSize: '14px',
-                                              outline: 'none'
-                                            }}
-                                          />
-                                          <IconButton
-                                            onClick={handleSendChat}
-                                            disabled={!chatInput.trim()}
-                                            size="small"
-                                            sx={{
-                                              position: 'absolute',
-                                              right: 6,
-                                              color: chatInput.trim() ? '#4f51c0' : '#3a3b5a',
-                                              bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.1)' : 'transparent',
-                                              '&:hover': { bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
-                                            }}
-                                          >
-                                            <SendIcon fontSize="small" />
-                                          </IconButton>
-                                        </Box>
-                                      </Box>
-                                    </Box>
-                                  </Popover>
-                                )}
-                              </Box>
-                            </TableCell>
-
-                            {/* Render Cells */}
-                            {columns.map((col, idx) => (
-                              <TableCell
-                                key={col.id}
-                                align="left"
-                                sx={{
-                                  borderBottom: '1px solid #2e2f45',
-                                  p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
-                                  color: '#d0d4e4',
-                                  fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
-                                  minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
-                                  maxWidth: isMobile ? 240 : 300,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  ...(isMobile && idx === 0 ? {
-                                    position: 'sticky',
-                                    left: 60, // Width of the drag handle column
-                                    zIndex: 10,
-                                    bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
-                                    borderRight: '1px solid #2e2f45',
-                                    boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
-                                  } : {
-                                    position: 'relative',
-                                    zIndex: 1
-                                  })
-                                }}
-                              >
-                                {renderCell(row, col)}
-                              </TableCell>
-                            ))}
-
-                            {/* Empty cell for the Add Column column alignment */}
-                            <TableCell sx={{ borderBottom: 'none', borderTopRightRadius: 12, borderBottomRightRadius: 12 }} />
-                          </TableRow>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </TableBody>
-                )}
-              </Droppable>
-            </Table >
-          </TableContainer >
-        </DragDropContext >
-      ) : workspaceView === 'kanban' ? (
-        <Box sx={{
-          display: 'flex',
-          gap: 2.5,
-          height: '100%',
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          pb: 2,
-          px: 1,
-          '::-webkit-scrollbar': { height: 8 },
-          '::-webkit-scrollbar-track': { background: 'transparent' },
-          '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
-          '::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
-        }}>
-          {(() => {
-            const statusCol = columns.find(col => col.type === 'Status');
-            if (!statusCol || !Array.isArray(statusCol.options)) {
-              return (
-                <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
-                  <Stack alignItems="center" spacing={2}>
-                    <Box sx={{ bgcolor: '#23243a', p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 400 }}>
-                      <Typography variant="h6" sx={{ mb: 1, color: '#fff' }}>No Status Column</Typography>
-                      <Typography variant="body2" sx={{ color: '#bfc8e0' }}>
-                        Please add a "Status" column to your table to visualize your tasks in Kanban view.
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Box>
-              );
-            }
-            // Use status options for columns
-            return statusCol.options.map(opt => {
-              const colTasks = filteredRows.filter(r => r.values[statusCol.id] === opt.value);
-              const statusColor = opt.color || '#35365a';
-
-              return (
-                <Paper
-                  key={opt.value}
-                  elevation={0}
-                  sx={{
-                    width: 280,
-                    minWidth: 280,
-                    bgcolor: 'transparent',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    flexShrink: 0
-                  }}
-                >
-                  {/* Column Header */}
-                  <Box sx={{
-                    mb: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    bgcolor: '#23243a', // Header BG
-                    p: 1.5,
-                    borderRadius: 2,
-                    borderTop: `4px solid ${statusColor}`,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}>
-                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: '#fff' }}>
-                      {opt.value}
-                    </Typography>
-                    <Box sx={{
-                      bgcolor: 'rgba(255,255,255,0.1)',
-                      borderRadius: '12px',
-                      px: 1,
-                      py: 0.25,
-                      minWidth: 24,
-                      textAlign: 'center'
-                    }}>
-                      <Typography sx={{ fontSize: '0.75rem', color: '#bfc8e0' }}>
-                        {colTasks.length}
-                      </Typography>
-                    </Box>
+              </Table >
+            </TableContainer >
+          </DragDropContext >
+        ) : workspaceView === 'kanban' ? (
+          <Box sx={{
+            display: 'flex',
+            gap: 2.5,
+            height: '100%',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            pb: 2,
+            px: 1,
+            '::-webkit-scrollbar': { height: 8 },
+            '::-webkit-scrollbar-track': { background: 'transparent' },
+            '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
+            '::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
+          }}>
+            {(() => {
+              const statusCol = columns.find(col => col.type === 'Status');
+              if (!statusCol || !Array.isArray(statusCol.options)) {
+                return (
+                  <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
+                    <Stack alignItems="center" spacing={2}>
+                      <Box sx={{ bgcolor: '#23243a', p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 400 }}>
+                        <Typography variant="h6" sx={{ mb: 1, color: '#fff' }}>No Status Column</Typography>
+                        <Typography variant="body2" sx={{ color: '#bfc8e0' }}>
+                          Please add a "Status" column to your table to visualize your tasks in Kanban view.
+                        </Typography>
+                      </Box>
+                    </Stack>
                   </Box>
+                );
+              }
+              // Use status options for columns
+              return statusCol.options.map(opt => {
+                const colTasks = filteredRows.filter(r => r.values[statusCol.id] === opt.value);
+                const statusColor = opt.color || '#35365a';
 
-                  {/* Tasks Container */}
-                  <Box sx={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5,
-                    px: 0.5,
-                    pb: 2,
-                    '::-webkit-scrollbar': { width: 6 },
-                    '::-webkit-scrollbar-track': { background: 'transparent' },
-                    '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 3 },
-                  }}>
-                    {colTasks.map(task => (
-                      <Paper
-                        key={task.id}
-                        elevation={0}
+                return (
+                  <Paper
+                    key={opt.value}
+                    elevation={0}
+                    sx={{
+                      width: 280,
+                      minWidth: 280,
+                      bgcolor: 'transparent',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      flexShrink: 0
+                    }}
+                  >
+                    {/* Column Header */}
+                    <Box sx={{
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      bgcolor: '#23243a', // Header BG
+                      p: 1.5,
+                      borderRadius: 2,
+                      borderTop: `4px solid ${statusColor}`,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: '#fff' }}>
+                        {opt.value}
+                      </Typography>
+                      <Box sx={{
+                        bgcolor: 'rgba(255,255,255,0.1)',
+                        borderRadius: '12px',
+                        px: 1,
+                        py: 0.25,
+                        minWidth: 24,
+                        textAlign: 'center'
+                      }}>
+                        <Typography sx={{ fontSize: '0.75rem', color: '#bfc8e0' }}>
+                          {colTasks.length}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Tasks Container */}
+                    <Box sx={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1.5,
+                      px: 0.5,
+                      pb: 2,
+                      '::-webkit-scrollbar': { width: 6 },
+                      '::-webkit-scrollbar-track': { background: 'transparent' },
+                      '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 3 },
+                    }}>
+                      {colTasks.map(task => (
+                        <Paper
+                          key={task.id}
+                          elevation={0}
+                          sx={{
+                            bgcolor: '#23243a',
+                            p: 2,
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            border: '1px solid transparent',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                              border: `1px solid ${statusColor}44`
+                            }
+                          }}
+                          onClick={() => setReviewTask(task)}
+                        >
+                          {/* Primary Text (Use first column) */}
+                          <Typography sx={{ fontWeight: 500, color: '#fff', mb: 1, lineHeight: 1.4 }}>
+                            {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
+                          </Typography>
+
+                          {/* Metadata Grid */}
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {columns.filter(c => c.id !== statusCol.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3).map(col => {
+                              const rawVal = task.values[col.id];
+                              if (!rawVal) return null;
+
+                              if (col.type === 'People' && Array.isArray(rawVal)) {
+                                return (
+                                  <Box key={col.id} sx={{ display: 'flex', '& > *': { ml: -0.5 }, pl: 0.5 }}>
+                                    {rawVal.slice(0, 3).map((p: any, i) => (
+                                      <Tooltip key={i} title={p.name || p.email}>
+                                        <Avatar
+                                          src={p.avatar}
+                                          sx={{ width: 22, height: 22, border: '2px solid #23243a', fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
+                                        >
+                                          {p.name?.[0] || p.email?.[0] || '?'}
+                                        </Avatar>
+                                      </Tooltip>
+                                    ))}
+                                  </Box>
+                                );
+                              }
+
+                              if (col.type === 'Priority') {
+                                const prioColor = rawVal === 'High' ? '#e2445c' : rawVal === 'Medium' ? '#fdab3d' : '#00c875';
+                                return (
+                                  <Chip
+                                    key={col.id}
+                                    label={String(rawVal)}
+                                    size="small"
+                                    sx={{
+                                      height: 20,
+                                      fontSize: '0.65rem',
+                                      bgcolor: `${prioColor}33`,
+                                      color: prioColor,
+                                      border: `1px solid ${prioColor}44`
+                                    }}
+                                  />
+                                );
+                              }
+
+                              if (col.type === 'Country' && countryCodeMap[String(rawVal)]) {
+                                return (
+                                  <Tooltip key={col.id} title={String(rawVal)}>
+                                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                      <Flag country={countryCodeMap[String(rawVal)]} size={14} />
+                                    </Box>
+                                  </Tooltip>
+                                );
+                              }
+
+                              // Generic fallback for other fields (Date, Text, etc)
+                              if (['Date', 'Text'].includes(col.type)) {
+                                return (
+                                  <Typography key={col.id} variant="caption" sx={{ color: '#bfc8e0', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
+                                    {String(rawVal)}
+                                  </Typography>
+                                );
+                              }
+
+                              return null;
+                            })}
+                          </Box>
+                        </Paper>
+                      ))}
+
+                      <Button
+                        startIcon={<AddIcon sx={{ fontSize: 18 }} />}
                         sx={{
-                          bgcolor: '#23243a',
-                          p: 2,
+                          color: '#bfc8e0',
+                          textTransform: 'none',
+                          justifyContent: 'flex-start',
+                          py: 1,
+                          px: 1,
                           borderRadius: 2,
-                          cursor: 'pointer',
-                          transition: 'transform 0.2s, box-shadow 0.2s',
-                          border: '1px solid transparent',
-                          '&:hover': {
-                            transform: 'translateY(-2px)',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                            border: `1px solid ${statusColor}44`
+                          '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
+                        }}
+                        onClick={async () => {
+                          // Create task on backend immediately
+                          const initialValues = { [statusCol.id]: opt.value };
+                          // Ensure other columns have default values
+                          columns.forEach(c => {
+                            if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : ('' as any);
+                          });
+
+                          try {
+                            const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ values: initialValues }),
+                            });
+
+                            if (res.ok) {
+                              const createdTask = await res.json();
+                              setRows(prev => [...prev, createdTask]);
+                              // Open detailed view for immediate editing
+                              setReviewTask(createdTask);
+                            }
+                          } catch (e) {
+                            console.error("Failed to create task", e);
                           }
                         }}
-                        onClick={() => setReviewTask(task)}
                       >
-                        {/* Primary Text (Use first column) */}
-                        <Typography sx={{ fontWeight: 500, color: '#fff', mb: 1, lineHeight: 1.4 }}>
-                          {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
-                        </Typography>
-
-                        {/* Metadata Grid */}
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {columns.filter(c => c.id !== statusCol.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3).map(col => {
-                            const rawVal = task.values[col.id];
-                            if (!rawVal) return null;
-
-                            if (col.type === 'People' && Array.isArray(rawVal)) {
-                              return (
-                                <Box key={col.id} sx={{ display: 'flex', '& > *': { ml: -0.5 }, pl: 0.5 }}>
-                                  {rawVal.slice(0, 3).map((p: any, i) => (
-                                    <Tooltip key={i} title={p.name || p.email}>
-                                      <Avatar
-                                        src={p.avatar}
-                                        sx={{ width: 22, height: 22, border: '2px solid #23243a', fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
-                                      >
-                                        {p.name?.[0] || p.email?.[0] || '?'}
-                                      </Avatar>
-                                    </Tooltip>
-                                  ))}
-                                </Box>
-                              );
-                            }
-
-                            if (col.type === 'Priority') {
-                              const prioColor = rawVal === 'High' ? '#e2445c' : rawVal === 'Medium' ? '#fdab3d' : '#00c875';
-                              return (
-                                <Chip
-                                  key={col.id}
-                                  label={String(rawVal)}
-                                  size="small"
-                                  sx={{
-                                    height: 20,
-                                    fontSize: '0.65rem',
-                                    bgcolor: `${prioColor}33`,
-                                    color: prioColor,
-                                    border: `1px solid ${prioColor}44`
-                                  }}
-                                />
-                              );
-                            }
-
-                            if (col.type === 'Country' && countryCodeMap[String(rawVal)]) {
-                              return (
-                                <Tooltip key={col.id} title={String(rawVal)}>
-                                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                    <Flag country={countryCodeMap[String(rawVal)]} size={14} />
-                                  </Box>
-                                </Tooltip>
-                              );
-                            }
-
-                            // Generic fallback for other fields (Date, Text, etc)
-                            if (['Date', 'Text'].includes(col.type)) {
-                              return (
-                                <Typography key={col.id} variant="caption" sx={{ color: '#bfc8e0', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
-                                  {String(rawVal)}
-                                </Typography>
-                              );
-                            }
-
-                            return null;
-                          })}
-                        </Box>
-                      </Paper>
-                    ))}
-
-                    <Button
-                      startIcon={<AddIcon sx={{ fontSize: 18 }} />}
-                      sx={{
-                        color: '#bfc8e0',
-                        textTransform: 'none',
-                        justifyContent: 'flex-start',
-                        py: 1,
-                        px: 1,
-                        borderRadius: 2,
-                        '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: '#fff' }
-                      }}
-                      onClick={async () => {
-                        // Create task on backend immediately
-                        const initialValues = { [statusCol.id]: opt.value };
-                        // Ensure other columns have default values
-                        columns.forEach(c => {
-                          if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : ('' as any);
-                        });
-
-                        try {
-                          const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ values: initialValues }),
-                          });
-
-                          if (res.ok) {
-                            const createdTask = await res.json();
-                            setRows(prev => [...prev, createdTask]);
-                            // Open detailed view for immediate editing
-                            setReviewTask(createdTask);
-                          }
-                        } catch (e) {
-                          console.error("Failed to create task", e);
-                        }
-                      }}
-                    >
-                      New Task
-                    </Button>
-                  </Box>
-                </Paper>
-              );
-            });
-          })()}
-        </Box>
-      ) : workspaceView === 'calendar' ? (
-        <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
-          {/* Calendar Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>{currentDate.format('MMMM YYYY')}</Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <IconButton onClick={() => setCurrentDate(curr => curr.subtract(1, 'month'))} sx={{ color: '#bfc8e0', bgcolor: '#2c2d4a', '&:hover': { bgcolor: '#3d3e5a' } }}>
-                  <Typography variant="h6">{'<'}</Typography>
-                </IconButton>
-                <Button onClick={() => setCurrentDate(dayjs())} sx={{ color: '#fff', textTransform: 'none' }}>
-                  Today
-                </Button>
-                <IconButton onClick={() => setCurrentDate(curr => curr.add(1, 'month'))} sx={{ color: '#bfc8e0', bgcolor: '#2c2d4a', '&:hover': { bgcolor: '#3d3e5a' } }}>
-                  <Typography variant="h6">{'>'}</Typography>
-                </IconButton>
-              </Box>
-            </Box>
-            {/* Filter/Legend could go here */}
-          </Box>
-
-          {/* Calendar Grid */}
-          <Box sx={{ flex: 1, bgcolor: '#23243a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid #35365a' }}>
-            {(() => {
-              const dateCol = columns.find(c => c.type === 'Date');
-              const statusCol = columns.find(c => c.type === 'Status');
-              if (!dateCol) return (
-                <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <Typography sx={{ color: '#bfc8e0' }}>No Date column found. Please add a Date column to use Calendar view.</Typography>
-                </Box>
-              );
-
-              const startOfMonth = currentDate.startOf('month');
-              const endOfMonth = currentDate.endOf('month');
-              const startDate = startOfMonth.startOf('week');
-              const endDate = endOfMonth.endOf('week');
-
-              const calendarDays = [];
-              let day = startDate;
-              while (day.isBefore(endDate) || day.isSame(endDate, 'day')) {
-                calendarDays.push(day);
-                day = day.add(1, 'day');
-              }
-
-              const weeks = [];
-              for (let i = 0; i < calendarDays.length; i += 7) {
-                weeks.push(calendarDays.slice(i, i + 7));
-              }
-
-              return (
-                <>
-                  {/* Weekday Headers */}
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #35365a' }}>
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                      <Box key={d} sx={{ p: 1.5, textAlign: 'center', borderRight: '1px solid #35365a', '&:last-child': { borderRight: 'none' } }}>
-                        <Typography variant="subtitle2" sx={{ color: '#bfc8e0', fontWeight: 600 }}>{d}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-
-                  {/* Weeks */}
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    {weeks.map((week, wIdx) => (
-                      <Box key={wIdx} sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(7, 1fr)',
-                        flex: 1,
-                        minHeight: 100,
-                        borderBottom: wIdx === weeks.length - 1 ? 'none' : '1px solid #35365a'
-                      }}>
-                        {week.map((date, dIdx) => {
-                          const isCurrentMonth = date.month() === currentDate.month();
-                          const isToday = date.isSame(dayjs(), 'day');
-                          const dayTasks = filteredRows.filter(r => {
-                            const rDate = r.values[dateCol.id];
-                            return rDate && dayjs(rDate).isSame(date, 'day');
-                          });
-
-                          return (
-                            <Box
-                              key={dIdx}
-                              sx={{
-                                borderRight: dIdx === 6 ? 'none' : '1px solid #35365a',
-                                bgcolor: isCurrentMonth ? 'transparent' : 'rgba(0,0,0,0.15)',
-                                p: 1,
-                                position: 'relative',
-                                transition: 'background-color 0.2s',
-                                '&:hover': { bgcolor: isCurrentMonth ? '#2c2d4a' : 'rgba(0,0,0,0.2)' }
-                              }}
-                              onClick={() => {
-                                // Add new task on this date
-                                // Logic to open modal or prepopulate could go here
-                              }}
-                            >
-                              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                                <Typography sx={{
-                                  fontSize: '0.85rem',
-                                  fontWeight: isToday ? 700 : 400,
-                                  width: 24,
-                                  height: 24,
-                                  lineHeight: '24px',
-                                  textAlign: 'center',
-                                  borderRadius: '50%',
-                                  bgcolor: isToday ? '#e2445c' : 'transparent',
-                                  color: isToday ? '#fff' : isCurrentMonth ? '#fff' : '#5c5e80'
-                                }}>
-                                  {date.date()}
-                                </Typography>
-                              </Box>
-
-                              <Stack spacing={0.5}>
-                                {dayTasks.map(task => {
-                                  const statusVal = statusCol ? task.values[statusCol.id] : null;
-                                  const statusOpt = statusCol?.options?.find(o => o.value === statusVal);
-                                  const borderLeftColor = statusOpt?.color || '#0073ea';
-
-                                  return (
-                                    <Paper
-                                      key={task.id}
-                                      elevation={0}
-                                      sx={{
-                                        p: 0.5,
-                                        px: 1,
-                                        bgcolor: '#35365a',
-                                        borderLeft: `3px solid ${borderLeftColor}`,
-                                        cursor: 'pointer',
-                                        '&:hover': { filter: 'brightness(1.2)' }
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setReviewTask(task);
-                                      }}
-                                    >
-                                      <Typography noWrap sx={{ fontSize: '0.75rem', color: '#fff' }}>
-                                        {columns[0] ? task.values[columns[0].id] : 'Untitled'}
-                                      </Typography>
-                                    </Paper>
-                                  );
-                                })}
-                              </Stack>
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    ))}
-                  </Box>
-                </>
-              );
+                        New Task
+                      </Button>
+                    </Box>
+                  </Paper>
+                );
+              });
             })()}
           </Box>
-        </Box>
-      ) : workspaceView === 'doc' ? (
-        <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ bgcolor: '#23243a', borderRadius: 4, p: 4, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 4 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>
-                Workspace Document
-              </Typography>
-              <Typography variant="caption" sx={{ color: docSaving ? '#fdab3d' : '#00c875' }}>
-                {docSaving ? 'Saving...' : 'Saved'}
-              </Typography>
-            </Box>
-            <TextField
-              multiline
-              fullWidth
-              variant="outlined"
-              placeholder="Write your project documentation, notes, or ideas here..."
-              value={docContent}
-              onChange={(e) => setDocContent(e.target.value)}
-              sx={{
-                flex: 1,
-                bgcolor: 'transparent',
-                '& .MuiOutlinedInput-root': {
-                  height: '100%',
-                  alignItems: 'flex-start',
-                  color: '#fff',
-                  fontSize: '1.1rem',
-                  lineHeight: 1.6,
-                  '& fieldset': { border: 'none' },
-                  '&:hover fieldset': { border: 'none' },
-                  '&.Mui-focused fieldset': { border: 'none' }
-                }
-              }}
-            />
-          </Box>
-        </Box>
-      ) : workspaceView === 'gantt' ? (
-        <Box sx={{ mt: 4, mb: 4 }}>
-          {/* Find Timeline column */}
-          {(() => {
-            const timelineCol = columns.find(col => col.type === 'Timeline');
-            if (!timelineCol) {
-              return <Typography sx={{ color: '#bfc8e0' }}>No Timeline column found. Gantt requires a Timeline column.</Typography>;
-            }
-            // Find min/max dates
-            const tasksWithTimeline = filteredRows.filter(row => {
-              const val = row.values[timelineCol.id];
-              return val && val.start && val.end;
-            });
-            if (tasksWithTimeline.length === 0) {
-              return <Typography sx={{ color: '#bfc8e0' }}>No tasks with timeline data.</Typography>;
-            }
-            const minDate = Math.min(...tasksWithTimeline.map(row => new Date(row.values[timelineCol.id].start).getTime()));
-            const maxDate = Math.max(...tasksWithTimeline.map(row => new Date(row.values[timelineCol.id].end).getTime()));
-            // Render Gantt chart
-            return (
-              <Box sx={{ bgcolor: '#23243a', borderRadius: 3, p: 3, boxShadow: 4 }}>
-                <Typography variant="h6" sx={{ color: '#fdab3d', fontWeight: 700, mb: 2 }}>Gantt Chart</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {tasksWithTimeline.map(row => {
-                    const start = new Date(row.values[timelineCol.id].start).getTime();
-                    const end = new Date(row.values[timelineCol.id].end).getTime();
-                    const total = maxDate - minDate;
-                    const left = ((start - minDate) / total) * 100;
-                    const width = ((end - start) / total) * 100;
-                    return (
-                      <Box key={row.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography sx={{ color: '#fff', minWidth: 120 }}>{columns[0]?.name}: {row.values[columns[0]?.id]}</Typography>
-                        <Box sx={{ position: 'relative', flex: 1, height: 24, bgcolor: '#35365a', borderRadius: 2 }}>
-                          <Box sx={{ position: 'absolute', left: `${left}%`, width: `${width}%`, height: '100%', bgcolor: '#fdab3d', borderRadius: 2, boxShadow: '0 2px 8px #fdab3d44' }} />
-                        </Box>
-                        <Typography sx={{ color: '#bfc8e0', minWidth: 120 }}>{row.values[timelineCol.id].start} - {row.values[timelineCol.id].end}</Typography>
-                      </Box>
-                    );
-                  })}
+        ) : workspaceView === 'calendar' ? (
+          <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
+            {/* Calendar Header */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>{currentDate.format('MMMM YYYY')}</Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <IconButton onClick={() => setCurrentDate(curr => curr.subtract(1, 'month'))} sx={{ color: '#bfc8e0', bgcolor: '#2c2d4a', '&:hover': { bgcolor: '#3d3e5a' } }}>
+                    <Typography variant="h6">{'<'}</Typography>
+                  </IconButton>
+                  <Button onClick={() => setCurrentDate(dayjs())} sx={{ color: '#fff', textTransform: 'none' }}>
+                    Today
+                  </Button>
+                  <IconButton onClick={() => setCurrentDate(curr => curr.add(1, 'month'))} sx={{ color: '#bfc8e0', bgcolor: '#2c2d4a', '&:hover': { bgcolor: '#3d3e5a' } }}>
+                    <Typography variant="h6">{'>'}</Typography>
+                  </IconButton>
                 </Box>
               </Box>
-            );
-          })()}
-        </Box>
-      ) : workspaceView === 'gallery' ? (
-        <Box sx={{ mt: 4, mb: 4 }}>
-          {/* File Gallery */}
-          <Box sx={{ bgcolor: '#23243a', borderRadius: 4, p: 4, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: 4 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>File Gallery</Typography>
-              <Typography variant="caption" sx={{ color: '#7d82a8' }}>
-                All files across your board
-              </Typography>
+              {/* Filter/Legend could go here */}
             </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 3 }}>
-              {/* Collect all files */}
+            {/* Calendar Grid */}
+            <Box sx={{ flex: 1, bgcolor: '#23243a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid #35365a' }}>
               {(() => {
-                let allFiles: any[] = [];
-                const fileCols = columns.filter(c => c.type === 'Files');
+                const dateCol = columns.find(c => c.type === 'Date');
+                const statusCol = columns.find(c => c.type === 'Status');
+                if (!dateCol) return (
+                  <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <Typography sx={{ color: '#bfc8e0' }}>No Date column found. Please add a Date column to use Calendar view.</Typography>
+                  </Box>
+                );
 
-                filteredRows.forEach(row => {
-                  fileCols.forEach(col => {
-                    const cellFiles = Array.isArray(row.values[col.id]) ? row.values[col.id] : [];
-                    cellFiles.forEach((f: any) => {
-                      // Find task name (first column usually)
-                      const taskName = columns.length > 0 ? row.values[columns[0].id] : 'Untitled';
-                      allFiles.push({ file: f, rowId: row.id, colId: col.id, taskName });
-                    });
-                  });
-                });
+                const startOfMonth = currentDate.startOf('month');
+                const endOfMonth = currentDate.endOf('month');
+                const startDate = startOfMonth.startOf('week');
+                const endDate = endOfMonth.endOf('week');
 
-                if (allFiles.length === 0) {
-                  return (
-                    <Box sx={{ gridColumn: '1 / -1', py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                      <InsertDriveFileIcon sx={{ fontSize: 64, color: '#35365a' }} />
-                      <Typography sx={{ color: '#7d82a8' }}>No files uploaded yet.</Typography>
-                    </Box>
-                  );
+                const calendarDays = [];
+                let day = startDate;
+                while (day.isBefore(endDate) || day.isSame(endDate, 'day')) {
+                  calendarDays.push(day);
+                  day = day.add(1, 'day');
                 }
 
-                return allFiles.map((item, idx) => {
-                  const isImage = (item.file.type && item.file.type.startsWith('image/')) || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file.name);
-                  const fileUrl = item.file.url ? (item.file.url.startsWith('http') ? item.file.url : `${SERVER_URL}${item.file.url}`) : null;
+                const weeks = [];
+                for (let i = 0; i < calendarDays.length; i += 7) {
+                  weeks.push(calendarDays.slice(i, i + 7));
+                }
 
-                  return (
-                    <Paper
-                      key={idx}
-                      elevation={0}
-                      sx={{
-                        bgcolor: '#2c2d4a',
-                        borderRadius: 3,
-                        overflow: 'hidden',
-                        position: 'relative',
-                        transition: 'transform 0.2s, box-shadow 0.2s',
-                        '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 1 }
-                      }}
-                    >
-                      {/* Preview Area */}
-                      <Box
-                        sx={{
-                          height: 140,
-                          bgcolor: '#1e1f2b',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          overflow: 'hidden',
-                          borderBottom: '1px solid #35365a'
-                        }}
-                        onClick={() => handleFileClick(item.file, item.rowId, item.colId)}
-                      >
-                        {isImage && fileUrl ? (
-                          <img
-                            src={fileUrl}
-                            alt={item.file.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <InsertDriveFileIcon sx={{ fontSize: 48, color: '#579bfc' }} />
-                        )}
-                      </Box>
-
-                      {/* Info Area */}
-                      <Box sx={{ p: 2 }}>
-                        <Typography noWrap variant="subtitle2" sx={{ color: '#fff', fontWeight: 600, mb: 0.5 }} title={item.file.name}>
-                          {item.file.name}
-                        </Typography>
-                        <Typography noWrap variant="caption" sx={{ color: '#7d82a8', display: 'block', mb: 1 }}>
-                          {item.taskName}
-                        </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="caption" sx={{ color: '#5c5e80', fontWeight: 600 }}>
-                            {item.file.size ? (item.file.size / 1024).toFixed(0) + ' KB' : ''}
-                          </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleFileClick(item.file, item.rowId, item.colId)}
-                            sx={{ color: '#bfc8e0', bgcolor: 'rgba(255,255,255,0.05)', '&:hover': { bgcolor: '#0073ea', color: '#fff' } }}
-                          >
-                            <span style={{ fontSize: 16 }}>↗</span>
-                          </IconButton>
+                return (
+                  <>
+                    {/* Weekday Headers */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #35365a' }}>
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                        <Box key={d} sx={{ p: 1.5, textAlign: 'center', borderRight: '1px solid #35365a', '&:last-child': { borderRight: 'none' } }}>
+                          <Typography variant="subtitle2" sx={{ color: '#bfc8e0', fontWeight: 600 }}>{d}</Typography>
                         </Box>
-                      </Box>
-                    </Paper>
-                  );
-                });
+                      ))}
+                    </Box>
+
+                    {/* Weeks */}
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      {weeks.map((week, wIdx) => (
+                        <Box key={wIdx} sx={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(7, 1fr)',
+                          flex: 1,
+                          minHeight: 100,
+                          borderBottom: wIdx === weeks.length - 1 ? 'none' : '1px solid #35365a'
+                        }}>
+                          {week.map((date, dIdx) => {
+                            const isCurrentMonth = date.month() === currentDate.month();
+                            const isToday = date.isSame(dayjs(), 'day');
+                            const dayTasks = filteredRows.filter(r => {
+                              const rDate = r.values[dateCol.id];
+                              return rDate && dayjs(rDate).isSame(date, 'day');
+                            });
+
+                            return (
+                              <Box
+                                key={dIdx}
+                                sx={{
+                                  borderRight: dIdx === 6 ? 'none' : '1px solid #35365a',
+                                  bgcolor: isCurrentMonth ? 'transparent' : 'rgba(0,0,0,0.15)',
+                                  p: 1,
+                                  position: 'relative',
+                                  transition: 'background-color 0.2s',
+                                  '&:hover': { bgcolor: isCurrentMonth ? '#2c2d4a' : 'rgba(0,0,0,0.2)' }
+                                }}
+                                onClick={() => {
+                                  // Add new task on this date
+                                  // Logic to open modal or prepopulate could go here
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                                  <Typography sx={{
+                                    fontSize: '0.85rem',
+                                    fontWeight: isToday ? 700 : 400,
+                                    width: 24,
+                                    height: 24,
+                                    lineHeight: '24px',
+                                    textAlign: 'center',
+                                    borderRadius: '50%',
+                                    bgcolor: isToday ? '#e2445c' : 'transparent',
+                                    color: isToday ? '#fff' : isCurrentMonth ? '#fff' : '#5c5e80'
+                                  }}>
+                                    {date.date()}
+                                  </Typography>
+                                </Box>
+
+                                <Stack spacing={0.5}>
+                                  {dayTasks.map(task => {
+                                    const statusVal = statusCol ? task.values[statusCol.id] : null;
+                                    const statusOpt = statusCol?.options?.find(o => o.value === statusVal);
+                                    const borderLeftColor = statusOpt?.color || '#0073ea';
+
+                                    return (
+                                      <Paper
+                                        key={task.id}
+                                        elevation={0}
+                                        sx={{
+                                          p: 0.5,
+                                          px: 1,
+                                          bgcolor: '#35365a',
+                                          borderLeft: `3px solid ${borderLeftColor}`,
+                                          cursor: 'pointer',
+                                          '&:hover': { filter: 'brightness(1.2)' }
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setReviewTask(task);
+                                        }}
+                                      >
+                                        <Typography noWrap sx={{ fontSize: '0.75rem', color: '#fff' }}>
+                                          {columns[0] ? task.values[columns[0].id] : 'Untitled'}
+                                        </Typography>
+                                      </Paper>
+                                    );
+                                  })}
+                                </Stack>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                );
               })()}
             </Box>
           </Box>
-        </Box>
-      ) : null
+        ) : workspaceView === 'doc' ? (
+          <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ bgcolor: '#23243a', borderRadius: 4, p: 4, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>
+                  Workspace Document
+                </Typography>
+                <Typography variant="caption" sx={{ color: docSaving ? '#fdab3d' : '#00c875' }}>
+                  {docSaving ? 'Saving...' : 'Saved'}
+                </Typography>
+              </Box>
+              <TextField
+                multiline
+                fullWidth
+                variant="outlined"
+                placeholder="Write your project documentation, notes, or ideas here..."
+                value={docContent}
+                onChange={(e) => setDocContent(e.target.value)}
+                sx={{
+                  flex: 1,
+                  bgcolor: 'transparent',
+                  '& .MuiOutlinedInput-root': {
+                    height: '100%',
+                    alignItems: 'flex-start',
+                    color: '#fff',
+                    fontSize: '1.1rem',
+                    lineHeight: 1.6,
+                    '& fieldset': { border: 'none' },
+                    '&:hover fieldset': { border: 'none' },
+                    '&.Mui-focused fieldset': { border: 'none' }
+                  }
+                }}
+              />
+            </Box>
+          </Box>
+        ) : workspaceView === 'gantt' ? (
+          <Box sx={{ mt: 4, mb: 4 }}>
+            {/* Find Timeline column */}
+            {(() => {
+              const timelineCol = columns.find(col => col.type === 'Timeline');
+              if (!timelineCol) {
+                return <Typography sx={{ color: '#bfc8e0' }}>No Timeline column found. Gantt requires a Timeline column.</Typography>;
+              }
+              // Find min/max dates
+              const tasksWithTimeline = filteredRows.filter(row => {
+                const val = row.values[timelineCol.id];
+                return val && val.start && val.end;
+              });
+              if (tasksWithTimeline.length === 0) {
+                return <Typography sx={{ color: '#bfc8e0' }}>No tasks with timeline data.</Typography>;
+              }
+              const minDate = Math.min(...tasksWithTimeline.map(row => new Date(row.values[timelineCol.id].start).getTime()));
+              const maxDate = Math.max(...tasksWithTimeline.map(row => new Date(row.values[timelineCol.id].end).getTime()));
+              // Render Gantt chart
+              return (
+                <Box sx={{ bgcolor: '#23243a', borderRadius: 3, p: 3, boxShadow: 4 }}>
+                  <Typography variant="h6" sx={{ color: '#fdab3d', fontWeight: 700, mb: 2 }}>Gantt Chart</Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {tasksWithTimeline.map(row => {
+                      const start = new Date(row.values[timelineCol.id].start).getTime();
+                      const end = new Date(row.values[timelineCol.id].end).getTime();
+                      const total = maxDate - minDate;
+                      const left = ((start - minDate) / total) * 100;
+                      const width = ((end - start) / total) * 100;
+                      return (
+                        <Box key={row.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Typography sx={{ color: '#fff', minWidth: 120 }}>{columns[0]?.name}: {row.values[columns[0]?.id]}</Typography>
+                          <Box sx={{ position: 'relative', flex: 1, height: 24, bgcolor: '#35365a', borderRadius: 2 }}>
+                            <Box sx={{ position: 'absolute', left: `${left}%`, width: `${width}%`, height: '100%', bgcolor: '#fdab3d', borderRadius: 2, boxShadow: '0 2px 8px #fdab3d44' }} />
+                          </Box>
+                          <Typography sx={{ color: '#bfc8e0', minWidth: 120 }}>{row.values[timelineCol.id].start} - {row.values[timelineCol.id].end}</Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              );
+            })()}
+          </Box>
+        ) : workspaceView === 'gallery' ? (
+          <Box sx={{ mt: 4, mb: 4 }}>
+            {/* File Gallery */}
+            <Box sx={{ bgcolor: '#23243a', borderRadius: 4, p: 4, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>File Gallery</Typography>
+                <Typography variant="caption" sx={{ color: '#7d82a8' }}>
+                  All files across your board
+                </Typography>
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 3 }}>
+                {/* Collect all files */}
+                {(() => {
+                  let allFiles: any[] = [];
+                  const fileCols = columns.filter(c => c.type === 'Files');
+
+                  filteredRows.forEach(row => {
+                    fileCols.forEach(col => {
+                      const cellFiles = Array.isArray(row.values[col.id]) ? row.values[col.id] : [];
+                      cellFiles.forEach((f: any) => {
+                        // Find task name (first column usually)
+                        const taskName = columns.length > 0 ? row.values[columns[0].id] : 'Untitled';
+                        allFiles.push({ file: f, rowId: row.id, colId: col.id, taskName });
+                      });
+                    });
+                  });
+
+                  if (allFiles.length === 0) {
+                    return (
+                      <Box sx={{ gridColumn: '1 / -1', py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <InsertDriveFileIcon sx={{ fontSize: 64, color: '#35365a' }} />
+                        <Typography sx={{ color: '#7d82a8' }}>No files uploaded yet.</Typography>
+                      </Box>
+                    );
+                  }
+
+                  return allFiles.map((item, idx) => {
+                    const isImage = (item.file.type && item.file.type.startsWith('image/')) || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file.name);
+                    const fileUrl = item.file.url ? (item.file.url.startsWith('http') ? item.file.url : `${SERVER_URL}${item.file.url}`) : null;
+
+                    return (
+                      <Paper
+                        key={idx}
+                        elevation={0}
+                        sx={{
+                          bgcolor: '#2c2d4a',
+                          borderRadius: 3,
+                          overflow: 'hidden',
+                          position: 'relative',
+                          transition: 'transform 0.2s, box-shadow 0.2s',
+                          '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 1 }
+                        }}
+                      >
+                        {/* Preview Area */}
+                        <Box
+                          sx={{
+                            height: 140,
+                            bgcolor: '#1e1f2b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            borderBottom: '1px solid #35365a'
+                          }}
+                          onClick={() => handleFileClick(item.file, item.rowId, item.colId)}
+                        >
+                          {isImage && fileUrl ? (
+                            <img
+                              src={fileUrl}
+                              alt={item.file.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <InsertDriveFileIcon sx={{ fontSize: 48, color: '#579bfc' }} />
+                          )}
+                        </Box>
+
+                        {/* Info Area */}
+                        <Box sx={{ p: 2 }}>
+                          <Typography noWrap variant="subtitle2" sx={{ color: '#fff', fontWeight: 600, mb: 0.5 }} title={item.file.name}>
+                            {item.file.name}
+                          </Typography>
+                          <Typography noWrap variant="caption" sx={{ color: '#7d82a8', display: 'block', mb: 1 }}>
+                            {item.taskName}
+                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="caption" sx={{ color: '#5c5e80', fontWeight: 600 }}>
+                              {item.file.size ? (item.file.size / 1024).toFixed(0) + ' KB' : ''}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleFileClick(item.file, item.rowId, item.colId)}
+                              sx={{ color: '#bfc8e0', bgcolor: 'rgba(255,255,255,0.05)', '&:hover': { bgcolor: '#0073ea', color: '#fff' } }}
+                            >
+                              <span style={{ fontSize: 16 }}>↗</span>
+                            </IconButton>
+                          </Box>
+                        </Box>
+                      </Paper>
+                    );
+                  });
+                })()}
+              </Box>
+            </Box>
+          </Box>
+        ) : null
       }
 
       {/* Task Review Drawer/Dialog with Email Automation */}
@@ -5020,28 +5027,30 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       </Box>
                     ) : (
                       (reviewTask.values.message || []).map((msg: any) => (
-                        <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75, ml: 0.5 }}>
-                            <Avatar
-                              src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                              sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600 }}
-                            >
-                              {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
-                            </Avatar>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
-                            <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
-                              {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                            </Typography>
-                          </Box>
-                          <Box sx={{
-                            bgcolor: 'rgba(255,255,255,0.03)',
-                            px: 2,
-                            py: 1.5,
-                            borderRadius: '4px 16px 16px 16px',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                          }}>
-                            <Typography variant="body2" sx={{ color: '#E5E7EB', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontSize: 14 }}>{msg.text}</Typography>
+                        <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
+                          <Avatar
+                            src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                            sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
+                          >
+                            {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
+                          </Avatar>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
+                              <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
+                                {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </Typography>
+                            </Box>
+                            <Box sx={{
+                              bgcolor: 'rgba(255,255,255,0.03)',
+                              px: 2,
+                              py: 1.5,
+                              borderRadius: '0 16px 16px 16px',
+                              border: '1px solid rgba(255,255,255,0.06)',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                            }}>
+                              <Typography variant="body2" sx={{ color: '#E5E7EB', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontSize: 14 }}>{msg.text}</Typography>
+                            </Box>
                           </Box>
                         </Box>
                       ))
@@ -5334,8 +5343,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
               {fileDialog.file?.comments?.map((comment: any) => (
                 <Box key={comment.id} sx={{ display: 'flex', gap: 1.5 }}>
-                  <Avatar sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600 }}>
-                    {comment.user ? comment.user.charAt(0).toUpperCase() : 'U'}
+                  <Avatar
+                    src={comment.userAvatar ? (comment.userAvatar.startsWith('http') ? comment.userAvatar : `${SERVER_URL}${comment.userAvatar}`) : undefined}
+                    sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600 }}
+                  >
+                    {!comment.userAvatar && (comment.user ? comment.user.charAt(0).toUpperCase() : 'U')}
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
