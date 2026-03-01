@@ -32,9 +32,8 @@ if (typeof window !== "undefined") {
     }
 }
 
-consconst { showNotification } = useNotification();
-    
-    t NotificationRequester = () => {
+const NotificationRequester = () => {
+    const { showNotification } = useNotification();
     useEffect(() => {
         const initPush = async () => {
             // Check if native or web.
