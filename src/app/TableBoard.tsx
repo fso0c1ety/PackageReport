@@ -214,7 +214,8 @@ import {
   useMediaQuery,
   Drawer,
   List,
-  ListItem
+  ListItem,
+  Badge
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -275,6 +276,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [newBoardChatMessage, setNewBoardChatMessage] = useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string } | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const prevMessageCountRef = React.useRef(0);
 
   // Fetch chat messages with polling
   useEffect(() => {
@@ -300,6 +303,17 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
     return () => clearInterval(intervalId);
   }, [tableId]);
+
+  // Track unread messages when chat is closed
+  useEffect(() => {
+    if (!isChatOpen) {
+      const newCount = boardChatMessages.length;
+      if (newCount > prevMessageCountRef.current) {
+        setUnreadCount(prev => prev + (newCount - prevMessageCountRef.current));
+      }
+    }
+    prevMessageCountRef.current = boardChatMessages.length;
+  }, [boardChatMessages, isChatOpen]);
 
   const handleSendBoardChat = async () => {
     if (!newBoardChatMessage.trim()) return;
@@ -3452,7 +3466,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             {/* Board Chat Button */}
             <Tooltip title="Board Chat">
               <IconButton
-                onClick={() => setIsChatOpen(true)}
+                onClick={() => { setIsChatOpen(true); setUnreadCount(0); }}
                 sx={{
                   bgcolor: 'rgba(255,255,255,0.03)',
                   color: '#94a3b8',
@@ -3465,7 +3479,25 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                   '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', borderColor: '#6366f1' }
                 }}
               >
-                <ChatBubbleOutlineIcon fontSize="small" />
+                <Badge
+                  badgeContent={unreadCount}
+                  max={99}
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      bgcolor: '#e2445c',
+                      color: '#fff',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      minWidth: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      top: 2,
+                      right: 2,
+                    }
+                  }}
+                >
+                  <ChatBubbleOutlineIcon fontSize="small" />
+                </Badge>
               </IconButton>
             </Tooltip>
           </Box>
