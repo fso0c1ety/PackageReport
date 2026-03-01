@@ -281,6 +281,16 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const prevMessageCountRef = React.useRef(0);
+  const isFirstLoadRef = React.useRef(true);
+  
+  // Reset message count tracking when Table ID changes, so we treat it as a new "first load" 
+  // for that specific board to avoid notifications from initial fetch
+  useEffect(() => {
+    isFirstLoadRef.current = true;
+    prevMessageCountRef.current = 0;
+    setUnreadCount(0);
+    setBoardChatMessages([]);
+  }, [tableId]);
 
   // Fetch chat messages with polling
   useEffect(() => {
@@ -315,8 +325,16 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             Notification.requestPermission();
         }
 
+        const newCount = boardChatMessages.length;
+
+        // Skip notification on first load to prevent notifying for all history
+        if (isFirstLoadRef.current) {
+            prevMessageCountRef.current = newCount;
+             isFirstLoadRef.current = false;
+             return;
+        }
+
         if (!isChatOpen) {
-            const newCount = boardChatMessages.length;
             if (newCount > prevMessageCountRef.current) {
                 // Read current user from localStorage to avoid hook dependency cycle
                 const userJson = localStorage.getItem("user");
@@ -329,47 +347,32 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 if (externalNewMessages.length > 0) {
                     setUnreadCount(prev => prev + externalNewMessages.length);
                     
-                    if (document.hidden || !isChatOpen) { // Only notify if app is in background or chat is closed
-                        const latestMsg = externalNewMessages[externalNewMessages.length - 1];
-                        const title = 'New Board Message';
-                        const body = `${latestMsg.sender}: ${latestMsg.text}`;
+                    const latestMsg = externalNewMessages[externalNewMessages.length - 1];
+                    const title = 'New Board Message';
+                    const body = `${latestMsg.sender}: ${latestMsg.text}`;
 
-                        if (Capacitor.isNativePlatform()) {
-                           try {
-                               await LocalNotifications.schedule({
-                                   notifications: [
-                                       {
-                                           title: title,
-                                           body: body,
-                                           id: new Date().getTime(), // Unique ID
-                                           schedule: { at: new Date(Date.now() + 100) }
-                                       }
-                                   ]
-                               });
-                           } catch (e) {
-                               console.error("Failed to schedule local notification", e);
-                           }
-                        } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-                            new Notification(title, {
-                                body: body,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-        prevMessageCountRef.current = boardChatMessages.length;
-    };
-    checkAndNotify();
-  }, [boardChatMessages, isChatOpen]);
-
-  const handleSendBoardChat = async () => {
-    if (!newBoardChatMessage.trim()) return;
-
-    const tempId = uuidv4();
-    const msg = {
-      id: tempId,
-      text: newBoardChatMessage,
+                    // Native check: Notification logic
+                    if (Capacitor.isNativePlatform()) {
+                       // On mobile, send regardless of document.hidden because app might be open but chat closed
+                       try {
+                           await LocalNotifications.schedule({
+                               notifications: [
+                                   {
+                                       title: title,
+                                       body: body,
+                                       id: new Date().getTime(), // Unique ID
+                                       schedule: { at: new Date(Date.now() + 100) },
+                                       sound: undefined,
+                                       attachments: undefined,
+                                       actionTypeId: "",
+                                       extra: null
+                                   }
+                               ]
+                           });
+                       } catch (e) {
+                           console.error("Failed to schedule local notification", e);
+                       }
+                        } else if ((document.hidden || !isChatOpen) && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       sender: currentUser?.name || 'User',
       senderAvatar: currentUser?.avatar,
       time: dayjs().format('HH:mm')
