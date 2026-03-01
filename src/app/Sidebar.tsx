@@ -542,23 +542,6 @@ export default function Sidebar({
               Join with Code
             </Button>
 
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<SettingsIcon />}
-              // onClick={() => setSettingsDialogOpen(true)} // Assuming a settings dialog exists or will be added
-              sx={{
-                color: '#94a3b8',
-                borderColor: '#3a3b5a',
-                '&:hover': { borderColor: '#4b4d6d', color: '#fff' },
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 600,
-                py: 1
-              }}
-            >
-              Settings
-            </Button>
           </Box>
         </Box>
       </Box>
@@ -1008,6 +991,92 @@ export default function Sidebar({
             }}
           >
             Share
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Join Boards Dialog */}
+      <Dialog
+        open={joinDialogOpen}
+        onClose={() => setJoinDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1f2b',
+            color: '#fff',
+            borderRadius: 3,
+            border: '1px solid #3a3b5a',
+            backgroundImage: 'none'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+          Join Board with Code
+        </DialogTitle>
+        <DialogContent sx={{ pb: 3, pt: 1 }}>
+          <Typography variant="body2" sx={{ color: '#94a3b8', mb: 2 }}>
+            Enter the invitation code provided by the board owner to join.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Invitation Code"
+            value={inviteCodeValue}
+            onChange={(e) => setInviteCodeValue(e.target.value)}
+            fullWidth
+            variant="outlined"
+            size="medium"
+            placeholder="e.g. ABC-123"
+            InputLabelProps={{
+              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+            }}
+            InputProps={{
+              sx: {
+                color: '#fff',
+                bgcolor: '#26273b',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+              }
+            }}
+            sx={{
+              mt: 1,
+              '& .MuiOutlinedInput-input': {
+                letterSpacing: 4,
+                fontWeight: 700,
+                textAlign: 'center'
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
+          <Button
+            onClick={() => setJoinDialogOpen(false)}
+            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleJoinBoard}
+            disabled={!inviteCodeValue.trim()}
+            variant="contained"
+            sx={{
+              bgcolor: '#6366f1',
+              '&:hover': { bgcolor: '#5558dd' },
+              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              boxShadow: 'none',
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
+            Join
           </Button>
         </DialogActions>
       </Dialog>

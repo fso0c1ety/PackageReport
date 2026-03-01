@@ -163,6 +163,9 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DateRangeIcon from "@mui/icons-material/DateRange";
 import DescriptionIcon from "@mui/icons-material/Description";
+import PersonIcon from "@mui/icons-material/Person";
+import PublicIcon from "@mui/icons-material/Public";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import Flag from "react-flagkit";
 // Country name to ISO 3166-1 alpha-2 code mapping for react-flagkit
 const countryCodeMap: Record<string, string> = {
@@ -3491,7 +3494,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         <DragDropContext onDragEnd={onDragEnd}>
           <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto' }}>
             <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
-              <TableHead sx={{ bgcolor: '#191a27' }}>
+              <TableHead>
                 <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
                   {(provided) => (
                     <TableRow
@@ -3499,34 +3502,90 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       {...provided.droppableProps}
                       sx={{
                         '& .MuiTableCell-root': {
-                          borderBottom: '1px solid #3a3b5a',
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
                           color: '#94a3b8',
-                          fontWeight: 600,
-                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
                           textTransform: 'uppercase',
-                          letterSpacing: 1,
-                          py: 1.5
+                          letterSpacing: '0.05em',
+                          py: 2,
+                          bgcolor: '#191a27',
+                          position: 'relative',
+                          '&::after': {
+                            content: '""',
+                            position: 'absolute',
+                            right: 0,
+                            top: '25%',
+                            height: '50%',
+                            width: '1px',
+                            bgcolor: 'rgba(255, 255, 255, 0.05)'
+                          }
                         }
                       }}
                     >
-                      <TableCell padding="checkbox" sx={{ minWidth: 48, width: 48, sticky: 0, zIndex: 3, bgcolor: '#191a27' }} />
+                      <TableCell
+                        padding="checkbox"
+                        sx={{
+                          minWidth: 48,
+                          width: 48,
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 10,
+                          bgcolor: '#191a27 !important',
+                          borderRight: '1px solid rgba(255, 255, 255, 0.08)'
+                        }}
+                      />
                       {columns.sort((a, b) => a.order - b.order).map((col, index) => (
                         <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
-                          {(provided) => (
+                          {(provided, snapshot) => (
                             <TableCell
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
                               sx={{
-                                minWidth: 150,
+                                minWidth: 160,
+                                transition: 'background-color 0.2s',
+                                bgcolor: snapshot.isDragging ? 'rgba(99, 102, 241, 0.1) !important' : '#191a27',
+                                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.02) !important' },
                                 '&:hover .column-actions': { opacity: 1 }
                               }}
                             >
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  {col.type === "Status" && <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: '#00c875', flexShrink: 0 }} />}
-                                  {col.type === "People" && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#a25ddc', flexShrink: 0 }} />}
-                                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                  <Box sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: '6px',
+                                    bgcolor: col.type === 'Status' ? 'rgba(0, 200, 117, 0.1)' :
+                                      col.type === 'People' ? 'rgba(162, 93, 220, 0.1)' :
+                                        col.type === 'Date' ? 'rgba(226, 68, 92, 0.1)' :
+                                          'rgba(99, 102, 241, 0.1)',
+                                    color: col.type === 'Status' ? '#00c875' :
+                                      col.type === 'People' ? '#a25ddc' :
+                                        col.type === 'Date' ? '#e2445c' :
+                                          '#6366f1'
+                                  }}>
+                                    {col.type === 'Status' && <CheckCircleIcon sx={{ fontSize: 14 }} />}
+                                    {col.type === 'People' && <PersonIcon sx={{ fontSize: 14 }} />}
+                                    {col.type === 'Date' && <CalendarMonthIcon sx={{ fontSize: 14 }} />}
+                                    {col.type === 'Timeline' && <TimelineIcon sx={{ fontSize: 14 }} />}
+                                    {col.type === 'Country' && <PublicIcon sx={{ fontSize: 14 }} />}
+                                    {col.type === 'Files' && <AttachFileIcon sx={{ fontSize: 14 }} />}
+                                    {col.type === 'Doc' && <DescriptionIcon sx={{ fontSize: 14 }} />}
+                                    {!['Status', 'People', 'Date', 'Timeline', 'Country', 'Files', 'Doc'].includes(col.type) && <DescriptionIcon sx={{ fontSize: 14 }} />}
+                                  </Box>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: 700,
+                                      color: '#fff',
+                                      fontSize: '0.8rem',
+                                      letterSpacing: '0.02em'
+                                    }}
+                                  >
                                     {col.name}
                                   </Typography>
                                 </Box>
@@ -3535,9 +3594,16 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                     className="column-actions"
                                     size="small"
                                     onClick={(e) => handleColMenuOpen(e, col.id)}
-                                    sx={{ opacity: 0, color: '#94a3b8', transition: 'opacity 0.2s' }}
+                                    sx={{
+                                      opacity: 0,
+                                      color: '#94a3b8',
+                                      transition: 'all 0.2s',
+                                      width: 24,
+                                      height: 24,
+                                      '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' }
+                                    }}
                                   >
-                                    <MoreVertIcon fontSize="inherit" />
+                                    <MoreVertIcon sx={{ fontSize: 16 }} />
                                   </IconButton>
                                 )}
                               </Box>
@@ -3547,11 +3613,26 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                       ))}
                       {provided.placeholder}
                       {userPermission !== 'read' && (
-                        <TableCell sx={{ minWidth: 48, width: 48 }}>
-                          <IconButton size="small" onClick={(e) => {
-                            setColSelectorAnchor(e.currentTarget);
-                            setShowColSelector(true);
-                          }} sx={{ color: '#6366f1' }}>
+                        <TableCell
+                          sx={{
+                            minWidth: 60,
+                            width: 60,
+                            textAlign: 'center',
+                            '&::after': { display: 'none !important' }
+                          }}
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              setColSelectorAnchor(e.currentTarget);
+                              setShowColSelector(true);
+                            }}
+                            sx={{
+                              color: '#6366f1',
+                              bgcolor: 'rgba(99, 102, 241, 0.05)',
+                              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' }
+                            }}
+                          >
                             <AddIcon fontSize="small" />
                           </IconButton>
                         </TableCell>
