@@ -323,8 +323,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(msg)
       });
+      showNotification("Message sent successfully!", "success");
     } catch (err) {
       console.error("Failed to send message", err);
+      showNotification("Failed to send message. Please try again.", "error");
     }
   };
 
