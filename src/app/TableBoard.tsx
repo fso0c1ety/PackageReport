@@ -372,11 +372,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                        } catch (e) {
                            console.error("Failed to schedule local notification", e);
                        }
-                        } else if ((document.hidden || !isChatOpen) && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-                            new Notification(title, {
-                                body: body,
-                            });
-                        }
+                    } else if ((document.hidden || !isChatOpen) && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                        new Notification(title, {
+                            body: body,
+                        });
                     }
                 }
             }
