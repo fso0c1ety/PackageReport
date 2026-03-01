@@ -514,6 +514,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
   const { showNotification } = useNotification();
 
   const handleCloseNotification = (_?: React.SyntheticEvent | Event, reason?: string) => {
