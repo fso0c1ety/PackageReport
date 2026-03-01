@@ -111,7 +111,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Log all incoming requests for debugging
 app.use((req, res, next) => {
   if (req.method === 'POST') {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip} body: ${JSON.stringify(req.body).substring(0, 100)}`);
+      const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip} body: ${(bodyStr || '{}').substring(0, 100)}`);
   } else {
       console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
   }
