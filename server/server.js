@@ -1117,12 +1117,13 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
       table_id: req.params.tableId,
       sender: req.body.sender || req.user.name, // Fallback to auth user name if not provided
       text: req.body.text,
-      timestamp: req.body.timestamp || Date.now()
+      timestamp: req.body.timestamp || Date.now(),
+      attachment: req.body.attachment || null // Add attachment support
     };
 
     await db.query(
-      'INSERT INTO table_chats (id, table_id, sender, text, timestamp) VALUES ($1, $2, $3, $4, $5)',
-      [newMessage.id, newMessage.table_id, newMessage.sender, newMessage.text, newMessage.timestamp]
+      'INSERT INTO table_chats (id, table_id, sender, text, timestamp, attachment) VALUES ($1, $2, $3, $4, $5, $6)',
+      [newMessage.id, newMessage.table_id, newMessage.sender, newMessage.text, newMessage.timestamp, newMessage.attachment]
     );
 
     // Send push notification to other users
