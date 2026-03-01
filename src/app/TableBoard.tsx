@@ -279,7 +279,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   useEffect(() => {
     if (!tableId) return;
 
-    const newSocket = io(SERVER_URL || window.location.origin);
+    const newSocket = io(SERVER_URL || window.location.origin, {
+      transports: ['websocket', 'polling'], // Try websocket first if possible, fallback to polling
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     setSocket(newSocket);
 
     newSocket.on('connect', () => {

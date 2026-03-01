@@ -20,9 +20,17 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Adjust as needed
-    methods: ["GET", "POST"]
-  }
+    origin: [
+      "https://packagereport.onrender.com",
+      "http://localhost:3000",
+      "http://192.168.0.25:3000"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling'], // ensure websocket is enabled
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // --- Socket.IO Handlers ---
