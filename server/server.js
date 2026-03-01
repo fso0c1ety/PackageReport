@@ -159,20 +159,26 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// File Upload Endpoint
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-  // Return the URL to access the file
-  // Assuming the server is running on the same host/port relative to client or proxied
-  // If absolute URL is needed, construct it: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({
-    url: fileUrl,
-    name: req.file.originalname,
-    type: req.file.mimetype,
-    size: req.file.size
+// File Upload Endpoint with improved error handling
+app.post('/api/upload', (req, res) => {
+  upload.single('file')(req, res, function (err) {
+    if (err) {
+      console.error('[Upload Error]', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Return the URL to access the file
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({
+      url: fileUrl,
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      size: req.file.size
+    });
   });
 });
 
