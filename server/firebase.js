@@ -25,6 +25,8 @@ try {
   console.error('[Firebase] Please ensure FIREBASE_SERVICE_ACCOUNT env var is set or firebase-service-account.json exists.');
 }
 
+const { getMessaging } = require('firebase-admin/messaging');
+
 const sendPushNotification = async (tokens, title, body, data = {}) => {
   if (!admin.apps.length) {
     console.warn('[FCM] Firebase Admin not initialized. Skipping notification.');
@@ -33,6 +35,7 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   
   if (!tokens || tokens.length === 0) return;
 
+  // Use the modern 'sendEachForMulticast' API
   const message = {
     notification: {
       title,
@@ -51,11 +54,11 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
       ...data,
       // click_action removed
     },
-    tokens: tokens,
+    tokens: tokens, // sendEachForMulticast accepts 'tokens' array in the message object
   };
 
   try {
-    const response = await admin.messaging().sendMulticast(message);
+    const response = await getMessaging().sendEachForMulticast(message);
     console.log('[FCM] Successfully sent message:', response.successCount);
     if (response.failureCount > 0) {
       const failedTokens = [];
