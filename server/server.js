@@ -1169,7 +1169,6 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
     try {
         console.log(`Express server running on http://0.0.0.0:${PORT}`);
-        io.attach(server); // Attach Socket.io to the HTTP server (if not already handled by constructor)
         console.log(`Socket.IO listening on port ${PORT}`);
     } catch (err) {
         console.error('Error starting server/socket:', err);
