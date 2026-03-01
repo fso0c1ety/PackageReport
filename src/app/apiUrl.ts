@@ -34,10 +34,13 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers as any || {}),
-  } as any;
+  const headers = { ...((options.headers as any) || {}) } as any;
+
+  // Set default Content-Type to application/json if not provided and body is not FormData
+  if (!headers['Content-Type'] && 
+      !(typeof FormData !== 'undefined' && options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
