@@ -282,9 +282,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const prevMessageCountRef = React.useRef(0);
   const isFirstLoadRef = React.useRef(true);
-  
-  // Reset message count tracking when Table ID changes, so we treat it as a new "first load" 
-  // for that specific board to avoid notifications from initial fetch
+
+  // Reset state when Table ID changes
   useEffect(() => {
     isFirstLoadRef.current = true;
     prevMessageCountRef.current = 0;
@@ -294,12 +293,19 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
   // Fetch chat messages with polling
   useEffect(() => {
+    let isMounted = true;
     const fetchChat = () => {
       authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
         .then((res) => res.json())
         .then((data) => {
+          if (!isMounted) return;
           if (Array.isArray(data)) {
-            // Only update if data has actually changed to avoid unnecessary re-renders
+             // If first load, sync the ref immediately to prevent notification
+             if (isFirstLoadRef.current) {
+                 prevMessageCountRef.current = data.length;
+                 isFirstLoadRef.current = false;
+             }
+
             setBoardChatMessages(prev => {
               if (JSON.stringify(prev) !== JSON.stringify(data)) {
                 return data;
@@ -314,7 +320,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     fetchChat(); // Initial fetch
     const intervalId = setInterval(fetchChat, 4000); // Poll every 4 seconds
 
-    return () => clearInterval(intervalId);
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [tableId]);
 
   // Track unread messages when chat is closed
@@ -326,13 +335,6 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         }
 
         const newCount = boardChatMessages.length;
-
-        // Skip notification on first load to prevent notifying for all history
-        if (isFirstLoadRef.current) {
-            prevMessageCountRef.current = newCount;
-             isFirstLoadRef.current = false;
-             return;
-        }
 
         if (!isChatOpen) {
             if (newCount > prevMessageCountRef.current) {
