@@ -1679,17 +1679,23 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     // Update task row in backend
     const row = rows.find(r => r.id === chatTaskId);
     if (row) {
-      const updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
-      await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.id, values: updatedValues }),
-      });
-      // Reload messages from backend after saving
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`));
-      const updatedRow = await res.json();
-      setRows(rows => rows.map(r => r.id === row.id ? { ...r, values: updatedRow.values } : r));
-      setChatMessages(updatedRow.values.message || []);
+      try {
+        const updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
+        await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.id, values: updatedValues }),
+        });
+        // Reload messages from backend after saving
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`));
+        const updatedRow = await res.json();
+        setRows(rows => rows.map(r => r.id === row.id ? { ...r, values: updatedRow.values } : r));
+        setChatMessages(updatedRow.values.message || []);
+        showNotification("Message sent!", "success");
+      } catch (err) {
+        console.error("Failed to send message", err);
+        showNotification("Failed to send message. Please try again.", "error");
+      }
     }
   };
   const renderCell = (row: Row, col: Column) => {
@@ -2542,22 +2548,39 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       );
     }
     if (col.type && col.type.toLowerCase() === "message") {
+      const msgCount = Array.isArray(value) ? value.length : 0;
       return (
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 14 }} />}
-          onClick={e => handleOpenChat(e, row.id, value || [], col.id)}
+        <Badge
+          badgeContent={msgCount}
+          max={99}
           sx={{
-            color: '#7d82a8',
-            borderColor: '#3a3b5a',
-            textTransform: 'none',
-            fontSize: '0.75rem',
-            '&:hover': { color: '#fff', borderColor: '#4f51c0', bgcolor: 'rgba(79, 81, 192, 0.1)' }
+            '& .MuiBadge-badge': {
+              bgcolor: '#6366f1',
+              color: '#fff',
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              minWidth: 15,
+              height: 15,
+              borderRadius: 8,
+            }
           }}
         >
-          Chat
-        </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 14 }} />}
+            onClick={e => handleOpenChat(e, row.id, value || [], col.id)}
+            sx={{
+              color: '#7d82a8',
+              borderColor: '#3a3b5a',
+              textTransform: 'none',
+              fontSize: '0.75rem',
+              '&:hover': { color: '#fff', borderColor: '#4f51c0', bgcolor: 'rgba(79, 81, 192, 0.1)' }
+            }}
+          >
+            Chat
+          </Button>
+        </Badge>
       );
     }
     return (

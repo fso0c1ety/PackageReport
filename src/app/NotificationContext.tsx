@@ -37,7 +37,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 autoHideDuration={4000}
                 onClose={handleClose}
                 anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{ mt: 2 }}
+                sx={{ mt: 2, zIndex: 1600 }}
             >
                 <Alert
                     onClose={handleClose}
