@@ -10,31 +10,32 @@ const NotificationRequester = () => {
         const initPush = async () => {
             if (Capacitor.isNativePlatform()) {
                 try {
-                    // Check and request Push Notifications permissions
-                    let permStatus = await PushNotifications.checkPermissions();
-
-                    if (permStatus.receive === 'prompt') {
-                        permStatus = await PushNotifications.requestPermissions();
-                    }
-
-                    if (permStatus.receive !== 'granted') {
-                        const request = await PushNotifications.requestPermissions();
-                        if (request.receive === 'granted') {
-                            await PushNotifications.register();
-                        }
-                    } else {
-                        await PushNotifications.register();
-                    }
-
-                    // Check and request Local Notifications permissions
+                    // Start with Local Notifications as they are safer and don't require external config like firebase
                     let localPermStatus = await LocalNotifications.checkPermissions();
-                     if (localPermStatus.display === 'prompt') {
+                    
+                    if (localPermStatus.display === 'prompt') {
                         localPermStatus = await LocalNotifications.requestPermissions();
                     }
+                    
                     if (localPermStatus.display !== 'granted') {
                         await LocalNotifications.requestPermissions();
                     }
 
+                    // Also Request Push Notification permission for the system dialog 
+                    // (Android 13+ requires this for any notification)
+                    // But DO NOT register if you don't have google-services.json
+                    let pushPermStatus = await PushNotifications.checkPermissions();
+                    
+                    if (pushPermStatus.receive === 'prompt') {
+                        pushPermStatus = await PushNotifications.requestPermissions();
+                    }
+
+                    if (pushPermStatus.receive !== 'granted') {
+                         await PushNotifications.requestPermissions();
+                    }
+                    
+                    // We removed .register() to avoid crashes on devices without google-services.json
+                    
                 } catch (e) {
                     console.error('Error requesting notification permissions', e);
                 }

@@ -217,7 +217,8 @@ import {
   Drawer,
   List,
   ListItem,
-  Badge
+  Badge,
+  Autocomplete
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -578,6 +579,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
+  const [userSearchOptions, setUserSearchOptions] = useState<any[]>([]);
+  const [selectedUserToInvite, setSelectedUserToInvite] = useState<any | null>(null);
   const { showNotification } = useNotification();
 
   const handleCloseNotification = (_?: React.SyntheticEvent | Event, reason?: string) => {
@@ -1573,6 +1576,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       if (res.ok) {
         setSharedUsersList(await res.json());
       }
+      
+      const peopleRes = await authenticatedFetch(getApiUrl(`/people`));
+      if (peopleRes.ok) {
+        setUserSearchOptions(await peopleRes.json());
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -1594,18 +1602,21 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
 
   const handleAddSharedUser = async () => {
-    if (!newSharedUserEmail.trim()) return;
+    if (!selectedUserToInvite) return;
     try {
       const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newSharedUserEmail, permission: 'edit' })
+        body: JSON.stringify({ email: selectedUserToInvite.email, permission: 'edit' })
       });
       if (res.ok) {
-        setNewSharedUserEmail("");
-        showNotification("Table shared successfully", "success");
+        setSelectedUserToInvite(null);
+        showNotification("User added successfully", "success");
         // Refresh list
-        openManageAccess();
+        const updated = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
+        if (updated.ok) {
+            setSharedUsersList(await updated.json());
+        }
       } else {
         const err = await res.json();
         showNotification(err.error || "Failed to invite user", "error");
@@ -2818,34 +2829,59 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
           {userPermission !== 'read' && (
             <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-              <TextField
+              <Autocomplete
                 fullWidth
                 size="small"
-                placeholder="Enter email to invite"
-                value={newSharedUserEmail}
-                onChange={(e) => setNewSharedUserEmail(e.target.value)}
-                InputProps={{
-                  sx: {
-                    color: '#fff',
-                    bgcolor: '#26273b',
-                    borderRadius: 2,
-                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                    '&:hover fieldset': { borderColor: '#4a4b6a' },
-                    '&.Mui-focused fieldset': { borderColor: '#6366f1' }
-                  }
+                options={userSearchOptions.filter((u: any) => !sharedUsersList.some(su => su.email === u.email))}
+                getOptionLabel={(option: any) => option.name || option.email}
+                value={selectedUserToInvite}
+                onChange={(event: any, newValue: any | null) => {
+                  setSelectedUserToInvite(newValue);
+                }}
+                renderInput={(params) => (
+                  <TextField 
+                    {...params} 
+                    placeholder="Search user by name"
+                    InputProps={{
+                      ...params.InputProps,
+                      sx: {
+                        color: '#fff',
+                        bgcolor: '#26273b',
+                        borderRadius: 2,
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
+                        '&:hover fieldset': { borderColor: '#4a4b6a' },
+                        '&.Mui-focused fieldset': { borderColor: '#6366f1' }
+                      }
+                    }}
+                    InputLabelProps={{ sx: { color: '#7d82a8' } }}
+                  />
+                )}
+                renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                        <li key={key} {...otherProps}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                                <Avatar sx={{ width: 24, height: 24, mr: 1, fontSize: 12 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
+                                <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                                    <Typography variant="body2" noWrap>{option.name}</Typography>
+                                    <Typography variant="caption" color="text.secondary" noWrap>{option.email}</Typography>
+                                </Box>
+                            </Box>
+                        </li>
+                    );
                 }}
               />
               <Button
                 variant="contained"
                 onClick={handleAddSharedUser}
-                disabled={!newSharedUserEmail.trim()}
+                disabled={!selectedUserToInvite}
                 sx={{
                   bgcolor: '#6366f1',
                   '&:hover': { bgcolor: '#5558dd' },
                   '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
                 }}
               >
-                Invite
+                Add
               </Button>
             </Box>
           )}

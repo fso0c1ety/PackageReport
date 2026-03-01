@@ -240,55 +240,6 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
         })}
       </List>
       <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
-      <Button 
-        fullWidth 
-        startIcon={<PersonAddIcon />} 
-        sx={{ 
-          mb: 1, 
-          color: '#0073ea',
-          background: 'transparent',
-          backgroundColor: 'transparent',
-          boxShadow: 'none',
-          '&:hover': {
-            background: 'transparent',
-            backgroundColor: 'transparent',
-            bgcolor: 'transparent',
-            textDecoration: 'underline',
-            boxShadow: 'none'
-          }
-        }} 
-        onClick={handleInviteClick}
-      >
-        Invite a new member by email
-      </Button>
-      {/* Invite dialog */}
-      <Dialog open={inviteDialogOpen} onClose={() => setInviteDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', color: 'text.primary' } }}>
-        <DialogTitle>Invite a new member</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Email Address"
-            type="email"
-            fullWidth
-            value={inviteEmail}
-            onChange={e => setInviteEmail(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Name (optional)"
-            fullWidth
-            value={inviteName}
-            onChange={e => setInviteName(e.target.value)}
-          />
-          {inviteError && <Typography color="error" variant="body2">{inviteError}</Typography>}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setInviteDialogOpen(false)} sx={{ color: 'text.secondary' }}>Cancel</Button>
-          <Button onClick={handleInviteSubmit} variant="contained" sx={{ bgcolor: 'primary.main' }}>Invite</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 
