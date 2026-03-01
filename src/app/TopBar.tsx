@@ -12,6 +12,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
+import { authenticatedFetch, getApiUrl } from "./apiUrl";
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -40,7 +41,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Clear FCM token on server to stop receiving notifications
+      // Fire-and-forget or await? Awaiting ensures token is removed before local logout.
+      await authenticatedFetch(getApiUrl('users/fcm'), { method: 'DELETE' });
+    } catch (e) {
+      console.error("Failed to clear FCM token on server", e);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';

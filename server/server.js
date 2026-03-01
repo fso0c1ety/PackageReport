@@ -1087,6 +1087,17 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   }
 });
 
+app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
+  try {
+    await db.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
+    console.log(`[FCM] Cleared token for user ${req.user.id}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error clearing FCM token:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // --- Test Notification Endpoint ---
 app.post('/api/test-notification', authenticateToken, async (req, res) => {
     try {
