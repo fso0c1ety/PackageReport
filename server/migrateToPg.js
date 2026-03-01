@@ -30,7 +30,8 @@ async function migrate() {
         name TEXT,
         email TEXT UNIQUE,
         avatar TEXT,
-        password TEXT
+        password TEXT,
+        fcm_token TEXT
       );
 
       CREATE TABLE IF NOT EXISTS workspaces (
