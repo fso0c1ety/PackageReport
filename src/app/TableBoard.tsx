@@ -1,6 +1,7 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
 import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch } from "./apiUrl";
+import { io, Socket } from "socket.io-client";
 
 import {
   ListItemIcon,
@@ -267,6 +268,12 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   // Current date for calendar view
   const [currentDate, setCurrentDate] = useState(dayjs());
   // Chat view state
+  // Socket.IO State
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [boardTypingUsers, setBoardTypingUsers] = useState<string[]>([]);
+  const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
+  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [boardChatMessages, setBoardChatMessages] = useState<{
     id: string;
@@ -294,14 +301,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
     }
   }, [boardChatMessages, isChatOpen]);
 
-  // Scroll to bottom of Task Chat (Discussion) when open
-  useEffect(() => {
-    if (chatTaskId && (mobileTab === 'chat' || rightPanelTab === 'chat' || !!chatAnchor)) {
-      setTimeout(() => {
-          taskChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [chatMessages, chatTaskId, mobileTab, rightPanelTab, chatAnchor]);
+
 
   // Reset state when Table ID changes
   useEffect(() => {
@@ -515,6 +515,15 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'files' | 'activity'>('details');
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'files' | 'activity'>('chat');
 
+  // Scroll to bottom of Task Chat (Discussion) when open
+  useEffect(() => {
+    if (chatTaskId && (mobileTab === 'chat' || rightPanelTab === 'chat' || !!chatAnchor)) {
+      setTimeout(() => {
+          taskChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [chatMessages, chatTaskId, mobileTab, rightPanelTab, chatAnchor]);
+
   // Sync mobile tab to right panel
   useEffect(() => {
     if (mobileTab !== 'details') {
@@ -621,6 +630,77 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // --- Socket.IO Methods ---
+  useEffect(() => {
+    if (!tableId) return;
+
+    const newSocket = io(SERVER_URL);
+    setSocket(newSocket);
+
+    newSocket.on('connect', () => {
+      console.log('Connected to socket server');
+      newSocket.emit('join_board', tableId);
+    });
+
+    newSocket.on('typing_board', ({ user }) => {
+      setBoardTypingUsers(prev => {
+        if (!prev.includes(user)) return [...prev, user];
+        return prev;
+      });
+    });
+
+    newSocket.on('stop_typing_board', ({ user }) => {
+      setBoardTypingUsers(prev => prev.filter(u => u !== user));
+    });
+
+    newSocket.on('typing_task', ({ taskId, user }) => {
+      setTaskTypingUsers(prev => {
+        const current = prev[taskId] || [];
+        if (!current.includes(user)) {
+          return { ...prev, [taskId]: [...current, user] };
+        }
+        return prev;
+      });
+    });
+
+    newSocket.on('stop_typing_task', ({ taskId, user }) => {
+      setTaskTypingUsers(prev => {
+        const current = prev[taskId] || [];
+        return { ...prev, [taskId]: current.filter(u => u !== user) };
+      });
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [tableId]);
+
+  const handleBoardTyping = () => {
+    if (socket) {
+      const user = currentUser?.name || 'User';
+      socket.emit('typing_board', { tableId, user });
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        if (socket) socket.emit('stop_typing_board', { tableId, user });
+      }, 2000);
+    }
+  };
+
+  const handleTaskTyping = (taskId: string) => {
+    if (socket) {
+      const user = currentUser?.name || 'User';
+      socket.emit('typing_task', { tableId, taskId, user });
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        if (socket) socket.emit('stop_typing_task', { tableId, taskId, user });
+      }, 2000);
+    }
+  };
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
   const [userSearchOptions, setUserSearchOptions] = useState<any[]>([]);
@@ -3113,6 +3193,11 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
           {/* Input */}
           <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
+            {boardTypingUsers.length > 0 && (
+              <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
+                {boardTypingUsers.join(', ')} {boardTypingUsers.length === 1 ? 'is' : 'are'} typing...
+              </Typography>
+            )}
             <input
               type="file"
               hidden
@@ -3142,7 +3227,10 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                 size="small"
                 placeholder="Type a message..."
                 value={newBoardChatMessage}
-                onChange={(e) => setNewBoardChatMessage(e.target.value)}
+                onChange={(e) => {
+                  setNewBoardChatMessage(e.target.value);
+                  handleBoardTyping();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -4068,10 +4156,18 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
                                         {/* Input */}
                                         <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+                                          {chatTaskId && taskTypingUsers[chatTaskId] && taskTypingUsers[chatTaskId].length > 0 && (
+                                            <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
+                                              {taskTypingUsers[chatTaskId].join(', ')} is typing...
+                                            </Typography>
+                                          )}
                                           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                                             <input
                                               value={chatInput}
-                                              onChange={e => setChatInput(e.target.value)}
+                                              onChange={e => {
+                                                setChatInput(e.target.value);
+                                                if (chatTaskId) handleTaskTyping(chatTaskId);
+                                              }}
                                               placeholder="Write a reply..."
                                               onKeyDown={e => e.key === 'Enter' && handleSendChat()}
                                               style={{
@@ -5334,10 +5430,18 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                     )}
                   </Box>
                   <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26' }}>
+                    {reviewTask && taskTypingUsers[reviewTask.id] && taskTypingUsers[reviewTask.id].length > 0 && (
+                      <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
+                        {taskTypingUsers[reviewTask.id].join(', ')} is typing...
+                      </Typography>
+                    )}
                     <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <input
                         value={chatInput}
-                        onChange={e => setChatInput(e.target.value)}
+                        onChange={e => {
+                          setChatInput(e.target.value);
+                          if (reviewTask) handleTaskTyping(reviewTask.id);
+                        }}
                         placeholder="Write an update..."
                         onKeyDown={async (e) => {
                           if (e.key === 'Enter' && chatInput.trim() && reviewTask) {

@@ -247,7 +247,7 @@ export default function HomeDashboard() {
         const updatesData = await updatesRes.json();
 
         setWorkspaces(Array.isArray(wsData) ? wsData : []);
-        setEmailUpdates(Array.isArray(updatesData) ? updatesData.reverse() : []);
+        setEmailUpdates(Array.isArray(updatesData) ? updatesData : []);
       } catch (err) {
         console.error("Failed to load dashboard data", err);
       } finally {

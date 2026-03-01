@@ -13,7 +13,57 @@ const { sendEmail } = require('./mailer');
 const { sendPushNotification } = require('./firebase');
 
 
+const http = require('http');
+const { Server } = require("socket.io");
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Adjust as needed
+    methods: ["GET", "POST"]
+  }
+});
+
+// --- Socket.IO Handlers ---
+io.on('connection', (socket) => {
+  console.log('[Socket] Client connected:', socket.id);
+
+  socket.on('join_table', (tableId) => {
+    socket.join(tableId);
+    console.log(`[Socket] Client ${socket.id} joined table: ${tableId}`);
+  });
+  
+  // Board Chat Typing
+  socket.on('typing_board', ({ tableId, user }) => {
+    socket.to(tableId).emit('typing_board', { user });
+  });
+
+  socket.on('stop_typing_board', ({ tableId, user }) => {
+    socket.to(tableId).emit('stop_typing_board', { user });
+  });
+
+  // Task Chat (Discussion) Typing
+  socket.on('typing_task', ({ tableId, taskId, user }) => {
+     socket.to(tableId).emit('typing_task', { taskId, user });
+  });
+
+  socket.on('stop_typing_task', ({ tableId, taskId, user }) => {
+    socket.to(tableId).emit('stop_typing_task', { taskId, user });
+  });
+  
+  socket.on('join_task', (taskId) => {
+      socket.join(taskId);
+  });
+  
+  socket.on('leave_task', (taskId) => {
+      socket.leave(taskId);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('[Socket] Client disconnected:', socket.id);
+  });
+});
 
 // --- Database Schema Migrations ---
 (async () => {
@@ -1089,6 +1139,12 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Express server running on http://0.0.0.0:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+    try {
+        console.log(`Express server running on http://0.0.0.0:${PORT}`);
+        io.attach(server); // Attach Socket.io to the HTTP server (if not already handled by constructor)
+        console.log(`Socket.IO listening on port ${PORT}`);
+    } catch (err) {
+        console.error('Error starting server/socket:', err);
+    }
 });
