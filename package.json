@@ -26,6 +26,7 @@
     "cors": "^2.8.6",
     "dayjs": "^1.11.19",
     "express": "^5.2.1",
+    "firebase-admin": "^13.7.0",
     "framer-motion": "^12.34.3",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
