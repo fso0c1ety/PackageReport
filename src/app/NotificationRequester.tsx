@@ -6,101 +6,139 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
 import { authenticatedFetch, getApiUrl } from "./apiUrl";
 
+// WEB: To use Push Notifications on Web, you must initialize Firebase here.
+import { initializeApp } from "firebase/app";
+import { getMessaging, getToken } from "firebase/messaging";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBIUK8vR4o_0K-TVUy_bA0w_Z7WHY165Eo",
+  authDomain: "smart-manage-8aa4e.firebaseapp.com",
+  projectId: "smart-manage-8aa4e",
+  storageBucket: "smart-manage-8aa4e.firebasestorage.app",
+  messagingSenderId: "575987993996",
+  appId: "1:575987993996:web:e971ed7d1a448c8826daa9",
+  measurementId: "G-LQKV5LJ37P"
+};
+
+// Initialize only if window is defined (client-side)
+let messaging: any = null;
+if (typeof window !== "undefined") {
+    try {
+        const app = initializeApp(firebaseConfig);
+        messaging = getMessaging(app);
+    } catch (e) {
+        console.error("Firebase init error", e);
+    }
+}
+
 const NotificationRequester = () => {
     useEffect(() => {
         const initPush = async () => {
-            if (Capacitor.isNativePlatform()) {
-                try {
-                    // Start with Local Notifications
-                    let localPermStatus = await LocalNotifications.checkPermissions();
-                    
-                    if (localPermStatus.display === 'prompt') {
-                        localPermStatus = await LocalNotifications.requestPermissions();
-                    }
-                    
-                    if (localPermStatus.display !== 'granted') {
-                        await LocalNotifications.requestPermissions();
-                    }
+            // Check if native or web.
+            // Note: For Web Push to work, ensure you have:
+            // 1. Created 'public/firebase-messaging-sw.js' with your Firebase config.
+            // 2. Initialized Firebase in your app entry point or here if using the JS SDK directly.
+            // 3. For Capacitor Push Notifications on Web, ensure the service worker is registered.
 
-                    // Request Push Notification permission
-                    let pushPermStatus = await PushNotifications.checkPermissions();
-                    
-                    if (pushPermStatus.receive === 'prompt') {
-                        pushPermStatus = await PushNotifications.requestPermissions();
-                    }
+            try {
+                let permStatus = await PushNotifications.checkPermissions();
 
-                    if (pushPermStatus.receive !== 'granted') {
-                         await PushNotifications.requestPermissions();
-                    }
-                    
-                    if (pushPermStatus.receive === 'granted') {
-                        await PushNotifications.createChannel({
-                            id: 'chat_messages',
-                            name: 'Chat Messages',
-                            description: 'Notifications for new chat messages',
-                            importance: 5,
-                            visibility: 1,
-                            vibration: true,
-                        });
-
-                         // Add Listeners first
-                         await PushNotifications.removeAllListeners();
-
-                         await PushNotifications.addListener('registration', async (token) => {
-                            console.log('Push Registration Token: ', token.value);
-                            // Send token to backend
-                            try {
-                                const response = await authenticatedFetch(getApiUrl('users/fcm'), {
-                                    method: 'PUT',
-                                    body: JSON.stringify({ token: token.value })
-                                });
-                                if (response.ok) {
-                                     console.log('FCM Token sent to server successfully');
-                                } else {
-                                     console.error('Failed to send FCM token to server', response.status);
-                                }
-                            } catch (err) {
-                                console.error('Error sending FCM token to server:', err);
-                            }
-                        });
-
-                        await PushNotifications.createChannel({
-                            id: 'chat_messages',
-                            name: 'Chat Messages',
-                            description: 'Notifications for new chat messages',
-                            importance: 5,
-                            visibility: 1,
-                            vibration: true,
-                        });
-            
-                        await PushNotifications.addListener('registrationError', (error: any) => {
-                            console.error('Error on registration: ' + JSON.stringify(error));
-                        });
-            
-                        await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-                            console.log('Push received: ' + JSON.stringify(notification));
-                        });
-            
-                        await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-                            console.log('Push action performed: ' + JSON.stringify(notification));
-                        });
-
-                         // Register with FCM
-                         await PushNotifications.register();
-                    }
-                    
-                } catch (e) {
-                    console.error('Error requesting notification permissions', e);
+                if (permStatus.receive === 'prompt') {
+                    permStatus = await PushNotifications.requestPermissions();
                 }
+
+                if (permStatus.receive !== 'granted') {
+                    // Try to request again or show instructions
+                   try {
+                        permStatus = await PushNotifications.requestPermissions();
+                   } catch (e) {
+                       console.warn("User denied permissions or error requesting", e);
+                   }
+                }
+
+                if (permStatus.receive === 'granted') {
+                    if (Capacitor.isNativePlatform()) {
+                        await PushNotifications.createChannel({
+                            id: 'chat_messages',
+                            name: 'Chat Messages',
+                            description: 'Notifications for new chat messages',
+                            importance: 5,
+                            visibility: 1,
+                            vibration: true,
+                        });
+                    }
+
+                    // Add Listeners
+                    await PushNotifications.removeAllListeners();
+
+                    await PushNotifications.addListener('registration', async (token) => {
+                        console.log('Push Registration Token: ', token.value);
+                        // Send token to backend
+                        try {
+                            const response = await authenticatedFetch(getApiUrl('users/fcm'), {
+                                method: 'PUT',
+                                body: JSON.stringify({ token: token.value })
+                            });
+                            if (response.ok) {
+                                console.log('FCM Token sent to server successfully');
+                            } else {
+                                console.error('Failed to send FCM token to server', response.status);
+                            }
+                        } catch (err) {
+                            console.error('Error sending FCM token to server:', err);
+                        }
+                    });
+
+                    if (Capacitor.isNativePlatform()) {
+                         await PushNotifications.addListener('registrationError', (error: any) => {
+                             console.error('Error on registration: ' + JSON.stringify(error));
+                         });
+                    } else {
+                        // Web specific registration error handling or manual token retrieval fallback
+                        try {
+                             if (messaging) {
+                                const currentToken = await getToken(messaging, { 
+                                    vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
+                                });
+                                if (currentToken) {
+                                    console.log('Web FCM Token:', currentToken);
+                                     // Send token to backend
+                                    await authenticatedFetch(getApiUrl('users/fcm'), {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ token: currentToken })
+                                    });
+                                } else {
+                                    console.log('No registration token available. Request permission to generate one.');
+                                }
+                             }
+                        } catch(e) {
+                            console.error('An error occurred while retrieving token on web. ', e);
+                        }
+                    }
+
+                    await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+                        console.log('Push received: ' + JSON.stringify(notification));
+                        // Here you might want to show a toast/snackbar if the app is open
+                    });
+
+                    await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                        console.log('Push action performed: ' + JSON.stringify(notification));
+                        // Navigate to chat if needed
+                    });
+
+                    // Register with FCM
+                    await PushNotifications.register();
+                }
+            } catch (e) {
+                console.error('Error initializing push notifications', e);
             }
         };
 
         initPush();
 
         return () => {
-             if (Capacitor.isNativePlatform()) {
-                 PushNotifications.removeAllListeners();
-             }
+             // Cleanup listeners
+             PushNotifications.removeAllListeners();
         };
     }, []);
 

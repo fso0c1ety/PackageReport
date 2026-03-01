@@ -44,12 +44,12 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
         priority: 'high',
         defaultSound: true,
         defaultVibrateTimings: true,
-        clickAction: 'FLUTTER_NOTIFICATION_CLICK' // Keep for compatibility if needed, though Capacitor uses standard intents
+        // clickAction removed to allow default intent handling
       }
     },
     data: {
       ...data,
-      click_action: 'FLUTTER_NOTIFICATION_CLICK' 
+      // click_action removed
     },
     tokens: tokens,
   };
