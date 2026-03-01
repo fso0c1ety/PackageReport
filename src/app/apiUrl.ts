@@ -3,7 +3,9 @@
 const IS_PROD = process.env.NODE_ENV === 'production';
 export const DEFAULT_SERVER_URL = IS_PROD
   ? "https://packagereport.onrender.com"
-  : "http://localhost:4000";
+  : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+      ? `http://${window.location.hostname}:4000` 
+      : "http://192.168.0.25:4000"); // Use local IP for Android emulator/device testing
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {

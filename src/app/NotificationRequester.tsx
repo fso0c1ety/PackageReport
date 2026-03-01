@@ -34,6 +34,15 @@ const NotificationRequester = () => {
                     }
                     
                     if (pushPermStatus.receive === 'granted') {
+                        await PushNotifications.createChannel({
+                            id: 'chat_messages',
+                            name: 'Chat Messages',
+                            description: 'Notifications for new chat messages',
+                            importance: 5,
+                            visibility: 1,
+                            vibration: true,
+                        });
+
                          // Add Listeners first
                          await PushNotifications.removeAllListeners();
 
