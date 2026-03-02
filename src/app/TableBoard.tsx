@@ -3482,7 +3482,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               <InsertDriveFileIcon sx={{ fontSize: 20 }} />
                             </Box>
                             <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>
+                              <Typography variant="body2" sx={{ 
+                                fontWeight: 600, 
+                                fontSize: '0.85rem', 
+                                whiteSpace: 'normal', 
+                                wordBreak: 'break-all',
+                                color: '#fff',
+                                lineHeight: 1.2
+                              }}>
                                 {msg.attachment.name}
                               </Typography>
                               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
@@ -3552,9 +3559,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <Box sx={{ p: 1, bgcolor: '#6366f1', borderRadius: 1.5, color: '#fff', display: 'flex' }}>
                     <InsertDriveFileIcon fontSize="small" />
                   </Box>
-                  <Box>
+                  <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
                     <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block' }}>Ready to send</Typography>
-                    <Typography variant="body2" sx={{ color: '#fff', fontSize: '0.85rem', fontWeight: 500 }}>{pendingBoardFile.name}</Typography>
+                    <Typography variant="body2" sx={{ 
+                      color: '#fff', 
+                      fontSize: '0.85rem', 
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {pendingBoardFile.name}
+                    </Typography>
                     <Typography variant="caption" sx={{ color: '#94a3b8' }}>{Math.round(pendingBoardFile.size / 1024)} KB</Typography>
                   </Box>
                 </Box>
