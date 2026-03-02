@@ -998,6 +998,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                        body: body,
                        tableName: table.name,
                        tableId: table.id,
+                       workspaceId: table.workspace_id,
                        taskId: id,
                        ...data
                    }, false]);
