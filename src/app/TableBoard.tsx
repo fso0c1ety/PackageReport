@@ -356,6 +356,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     attachment?: { name: string, type: string, url: string, size?: number };
   }[]>([]);
   const [newBoardChatMessage, setNewBoardChatMessage] = useState("");
+  const [pendingBoardFile, setPendingBoardFile] = useState<File | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string, size?: number } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -481,20 +482,53 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [boardChatMessages, isChatOpen]);
 
   const handleSendBoardChat = async () => {
-    if (!newBoardChatMessage.trim()) return;
+    if (!newBoardChatMessage.trim() && !pendingBoardFile) return;
+
+    let attachment = undefined;
+    
+    // If there's a file, upload it first
+    if (pendingBoardFile) {
+      const formData = new FormData();
+      formData.append('file', pendingBoardFile);
+
+      try {
+        const uploadRes = await authenticatedFetch(getApiUrl('/upload'), {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!uploadRes.ok) throw new Error('Upload failed');
+
+        const uploadData = await uploadRes.json();
+        const fileUrl = uploadData.url.startsWith('http') ? uploadData.url : (SERVER_URL + uploadData.url);
+        
+        attachment = {
+          name: uploadData.name,
+          type: uploadData.type,
+          url: fileUrl,
+          size: uploadData.size || pendingBoardFile.size
+        };
+      } catch (err) {
+        console.error("Failed to upload file", err);
+        showNotification("Failed to upload file. Please try again.", "error");
+        return;
+      }
+    }
 
     const tempId = uuidv4();
     const msg = {
       id: tempId,
-      text: newBoardChatMessage,
+      text: newBoardChatMessage, // Send whatever text is in the input (could be empty if just file)
       sender: currentUser?.name || 'User',
       senderAvatar: currentUser?.avatar,
-      time: dayjs().format('HH:mm')
+      time: dayjs().format('MMM D, HH:mm'),
+      attachment
     };
 
     // Optimistic update
     setBoardChatMessages(prev => [...prev, msg]);
     setNewBoardChatMessage("");
+    setPendingBoardFile(null);
 
     try {
       await authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`), {
@@ -502,64 +536,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(msg)
       });
-      showNotification("Message sent successfully!", "success");
+      // specific success notification only if it was a file upload primarily? 
+      // showNotification("Message sent successfully!", "success");
     } catch (err) {
       console.error("Failed to send message", err);
       showNotification("Failed to send message. Please try again.", "error");
     }
   };
 
-  const handleBoardFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBoardFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file); // Use 'file' as the key to match upload.single('file')
-
-    try {
-      // Adjust API call to point directly to /api/upload since getApiUrl handles the /api part
-      // Wait, getApiUrl returns `${SERVER_URL}/api...`
-      // Server endpoint is app.post('/api/upload')
-      // So getApiUrl('/upload') is correct: http://...:4000/api/upload
-
-      const uploadRes = await authenticatedFetch(getApiUrl('/upload'), {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!uploadRes.ok) throw new Error('Upload failed');
-
-      const uploadData = await uploadRes.json();
-      const fileUrl = uploadData.url.startsWith('http') ? uploadData.url : (SERVER_URL + uploadData.url);
-
-      const attachment = {
-        name: uploadData.name,
-        type: uploadData.type,
-        url: fileUrl,
-        size: uploadData.size || file.size
-      };
-
-      const msg = {
-        id: uuidv4(),
-        text: `Sent a file: ${file.name}`,
-        sender: currentUser?.name || 'User',
-        senderAvatar: currentUser?.avatar,
-        time: dayjs().format('HH:mm'),
-        attachment
-      };
-
-      setBoardChatMessages(prev => [...prev, msg]);
-
-      await authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(msg)
-      });
-    } catch (err) {
-      console.error("Failed to upload file or send message", err);
-      showNotification("Failed to send file", "error");
+    if (file) {
+      setPendingBoardFile(file);
     }
-
     // Clear input value so same file can be selected again
     event.target.value = '';
   };
@@ -3433,28 +3422,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   alignItems: isMe ? 'flex-end' : 'flex-start',
                   mt: isSequence ? 0.5 : 2
                 }}>
-                  {!isMe && !isSequence && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, ml: 1 }}>
+                  {!isSequence && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, ml: isMe ? 0 : 6, mr: isMe ? 6 : 0, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                       <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.75rem' }}>{msg.sender}</Typography>
                       <Typography variant="caption" sx={{ color: '#565875', fontSize: '0.7rem' }}>{msg.time}</Typography>
                     </Box>
                   )}
                   
                   <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexDirection: isMe ? 'row-reverse' : 'row' }}>
-                    {!isMe && (
-                      <Avatar
-                        src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                        sx={{ 
-                          width: 32, height: 32, 
-                          bgcolor: '#26273b', 
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          fontSize: '0.8rem',
-                          opacity: isSequence ? 0 : 1 
-                        }}
-                      >
-                        {!msg.senderAvatar && msg.sender.charAt(0)}
-                      </Avatar>
-                    )}
+                    <Avatar
+                      src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                      sx={{ 
+                        width: 32, height: 32, 
+                        bgcolor: isMe ? '#4f46e5' : '#26273b', 
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        fontSize: '0.8rem',
+                        opacity: isSequence ? 0 : 1 
+                      }}
+                    >
+                      {!msg.senderAvatar && msg.sender.charAt(0)}
+                    </Avatar>
                     
                     <Box sx={{
                       bgcolor: isMe ? '#6366f1' : '#26273b',
@@ -3474,7 +3461,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         <Box
                           onClick={() => setPreviewFile(msg.attachment!)}
                           sx={{
-                            mb: 1.5,
+                            mb: msg.text ? 1.5 : 0,
                             p: 0,
                             borderRadius: 2,
                             overflow: 'hidden',
@@ -3506,15 +3493,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         </Box>
                       )}
                       
-                      <Typography variant="body2" sx={{ 
-                        lineHeight: 1.5, 
-                        fontSize: '0.9rem',
-                        wordWrap: 'break-word', 
-                        wordBreak: 'break-word', 
-                        whiteSpace: 'pre-wrap' 
-                      }}>
-                        {msg.text}
-                      </Typography>
+                      {msg.text && (
+                        <Typography variant="body2" sx={{ 
+                          lineHeight: 1.6, 
+                          fontSize: '0.935rem',
+                          wordWrap: 'break-word',
+                          overflowWrap: 'anywhere', // Ensures long words/URLs break to avoid scroll
+                          minWidth: 0,
+                          whiteSpace: 'pre-wrap',
+                          letterSpacing: '0.01em'
+                        }}>
+                          {msg.text}
+                        </Typography>
+                      )}
                       
                       {isMe && (
                           <Box component="span" sx={{ 
@@ -3529,11 +3520,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       )}
                     </Box>
                   </Box>
-                  {isMe && !isSequence && (
-                    <Typography variant="caption" sx={{ color: '#565875', mt: 0.5, px: 1, fontSize: '0.7rem', alignSelf: 'flex-end', mr: 5 }}>
-                      {msg.time}
-                    </Typography>
-                  )}
                 </Box>
               );
             })}
@@ -3549,6 +3535,39 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             backdropFilter: 'blur(20px)',
             boxShadow: '0 -4px 20px rgba(0,0,0,0.2)'
           }}>
+            {/* Pending File Preview */}
+            {pendingBoardFile && (
+              <Box sx={{ 
+                mb: 2, 
+                p: 1.5, 
+                bgcolor: 'rgba(99, 102, 241, 0.1)', 
+                border: '1px dashed rgba(99, 102, 241, 0.4)',
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                animation: 'slideUp 0.3s ease-out'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ p: 1, bgcolor: '#6366f1', borderRadius: 1.5, color: '#fff', display: 'flex' }}>
+                    <InsertDriveFileIcon fontSize="small" />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block' }}>Ready to send</Typography>
+                    <Typography variant="body2" sx={{ color: '#fff', fontSize: '0.85rem', fontWeight: 500 }}>{pendingBoardFile.name}</Typography>
+                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>{Math.round(pendingBoardFile.size / 1024)} KB</Typography>
+                  </Box>
+                </Box>
+                <IconButton 
+                  size="small" 
+                  onClick={() => setPendingBoardFile(null)}
+                  sx={{ color: '#94a3b8', '&:hover': { color: '#ef4444', bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                >
+                  <Box component="span" sx={{ fontSize: 20 }}>×</Box>
+                </IconButton>
+              </Box>
+            )}
+
             {boardTypingUsers.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, ml: 1 }}>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -3628,18 +3647,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               
               <IconButton 
                 onClick={handleSendBoardChat}
-                disabled={!newBoardChatMessage.trim()}
+                disabled={!newBoardChatMessage.trim() && !pendingBoardFile}
                 sx={{ 
-                  bgcolor: newBoardChatMessage.trim() ? '#6366f1' : 'transparent',
-                  background: newBoardChatMessage.trim() ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                  color: newBoardChatMessage.trim() ? '#fff' : '#475569',
+                  bgcolor: (newBoardChatMessage.trim() || pendingBoardFile) ? '#6366f1' : 'transparent',
+                  background: (newBoardChatMessage.trim() || pendingBoardFile) ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  color: (newBoardChatMessage.trim() || pendingBoardFile) ? '#fff' : '#475569',
                   width: 36, height: 36,
                   mb: 0.25,
                   transition: 'all 0.2s',
-                  boxShadow: newBoardChatMessage.trim() ? '0 2px 8px rgba(99, 102, 241, 0.4)' : 'none',
+                  boxShadow: (newBoardChatMessage.trim() || pendingBoardFile) ? '0 2px 8px rgba(99, 102, 241, 0.4)' : 'none',
                   '&:hover': { 
-                    transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none',
-                    boxShadow: newBoardChatMessage.trim() ? '0 4px 12px rgba(99, 102, 241, 0.5)' : 'none'
+                    transform: (newBoardChatMessage.trim() || pendingBoardFile) ? 'scale(1.05)' : 'none',
+                    boxShadow: (newBoardChatMessage.trim() || pendingBoardFile) ? '0 4px 12px rgba(99, 102, 241, 0.5)' : 'none'
                   },
                   '&.Mui-disabled': { color: '#334155' }
                 }}
