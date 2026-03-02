@@ -136,6 +136,48 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       setNotifAnchorEl(null);
   };
 
+  const handleNotificationClick = (notif: Notification) => {
+      handleNotifClose();
+      // Mark as read is handled on open, but we could mark specific one here if needed.
+      
+      const { type, data } = notif;
+      if (!data) return;
+
+      // Construct navigation URL
+      let url = "";
+      
+      // If we have workspaceId, we can navigate to workspace view
+      if (data.workspaceId) {
+          url = `/workspace?id=${data.workspaceId}`;
+          if (data.tableId) {
+              url += `&tableId=${data.tableId}`;
+          }
+      } else if (data.tableId) {
+          // If workspaceId is missing but we have tableId, we might need to fetch it or guess?
+          // For now, let's assume valid notifications include workspaceId.
+          // Or if the app supports /board/[tableId] (which it doesn't seem to, explicitly)
+          // We can try to rely on "last workspace" logic if user was there? Unreliable.
+          console.warn("Notification missing workspaceId", notif);
+      }
+
+      // Add task and tab context
+      if (url) {
+          if (data.taskId) {
+              url += `&taskId=${data.taskId}`;
+          }
+
+          if (type === 'chat_message' || type === 'task_chat') {
+              url += `&tab=chat`;
+          } else if (type === 'file_comment') {
+              url += `&tab=files`;
+          } else if (type === 'automation') {
+              // Automation usually related to a task
+          }
+          
+          router.push(url);
+      }
+  };
+
 
   const getNotificationIcon = (type: string) => {
       switch (type) {
@@ -324,7 +366,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                     notifications.map((notif) => (
                         <MenuItem 
                             key={notif.id} 
-                            onClick={handleNotifClose}
+                            onClick={() => handleNotificationClick(notif)}
                             sx={{ 
                                 display: 'flex', 
                                 flexDirection: 'column', 

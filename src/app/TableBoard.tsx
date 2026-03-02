@@ -3,15 +3,9 @@
 import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch } from "./apiUrl";
 import { io, Socket } from "socket.io-client";
 
-import {
-  ListItemIcon,
-  Divider,
-  CircularProgress,
-  ListItemAvatar,
-  Snackbar,
-  Alert,
-  AlertColor,
-} from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 function TaskRowMenu({
   row,
@@ -587,6 +581,30 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
+  
+  const searchParams = useSearchParams();
+  
+  useEffect(() => {
+    const taskId = searchParams.get('taskId');
+    const tab = searchParams.get('tab');
+    if (taskId && tableId) {
+        // Fetch task
+        authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${taskId}`))
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data && (data.task || data.id)) {
+                    setReviewTask(data.task || data);
+                    
+                    if (tab === 'chat' || tab === 'files' || tab === 'activity') {
+                        if (isMobile) setMobileTab(tab);
+                        else setRightPanelTab(tab);
+                    }
+                }
+            })
+            .catch(err => console.error("Failed to load task from URL", err));
+    }
+  }, [tableId, searchParams, isMobile]);
+
   const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'files' | 'activity'>('details');
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'files' | 'activity'>('chat');
 
@@ -2657,26 +2675,63 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         );
       }
 
-      // Default: text input
-      // Message column: show chat popover trigger
-      if ((col.type as string) === "Message") {
-        return (
-          <Button variant="outlined" size="small" onClick={e => handleOpenChat(e, row.id, value || [], col.id)}>
-            Chat
-          </Button>
-        );
-      }
+      // Default: text input with autocomplete
+      const uniqueOptions = Array.from(new Set(rows.map(r => r.values[col.id]).filter(v => v && typeof v === 'string' && v.trim() !== '')));
+
       return (
-        <TextField
+        <Autocomplete
+          freeSolo
+          disableClearable
+          options={uniqueOptions as string[]}
           value={editValue}
-          onChange={e => setEditValue(e.target.value)}
-          onBlur={() => handleCellSave(row.id, col.id)}
-          onKeyDown={e => e.key === "Enter" && handleCellSave(row.id, col.id)}
-          size="small"
-          autoFocus
-          id={`text-input-${row.id}-${col.id}`}
-          name={`text-input-${row.id}-${col.id}`}
-          InputProps={{ style: { color: '#fff' } }}
+          onInputChange={(event, newInputValue) => {
+            setEditValue(newInputValue);
+          }}
+          onChange={(event, newValue) => {
+             if (newValue) {
+               setEditValue(newValue);
+               handleCellSave(row.id, col.id, col.type, newValue);
+             }
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              autoFocus
+              onBlur={() => handleCellSave(row.id, col.id, col.type, editValue)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                  handleCellSave(row.id, col.id, col.type, editValue);
+                }
+              }}
+              InputProps={{
+                ...params.InputProps,
+                style: { color: '#fff', padding: 0 },
+                sx: { 
+                    '& .MuiOutlinedInput-root': { padding: '0 8px !important' },
+                    '& .MuiInputBase-input': { padding: '8px 0 !important' } 
+                }
+              }}
+              sx={{
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+              }}
+            />
+          )}
+          PaperProps={{
+            sx: {
+                bgcolor: '#23243a',
+                color: '#fff',
+                borderRadius: 2,
+                border: '1px solid #3a3b5a',
+                mt: 1,
+                '& .MuiMenuItem-root': {
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
+                    '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                }
+            }
+          }}
+          sx={{ width: '100%' }}
         />
       );
     }
@@ -5140,32 +5195,59 @@ export default function TableBoard({ tableId }: TableBoardProps) {
 
                       {/* Text / Link / Number */}
                       {(col.type === undefined || col.type === "Text" || col.type === "Link" || col.type === "Number" || col.type === "Country") && (
-                        <TextField
-                          fullWidth
-                          variant="standard"
-                          placeholder="Empty"
+                        <Autocomplete
+                          freeSolo
+                          disableClearable
+                          options={Array.from(new Set(rows.map(r => r.values[col.id]).filter(v => v && typeof v === 'string' && v.trim() !== ''))) as string[]}
                           value={reviewTask.values[col.id] || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                          onInputChange={(e, val) => {
+                             setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
                           }}
-                          onBlur={(e) => {
-                            handleCellSave(reviewTask.id, col.id, col.type, e.target.value);
+                          onChange={(e, val) => {
+                             if (val) {
+                                setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                                handleCellSave(reviewTask.id, col.id, col.type, val);
+                             }
                           }}
-                          InputProps={{ disableUnderline: true }}
-                          sx={{
-                            '& .MuiInputBase-root': {
-                              color: '#F3F4F6',
-                              fontSize: 14,
-                              fontWeight: 500,
-                              bgcolor: 'rgba(255,255,255,0.03)',
-                              borderRadius: 2,
-                              px: 1.5,
-                              py: 0.75,
-                              transition: 'all 0.2s',
-                              border: '1px solid transparent',
-                              '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' },
-                              '&.Mui-focused': { bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid #6366f1', boxShadow: '0 0 0 2px rgba(99, 102, 241, 0.2)' },
+                          renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                fullWidth
+                                variant="standard"
+                                placeholder="Empty"
+                                onBlur={(e) => {
+                                    handleCellSave(reviewTask.id, col.id, col.type, e.target.value);
+                                }}
+                                InputProps={{ 
+                                    ...params.InputProps, 
+                                    disableUnderline: true,
+                                    sx: {
+                                        color: '#F3F4F6',
+                                        fontSize: 14,
+                                        fontWeight: 500,
+                                        bgcolor: 'rgba(255,255,255,0.03)',
+                                        borderRadius: 2,
+                                        px: 1.5,
+                                        py: 0.75,
+                                        border: '1px solid transparent',
+                                        transition: 'all 0.2s',
+                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' },
+                                        '&.Mui-focused': { bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid #6366f1', boxShadow: '0 0 0 2px rgba(99, 102, 241, 0.2)' },
+                                    }
+                                }}
+                            />
+                          )}
+                          PaperProps={{
+                            sx: {
+                                bgcolor: '#1C1D26',
+                                color: '#fff',
+                                border: '1px solid #3a3b5a',
+                                borderRadius: 2,
+                                mt: 1,
+                                '& .MuiMenuItem-root': {
+                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
+                                    '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                                }
                             }
                           }}
                         />
@@ -5193,7 +5275,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             px: 1.5,
                             py: 0.75,
                             '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
-                            '& .MuiSelect-select': { py: 0, pr: '32px !important', minHeight: 'unset' },
+                            '& .MuiSelect-select': { py: 0, pr: '32px !important', minHeight: 'unset', display: 'flex', overflow: 'hidden' },
                             '& .MuiSvgIcon-root': { color: '#6B7280', right: 8 }
                           }}
                           MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1 } } }}
@@ -5209,9 +5291,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                 '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.3)' } }
                               }}
                             >
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: opt.color || '#ccc' }} />
-                                <Typography sx={{ fontSize: 14 }}>{opt.value}</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', width: '100%' }}>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: opt.color || '#ccc', flexShrink: 0 }} />
+                                <Typography noWrap sx={{ fontSize: 14 }}>{opt.value}</Typography>
                               </Box>
                             </MenuItem>
                           ))}
@@ -5884,10 +5966,31 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                         style={{ width: '100%', height: '100%', border: 'none' }}
                         title="PDF Preview"
                       />
+                    ) : (fileDialog.file.type?.startsWith('video/') || /\.(mp4|webm|ogg)$/i.test(fileDialog.file.name)) ? (
+                        <video 
+                            controls 
+                            src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                            style={{ maxWidth: '100%', maxHeight: '100%' }}
+                        />
+                    ) : (fileDialog.file.type?.startsWith('audio/') || /\.(mp3|wav|ogg)$/i.test(fileDialog.file.name)) ? (
+                        <audio 
+                            controls 
+                            src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                        />
                     ) : (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, p: 5 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, p: 5 }}>
                         <InsertDriveFileIcon sx={{ fontSize: 80, color: '#0073ea', opacity: 0.8 }} />
-                        <Typography sx={{ color: '#9CA3AF', textAlign: 'center' }}>Preview not available for this file type</Typography>
+                        <Typography sx={{ color: '#9CA3AF', textAlign: 'center', mb: 2 }}>Preview not available for this file type</Typography>
+                        <Button
+                            variant="outlined"
+                            component="a"
+                            href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ color: '#fff', borderColor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+                        >
+                            Open in New Tab
+                        </Button>
                       </Box>
                     )}
                   </Box>

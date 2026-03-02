@@ -1,7 +1,12 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { Snackbar, Alert, AlertColor } from "@mui/material";
+import { Snackbar, Alert, AlertColor, Box, Typography, IconButton, Grow } from "@mui/material";
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import InfoIcon from '@mui/icons-material/Info';
+import WarningIcon from '@mui/icons-material/Warning';
+import CloseIcon from '@mui/icons-material/Close';
 
 interface NotificationContextType {
     showNotification: (message: string, severity?: AlertColor) => void;
@@ -14,14 +19,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         open: boolean;
         message: string;
         severity: AlertColor;
+        key: number;
     }>({
         open: false,
         message: "",
         severity: "info",
+        key: 0,
     });
 
     const showNotification = useCallback((message: string, severity: AlertColor = "info") => {
-        setNotification({ open: true, message, severity });
+        setNotification((prev) => ({ open: true, message, severity, key: prev.key + 1 }));
     }, []);
 
     const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
@@ -29,44 +36,95 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setNotification((prev) => ({ ...prev, open: false }));
     };
 
+    // Helper to get icon and color
+    const getSeverityConfig = (severity: AlertColor) => {
+        switch (severity) {
+            case 'success': return { icon: <CheckCircleIcon />, color: '#00c875', bg: 'rgba(0, 200, 117, 0.1)' };
+            case 'error': return { icon: <ErrorIcon />, color: '#e2445c', bg: 'rgba(226, 68, 92, 0.1)' };
+            case 'warning': return { icon: <WarningIcon />, color: '#fdab3d', bg: 'rgba(253, 171, 61, 0.1)' };
+            default: return { icon: <InfoIcon />, color: '#579bfc', bg: 'rgba(87, 155, 252, 0.1)' };
+        }
+    };
+
+    const config = getSeverityConfig(notification.severity);
+    
+    // Parse message for Title: Body format if present
+    const parts = notification.message.split(': ');
+    const title = parts.length > 1 ? parts[0] : (notification.severity.charAt(0).toUpperCase() + notification.severity.slice(1));
+    const body = parts.length > 1 ? parts.slice(1).join(': ') : notification.message;
+
     return (
         <NotificationContext.Provider value={{ showNotification }}>
             {children}
             <Snackbar
+                key={notification.key}
                 open={notification.open}
-                autoHideDuration={4000}
+                autoHideDuration={5000}
                 onClose={handleClose}
                 anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{ mt: 2, zIndex: 1600 }}
+                TransitionComponent={Grow}
+                sx={{ mt: 4, zIndex: 2000 }}
             >
-                <Alert
-                    onClose={handleClose}
-                    severity={notification.severity}
-                    variant="filled"
+                <Box
                     sx={{
-                        width: "100%",
-                        minWidth: "300px",
-                        bgcolor:
-                            notification.severity === "success"
-                                ? "#00c875"
-                                : notification.severity === "error"
-                                    ? "#e2445c"
-                                    : notification.severity === "warning"
-                                        ? "#ffcb00"
-                                        : "#1e1f2b",
-                        color: "#fff",
-                        fontWeight: 600,
-                        borderRadius: "12px",
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        backdropFilter: "blur(10px)",
-                        "& .MuiAlert-icon": { color: "#fff" },
-                        "& .MuiAlert-action": { color: "#fff" },
-                        fontFamily: "var(--font-outfit), sans-serif",
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 2,
+                        minWidth: '320px',
+                        maxWidth: '400px',
+                        width: '100%',
+                        bgcolor: '#1e1f2b', // Dark theme background
+                        color: '#fff',
+                        p: 2,
+                        borderRadius: '16px',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5)',
+                        backdropFilter: 'blur(12px)',
+                        position: 'relative',
+                        overflow: 'hidden'
                     }}
                 >
-                    {notification.message}
-                </Alert>
+                    {/* Severity color bar left */}
+                    <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, bgcolor: config.color }} />
+                    
+                    {/* Icon */}
+                    <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        mt: 0.5,
+                        color: config.color,
+                        bgcolor: config.bg,
+                        borderRadius: '50%',
+                        p: 1
+                    }}>
+                        {config.icon}
+                    </Box>
+
+                    {/* Content */}
+                    <Box sx={{ flex: 1, pt: 0.5 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2, mb: 0.5, fontSize: '0.95rem' }}>
+                            {title}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#9ca3af', lineHeight: 1.4, fontSize: '0.85rem' }}>
+                            {body}
+                        </Typography>
+                    </Box>
+
+                    {/* Close Action */}
+                    <IconButton 
+                        size="small" 
+                        onClick={(e) => handleClose(e)} 
+                        sx={{ 
+                            color: '#6b7280', 
+                            '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
+                            mt: -0.5,
+                            mr: -0.5
+                        }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
+                </Box>
             </Snackbar>
         </NotificationContext.Provider>
     );

@@ -107,6 +107,9 @@ const NotificationRequester = () => {
                             showNotification(`${title}: ${body}`, 'info');
 
                             const tableId = notification.data?.tableId;
+                            const workspaceId = notification.data?.workspaceId;
+                            const taskId = notification.data?.taskId;
+                            const type = notification.data?.type;
 
                             // ALSO schedule a Local Notification for the System Tray if desired
                             await LocalNotifications.schedule({
@@ -119,28 +122,45 @@ const NotificationRequester = () => {
                                     sound: undefined,
                                     attachments: undefined,
                                     actionTypeId: "",
-                                    extra: { tableId }
+                                    extra: { tableId, workspaceId, taskId, type }
                                 }
                                 ]
                             });
                         });
+                        
+                        const handleNotificationTap = (data: any) => {
+                            let url = "";
+                            if (data.workspaceId) {
+                                url = `/workspace?id=${data.workspaceId}`;
+                                if (data.tableId) {
+                                    url += `&tableId=${data.tableId}`;
+                                }
+                            }
+                            
+                            if (url) {
+                                if (data.taskId) {
+                                    url += `&taskId=${data.taskId}`;
+                                }
+                                
+                                if (data.type === 'chat_message' || data.type === 'task_chat') {
+                                    url += `&tab=chat`;
+                                } else if (data.type === 'file_comment') {
+                                    url += `&tab=files`;
+                                }
+                                
+                                router.push(url);
+                            }
+                        };
 
-                         await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                        await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
                             console.log('Push action performed: ' + JSON.stringify(notification));
-                             // Navigate to chat if needed
-                             const tableId = notification.notification.data?.tableId;
-                             if (tableId) {
-                                 router.push(`/dashboard/board/${tableId}`);
-                             }
+                             handleNotificationTap(notification.notification.data);
                         });
                         
                         // Add Local Notification Action Listener (for foreground notifications clicked)
                         await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
                             console.log('Local Notification action performed:', notification);
-                            const tableId = notification.notification.extra?.tableId;
-                            if (tableId) {
-                                router.push(`/dashboard/board/${tableId}`);
-                            }
+                            handleNotificationTap(notification.notification.extra);
                         });
 
                         // Register with FCM

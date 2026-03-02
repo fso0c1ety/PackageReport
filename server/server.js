@@ -129,8 +129,25 @@ app.use('/api', authRoute);
 app.use('/api', peopleRoute);
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
-// Serve uploaded files statically
+// Serve uploaded files statically - First try middleware, then fallback or specific handling
 app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
+// Explicitly handle file serving to debug or catch encoding issues
+app.get('/uploads/:filename', (req, res) => {
+    const filename = req.params.filename;
+    // Decode filename just in case it's still encoded
+    const decodedFilename = decodeURIComponent(filename);
+    const filepath = path.join(__dirname, 'data/uploads', decodedFilename);
+    const filepathEncoded = path.join(__dirname, 'data/uploads', filename);
+
+    if (fs.existsSync(filepath)) {
+        res.sendFile(filepath);
+    } else if (fs.existsSync(filepathEncoded)) {
+        res.sendFile(filepathEncoded);
+    } else {
+        res.status(404).json({ error: 'File not found' });
+    }
+});
+
 // Serve frontend static export if it exists
 const outDir = path.join(__dirname, '../out');
 if (fs.existsSync(outDir)) {
@@ -155,7 +172,9 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    // Sanitize filename: replace spaces with underscores, remove special chars to prevent serving issues
+    const sanitizedName = file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    cb(null, uniqueSuffix + '-' + sanitizedName);
   }
 });
 const upload = multer({ storage: storage });

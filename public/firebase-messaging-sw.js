@@ -40,16 +40,31 @@ self.addEventListener('notificationclick', function(event) {
 
   // Check for tableId in data
   let urlToOpen = '/';
-  if (event.notification.data && event.notification.data.tableId) {
-    urlToOpen = `/dashboard/board/${event.notification.data.tableId}`;
-  }
+  const data = event.notification.data;
+  
+  if (data && data.workspaceId) {
+      urlToOpen = `/workspace?id=${data.workspaceId}`;
+      if (data.tableId) {
+          urlToOpen += `&tableId=${data.tableId}`;
+      }
+      
+      if (data.taskId) {
+        urlToOpen += `&taskId=${data.taskId}`;
+      }
+
+      if (data.type === 'chat_message' || data.type === 'task_chat') {
+        urlToOpen += `&tab=chat`;
+      } else if (data.type === 'file_comment') {
+        urlToOpen += `&tab=files`;
+      }
+  } // Fallback logic could go here if workspaceId is missing but tableId is present.
 
   // This looks to see if the current is already open and focuses if it is
   event.waitUntil(clients.matchAll({
     type: "window"
   }).then((clientList) => {
     for (const client of clientList) {
-      if (client.url.includes(urlToOpen) && 'focus' in client) return client.focus();
+      if ((urlToOpen === '/' && client.url === self.registration.scope) || (urlToOpen !== '/' && client.url.includes(urlToOpen)) && 'focus' in client) return client.focus();
     }
     if (clients.openWindow) return clients.openWindow(urlToOpen);
   }));

@@ -13,7 +13,9 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 function WorkspaceContent() {
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get('id');
+  const tableIdParam = searchParams.get('tableId');
   const theme = useTheme();
+  
   // Set last opened workspace in localStorage for HomeDashboard
   useEffect(() => {
     if (typeof window !== 'undefined' && workspaceId) {
@@ -39,7 +41,15 @@ function WorkspaceContent() {
     }
   }, [workspaceId]);
   const [tables, setTables] = useState<any[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(tableIdParam); // Init with param if present
+
+  // Update selected if param changes
+  useEffect(() => {
+    if (tableIdParam) {
+        setSelected(tableIdParam);
+    }
+  }, [tableIdParam]);
+
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
