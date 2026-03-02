@@ -1348,7 +1348,7 @@ app.get('/api/tables/:tableId/chat', async (req, res) => {
 app.get('/api/notifications', authenticateToken, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM notifications WHERE recipient_id = $1 AND read = false ORDER BY created_at DESC',
+      'SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY read ASC, created_at DESC LIMIT 50',
       [req.user.id]
     );
     res.json(result.rows);
