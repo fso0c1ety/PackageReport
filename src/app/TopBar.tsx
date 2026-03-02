@@ -10,6 +10,8 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import CommentIcon from "@mui/icons-material/Comment";
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl } from "./apiUrl";
@@ -84,43 +86,93 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       }
   };
 
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = async () => {
-    try {
-      // Clear FCM token on server to stop receiving notifications
-      // Fire-and-forget or await? Awaiting ensures token is removed before local logout.
-      await authenticatedFetch(getApiUrl('users/fcm'), { method: 'DELETE' });
-    } catch (e) {
-      console.error("Failed to clear FCM token on server", e);
+  const handleNotifOpen = async (e: React.MouseEvent<HTMLElement>) => {
+    setNotifAnchorEl(e.currentTarget);
+    
+    if (unreadCount > 0) {
+        try {
+            // Mark all as read on server
+            await authenticatedFetch(getApiUrl('notifications/mark-read'), { method: 'POST' });
+            // Update local state
+            setUnreadCount(0);
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        } catch (error) {
+            console.error("Failed to mark notifications read", error);
+        }
     }
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
   };
 
-  const [user, setUser] = React.useState<any>(null);
+  const handleNotifClose = () => {
+      setNotifAnchorEl(null);
+  };
 
-  React.useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error("Failed to parse user from localStorage", e);
+  const getNotificationIcon = (type: string) => {
+      switch (type) {
+          case 'invite': return <PersonIcon sx={{ fontSize: 16 }} />;
+          case 'automation': return <NotificationsNoneIcon sx={{ fontSize: 16 }} />;
+          case 'chat_message': return <ChatBubbleOutlineIcon sx={{ fontSize: 16 }} />;
+          case 'file_comment': return <CommentIcon sx={{ fontSize: 16 }} />;
+          case 'task_chat': return <CommentIcon sx={{ fontSize: 16 }} />;
+          default: return <NotificationsNoneIcon sx={{ fontSize: 16 }} />;
       }
-    }
-  }, []);
+  };
 
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  const getNotificationColor = (type: string) => {
+      switch (type) {
+          case 'invite': return '#6366f1'; // Indigo
+          case 'automation': return '#10b981'; // Emerald
+          case 'chat_message': return '#ec4899'; // Pink
+          case 'file_comment': return '#f59e0b'; // Amber
+          case 'task_chat': return '#8b5cf6'; // Violet
+          default: return '#64748b'; // Slate
+      }
+  };
+
+  const renderNotificationContent = (notif: Notification) => {
+      const { type, data } = notif;
+      
+      if (type === 'invite' && data) {
+          return (
+              <>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Table Invite</Typography>
+                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                    User requested to share table <strong>{data.tableName}</strong> with you.
+                  </Box>
+              </>
+          );
+      }
+      
+      if (type === 'automation' && data) {
+          return (
+              <>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Automation Alert</Typography>
+                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                    {data.subject}
+                  </Box>
+              </>
+          );
+      }
+
+      if (type === 'chat_message' && data) {
+          return (
+              <>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>New Chat Message</Typography>
+                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                    <strong>{data.tableName}</strong>: {data.body}
+                  </Box>
+              </>
+          );
+      }
+      
+      // Handle legacy or generic notifications
+      return (
+            <>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Notification</Typography>
+                <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                    {data?.subject || data?.body || 'You have a new notification'}
+                </Box>
+            </>
+      );
   };
 
   return (
@@ -178,14 +230,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         <Tooltip title="Notifications">
           <IconButton 
             size="small"
-            onClick={(e) => setNotifAnchorEl(e.currentTarget)}
+            onClick={handleNotifOpen}
             sx={{
                 color: "#94a3b8",
                 transition: "all 0.2s",
                 "&:hover": { color: "#fff", backgroundColor: "rgba(255, 255, 255, 0.05)" }
             }}
           >
-            <Badge badgeContent={unreadCount} color="error">
+            <Badge badgeContent={unreadCount} max={99} color="error" invisible={unreadCount === 0}>
               <NotificationsNoneIcon fontSize="small" />
             </Badge>
           </IconButton>
@@ -194,32 +246,36 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         <Menu
             anchorEl={notifAnchorEl}
             open={Boolean(notifAnchorEl)}
-            onClose={() => setNotifAnchorEl(null)}
+            onClose={handleNotifClose}
             PaperProps={{
                 sx: { 
-                    width: 360, 
-                    maxHeight: 400, 
+                    width: 380, 
+                    maxHeight: 500, 
                     bgcolor: '#1e1f2b', 
                     color: '#fff', 
                     border: '1px solid #3a3b5a',
-                    mt: 1
+                    mt: 1,
+                    overflowY: 'auto'
                 }
             }}
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-            <Box sx={{ p: 2, borderBottom: '1px solid #3a3b5a' }}>
-                <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
+            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #3a3b5a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle2" fontWeight={600}>Updates & Messages</Typography>
+                {unreadCount > 0 && <Box component="span" sx={{ fontSize: '0.7rem', color: '#6366f1' }}>Marked as read</Box>}
             </Box>
             <List sx={{ p: 0 }}>
                 {notifications.length === 0 ? (
-                    <Box sx={{ p: 3, textAlign: 'center' }}>
-                        <Typography variant="body2" color="#7d82a8">No new notifications</Typography>
+                    <Box sx={{ p: 4, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <NotificationsNoneIcon sx={{ color: '#3a3b5a', fontSize: 40 }} />
+                        <Typography variant="body2" color="#7d82a8">You're all caught up!</Typography>
                     </Box>
                 ) : (
                     notifications.map((notif) => (
                         <MenuItem 
                             key={notif.id} 
+                            onClick={handleNotifClose}
                             sx={{ 
                                 display: 'flex', 
                                 flexDirection: 'column', 
@@ -227,33 +283,30 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                                 gap: 1, 
                                 py: 2,
                                 borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                whiteSpace: 'normal'
+                                whiteSpace: 'normal',
+                                transition: 'all 0.2s',
+                                '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' }
                             }}
                         >
                             <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: notif.type === 'automation' ? '#10b981' : '#6366f1', fontSize: 14 }}>
-                                    {notif.type === 'invite' ? 'IV' : notif.type === 'automation' ? 'AT' : 'NT'}
+                                <Avatar sx={{ 
+                                    width: 32, 
+                                    height: 32, 
+                                    bgcolor: getNotificationColor(notif.type), 
+                                    color: '#fff',
+                                    border: '2px solid #1e1f2b'
+                                }}>
+                                    {getNotificationIcon(notif.type)}
                                 </Avatar>
                                 <Box sx={{ flex: 1 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                        {notif.type === 'invite' ? 'Table Invite' : 
-                                         notif.type === 'automation' ? 'Automation Alert' : 'Notification'}
-                                    </Typography>
-                                    <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
-                                        {notif.type === 'invite' && notif.data ? (
-                                            <>
-                                                User requested to share table <strong>{notif.data.tableName}</strong> with you.
-                                            </>
-                                        ) : notif.type === 'automation' && notif.data ? (
-                                            <>
-                                                {notif.data.subject}
-                                            </>
-                                        ) : 'You have a new notification'}
-                                    </Box>
-                                    <Typography variant="caption" sx={{ color: '#7d82a8', mt: 0.5, display: 'block' }}>
-                                        {new Date(notif.created_at).toLocaleString()}
+                                    {renderNotificationContent(notif)}
+                                    <Typography variant="caption" sx={{ color: '#7d82a8', mt: 0.5, display: 'block', fontSize: '0.65rem' }}>
+                                        {new Date(notif.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                     </Typography>
                                 </Box>
+                                    {!notif.read && (
+                                        <Box sx={{ width: 8, height: 8, bgcolor: '#6366f1', borderRadius: '50%', mt: 1 }} />
+                                    )}
                             </Box>
                             
                             {notif.type === 'invite' && (
@@ -262,7 +315,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                                         size="small" 
                                         variant="outlined" 
                                         color="error"
-                                        onClick={() => handleInviteAction(notif.id, 'decline')}
+                                        onClick={(e) => { e.stopPropagation(); handleInviteAction(notif.id, 'decline'); }}
                                         sx={{ fontSize: '0.75rem', py: 0.25, minWidth: 70 }}
                                     >
                                         Decline
@@ -271,7 +324,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                                         size="small" 
                                         variant="contained" 
                                         color="primary"
-                                        onClick={() => handleInviteAction(notif.id, 'accept')}
+                                        onClick={(e) => { e.stopPropagation(); handleInviteAction(notif.id, 'accept'); }}
                                         sx={{ fontSize: '0.75rem', py: 0.25, minWidth: 70, bgcolor: '#6366f1' }}
                                     >
                                         Accept
