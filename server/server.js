@@ -1380,6 +1380,9 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
     // Most recent notifications should have workspaceId in data.
     const notifications = result.rows.map(n => {
         return { ...n, data: n.data || {} };
+    });
+
+    res.json(notifications);
   } catch (err) {
     console.error('Error fetching notifications:', err);
     res.status(500).json({ error: 'Internal server error' });
