@@ -709,6 +709,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [colSelectorAnchor, setColSelectorAnchor] = useState<null | HTMLElement>(null);
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
   const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
+  const [boardTitle, setBoardTitle] = useState("");
   const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
   const [inviteCode, setInviteCode] = useState<string | null>(null); // State for invite code
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
@@ -985,6 +986,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         return res.json();
       })
       .then((table) => {
+        setBoardTitle(table.name);
         setColumns(table.columns || []);
         setDocContent(table.docContent || "");
 
@@ -1753,6 +1755,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       if(currentTableRes.ok) {
           const tData = await currentTableRes.json();
           setInviteCode(tData.invite_code || null);
+          setBoardTitle(tData.name || "");
       }
     } catch (err) {
       console.error(err);
