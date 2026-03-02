@@ -3431,13 +3431,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   
                   <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                     <Avatar
-                      src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                      src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender)}&background=random&color=fff&bold=true`}
                       sx={{ 
                         width: 32, height: 32, 
-                        bgcolor: '#6366f1', // Match Discussion Chat color
-                        fontWeight: 600,    // Match Discussion Chat weight
                         border: '1px solid rgba(255,255,255,0.1)',
-                        fontSize: '0.8rem',
                         opacity: isSequence ? 0 : 1 
                       }}
                     >
