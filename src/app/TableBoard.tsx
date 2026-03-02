@@ -212,7 +212,10 @@ import {
   List,
   ListItem,
   Badge,
-  Autocomplete
+  Autocomplete,
+  ListItemIcon,
+  Divider,
+  ListItemAvatar
 } from "@mui/material";
 import PeopleSelector from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -2717,19 +2720,20 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               }}
             />
           )}
-          PaperProps={{
-            sx: {
-                bgcolor: '#23243a',
-                color: '#fff',
-                borderRadius: 2,
-                border: '1px solid #3a3b5a',
-                mt: 1,
-                '& .MuiMenuItem-root': {
+          slotProps={{
+            paper: {
+              sx: {
+                  bgcolor: '#23243a',
+                  color: '#fff',
+                  borderRadius: 2,
+                  border: '1px solid #3a3b5a',
+                  mt: 1,
+                  '& .MuiMenuItem-root': {
                     '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
                     '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                 }
             }
-          }}
+          }}}
           sx={{ width: '100%' }}
         />
       );
@@ -5236,7 +5240,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                 }}
                             />
                           )}
-                          PaperProps={{
+                        slotProps={{
+                          paper: {
                             sx: {
                                 bgcolor: '#1C1D26',
                                 color: '#fff',
@@ -5248,7 +5253,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                     '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                                 }
                             }
-                          }}
+                          }}}
                         />
                       )}
 
