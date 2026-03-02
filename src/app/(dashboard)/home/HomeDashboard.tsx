@@ -36,6 +36,7 @@ import FolderIcon from "@mui/icons-material/Folder"; // Placeholder for workspac
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import LogoutIcon from "@mui/icons-material/Logout";
 
 // --- Styled Components ---
 
@@ -156,12 +157,14 @@ export default function HomeDashboard() {
   const [lastWorkspace, setLastWorkspace] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [greeting, setGreeting] = useState("Good morning");
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // State for Rename/Delete
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<any>(null);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, ws: any) => {
@@ -224,9 +227,38 @@ export default function HomeDashboard() {
     }
   };
 
+  const handleLeaveStart = () => {
+    setIsLeaveOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleLeaveConfirm = async () => {
+    if (!selectedWorkspace) return;
+
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${selectedWorkspace.id}/leave`), {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        setWorkspaces(prev => prev.filter(w => w.id !== selectedWorkspace.id));
+        setIsLeaveOpen(false);
+        handleMenuClose();
+      }
+    } catch (err) {
+      console.error("Failed to leave workspace", err);
+    }
+  };
+
   // Load client-only data once mounted
   useEffect(() => {
     setLastWorkspace(getLastWorkspace());
+    
+    // Set Current User
+    const userJson = localStorage.getItem("user");
+    if (userJson) { 
+        try { setCurrentUser(JSON.parse(userJson)); } catch(e){}
+    }
 
     // Set greeting based on client time
     const hour = new Date().getHours();
@@ -447,9 +479,34 @@ export default function HomeDashboard() {
                     <Skeleton variant="rectangular" height={100} sx={{ bgcolor: "rgba(255,255,255,0.05)", borderRadius: 2 }} />
                   </Grid>
                 ))
-                : workspaces.map((ws) => (
+                : workspaces.map((ws) => {
+                  const isShared = currentUser && ws.owner_id && ws.owner_id !== currentUser.id;
+                  return (
                   <Grid size={{ xs: 6, sm: 6, md: 6 }} key={ws.id}>
-                    <WorkspaceCard onClick={() => router.push(`/workspace?id=${ws.id}`)} sx={{ position: "relative" }}>
+                    <WorkspaceCard 
+                        onClick={() => router.push(`/workspace?id=${ws.id}`)} 
+                        sx={{ 
+                            position: "relative",
+                            border: isShared ? '1px dashed rgba(99, 102, 241, 0.5)' : undefined,
+                            bgcolor: isShared ? 'rgba(99, 102, 241, 0.03)' : undefined
+                        }}
+                    >
+                      {isShared && (
+                        <Chip 
+                            label="Shared" 
+                            size="small" 
+                            sx={{ 
+                                position: 'absolute', 
+                                top: 12, 
+                                left: 12, 
+                                height: 20, 
+                                fontSize: '0.65rem',
+                                bgcolor: 'rgba(99, 102, 241, 0.2)',
+                                color: '#a5b4fc',
+                                backdropFilter: 'blur(4px)'
+                            }} 
+                        />
+                      )}
                       <IconButton
                         size="small"
                         onClick={(e) => handleMenuOpen(e, ws)}
@@ -465,6 +522,7 @@ export default function HomeDashboard() {
                       </IconButton>
                       <Avatar
                         variant="rounded"
+                        src={ws.owner_avatar}
                         sx={{
                           bgcolor: "rgba(99, 102, 241, 0.15)",
                           color: "#818cf8",
@@ -481,12 +539,12 @@ export default function HomeDashboard() {
                           {ws.name}
                         </Typography>
                         <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.80rem" } }} noWrap>
-                          {ws.type || "General Workspace"}
+                          {isShared ? `Owned by ${ws.owner_name || 'Verify'}` : (ws.type || "General Workspace")}
                         </Typography>
                       </Box>
                     </WorkspaceCard>
                   </Grid>
-                ))}
+                )})}
             </Grid>
           </Box>
 
@@ -503,18 +561,29 @@ export default function HomeDashboard() {
           }
         }}
       >
-        <MenuItem onClick={handleRenameStart}>
-          <ListItemIcon sx={{ color: "#94a3b8" }}>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          Rename
-        </MenuItem>
-        <MenuItem onClick={handleDeleteStart} sx={{ color: "#ef4444" }}>
-          <ListItemIcon sx={{ color: "#ef4444" }}>
-            <DeleteOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          Delete
-        </MenuItem>
+        {selectedWorkspace?.owner_id === currentUser?.id ? (
+        <>
+            <MenuItem onClick={handleRenameStart}>
+            <ListItemIcon sx={{ color: "#94a3b8" }}>
+                <EditIcon fontSize="small" />
+            </ListItemIcon>
+            Rename
+            </MenuItem>
+            <MenuItem onClick={handleDeleteStart} sx={{ color: "#ef4444" }}>
+            <ListItemIcon sx={{ color: "#ef4444" }}>
+                <DeleteOutlineIcon fontSize="small" />
+            </ListItemIcon>
+            Delete
+            </MenuItem>
+        </>
+        ) : (
+            <MenuItem onClick={handleLeaveStart} sx={{ color: "#ef4444" }}>
+            <ListItemIcon sx={{ color: "#ef4444" }}>
+                <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            Disconnect
+            </MenuItem>
+        )}
       </Menu>
 
       <Dialog
@@ -575,6 +644,32 @@ export default function HomeDashboard() {
         <DialogActions>
           <Button onClick={() => setIsDeleteOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} sx={{ color: "#ef4444" }}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={isLeaveOpen}
+        onClose={() => setIsLeaveOpen(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: "#1e1f2b",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }
+        }}
+      >
+        <DialogTitle>Leave Shared Workspace?</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#94a3b8" }}>
+            Are you sure you want to disconnect from this shared workspace?<br/><br/>
+            You will lose access to all shared tables within this workspace. You will need to be re-invited to access them again.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsLeaveOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
+          <Button onClick={handleLeaveConfirm} color="error" variant="contained" sx={{ bgcolor: "#ef4444", "&:hover": { bgcolor: "#af3434" } }}>
+            Disconnect
+          </Button>
         </DialogActions>
       </Dialog>
 

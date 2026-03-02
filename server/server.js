@@ -331,6 +331,42 @@ app.delete('/api/workspaces/:workspaceId', authenticateToken, async (req, res) =
   }
 });
 
+// Leave a workspace (remove self from all shared tables in this workspace)
+app.delete('/api/workspaces/:workspaceId/leave', authenticateToken, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const workspaceId = req.params.workspaceId;
+
+    // fetch all tables in this workspace
+    const tablesResult = await db.query('SELECT * FROM tables WHERE workspace_id = $1', [workspaceId]);
+    const tables = tablesResult.rows;
+
+    for (const table of tables) {
+      if (Array.isArray(table.shared_users)) {
+        // Filter out the user from shared_users
+        // Handle both string IDs and object user structures
+        const newSharedUsers = table.shared_users.filter(u => {
+            const uId = typeof u === 'string' ? u : u.userId;
+            return uId !== userId;
+        });
+        
+        if (newSharedUsers.length !== table.shared_users.length) {
+            await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error leaving workspace:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // List tables for a workspace
 app.get('/api/workspaces/:workspaceId/tables', authenticateToken, async (req, res) => {
   if (!req.user || !req.user.id) {
@@ -710,8 +746,10 @@ app.delete('/api/tables/:tableId/share/:userId', authenticateToken, async (req, 
 
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
     const workspace = wsResult.rows[0];
-    if (!workspace || workspace.owner_id !== req.user.id) {
-      return res.status(403).json({ error: 'Only owners can remove shared users' });
+    
+    // Authorization: Allow workspace owner OR the user removing themselves
+    if ((!workspace || workspace.owner_id !== req.user.id) && req.user.id !== req.params.userId) {
+      return res.status(403).json({ error: 'Only owners or the user themselves can remove shared access' });
     }
 
     const sharedUsers = table.shared_users || [];

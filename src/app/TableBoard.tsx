@@ -1733,35 +1733,63 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   };
 
   const openManageAccess = async () => {
-    if (userPermission !== 'owner') {
-      showNotification("You cant access this you are not the owner", "error");
-      return;
+    // Determine title if not already set
+    if (!boardTitle) {
+        try {
+            const tableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
+            if (tableRes.ok) {
+                const data = await tableRes.json();
+                setBoardTitle(data.name);
+            }
+        } catch (e) { console.error("Could not fetch table name", e); }
     }
-    setLoadingUsers(true);
+    
     setManageAccessOpen(true);
-    try {
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
-      if (res.ok) {
-        setSharedUsersList(await res.json());
-      }
-      
-      const peopleRes = await authenticatedFetch(getApiUrl(`/people`));
-      if (peopleRes.ok) {
-        setUserSearchOptions(await peopleRes.json());
-      }
+    
+    // If owner, fetch management data
+    if (userPermission === 'owner') {
+        setLoadingUsers(true);
+        try {
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
+        if (res.ok) {
+            setSharedUsersList(await res.json());
+        }
+        
+        const peopleRes = await authenticatedFetch(getApiUrl(`/people`));
+        if (peopleRes.ok) {
+            setUserSearchOptions(await peopleRes.json());
+        }
 
-      // Fetch current table to get invite code
-      const currentTableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
-      if(currentTableRes.ok) {
-          const tData = await currentTableRes.json();
-          setInviteCode(tData.invite_code || null);
-          setBoardTitle(tData.name || "");
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingUsers(false);
+        const currentTableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
+        if(currentTableRes.ok) {
+            const tData = await currentTableRes.json();
+            setInviteCode(tData.invite_code || null);
+        }
+        } catch (err) {
+        console.error(err);
+        } finally {
+        setLoadingUsers(false);
+        }
     }
+  };
+
+  const handleLeaveTable = async () => {
+      try {
+          if (!currentUser?.id) return;
+          const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share/${currentUser.id}`), {
+              method: 'DELETE'
+          });
+          if (res.ok) {
+              showNotification("You have left the table", "success");
+              // Redirect to dashboard or refresh logic
+              window.location.href = '/dashboard';
+          } else {
+              showNotification("Failed to leave table", "error");
+          }
+      } catch (err) {
+          console.error(err);
+          showNotification("Failed to leave table", "error");
+      }
   };
 
   const handleCreateInviteCode = async () => {
@@ -3050,7 +3078,8 @@ export default function TableBoard({ tableId }: TableBoardProps) {
             Control who has access to this board.
           </Typography>
 
-          {!inviteCode ? (
+          {userPermission === 'owner' ? (
+             !inviteCode ? (
             <Box 
                 sx={{ 
                     display: 'flex', 
@@ -3219,6 +3248,29 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                     </Button>
                 </Box>
             </Box>
+          )
+          ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="h6" sx={{ color: '#fff', mb: 1 }}>Shared Board</Typography>
+                    <Typography variant="body2" sx={{ color: '#d0d4e4', mb: 4 }}>
+                        You are a <strong>{userPermission === 'edit' ? 'Editor' : 'Viewer'}</strong> on this board.
+                    </Typography>
+                    <Box sx={{ mx: 'auto', p: 3, border: '1px solid rgba(226, 68, 92, 0.3)', borderRadius: 2, bgcolor: 'rgba(226, 68, 92, 0.05)', maxWidth: 400 }}>
+                        <Typography variant="subtitle2" sx={{ color: '#e2445c', mb: 1, fontWeight: 600 }}>Leave Board</Typography>
+                        <Typography variant="body2" sx={{ color: '#d0d4e4', mb: 2, fontSize: '0.875rem' }}>
+                            Revoke your own access to this board. You will need a new invite to join again.
+                        </Typography>
+                        <Button
+                            variant="outlined" 
+                            color="error" 
+                            onClick={handleLeaveTable}
+                            startIcon={<LogoutIcon />}
+                            sx={{ borderColor: '#e2445c', color: '#e2445c', '&:hover': { borderColor: '#c23046', bgcolor: 'rgba(226, 68, 92, 0.1)' } }}
+                        >
+                            Leave Board
+                        </Button>
+                    </Box>
+                </Box>
           )}
 
         </DialogContent>
