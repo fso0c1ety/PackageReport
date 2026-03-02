@@ -3512,17 +3512,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         </Typography>
                       )}
                       
-                      {isMe && (
-                          <Box component="span" sx={{ 
-                              position: 'absolute', 
-                              bottom: 2, 
-                              right: 6, 
-                              fontSize: '0.65rem', 
-                              opacity: 0.7 
-                          }}>
-                              ✓
-                          </Box>
-                      )}
+                      <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'flex-end', 
+                          gap: 0.5, 
+                          mt: 0.5,
+                          mb: -0.5, // Pull closer to bottom
+                          opacity: 0.7
+                      }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isMe ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)' }}>
+                              {msg.time}
+                          </Typography>
+                          {isMe && (
+                              <Box component="span" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>✓</Box>
+                          )}
+                      </Box>
                     </Box>
                   </Box>
                 </Box>
