@@ -207,7 +207,6 @@ import {
   Switch,
   Popover,
   InputAdornment,
-  useTheme,
   useMediaQuery,
   Drawer,
   List,
