@@ -183,6 +183,35 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       );
   };
 
+  const handleLogout = async () => {
+    try {
+      await authenticatedFetch(getApiUrl('users/fcm'), { method: 'DELETE' });
+    } catch (e) {
+      console.error("Failed to clear FCM token on server", e);
+    }
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
+
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+      }
+    }
+  }, []);
+
+  const getInitials = (name?: string) => {
+    if (!name) return '??';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  };
+
   return (
     <Box
       component="header"
