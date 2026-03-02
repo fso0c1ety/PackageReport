@@ -2025,9 +2025,220 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     // Force Priority column to always use Dropdown logic for editing
     const effectiveCol = col.id === "priority" ? { ...col, type: "Dropdown" } : col;
     let value = row.values ? row.values[col.id] : "";
-    // Status/Dropdown/Priority - Modern status picker
-    // Moved ABOVE the generic editing block so it takes precedence
-    if (effectiveCol.type === "Status" || effectiveCol.type === "Dropdown" || effectiveCol.id === "priority") {
+    if (effectiveCol.type === "Dropdown") {
+      const options = effectiveCol.options || [];
+      const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
+      const valueStr = value || '-';
+
+      return (
+        <>
+          <Box
+            onClick={(e) => {
+              e.stopPropagation();
+              if (userPermission !== 'read') {
+                setStatusAnchor(e.currentTarget);
+                setEditingCell({ rowId: row.id, colId: col.id });
+              }
+            }}
+            sx={{
+              bgcolor: 'transparent',
+              color: '#d0d4e4', // Neutral text color
+              borderRadius: '6px',
+              textAlign: 'left', // Align text left for dropdowns usually
+              py: isMobile ? 0.25 : 0.5,
+              px: isMobile ? 0.5 : 1,
+              cursor: userPermission !== 'read' ? 'pointer' : 'default',
+              fontSize: isMobile ? '0.8rem' : '0.9rem',
+              minWidth: isMobile ? 70 : 100,
+              maxWidth: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.2s',
+              '&:hover': {
+                bgcolor: userPermission !== 'read' ? 'rgba(255,255,255,0.05)' : 'transparent',
+                color: userPermission !== 'read' ? '#fff' : '#d0d4e4'
+              },
+              border: '1px solid #3a3b5a', // Neutral border
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            <Typography variant="body2" sx={{
+              fontWeight: 400, // Regular weight
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+              display: 'block',
+              maxWidth: '100%',
+              minWidth: 0,
+              flex: 1
+            }}>
+              {valueStr}
+            </Typography>
+            {userPermission !== 'read' && <Box component="span" sx={{ fontSize: 12, ml: 1, opacity: 0.5 }}>▼</Box>}
+          </Box>
+
+          {/* Dropdown Picker Popover */}
+          {isEditing && userPermission !== 'read' && (
+            <Popover
+              open={Boolean(statusAnchor)}
+              anchorEl={statusAnchor}
+              onClose={() => {
+                setStatusAnchor(null);
+                setEditingCell(null);
+                setEditingLabelsColId(null); // Reset mode on close
+              }}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              PaperProps={{
+                sx: {
+                  mt: 0.5,
+                  p: 1.5,
+                  bgcolor: '#1e1f2b',
+                  color: '#fff',
+                  borderRadius: 2,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                  border: '1px solid #3a3b5a',
+                  minWidth: 200,
+                  maxWidth: 280
+                }
+              }}
+            >
+              {!isLabelEditing ? (
+                // --- Simple Selection Mode ---
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
+                  {options.map((opt) => (
+                    <Box
+                      key={opt.value}
+                      onClick={() => {
+                        handleCellSave(row.id, col.id, col.type, opt.value);
+                        setStatusAnchor(null);
+                        setEditingCell(null);
+                      }}
+                      sx={{
+                        color: '#d0d4e4',
+                        borderRadius: '4px',
+                        py: 0.75,
+                        px: 1.5,
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        transition: 'all 0.1s',
+                        bgcolor: value === opt.value ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', color: '#fff' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {opt.value}
+                      </Box>
+                      {value === opt.value && <Box component="span" sx={{ color: '#6366f1', fontSize: 14 }}>✓</Box>}
+                    </Box>
+                  ))}
+                  {options.length === 0 && <Typography variant="caption" sx={{ color: '#7d82a8', fontStyle: 'italic', px: 1 }}>No options</Typography>}
+                   <Box sx={{ borderTop: '1px solid #3a3b5a', mt: 0.5, pt: 0.5 }}>
+                        <Button
+                          size="small"
+                          startIcon={<EditIcon sx={{ fontSize: 14 }} />}
+                           onClick={() => setEditingLabelsColId(effectiveCol.id)}
+                          sx={{
+                            color: '#7d82a8',
+                            width: '100%',
+                            justifyContent: 'flex-start',
+                            textTransform: 'none',
+                            fontSize: '0.8rem',
+                            '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }
+                          }}
+                        >
+                          Edit Options
+                        </Button>
+                  </Box>
+                </Box>
+              ) : (
+                // --- Edit Options Mode (No Colors) ---
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: '#7d82a8', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Edit Dropdown Options
+                    </Typography>
+                    <IconButton size="small" onClick={() => setEditingLabelsColId(null)} sx={{ color: '#7d82a8', p: 0.5 }}>
+                      <Box component="span" sx={{ fontSize: 18 }}>×</Box>
+                    </IconButton>
+                  </Box>
+                  
+                  <Box sx={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {options.map((opt, idx) => (
+                      <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TextField
+                          size="small"
+                          defaultValue={opt.value}
+                          placeholder="Option label"
+                          onBlur={(e) => handleSaveStatusLabel(col.id, idx)}
+                          onChange={(e) => handleEditStatusLabel(col.id, idx, e.target.value)}
+                          sx={{
+                            flex: 1,
+                            input: { 
+                              color: '#fff', 
+                              py: 0.5, px: 1, 
+                              fontSize: '0.85rem' 
+                            },
+                            '& .MuiOutlinedInput-root': {
+                                bgcolor: '#151621',
+                                borderRadius: 1,
+                                '& fieldset': { borderColor: '#3a3b5a' },
+                                '&:hover fieldset': { borderColor: '#5f6190' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' }
+                            }
+                          }}
+                        />
+                         {/* We can re-use handleEditStatusLabel/Save even if it was named "Status" */}
+                      </Box>
+                    ))}
+                  </Box>
+
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<Box component="span" sx={{ fontSize: 20, lineHeight: 1 }}>+</Box>}
+                    onClick={async () => {
+                      const newOption = { value: 'New Option', color: '#e0e4ef' }; // Keep structure but ignore color
+                      const updated = [...options, newOption];
+                      // Update columns
+                      setColumns(cols => cols.map(c => c.id === col.id ? { ...c, options: updated } : c));
+                      // Persist
+                      await authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ columns: columns.map(c => c.id === col.id ? { ...c, options: updated } : c) }),
+                      });
+                    }}
+                    sx={{
+                      borderColor: '#3a3b5a',
+                      color: '#7d82a8',
+                      textTransform: 'none',
+                      mt: 0.5,
+                      '&:hover': {
+                        borderColor: '#6366f1',
+                        color: '#6366f1',
+                        bgcolor: 'rgba(99, 102, 241, 0.05)'
+                      }
+                    }}
+                  >
+                    Add Option
+                  </Button>
+                </Box>
+              )}
+            </Popover>
+          )}
+        </>
+      );
+    }
+
+    // Status/Priority (Keep original colorful logic)
+    if (effectiveCol.type === "Status" || effectiveCol.id === "priority") {
       const options = effectiveCol.options || [];
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       const isLabelEditing = editingLabelsColId === effectiveCol.id;
