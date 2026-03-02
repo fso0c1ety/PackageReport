@@ -732,6 +732,30 @@ app.post('/api/tables/:tableId/invite-code', authenticateToken, async (req, res)
   }
 });
 
+// Delete invite code (Stop sharing via code)
+app.delete('/api/tables/:tableId/invite-code', authenticateToken, async (req, res) => {
+  try {
+    const tableId = req.params.tableId;
+    // Verify ownership
+    const result = await db.query('SELECT * FROM tables WHERE id = $1', [tableId]);
+    const table = result.rows[0];
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    
+    // Check workspace owner
+    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
+    const workspace = wsResult.rows[0];
+    if (!workspace || workspace.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only workspace owners can stop sharing' });
+    }
+
+    await db.query('UPDATE tables SET invite_code = NULL WHERE id = $1', [tableId]);
+    res.json({ success: true, message: 'Invite code removed' });
+  } catch (err) {
+    console.error('Error deleting invite code:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Join a table using an invite code
 app.post('/api/tables/join', authenticateToken, async (req, res) => {
   try {

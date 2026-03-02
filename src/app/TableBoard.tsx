@@ -228,6 +228,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
 import GroupIcon from "@mui/icons-material/Group";
@@ -709,6 +710,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
   const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
   const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
+  const [inviteCode, setInviteCode] = useState<string | null>(null); // State for invite code
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
 
 
@@ -1745,11 +1747,65 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       if (peopleRes.ok) {
         setUserSearchOptions(await peopleRes.json());
       }
+
+      // Fetch current table to get invite code
+      const currentTableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
+      if(currentTableRes.ok) {
+          const tData = await currentTableRes.json();
+          setInviteCode(tData.invite_code || null);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoadingUsers(false);
     }
+  };
+
+  const handleCreateInviteCode = async () => {
+    try {
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            setInviteCode(data.invite_code);
+            showNotification("Invite link created", "success");
+        }
+    } catch (error) {
+        console.error("Failed to create invite code", error);
+        showNotification("Failed to create invite link", "error");
+    }
+  };
+
+  const handleDeleteInviteCode = async () => {
+    try {
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'DELETE' });
+        if (res.ok) {
+            setInviteCode(null);
+            showNotification("Invite link disabled", "success");
+        }
+    } catch (error) {
+        console.error("Failed to delete invite code", error);
+        showNotification("Failed to disable invite link", "error");
+    }
+  };
+  
+  const handleChangePermission = async (userId: string, currentPermission: 'read'|'edit') => {
+      const newPermission = currentPermission === 'read' ? 'edit' : 'read';
+      // Reuse POST endpoint for update
+      try {
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, permission: newPermission })
+        });
+        if (res.ok) {
+            // Update local state
+            setSharedUsersList(prev => prev.map(u => u.id === userId ? { ...u, permission: newPermission } : u));
+            showNotification(`Permission updated to ${newPermission}`, "success");
+        }
+      } catch (err) {
+          console.error(err);
+          showNotification("Failed to update permission", "error");
+      }
   };
 
   const handleRemoveSharedUser = async (userId: string) => {
@@ -2988,107 +3044,180 @@ export default function TableBoard({ tableId }: TableBoardProps) {
         <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1 }}>Manage Board Access</DialogTitle>
         <DialogContent sx={{ pb: 3 }}>
           <Typography variant="body2" sx={{ color: '#d0d4e4', mb: 2 }}>
-            Invite users to collaborate on this board or manage existing access.
+            Control who has access to this board.
           </Typography>
 
-          {userPermission !== 'read' && (
-            <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-              <Autocomplete
-                fullWidth
-                size="small"
-                options={userSearchOptions.filter((u: any) => !sharedUsersList.some(su => su.email === u.email))}
-                getOptionLabel={(option: any) => option.name || option.email}
-                value={selectedUserToInvite}
-                onChange={(event: any, newValue: any | null) => {
-                  setSelectedUserToInvite(newValue);
+          {!inviteCode ? (
+            <Box 
+                sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    p: 4, 
+                    border: '1px dashed #3a3b5a', 
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255,0.02)'
                 }}
-                renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    placeholder="Search user by name"
-                    InputProps={{
-                      ...params.InputProps,
-                      sx: {
-                        color: '#fff',
-                        bgcolor: '#26273b',
-                        borderRadius: 2,
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                        '&:hover fieldset': { borderColor: '#4a4b6a' },
-                        '&.Mui-focused fieldset': { borderColor: '#6366f1' }
-                      }
+            >
+                <IconButton 
+                    onClick={handleCreateInviteCode}
+                    sx={{ 
+                        width: 64, 
+                        height: 64, 
+                        bgcolor: '#6366f1', 
+                        color: '#fff', 
+                        mb: 2,
+                        '&:hover': { bgcolor: '#5558dd' }
                     }}
-                    InputLabelProps={{ sx: { color: '#7d82a8' } }}
-                  />
-                )}
-                renderOption={(props, option) => {
-                    const { key, ...otherProps } = props;
-                    return (
-                        <li key={key} {...otherProps}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                                <Avatar sx={{ width: 24, height: 24, mr: 1, fontSize: 12 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
-                                <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                                    <Typography variant="body2" noWrap>{option.name}</Typography>
-                                    <Typography variant="caption" color="text.secondary" noWrap>{option.email}</Typography>
-                                </Box>
-                            </Box>
-                        </li>
-                    );
-                }}
-              />
-              <Button
-                variant="contained"
-                onClick={handleAddSharedUser}
-                disabled={!selectedUserToInvite}
-                sx={{
-                  bgcolor: '#6366f1',
-                  '&:hover': { bgcolor: '#5558dd' },
-                  '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' }
-                }}
-              >
-                Add
-              </Button>
-            </Box>
-          )}
-
-          <Typography variant="subtitle2" sx={{ color: '#7d82a8', fontWeight: 600, mb: 1 }}>
-            Users with Access
-          </Typography>
-          {loadingUsers ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-              <CircularProgress size={24} sx={{ color: '#6366f1' }} />
+                >
+                    <AddIcon sx={{ fontSize: 32 }} />
+                </IconButton>
+                <Typography variant="h6" sx={{ color: '#fff', mb: 0.5 }}>Start Sharing</Typography>
+                <Typography variant="body2" sx={{ color: '#7d82a8', textAlign: 'center' }}>
+                    Create an invite link to share this board with others.
+                </Typography>
             </Box>
           ) : (
-            <List sx={{ bgcolor: '#26273b', borderRadius: 2, border: '1px solid #3a3b5a' }}>
-              {sharedUsersList.length === 0 ? (
-                <ListItem>
-                  <ListItemText primary="No users shared yet." primaryTypographyProps={{ sx: { color: '#7d82a8', fontStyle: 'italic' } }} />
-                </ListItem>
-              ) : (
-                sharedUsersList.map((user) => (
-                  <ListItem
-                    key={user.id}
-                    secondaryAction={
-                      userPermission !== 'read' && (
-                        <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveSharedUser(user.id)} sx={{ color: '#e2445c' }}>
-                          <DeleteIcon />
-                        </IconButton>
-                      )
-                    }
-                  >
-                    <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: '#0073ea' }}>{user.name.charAt(0).toUpperCase()}</Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={user.name}
-                      secondary={user.email}
-                      primaryTypographyProps={{ sx: { color: '#fff', fontWeight: 500 } }}
-                      secondaryTypographyProps={{ sx: { color: '#7d82a8' } }}
+            <Box sx={{ border: '1px solid #6366f1', borderRadius: 2, p: 2, bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
+                {/* Header: Table Name & Stop Sharing */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ color: '#7d82a8', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
+                            Sharing
+                        </Typography>
+                        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600 }}>
+                            {boardTitle}
+                        </Typography>
+                    </Box>
+                    <Button 
+                        variant="outlined" 
+                        color="error" 
+                        size="small" 
+                        onClick={handleDeleteInviteCode}
+                        sx={{ borderColor: '#e2445c', color: '#e2445c', '&:hover': { borderColor: '#c23046', bgcolor: 'rgba(226, 68, 92, 0.1)' } }}
+                    >
+                        Stop Sharing
+                    </Button>
+                </Box>
+
+                {/* Connection Code Display */}
+                <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: '#151621', p: 1.5, borderRadius: 1.5, mb: 3, border: '1px solid #3a3b5a' }}>
+                    <Box sx={{ flex: 1, mr: 2 }}>
+                        <Typography variant="caption" sx={{ color: '#7d82a8', display: 'block', mb: 0.5 }}>INVITE CODE</Typography>
+                        <Typography variant="body1" sx={{ color: '#fff', fontFamily: 'monospace', letterSpacing: 2, fontWeight: 700 }}>
+                            {inviteCode}
+                        </Typography>
+                    </Box>
+                    <IconButton 
+                        onClick={() => {
+                            navigator.clipboard.writeText(inviteCode);
+                            showNotification("Code copied!", "success");
+                        }}
+                        sx={{ color: '#6366f1' }}
+                    >
+                        <ContentCopyIcon />
+                    </IconButton>
+                </Box>
+                
+                {/* Users List */}
+                <Typography variant="subtitle2" sx={{ color: '#7d82a8', mb: 1, fontWeight: 600 }}>Connected Users</Typography>
+                <List sx={{ bgcolor: '#26273b', borderRadius: 2, border: '1px solid #3a3b5a', mb: 3, maxHeight: 200, overflow: 'auto' }}>
+                    {sharedUsersList.length === 0 ? (
+                        <ListItem>
+                            <ListItemText primary="No users connected yet." primaryTypographyProps={{ sx: { color: '#7d82a8', fontStyle: 'italic', fontSize: '0.875rem' } }} />
+                        </ListItem>
+                    ) : (
+                        sharedUsersList.map((user) => (
+                            <ListItem
+                                key={user.id}
+                                secondaryAction={
+                                    <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveSharedUser(user.id)} sx={{ color: '#e2445c' }}>
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                }
+                            >
+                                <ListItemAvatar>
+                                    <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}>{user.name?.charAt(0).toUpperCase()}</Avatar>
+                                </ListItemAvatar>
+                                <ListItemText
+                                    primary={user.name}
+                                    secondary={user.email}
+                                    primaryTypographyProps={{ sx: { color: '#fff', fontSize: '0.875rem' } }}
+                                    secondaryTypographyProps={{ sx: { color: '#7d82a8', fontSize: '0.75rem' } }}
+                                />
+                                <Button
+                                    size="small"
+                                    onClick={() => handleChangePermission(user.id, user.permission || 'read')}
+                                    sx={{ 
+                                        mr: 1, 
+                                        minWidth: 60, 
+                                        color: user.permission === 'edit' ? '#4caf50' : '#ff9800',
+                                        borderColor: user.permission === 'edit' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 152, 0, 0.5)',
+                                        border: '1px solid',
+                                        fontSize: '0.7rem',
+                                        py: 0.25
+                                    }}
+                                >
+                                    {user.permission === 'edit' ? 'Editor' : 'Viewer'}
+                                </Button>
+                            </ListItem>
+                        ))
+                    )}
+                </List>
+
+                {/* Add User Section */}
+                <Typography variant="subtitle2" sx={{ color: '#7d82a8', mb: 1, fontWeight: 600 }}>Add User</Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Autocomplete
+                        fullWidth
+                        size="small"
+                        options={userSearchOptions.filter((u: any) => !sharedUsersList.some(su => su.email === u.email))}
+                        getOptionLabel={(option: any) => option.name || option.email}
+                        value={selectedUserToInvite}
+                        onChange={(event: any, newValue: any | null) => {
+                            setSelectedUserToInvite(newValue);
+                        }}
+                        renderInput={(params) => (
+                            <TextField 
+                                {...params} 
+                                placeholder="Search user..." 
+                                InputProps={{
+                                    ...params.InputProps,
+                                    sx: {
+                                        color: '#fff',
+                                        bgcolor: '#151621',
+                                        borderRadius: 1,
+                                        fontSize: '0.875rem',
+                                        '& fieldset': { borderColor: '#3a3b5a' }
+                                    }
+                                }}
+                            />
+                        )}
+                        renderOption={(props, option) => {
+                            const { key, ...otherProps } = props;
+                            return (
+                                <li key={key} {...otherProps}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                        <Avatar sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
+                                        <Typography variant="body2">{option.name || option.email}</Typography>
+                                    </Box>
+                                </li>
+                            );
+                        }}
                     />
-                  </ListItem>
-                ))
-              )}
-            </List>
+                    <Button
+                        variant="contained"
+                        onClick={handleAddSharedUser}
+                        disabled={!selectedUserToInvite}
+                        sx={{ bgcolor: '#6366f1', '&:hover': { bgcolor: '#5558dd' } }}
+                    >
+                        Add
+                    </Button>
+                </Box>
+            </Box>
           )}
+
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button
