@@ -41,7 +41,20 @@ type Notification = {
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [user, setUser] = useState<any>(null);
   const open = Boolean(anchorEl);
+
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.push("/login");
+  };
 
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -167,6 +180,17 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>New Chat Message</Typography>
                   <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     <strong>{data.tableName}</strong>: {data.body}
+                  </Box>
+              </>
+          );
+      }
+
+      if ((type === 'task_chat' || type === 'file_comment') && data) {
+          return (
+              <>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{data.subject}</Typography>
+                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                    {data.body}
                   </Box>
               </>
           );

@@ -955,6 +955,8 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
             
             if (recipientIds.size > 0) {
                 const recipientsArray = Array.from(recipientIds);
+                
+                // 1. Send Push Notifications
                 const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
                 const tokens = tokensRes.rows.map(r => r.fcm_token);
                 if (tokens.length > 0) {
@@ -964,6 +966,21 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                         taskId: id,
                         ...data
                     });
+                }
+                
+                // 2. Save In-App Notifications
+                for (const recipientId of recipientsArray) {
+                     await db.query(`
+                       INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+                       VALUES ($1, $2, $3, $4, $5, NOW())
+                   `, [uuidv4(), recipientId, type || 'chat_message', {
+                       subject: title,
+                       body: body,
+                       tableName: table.name,
+                       tableId: table.id,
+                       taskId: id,
+                       ...data
+                   }, false]);
                 }
             }
         } catch (e) {
@@ -1341,6 +1358,17 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
   }
 });
 
+// Mark all notifications as read
+app.post('/api/notifications/mark-read', authenticateToken, async (req, res) => {
+  try {
+    await db.query('UPDATE notifications SET read = true WHERE recipient_id = $1', [req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking notifications read:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Accept Invite
 app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) => {
   try {
@@ -1462,7 +1490,8 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
 
       if (recipientIds.size > 0) {
         const recipientsArray = Array.from(recipientIds);
-        // Get FCM tokens for these users
+        
+        // 1. Send Push Notifications
         const tokensRes = await db.query('SELECT id, fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
         
         const tokens = tokensRes.rows.map(r => r.fcm_token);
@@ -1474,6 +1503,20 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
               tableId: newMessage.table_id,
               senderId: req.user.id
           });
+        }
+        
+        // 2. Save In-App Notifications
+        for (const recipientId of recipientsArray) {
+            await db.query(`
+                INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+            `, [uuidv4(), recipientId, 'chat_message', {
+                subject: `New message in ${tableName}`,
+                body: `${newMessage.sender}: ${newMessage.text}`,
+                tableName: tableName,
+                tableId: table.id,
+                senderId: req.user.id
+            }, false]);
         }
       }
     }
