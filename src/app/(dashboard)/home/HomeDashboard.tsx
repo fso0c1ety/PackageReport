@@ -308,7 +308,7 @@ export default function HomeDashboard() {
       <Box sx={{ mb: { xs: 7, md: 5 }, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Box>
           <Typography variant="h4" fontWeight={800} sx={{ mb: 1, letterSpacing: "-0.02em", fontSize: { md: "2.25rem" } }}>
-            {greeting}, Valon
+            {greeting}, {currentUser?.name ? currentUser.name.split(' ')[0] : 'there'}
           </Typography>
           <Typography variant="body1" sx={{ color: "#94a3b8", fontSize: { md: "1.1rem" } }}>
             Here's what's happening with your projects today.
