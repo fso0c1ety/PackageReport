@@ -5903,7 +5903,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
           </Box>
 
           {/* Right Sidebar: Details & Comments */}
-          <Box sx={{ width: { xs: '100%', md: 320 }, bgcolor: '#1C1D26', display: 'flex', flexDirection: 'column', borderLeft: { md: '1px solid rgba(255,255,255,0.06)' }, borderTop: { xs: '1px solid rgba(255,255,255,0.06)', md: 'none' } }}>
+          <Box sx={{ width: { xs: '100%', md: 320 }, bgcolor: '#1C1D26', display: 'flex', flexDirection: 'column', borderLeft: { md: '1px solid rgba(255,255,255,0.06)' }, borderTop: { xs: '1px solid rgba(255,255,255,0.06)', md: 'none' }, maxHeight: { xs: '50vh', md: '100%' }, overflow: 'hidden' }}>
 
             {/* Header: File Details */}
             <Box sx={{ p: 2.5, borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
