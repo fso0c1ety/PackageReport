@@ -5197,7 +5197,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
                 {columns.map((col) => {
                   return (
-                    <Box key={col.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Box key={col.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, overflow: 'hidden' }}>
                       <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', pl: 0.5 }}>
                         {col.name}
                       </Typography>
@@ -5283,9 +5283,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                              const selectedOpt = options.find((opt: any) => opt.value === selected);
                              
                              return (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', width: '100%', minWidth: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', width: '100%', minWidth: 0, paddingRight: 4 }}>
                                    {selectedOpt && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: selectedOpt.color || '#ccc', flexShrink: 0 }} />}
-                                   <Typography noWrap sx={{ fontSize: 14, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{selected as string}</Typography>
+                                   <Typography noWrap sx={{ fontSize: 14, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, display: 'block' }}>{selected as string}</Typography>
                                 </Box>
                              );
                           }}
