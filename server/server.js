@@ -1375,12 +1375,27 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
       LIMIT 50
     `, [req.user.id]);
     
-    // For notifications that have tableId but no workspaceId in data, we should try to fetch it
-    // But for now, let's just return what we have to fix the 500 error.
-    // Most recent notifications should have workspaceId in data.
-    const notifications = result.rows.map(n => {
-        return { ...n, data: n.data || {} };
-    });
+    // Enrich with workspaceId
+    const notifications = await Promise.all(result.rows.map(async (n) => {
+        const data = n.data || {};
+        
+        // If workspaceId is missing but tableId is present, try to fetch workspaceId
+        if (!data.workspaceId && data.tableId) {
+            try {
+                // Check if tableId is a valid UUID before querying
+                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId)) {
+                    const tableRes = await db.query('SELECT workspace_id FROM tables WHERE id = $1', [data.tableId]);
+                    if (tableRes.rows.length > 0) {
+                        data.workspaceId = tableRes.rows[0].workspace_id;
+                    }
+                }
+            } catch (ignore) {
+                // Ignore query errors, just return data as is
+            }
+        }
+        
+        return { ...n, data };
+    }));
 
     res.json(notifications);
   } catch (err) {
@@ -1547,6 +1562,7 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
                 body: `${newMessage.sender}: ${newMessage.text}`,
                 tableName: tableName,
                 tableId: table.id,
+                workspaceId: table.workspace_id,
                 senderId: req.user.id
             }, false]);
         }
