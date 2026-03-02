@@ -239,7 +239,9 @@ const initialColumns: Column[] = [];
 
 
 interface TableBoardProps {
-  tableId: string;
+  tableId: string | null;
+  taskId?: string | null;
+  initialTab?: string | null;
 }
 
 const initialRows: Row[] = [
@@ -255,7 +257,7 @@ const initialRows: Row[] = [
   },
 ];
 
-export default function TableBoard({ tableId }: TableBoardProps) {
+export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // Workspace view state
@@ -587,25 +589,26 @@ export default function TableBoard({ tableId }: TableBoardProps) {
   const searchParams = useSearchParams();
   
   useEffect(() => {
-    const taskId = searchParams.get('taskId');
-    const tab = searchParams.get('tab');
-    if (taskId && tableId) {
+    const targetTaskId = taskId || searchParams.get('taskId');
+    const targetTab = initialTab || searchParams.get('tab');
+
+    if (targetTaskId && tableId) {
         // Fetch task
-        authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${taskId}`))
+        authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${targetTaskId}`))
             .then(res => res.ok ? res.json() : null)
             .then(data => {
                 if (data && (data.task || data.id)) {
                     setReviewTask(data.task || data);
                     
-                    if (tab === 'chat' || tab === 'files' || tab === 'activity') {
-                        if (isMobile) setMobileTab(tab);
-                        else setRightPanelTab(tab);
+                    if (targetTab === 'chat' || targetTab === 'files' || targetTab === 'activity') {
+                        if (isMobile) setMobileTab(targetTab as any);
+                        else setRightPanelTab(targetTab as any);
                     }
                 }
             })
             .catch(err => console.error("Failed to load task from URL", err));
     }
-  }, [tableId, searchParams, isMobile]);
+  }, [tableId, taskId, initialTab, searchParams, isMobile]);
 
   const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'files' | 'activity'>('details');
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'files' | 'activity'>('chat');
@@ -2061,6 +2064,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               fontWeight: 600,
               fontSize: isMobile ? '0.75rem' : '0.85rem',
               minWidth: isMobile ? 70 : 100,
+              maxWidth: '100%',
               width: '100%',
               display: 'flex',
               alignItems: 'center',
@@ -2073,7 +2077,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
               textOverflow: 'ellipsis'
             }}
           >
-            <Typography variant="body2" sx={{ fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.2)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.2)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>
               {currentOption.value}
             </Typography>
           </Box>
@@ -4514,7 +4518,9 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                                     })
                                   }}
                                 >
-                                  {renderCell(row, col)}
+                                  <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+                                    {renderCell(row, col)}
+                                  </Box>
                                 </TableCell>
                               ))}
 
@@ -5270,6 +5276,19 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
                             handleCellSave(reviewTask.id, col.id, col.type, val);
                           }}
+                          renderValue={(selected) => {
+                             if (!selected || selected === "") return <Typography sx={{ color: '#9CA3AF', fontStyle: 'italic', fontSize: 13 }}>Select option</Typography>;
+                             
+                             const options = col.options || (col.id === 'priority' ? [{ value: 'High', color: '#e2445c' }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : []);
+                             const selectedOpt = options.find((opt: any) => opt.value === selected);
+                             
+                             return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', width: '100%', minWidth: 0 }}>
+                                   {selectedOpt && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: selectedOpt.color || '#ccc', flexShrink: 0 }} />}
+                                   <Typography noWrap sx={{ fontSize: 14, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{selected as string}</Typography>
+                                </Box>
+                             );
+                          }}
                           sx={{
                             color: '#F3F4F6',
                             fontSize: 14,
@@ -5278,11 +5297,13 @@ export default function TableBoard({ tableId }: TableBoardProps) {
                             borderRadius: 2,
                             px: 1.5,
                             py: 0.75,
+                            width: '100%',
+                            maxWidth: '100%',
                             '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
                             '& .MuiSelect-select': { py: 0, pr: '32px !important', minHeight: 'unset', display: 'flex', overflow: 'hidden' },
                             '& .MuiSvgIcon-root': { color: '#6B7280', right: 8 }
                           }}
-                          MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1 } } }}
+                          MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', border: '1px solid #3a3b5a', borderRadius: 2, mt: 1, maxWidth: 300 } } }}
                         >
                           <MenuItem value="" sx={{ color: '#9CA3AF', fontStyle: 'italic', fontSize: 13 }}>Select option</MenuItem>
                           {(col.options || (col.id === 'priority' ? [{ value: 'High', color: '#e2445c' }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : [])).map((opt) => (

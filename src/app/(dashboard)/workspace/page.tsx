@@ -14,6 +14,8 @@ function WorkspaceContent() {
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get('id');
   const tableIdParam = searchParams.get('tableId');
+  const taskIdParam = searchParams.get('taskId');
+  const tabParam = searchParams.get('tab');
   const theme = useTheme();
   
   // Set last opened workspace in localStorage for HomeDashboard
@@ -362,7 +364,11 @@ function WorkspaceContent() {
         </DialogActions>
       </Dialog>
 
-      <TableBoard tableId={selected || (tables[0]?.id ?? null)} />
+      <TableBoard 
+        tableId={selected || (tables[0]?.id ?? null)} 
+        taskId={selected === tableIdParam ? taskIdParam : undefined}
+        initialTab={selected === tableIdParam ? tabParam : undefined}
+      />
     </Box>
   );
 }

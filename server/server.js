@@ -982,6 +982,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                     await sendPushNotification(tokens, title, body, {
                         type: type || 'chat_message',
                         tableId: table.id,
+                        workspaceId: table.workspace_id,
                         taskId: id,
                         ...data
                     });
@@ -1366,11 +1367,29 @@ app.get('/api/tables/:tableId/chat', async (req, res) => {
 // Get unread notifications
 app.get('/api/notifications', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query(
-      'SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY read ASC, created_at DESC LIMIT 50',
-      [req.user.id]
-    );
-    res.json(result.rows);
+    const result = await db.query(`
+      SELECT n.*, t.workspace_id 
+      FROM notifications n
+      LEFT JOIN tables t ON 
+        n.data->>'tableId' IS NOT NULL 
+        AND n.data->>'tableId' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
+        AND (n.data->>'tableId')::uuid = t.id
+      WHERE n.recipient_id = $1 
+      ORDER BY n.read ASC, n.created_at DESC 
+      LIMIT 50
+    `, [req.user.id]);
+    
+    // Inject workspaceId into data if missing
+    const notifications = result.rows.map(n => {
+        // n.data is a JSON object. Ensure workspaceId is set if found via join
+        const data = n.data || {};
+        if (n.workspace_id && !data.workspaceId) {
+            data.workspaceId = n.workspace_id;
+        }
+        return { ...n, data };
+    });
+    
+    res.json(notifications);
   } catch (err) {
     console.error('Error fetching notifications:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -1520,6 +1539,7 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
           await sendPushNotification(tokens, `New message in ${tableName}`, `${newMessage.sender}: ${newMessage.text}`, {
               type: 'chat_message',
               tableId: newMessage.table_id,
+              workspaceId: table.workspace_id,
               senderId: req.user.id
           });
         }
