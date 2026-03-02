@@ -231,20 +231,25 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                             }}
                         >
                             <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1', fontSize: 14 }}>
-                                    {notif.type === 'invite' ? 'IV' : 'NT'}
+                                <Avatar sx={{ width: 32, height: 32, bgcolor: notif.type === 'automation' ? '#10b981' : '#6366f1', fontSize: 14 }}>
+                                    {notif.type === 'invite' ? 'IV' : notif.type === 'automation' ? 'AT' : 'NT'}
                                 </Avatar>
                                 <Box sx={{ flex: 1 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                        {notif.type === 'invite' ? 'Table Invite' : 'Notification'}
+                                        {notif.type === 'invite' ? 'Table Invite' : 
+                                         notif.type === 'automation' ? 'Automation Alert' : 'Notification'}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4 }}>
+                                    <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                                         {notif.type === 'invite' && notif.data ? (
                                             <>
                                                 User requested to share table <strong>{notif.data.tableName}</strong> with you.
                                             </>
+                                        ) : notif.type === 'automation' && notif.data ? (
+                                            <>
+                                                {notif.data.subject}
+                                            </>
                                         ) : 'You have a new notification'}
-                                    </Typography>
+                                    </Box>
                                     <Typography variant="caption" sx={{ color: '#7d82a8', mt: 0.5, display: 'block' }}>
                                         {new Date(notif.created_at).toLocaleString()}
                                     </Typography>

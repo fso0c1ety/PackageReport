@@ -1148,6 +1148,25 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                 html
               });
               await db.query('UPDATE activity_logs SET status = $1 WHERE id = $2', ['sent', logId]);
+              
+              // 3. Create In-App Notification for Recipients (if they are registered users)
+               const userRes = await db.query('SELECT id, email FROM users WHERE email = ANY($1)', [recipients]);
+               const matchedUsers = userRes.rows;
+
+               for (const u of matchedUsers) {
+                   // Avoid duplicate notifications if triggered multiple times quickly? usually fine.
+                   await db.query(`
+                       INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+                       VALUES ($1, $2, $3, $4, $5, NOW())
+                   `, [uuidv4(), u.id, 'automation', {
+                       subject: subject,
+                       tableName: table.name,
+                       tableId: table.id,
+                       taskId: id,
+                       logId: logId
+                   }, false]);
+               }
+
             } catch (mailErr) {
               console.error('[AUTOMATION] Failed to send email to recipients:', recipients, 'Error:', mailErr);
               const detailedError = mailErr.stack || mailErr.message || String(mailErr);
