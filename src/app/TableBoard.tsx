@@ -3434,13 +3434,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
                       sx={{ 
                         width: 32, height: 32, 
-                        bgcolor: isMe ? '#4f46e5' : '#26273b', 
+                        bgcolor: '#6366f1', // Match Discussion Chat color
+                        fontWeight: 600,    // Match Discussion Chat weight
                         border: '1px solid rgba(255,255,255,0.1)',
                         fontSize: '0.8rem',
                         opacity: isSequence ? 0 : 1 
                       }}
                     >
-                      {!msg.senderAvatar && msg.sender.charAt(0)}
+                      {!msg.senderAvatar && (msg.sender?.charAt(0) || 'U')}
                     </Avatar>
                     
                     <Box sx={{
