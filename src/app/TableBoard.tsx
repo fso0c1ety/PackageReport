@@ -2025,9 +2025,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     // Force Priority column to always use Dropdown logic for editing
     const effectiveCol = col.id === "priority" ? { ...col, type: "Dropdown" } : col;
     let value = row.values ? row.values[col.id] : "";
-    if (effectiveCol.type === "Dropdown") {
+    if (effectiveCol.type === "Dropdown" && col.id !== "priority") {
       const options = effectiveCol.options || [];
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
+      const isLabelEditing = editingLabelsColId === effectiveCol.id;
       const valueStr = value || '-';
 
       return (
