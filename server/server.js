@@ -826,7 +826,7 @@ app.put('/api/tables/:tableId/doc', async (req, res) => {
   }
 });
 
-app.put('/api/tables/:tableId/tasks', async (req, res) => {
+app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
   const debugLogs = [];
   const log = (msg, obj) => {
     console.log(msg, obj);
@@ -853,6 +853,101 @@ app.put('/api/tables/:tableId/tasks', async (req, res) => {
     const timestamp = new Date().toISOString();
     const newActivity = [];
     const oldActivity = oldValues.activity || [];
+
+    // --- Notification Logic ---
+    const sendNotification = async (title, body, type, data) => {
+        try {
+            // Get recipients (workspace owner + shared users)
+            const workspaceRes = await db.query('SELECT owner_id FROM workspaces WHERE id = $1', [table.workspace_id]);
+            let recipientIds = new Set();
+            if (workspaceRes.rows.length > 0) recipientIds.add(workspaceRes.rows[0].owner_id);
+            
+            if (Array.isArray(table.shared_users)) {
+                table.shared_users.forEach(u => {
+                    if (typeof u === 'string') recipientIds.add(u);
+                    else if (u.userId) recipientIds.add(u.userId);
+                });
+            }
+
+            // Remove sender
+            if (req.user && req.user.id) recipientIds.delete(req.user.id);
+            
+            if (recipientIds.size > 0) {
+                const recipientsArray = Array.from(recipientIds);
+                const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
+                const tokens = tokensRes.rows.map(r => r.fcm_token);
+                if (tokens.length > 0) {
+                    await sendPushNotification(tokens, title, body, {
+                        type: type || 'chat_message',
+                        tableId: table.id,
+                        taskId: id,
+                        ...data
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('[Notification] Failed to send:', e);
+        }
+    };
+
+    // Detect Task Chat (Discussion)
+    if (newValues.message && Array.isArray(newValues.message)) {
+        const oldLen = (oldValues.message && Array.isArray(oldValues.message)) ? oldValues.message.length : 0;
+        if (newValues.message.length > oldLen) {
+            const lastMsg = newValues.message[newValues.message.length - 1];
+            // Find task name (assume 'task' column or first text column)
+            // Use user-defined task column name if possible, fallback to 'task'
+            let taskName = 'Task';
+            if (table.columns && Array.isArray(table.columns)) {
+                const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
+                if (taskCol && newValues[taskCol.id]) {
+                    taskName = newValues[taskCol.id];
+                }
+            } else if (newValues['task']) {
+                taskName = newValues['task'];
+            }
+            
+            const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
+            
+            // Format: "{Users Name} commented on the {Tasks name}: (The message)"
+            await sendNotification(
+                'New Discussion', 
+                `${userName} commented on the ${taskName}: ${lastMsg.text}`,
+                'task_chat'
+            );
+        }
+    }
+
+    // Detect File Comments
+    const columns = table.columns || [];
+    if (Array.isArray(columns)) {
+        for (const col of columns) {
+            if (col.type === 'Files') {
+                const oldFiles = oldValues && oldValues[col.id] && Array.isArray(oldValues[col.id]) ? oldValues[col.id] : [];
+                const newFiles = newValues && newValues[col.id] && Array.isArray(newValues[col.id]) ? newValues[col.id] : [];
+                
+                for (const nFile of newFiles) {
+                    const oFile = oldFiles.find(o => o.url === nFile.url); // Match by URL
+                    if (oFile && nFile.comments && Array.isArray(nFile.comments)) {
+                        const oldCommentsLen = (oFile.comments && Array.isArray(oFile.comments)) ? oFile.comments.length : 0;
+                        if (nFile.comments.length > oldCommentsLen) {
+                            const lastComment = nFile.comments[nFile.comments.length - 1];
+                            const userName = lastComment.user || (req.user ? req.user.name : 'User');
+                            const fileName = nFile.name || 'File';
+                            
+                            // Format: "{Users Name} commented on the {file name}: (The Comment)"
+                            await sendNotification(
+                                'New File Comment',
+                                `${userName} commented on the ${fileName}: ${lastComment.text}`,
+                                'file_comment'
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // --- End Notification Logic ---
 
     // 2. Detect changes for activity logging
     Object.keys(newValues).forEach(key => {
