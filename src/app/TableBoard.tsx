@@ -3372,26 +3372,37 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           {/* Header */}
           <Box sx={{
-            p: 2.5,
-            borderBottom: '1px solid #2e2f45',
+            p: 2,
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            bgcolor: '#1e1f2b'
+            bgcolor: 'rgba(21, 22, 33, 0.95)',
+            backdropFilter: 'blur(12px)'
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Avatar sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#818cf8' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ 
+                bgcolor: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', 
+                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                color: '#fff', 
+                width: 40, height: 40,
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+              }}>
                 <ChatBubbleOutlineIcon fontSize="small" />
               </Avatar>
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>Board Chat</Typography>
-                <Typography variant="caption" sx={{ color: '#7d82a8' }}>Team collaboration</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.02em' }}>Board Chat</Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 500 }}>Team collaboration</Typography>
               </Box>
             </Box>
             <IconButton
               onClick={() => setIsChatOpen(false)}
               size="small"
-              sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+              sx={{ 
+                color: '#94a3b8', 
+                transition: 'all 0.2s',
+                '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)', transform: 'rotate(90deg)' } 
+              }}
             >
               <Box component="span" sx={{ fontSize: 24, lineHeight: 1 }}>×</Box>
             </IconButton>
@@ -3401,117 +3412,194 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           <Box sx={{
             flex: 1,
             overflowY: 'auto',
-            p: 2.5,
+            p: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2.5,
-            backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 50%)',
-            backgroundSize: '100% 100%',
-            backgroundRepeat: 'no-repeat'
+            gap: 2,
+            backgroundImage: 'radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 40%)',
+            bgcolor: '#151621'
           }}>
-            {boardChatMessages.map((msg) => {
+            {boardChatMessages.map((msg, idx) => {
               const isMe = msg.sender === 'You' || (currentUser && msg.sender === currentUser.name);
+              const isSequence = idx > 0 && boardChatMessages[idx - 1].sender === msg.sender;
+              
               return (
                 <Box key={msg.id} sx={{
                   alignSelf: isMe ? 'flex-end' : 'flex-start',
                   maxWidth: '85%',
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: isMe ? 'flex-end' : 'flex-start'
+                  alignItems: isMe ? 'flex-end' : 'flex-start',
+                  mt: isSequence ? 0.5 : 2
                 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, flexDirection: isMe ? 'row-reverse' : 'row' }}>
+                  {!isMe && !isSequence && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, ml: 1 }}>
+                      <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.75rem' }}>{msg.sender}</Typography>
+                      <Typography variant="caption" sx={{ color: '#565875', fontSize: '0.7rem' }}>{msg.time}</Typography>
+                    </Box>
+                  )}
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                     {!isMe && (
                       <Avatar
                         src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                        sx={{ width: 28, height: 28, bgcolor: isMe ? '#6366f1' : '#3a3b5a', fontSize: '0.75rem' }}
+                        sx={{ 
+                          width: 32, height: 32, 
+                          bgcolor: '#26273b', 
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          fontSize: '0.8rem',
+                          opacity: isSequence ? 0 : 1 
+                        }}
                       >
                         {!msg.senderAvatar && msg.sender.charAt(0)}
                       </Avatar>
                     )}
+                    
                     <Box sx={{
                       bgcolor: isMe ? '#6366f1' : '#26273b',
-                      color: '#fff',
-                      p: 2,
-                      borderRadius: 3,
-                      borderTopRightRadius: isMe ? 4 : 20,
-                      borderTopLeftRadius: isMe ? 20 : 4,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      position: 'relative'
+                      background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#26273b',
+                      color: isMe ? '#fff' : '#e2e8f0',
+                      p: 1.5,
+                      px: 2,
+                      borderRadius: 2.5,
+                      borderTopRightRadius: isMe ? 4 : 18,
+                      borderTopLeftRadius: isMe ? 18 : 4,
+                      boxShadow: isMe ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                      border: isMe ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                      position: 'relative',
+                      minWidth: 60
                     }}>
                       {msg.attachment && (
                         <Box
                           onClick={() => setPreviewFile(msg.attachment!)}
                           sx={{
-                            mb: 1,
-                            p: 1.5,
-                            bgcolor: 'rgba(0,0,0,0.2)',
+                            mb: 1.5,
+                            p: 0,
                             borderRadius: 2,
-                            display: 'flex', alignItems: 'center', gap: 1.5,
-                            maxWidth: 200,
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255,255,255,0.1)',
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s',
-                            '&:hover': { bgcolor: 'rgba(0,0,0,0.3)' }
+                            transition: 'all 0.2s',
+                            '&:hover': { transform: 'scale(1.02)' }
                           }}
                         >
-                          <Box sx={{ p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1.5 }}>
-                            <InsertDriveFileIcon sx={{ fontSize: 20, color: '#fff' }} />
-                          </Box>
-                          <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {msg.attachment.name}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.7rem' }}>
-                              Click to preview
-                            </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, bgcolor: 'rgba(0,0,0,0.2)' }}>
+                            <Box sx={{ 
+                              p: 1, 
+                              bgcolor: 'rgba(255,255,255,0.15)', 
+                              borderRadius: 1.5,
+                              color: '#fff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              <InsertDriveFileIcon sx={{ fontSize: 20 }} />
+                            </Box>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>
+                                {msg.attachment.name}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
+                                {msg.attachment.size ? `${Math.round(msg.attachment.size / 1024)} KB` : 'Attachment'}
+                              </Typography>
+                            </Box>
                           </Box>
                         </Box>
                       )}
-                      <Typography variant="body2" sx={{ lineHeight: 1.5, wordWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
+                      
+                      <Typography variant="body2" sx={{ 
+                        lineHeight: 1.5, 
+                        fontSize: '0.9rem',
+                        wordWrap: 'break-word', 
+                        wordBreak: 'break-word', 
+                        whiteSpace: 'pre-wrap' 
+                      }}>
+                        {msg.text}
+                      </Typography>
+                      
+                      {isMe && (
+                          <Box component="span" sx={{ 
+                              position: 'absolute', 
+                              bottom: 2, 
+                              right: 6, 
+                              fontSize: '0.65rem', 
+                              opacity: 0.7 
+                          }}>
+                              ✓
+                          </Box>
+                      )}
                     </Box>
                   </Box>
-                  <Typography variant="caption" sx={{ color: '#565875', mt: 0.5, px: 1, fontSize: '0.7rem' }}>
-                    {isMe ? 'You' : msg.sender} • {msg.time}
-                  </Typography>
+                  {isMe && !isSequence && (
+                    <Typography variant="caption" sx={{ color: '#565875', mt: 0.5, px: 1, fontSize: '0.7rem', alignSelf: 'flex-end', mr: 5 }}>
+                      {msg.time}
+                    </Typography>
+                  )}
                 </Box>
               );
             })}
             <div ref={boardChatEndRef} />
           </Box>
-
-          {/* Input */}
-          <Box sx={{ p: 2.5, borderTop: '1px solid #2e2f45', bgcolor: '#1e1f2b' }}>
+          
+          {/* Input Area */}
+          <Box sx={{ 
+            p: 2, 
+            pt: 1.5,
+            borderTop: '1px solid rgba(255,255,255,0.08)', 
+            bgcolor: 'rgba(21, 22, 33, 0.98)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.2)'
+          }}>
             {boardTypingUsers.length > 0 && (
-              <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
-                {boardTypingUsers.join(', ')} {boardTypingUsers.length === 1 ? 'is' : 'are'} typing...
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, ml: 1 }}>
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite' }} />
+                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite 0.2s' }} />
+                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite 0.4s' }} />
+                </Box>
+                <Typography variant="caption" sx={{ color: '#818cf8', fontStyle: 'italic', fontWeight: 500 }}>
+                  {boardTypingUsers.join(', ')} {boardTypingUsers.length === 1 ? 'is' : 'are'} typing...
+                </Typography>
+              </Box>
             )}
+            
             <input
               type="file"
               hidden
               ref={fileInputRef}
               onChange={handleBoardFileUpload}
             />
+            
             <Box sx={{
               display: 'flex',
               gap: 1.5,
-              bgcolor: '#151621',
-              p: 1,
-              borderRadius: 4,
-              border: '1px solid #2e2f45',
+              bgcolor: 'rgba(255,255,255,0.03)',
+              p: '6px 6px 6px 12px',
+              borderRadius: 3,
+              border: '1px solid rgba(255,255,255,0.08)',
               alignItems: 'flex-end',
-              transition: 'border-color 0.2s',
-              '&:focus-within': { borderColor: '#6366f1' }
+              transition: 'all 0.2s',
+              '&:focus-within, &:hover': { 
+                borderColor: 'rgba(99, 102, 241, 0.5)',
+                bgcolor: 'rgba(255,255,255,0.05)',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
+              }
             }}>
               <IconButton
                 size="small"
-                sx={{ color: '#7d82a8', mb: 0.5, ml: 0.5, '&:hover': { color: '#fff' } }}
+                sx={{ 
+                  color: '#94a3b8', 
+                  mb: 0.5, 
+                  width: 32, height: 32,
+                  transition: 'all 0.2s',
+                  '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } 
+                }}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <AttachFileIcon fontSize="small" />
               </IconButton>
+              
               <TextField
                 fullWidth
-                size="small"
+                variant="standard"
                 placeholder="Type a message..."
                 value={newBoardChatMessage}
                 onChange={(e) => {
@@ -3530,37 +3618,36 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   disableUnderline: true,
                   sx: {
                     color: '#fff',
-                    p: 1,
+                    py: 1,
                     fontSize: '0.9rem',
-                    '& textarea': {
-                      '&::-webkit-scrollbar': { width: 4 },
-                      '&::-webkit-scrollbar-track': { background: 'transparent' },
-                      '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 }
-                    }
+                    '&::placeholder': { color: '#64748b', opacity: 1 }
                   }
                 }}
-                variant="standard"
               />
-              <IconButton
+              
+              <IconButton 
                 onClick={handleSendBoardChat}
                 disabled={!newBoardChatMessage.trim()}
-                sx={{
-                  color: '#fff',
-                  bgcolor: newBoardChatMessage.trim() ? '#6366f1' : '#2e2f45',
-                  borderRadius: '50%',
-                  width: 36,
-                  height: 36,
-                  mb: 0.5,
-                  mr: 0.5,
+                sx={{ 
+                  bgcolor: newBoardChatMessage.trim() ? '#6366f1' : 'transparent',
+                  background: newBoardChatMessage.trim() ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  color: newBoardChatMessage.trim() ? '#fff' : '#475569',
+                  width: 36, height: 36,
+                  mb: 0.25,
                   transition: 'all 0.2s',
-                  '&:hover': { bgcolor: newBoardChatMessage.trim() ? '#5558dd' : '#2e2f45', transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none' },
-                  '&.Mui-disabled': { bgcolor: '#2e2f45', color: 'rgba(255,255,255,0.2)' }
+                  boxShadow: newBoardChatMessage.trim() ? '0 2px 8px rgba(99, 102, 241, 0.4)' : 'none',
+                  '&:hover': { 
+                    transform: newBoardChatMessage.trim() ? 'scale(1.05)' : 'none',
+                    boxShadow: newBoardChatMessage.trim() ? '0 4px 12px rgba(99, 102, 241, 0.5)' : 'none'
+                  },
+                  '&.Mui-disabled': { color: '#334155' }
                 }}
               >
-                <SendIcon fontSize="small" sx={{ ml: 0.2 }} />
+                <SendIcon sx={{ fontSize: 18, ml: 0.2 }} />
               </IconButton>
             </Box>
           </Box>
+
         </Box>
       </Drawer>
 
@@ -3572,11 +3659,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#1e1f2b',
+            bgcolor: 'rgba(21, 22, 33, 0.95)',
+            backdropFilter: 'blur(24px)',
             color: '#fff',
             borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            border: '1px solid #3a3b5a',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.08)',
             overflow: 'hidden'
           }
         }}
@@ -3590,15 +3678,25 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         <DialogTitle sx={{
           color: '#fff',
           fontWeight: 600,
-          borderBottom: '1px solid #3a3b5a',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          py: 1.5
+          py: 2,
+          px: 3,
+          bgcolor: 'rgba(255,255,255,0.02)'
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <InsertDriveFileIcon sx={{ color: '#7d82a8' }} />
-            <Typography variant="subtitle1">{previewFile?.name}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ 
+              p: 1, 
+              bgcolor: 'rgba(99, 102, 241, 0.1)', 
+              borderRadius: 1.5,
+              color: '#818cf8',
+              display: 'flex'
+            }}>
+              <InsertDriveFileIcon fontSize="small" />
+            </Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, letterSpacing: '0.01em' }}>{previewFile?.name}</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
@@ -3606,13 +3704,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               download={previewFile?.name}
               target="_blank"
               startIcon={<Box component="span" sx={{ fontSize: 18 }}>⬇</Box>}
-              sx={{ color: '#7d82a8', borderColor: '#3a3b5a', '&:hover': { color: '#fff', borderColor: '#fff' } }}
+              sx={{ 
+                color: '#94a3b8', 
+                borderColor: 'rgba(255,255,255,0.1)', 
+                '&:hover': { 
+                  color: '#fff', 
+                  borderColor: '#fff',
+                  bgcolor: 'rgba(255,255,255,0.05)'
+                },
+                textTransform: 'none',
+                fontWeight: 500
+              }}
               variant="outlined"
               size="small"
             >
               Download
             </Button>
-            <IconButton onClick={() => setPreviewFile(null)} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+            <IconButton 
+              onClick={() => setPreviewFile(null)} 
+              sx={{ 
+                color: '#94a3b8', 
+                transition: 'all 0.2s',
+                '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)', transform: 'rotate(90deg)' } 
+              }}
+            >
               <Box component="span" sx={{ fontSize: 24, lineHeight: 1 }}>×</Box>
             </IconButton>
           </Box>

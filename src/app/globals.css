@@ -67,3 +67,9 @@ button:focus,
 .MuiButtonBase-root:focus {
   outline: none !important;
 }
+
+@keyframes typing {
+  0% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-4px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.4; }
+}
