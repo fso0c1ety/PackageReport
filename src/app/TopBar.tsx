@@ -106,6 +106,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       setNotifAnchorEl(null);
   };
 
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
   const getNotificationIcon = (type: string) => {
       switch (type) {
           case 'invite': return <PersonIcon sx={{ fontSize: 16 }} />;
