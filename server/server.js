@@ -637,14 +637,33 @@ app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
 
     const sharedUsers = table.shared_users || [];
     const existingIndex = sharedUsers.findIndex(u => u.userId === userId);
-    if (existingIndex === -1) {
-      sharedUsers.push({ userId, permission: perm });
-    } else {
+    if (existingIndex !== -1) {
+      // User already shared: just update permission
       sharedUsers[existingIndex].permission = perm;
-    }
-    await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), req.params.tableId]);
+      await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), req.params.tableId]);
+      return res.json({ success: true, shared_users: sharedUsers, message: 'Permission updated' });
+    } else {
+      // User not shared: Send Invite Notification
+      const notifId = uuidv4();
+      await db.query(
+        'INSERT INTO notifications (id, recipient_id, sender_id, type, data) VALUES ($1, $2, $3, $4, $5)',
+        [notifId, userId, req.user.id, 'invite', JSON.stringify({ tableId: table.id, tableName: table.name, permission: perm })]
+      );
 
-    res.json({ success: true, shared_users: sharedUsers });
+      // Send Push Notification
+      const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [userId]);
+      const token = userRes.rows[0]?.fcm_token;
+      if (token) {
+         await sendPushNotification(
+            [token],
+            'Table Invite',
+            `${req.user.name} requests you to share this table: ${table.name}`,
+            { type: 'invite', notificationId: notifId, tableId: table.id }
+         );
+      }
+      
+      return res.json({ success: true, message: 'Invite sent to user' });
+    }
   } catch (err) {
     console.error('Error sharing table:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -1247,6 +1266,97 @@ app.get('/api/tables/:tableId/chat', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+
+// --- Notification Routes ---
+
+// Get unread notifications
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM notifications WHERE recipient_id = $1 AND read = false ORDER BY created_at DESC',
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching notifications:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Accept Invite
+app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) => {
+  try {
+    const notifResult = await db.query('SELECT * FROM notifications WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
+    const notification = notifResult.rows[0];
+    
+    if (!notification) return res.status(404).json({ error: 'Notification not found' });
+    if (notification.type !== 'invite') return res.status(400).json({ error: 'Not an invite' });
+
+    const { tableId, permission } = notification.data || {};
+    
+    if (!tableId) return res.status(400).json({ error: 'Invalid invite data' });
+
+    // Add user to table
+    const tableResult = await db.query('SELECT * FROM tables WHERE id = $1', [tableId]);
+    const table = tableResult.rows[0];
+
+    if (table) {
+      let sharedUsers = table.shared_users;
+      if (!Array.isArray(sharedUsers)) sharedUsers = [];
+      
+      // Check if already shared
+      if (!sharedUsers.some(u => u.userId === req.user.id)) {
+        sharedUsers.push({ userId: req.user.id, permission: permission || 'edit' });
+        await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), tableId]);
+      }
+    }
+
+    // Mark as read
+    await db.query('UPDATE notifications SET read = true WHERE id = $1', [req.params.id]);
+
+    res.json({ success: true, message: 'Invite accepted' });
+  } catch (err) {
+    console.error('Error accepting invite:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Decline Invite (Mark as read)
+app.post('/api/notifications/:id/decline', authenticateToken, async (req, res) => {
+  try {
+    await db.query('UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
+    res.json({ success: true, message: 'Invite declined' });
+  } catch (err) {
+    console.error('Error declining invite:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Helper for invite notifications
+const createInviteNotification = async (recipientId, senderId, tableId, tableName, permission) => {
+    const notifDisplayId = uuidv4();
+    await db.query(
+        'INSERT INTO notifications (id, recipient_id, sender_id, type, data) VALUES ($1, $2, $3, $4, $5)',
+        [notifDisplayId, recipientId, senderId, 'invite', JSON.stringify({ tableId, tableName, permission })]
+    );
+    
+    // Also send Push Notification
+    const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [recipientId]);
+    const token = userRes.rows[0]?.fcm_token;
+    if (token) {
+        // Fetch sender name
+        const senderRes = await db.query('SELECT name FROM users WHERE id = $1', [senderId]);
+        const senderName = senderRes.rows[0]?.name || 'Someone';
+        
+        await sendPushNotification(
+            [token],
+            'Table Invite',
+            `${senderName} requests you to share this table: ${tableName}`,
+            { type: 'invite', notificationId: notifDisplayId }
+        );
+    }
+};
 
 app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   try {

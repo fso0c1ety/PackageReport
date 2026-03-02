@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon } from "@mui/material";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -28,10 +28,61 @@ const StyledIconButton = styled(IconButton)(({ theme }) => ({
   },
 }));
 
+type Notification = {
+    id: string;
+    type: string;
+    data: any;
+    read: boolean;
+    created_at: string;
+};
+
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+
+  // Notification State
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
+
+  // Poll notifications
+  useEffect(() => {
+    const fetchNotifications = async () => {
+        try {
+            const res = await authenticatedFetch(getApiUrl('notifications'));
+            if (res.ok) {
+                const data = await res.json();
+                setNotifications(data);
+                setUnreadCount(data.length);
+            }
+        } catch (error) {
+            console.error("Failed to fetch notifications", error);
+        }
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000); // Poll every 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleInviteAction = async (notifId: string, action: 'accept' | 'decline') => {
+      try {
+          const res = await authenticatedFetch(getApiUrl(`notifications/${notifId}/${action}`), { method: 'POST' });
+          if (res.ok) {
+              // Remove notification from list immediately
+              setNotifications(prev => prev.filter(n => n.id !== notifId));
+              setUnreadCount(prev => Math.max(0, prev - 1));
+              
+              if (action === 'accept') {
+                  // Maybe refresh page or redirect? Or just let user discover the table.
+                  // alert("Invite accepted! Check your workspace.");
+              }
+          }
+      } catch (error) {
+          console.error(`Failed to ${action} invite`, error);
+      }
+  };
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -125,12 +176,108 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </Tooltip>
 
         <Tooltip title="Notifications">
-          <StyledIconButton size="small">
-            <Badge color="error" variant="dot">
+          <IconButton 
+            size="small"
+            onClick={(e) => setNotifAnchorEl(e.currentTarget)}
+            sx={{
+                color: "#94a3b8",
+                transition: "all 0.2s",
+                "&:hover": { color: "#fff", backgroundColor: "rgba(255, 255, 255, 0.05)" }
+            }}
+          >
+            <Badge badgeContent={unreadCount} color="error">
               <NotificationsNoneIcon fontSize="small" />
             </Badge>
-          </StyledIconButton>
+          </IconButton>
         </Tooltip>
+        
+        <Menu
+            anchorEl={notifAnchorEl}
+            open={Boolean(notifAnchorEl)}
+            onClose={() => setNotifAnchorEl(null)}
+            PaperProps={{
+                sx: { 
+                    width: 360, 
+                    maxHeight: 400, 
+                    bgcolor: '#1e1f2b', 
+                    color: '#fff', 
+                    border: '1px solid #3a3b5a',
+                    mt: 1
+                }
+            }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        >
+            <Box sx={{ p: 2, borderBottom: '1px solid #3a3b5a' }}>
+                <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
+            </Box>
+            <List sx={{ p: 0 }}>
+                {notifications.length === 0 ? (
+                    <Box sx={{ p: 3, textAlign: 'center' }}>
+                        <Typography variant="body2" color="#7d82a8">No new notifications</Typography>
+                    </Box>
+                ) : (
+                    notifications.map((notif) => (
+                        <MenuItem 
+                            key={notif.id} 
+                            sx={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                alignItems: 'flex-start', 
+                                gap: 1, 
+                                py: 2,
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                whiteSpace: 'normal'
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
+                                <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1', fontSize: 14 }}>
+                                    {notif.type === 'invite' ? 'IV' : 'NT'}
+                                </Avatar>
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                        {notif.type === 'invite' ? 'Table Invite' : 'Notification'}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4 }}>
+                                        {notif.type === 'invite' && notif.data ? (
+                                            <>
+                                                User requested to share table <strong>{notif.data.tableName}</strong> with you.
+                                            </>
+                                        ) : 'You have a new notification'}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: '#7d82a8', mt: 0.5, display: 'block' }}>
+                                        {new Date(notif.created_at).toLocaleString()}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            
+                            {notif.type === 'invite' && (
+                                <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'flex-end', mt: 1 }}>
+                                    <Button 
+                                        size="small" 
+                                        variant="outlined" 
+                                        color="error"
+                                        onClick={() => handleInviteAction(notif.id, 'decline')}
+                                        sx={{ fontSize: '0.75rem', py: 0.25, minWidth: 70 }}
+                                    >
+                                        Decline
+                                    </Button>
+                                    <Button 
+                                        size="small" 
+                                        variant="contained" 
+                                        color="primary"
+                                        onClick={() => handleInviteAction(notif.id, 'accept')}
+                                        sx={{ fontSize: '0.75rem', py: 0.25, minWidth: 70, bgcolor: '#6366f1' }}
+                                    >
+                                        Accept
+                                    </Button>
+                                </Box>
+                            )}
+                        </MenuItem>
+                    ))
+                )}
+            </List>
+        </Menu>
 
         <Tooltip title="Messages">
           <StyledIconButton size="small">
