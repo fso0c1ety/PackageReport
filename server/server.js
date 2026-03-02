@@ -1397,8 +1397,8 @@ app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) =>
       }
     }
 
-    // Mark as read
-    await db.query('UPDATE notifications SET read = true WHERE id = $1', [req.params.id]);
+    // Delete notification after action
+    await db.query('DELETE FROM notifications WHERE id = $1', [req.params.id]);
 
     res.json({ success: true, message: 'Invite accepted' });
   } catch (err) {
@@ -1407,10 +1407,10 @@ app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) =>
   }
 });
 
-// Decline Invite (Mark as read)
+// Decline Invite (Delete notification)
 app.post('/api/notifications/:id/decline', authenticateToken, async (req, res) => {
   try {
-    await db.query('UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
+    await db.query('DELETE FROM notifications WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
     res.json({ success: true, message: 'Invite declined' });
   } catch (err) {
     console.error('Error declining invite:', err);
