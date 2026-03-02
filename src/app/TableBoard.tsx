@@ -353,11 +353,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     sender: string;
     senderAvatar?: string;
     time: string;
-    attachment?: { name: string, type: string, url: string };
+    attachment?: { name: string, type: string, url: string, size?: number };
   }[]>([]);
   const [newBoardChatMessage, setNewBoardChatMessage] = useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ name: string, type: string, url: string, size?: number } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const prevMessageCountRef = React.useRef(0);
   const isFirstLoadRef = React.useRef(true);
@@ -535,7 +535,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const attachment = {
         name: uploadData.name,
         type: uploadData.type,
-        url: fileUrl
+        url: fileUrl,
+        size: uploadData.size || file.size
       };
 
       const msg = {
