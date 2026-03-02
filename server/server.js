@@ -767,8 +767,8 @@ app.delete('/api/tables/:tableId/invite-code', authenticateToken, async (req, re
       return res.status(403).json({ error: 'Only workspace owners can stop sharing' });
     }
 
-    await db.query('UPDATE tables SET invite_code = NULL WHERE id = $1', [tableId]);
-    res.json({ success: true, message: 'Invite code removed' });
+    await db.query('UPDATE tables SET invite_code = NULL, shared_users = \'[]\'::jsonb WHERE id = $1', [tableId]);
+    res.json({ success: true, message: 'Sharing stopped and shared users removed' });
   } catch (err) {
     console.error('Error deleting invite code:', err);
     res.status(500).json({ error: 'Internal server error' });

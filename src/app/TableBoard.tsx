@@ -1830,7 +1830,7 @@ export default function TableBoard({ tableId }: TableBoardProps) {
       const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: selectedUserToInvite.email, permission: 'edit' })
+        body: JSON.stringify({ userId: selectedUserToInvite.id, permission: 'edit' })
       });
       if (res.ok) {
         setSelectedUserToInvite(null);
