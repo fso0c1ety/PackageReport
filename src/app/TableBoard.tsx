@@ -158,6 +158,7 @@ import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import HistoryIcon from "@mui/icons-material/History";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DateRangeIcon from "@mui/icons-material/DateRange";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -215,7 +216,9 @@ import {
   Autocomplete,
   ListItemIcon,
   Divider,
-  ListItemAvatar
+  ListItemAvatar,
+  Tabs,
+  Tab
 } from "@mui/material";
 import BoltIcon from '@mui/icons-material/Bolt';
 import PeopleSelector, { Person } from "./PeopleSelector";
@@ -227,6 +230,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SendIcon from "@mui/icons-material/Send";
+import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LogoutIcon from "@mui/icons-material/Logout";
 import GroupIcon from "@mui/icons-material/Group";
@@ -379,6 +383,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const boardChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskDetailsChatEndRef = React.useRef<HTMLDivElement>(null);
+  
+  // -- NEW: State for Task Discussions --
+  const [chatTab, setChatTab] = useState<'chat' | 'files' | 'activity'>('chat');
+  const [chatAttachment, setChatAttachment] = useState<File | null>(null);
+  const [chatScheduledTime, setChatScheduledTime] = useState<string>(""); 
+  const chatFileRef = React.useRef<HTMLInputElement>(null);
+  // -----------------------------------
 
   // Scroll to bottom of Board Chat when messages update or chat opens
   useEffect(() => {
@@ -2020,39 +2031,82 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setChatMessages([]);
     setChatInput("");
     setChatTaskId(null);
+    setChatTab('chat');
+    setChatAttachment(null);
+    setChatScheduledTime("");
+    if (chatFileRef.current) chatFileRef.current.value = "";
   };
+  
   const handleSendChat = async () => {
-    if (!chatTaskId || !chatInput.trim()) return;
-    const newMsg = {
-      id: uuidv4(),
-      sender: currentUser?.name || "User",
-      senderAvatar: currentUser?.avatar,
-      text: chatInput,
-      timestamp: new Date().toISOString()
-    };
-    // Update local state
-    setChatMessages(prev => [...prev, newMsg]);
-    setChatInput("");
-    // Update task row in backend
+    // Determine if we can send (text OR attachment must exist)
+    if (!chatTaskId) return;
+    if (!chatInput.trim() && !chatAttachment) return;
+
+    let attachment = null;
     const row = rows.find(r => r.id === chatTaskId);
-    if (row) {
-      try {
-        const updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
+    if (!row) return;
+
+    try {
+        // 1. Upload File if present
+        if (chatAttachment) {
+          const formData = new FormData();
+          formData.append('file', chatAttachment);
+          
+          const res = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
+          if (res.ok) {
+            const data = await res.json();
+            attachment = {
+                name: data.name || chatAttachment.name,
+                url: data.url,
+                type: chatAttachment.type,
+                size: chatAttachment.size,
+                originalName: data.originalName,
+                uploadedAt: new Date().toISOString()
+            };
+          }
+        }
+
+        const newMsg = {
+          id: uuidv4(),
+          sender: currentUser?.name || "User",
+          senderAvatar: currentUser?.avatar,
+          text: chatInput,
+          timestamp: new Date().toISOString(),
+          attachment: attachment,
+          scheduledFor: chatScheduledTime ? new Date(chatScheduledTime).toISOString() : undefined
+        };
+
+        // Construct updated values
+        let updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
+
+        // If we added a file, ALSO save to the first "File" column
+        if (attachment) {
+             const fileCol = columns.find(c => c.type === 'Files');
+             if (fileCol) {
+                 const existingFiles = Array.isArray(row.values[fileCol.id]) ? row.values[fileCol.id] : [];
+                 updatedValues[fileCol.id] = [...existingFiles, attachment];
+             }
+        }
+
+        // Update Backend
         await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: row.id, values: updatedValues }),
         });
-        // Reload messages from backend after saving
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`));
-        const updatedRow = await res.json();
-        setRows(rows => rows.map(r => r.id === row.id ? { ...r, values: updatedRow.values } : r));
-        setChatMessages(updatedRow.values.message || []);
-        showNotification("Message sent!", "success");
-      } catch (err) {
-        console.error("Failed to send message", err);
-        showNotification("Failed to send message. Please try again.", "error");
-      }
+
+        // Update Local State
+        setChatMessages(prev => [...prev, newMsg]);
+        setRows(prev => prev.map(r => r.id === row.id ? { ...r, values: updatedValues } : r));
+
+        // Reset inputs
+        setChatInput("");
+        setChatAttachment(null);
+        setChatScheduledTime("");
+        if (chatFileRef.current) chatFileRef.current.value = "";
+
+    } catch (e) {
+      console.error("Failed to send chat or upload file", e);
     }
   };
   const renderCell = (row: Row, col: Column) => {
@@ -4883,7 +4937,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
                                     <ChatBubbleOutlineIcon sx={{ fontSize: 20 }} />
                                   </IconButton>
-                                  {/* Chat Popover for Message Icon */}
                                   {chatPopoverKey === `${row.id}-message` && chatAnchor && (
                                     <Popover
                                       open={!!chatAnchor}
@@ -4892,115 +4945,255 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                                       transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                                       PaperProps={{
-                                        sx: {
-                                          p: 0,
-                                          minWidth: 360,
-                                          maxWidth: 400,
-                                          bgcolor: '#1e1f2b',
-                                          borderRadius: 4,
-                                          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                                          border: '1px solid #3a3b5a',
-                                        }
+                                        sx: { p: 0, minWidth: 380, maxWidth: 420, bgcolor: '#1e1f2b', borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: '1px solid #3a3b5a' }
                                       }}
                                     >
-                                      <Box sx={{ display: 'flex', flexDirection: 'column', height: 450 }}>
-                                        {/* Header */}
-                                        <Box sx={{
-                                          px: 2.5,
-                                          py: 2,
-                                          borderBottom: '1px solid #2d2e45',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'space-between',
-                                          bgcolor: '#23243a'
-                                        }}>
-                                          <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontSize: 16 }}>Discussion</Typography>
-                                          <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
-                                            <span style={{ fontSize: 18 }}>✕</span>
-                                          </IconButton>
-                                        </Box>
-
-                                        {/* Messages */}
-                                        <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                          {chatMessages.length === 0 ? (
-                                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
-                                              <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#4f51c0', mb: 1, opacity: 0.5 }} />
-                                              <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
-                                            </Box>
-                                          ) : (
-                                            chatMessages.map(msg => (
-                                              <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
-                                                <Avatar
-                                                  src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                                                  sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
-                                                >
-                                                  {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
-                                                </Avatar>
-                                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
-                                                    <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
-                                                      {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
-                                                    </Typography>
-                                                  </Box>
-                                                  <Box sx={{
-                                                    bgcolor: '#2c2d4a',
-                                                    px: 2,
-                                                    py: 1.5,
-                                                    borderRadius: '0 12px 12px 12px',
-                                                    border: '1px solid #3a3b5a'
-                                                  }}>
-                                                    <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5, wordWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
-                                                  </Box>
-                                                </Box>
-                                              </Box>
-                                            ))
-                                          )}
-                                          <div id="chat-bottom" ref={taskChatEndRef} />
-                                        </Box>
-
-                                        {/* Input */}
-                                        <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
-                                          {chatTaskId && taskTypingUsers[chatTaskId] && taskTypingUsers[chatTaskId].length > 0 && (
-                                            <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
-                                              {taskTypingUsers[chatTaskId].join(', ')} is typing...
-                                            </Typography>
-                                          )}
-                                          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                            <input
-                                              value={chatInput}
-                                              onChange={e => {
-                                                setChatInput(e.target.value);
-                                                if (chatTaskId) handleTaskTyping(chatTaskId);
-                                              }}
-                                              placeholder="Write a reply..."
-                                              onKeyDown={e => e.key === 'Enter' && handleSendChat()}
-                                              style={{
-                                                width: '100%',
-                                                backgroundColor: '#1e1f2b',
-                                                border: '1px solid #3a3b5a',
-                                                borderRadius: '24px',
-                                                padding: '12px 44px 12px 16px',
-                                                color: '#fff',
-                                                fontSize: '14px',
-                                                outline: 'none'
-                                              }}
-                                            />
-                                            <IconButton
-                                              onClick={handleSendChat}
-                                              disabled={!chatInput.trim()}
-                                              size="small"
-                                              sx={{
-                                                position: 'absolute',
-                                                right: 6,
-                                                color: chatInput.trim() ? '#4f51c0' : '#3a3b5a',
-                                                bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.1)' : 'transparent',
-                                                '&:hover': { bgcolor: chatInput.trim() ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
-                                              }}
-                                            >
-                                              <SendIcon fontSize="small" />
+                                      <Box sx={{ display: 'flex', flexDirection: 'column', height: 500 }}>
+                                        {/* Header with Tabs */}
+                                        <Box sx={{ borderBottom: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+                                          <Box sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 600 }}>Discussion</Typography>
+                                            <IconButton size="small" onClick={handleCloseChat} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                                              <span style={{ fontSize: 18 }}>✕</span>
                                             </IconButton>
                                           </Box>
+                                          <Tabs 
+                                            value={chatTab} 
+                                            onChange={(_, v) => setChatTab(v)} 
+                                            variant="fullWidth"
+                                            sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, py: 1, fontSize: 13, textTransform: 'none', color: '#7d82a8' }, '& .Mui-selected': { color: '#6366f1' }, '& .MuiTabs-indicator': { bgcolor: '#6366f1' } }}
+                                          >
+                                            <Tab value="chat" label="Chat" icon={<ChatBubbleOutlineIcon sx={{fontSize: 16, mb:0, mr: 0.5}}/>} iconPosition="start" />
+                                            <Tab value="files" label="Files" icon={<DescriptionIcon sx={{fontSize: 16, mb:0, mr: 0.5}}/>} iconPosition="start"/>
+                                            <Tab value="activity" label="Activity" icon={<HistoryIcon sx={{fontSize: 16, mb:0, mr: 0.5}}/>} iconPosition="start"/>
+                                          </Tabs>
+                                        </Box>
+
+                                        {/* Content Body */}
+                                        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                          
+                                          {/* --- CHAT TAB --- */}
+                                          {chatTab === 'chat' && (
+                                            <>
+                                              <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {chatMessages.length === 0 ? (
+                                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
+                                                    <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#4f51c0', mb: 1, opacity: 0.5 }} />
+                                                    <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
+                                                  </Box>
+                                                ) : (
+                                                  chatMessages.map(msg => (
+                                                    <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
+                                                      <Avatar
+                                                        src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                                                        sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
+                                                      >
+                                                        {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
+                                                      </Avatar>
+                                                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
+                                                          <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
+                                                            {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : ''}
+                                                          </Typography>
+                                                          {msg.scheduledFor && (
+                                                            <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(253, 171, 61, 0.2)', color: '#fdab3d' }} />
+                                                          )}
+                                                        </Box>
+                                                        
+                                                        {msg.attachment && (
+                                                            <Box component="a" href={msg.attachment.url} target="_blank" 
+                                                                 sx={{ 
+                                                                     display: 'flex', alignItems: 'center', gap: 1, 
+                                                                     bgcolor: 'rgba(99, 102, 241, 0.1)', 
+                                                                     border: '1px solid rgba(99, 102, 241, 0.2)',
+                                                                     p: 1, mb: 0.5, borderRadius: 1, textDecoration: 'none'
+                                                                 }}
+                                                            >
+                                                                <InsertDriveFileIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+                                                                <Typography sx={{ fontSize: 12, color: '#d0d4e4', textDecoration: 'none' }}>{msg.attachment.name}</Typography>
+                                                            </Box>
+                                                        )}
+
+                                                        <Box sx={{
+                                                          bgcolor: '#2c2d4a',
+                                                          px: 2,
+                                                          py: 1.5,
+                                                          borderRadius: '0 12px 12px 12px',
+                                                          border: '1px solid #3a3b5a'
+                                                        }}>
+                                                          <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
+                                                        </Box>
+                                                      </Box>
+                                                    </Box>
+                                                  ))
+                                                )}
+                                                <div id="chat-bottom" ref={taskChatEndRef} />
+                                              </Box>
+
+                                              {/* Input Area */}
+                                              <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+                                                {chatTaskId && taskTypingUsers[chatTaskId]?.length > 0 && (
+                                                  <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
+                                                    {taskTypingUsers[chatTaskId].join(', ')} is typing...
+                                                  </Typography>
+                                                )}
+                                                
+                                                {/* Attachments / Schedule preview */}
+                                                {(chatAttachment || chatScheduledTime) && (
+                                                    <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                                                        {chatAttachment && (
+                                                            <Chip 
+                                                                size="small" 
+                                                                icon={<InsertDriveFileIcon style={{fontSize: 14}}/>} 
+                                                                label={chatAttachment.name} 
+                                                                onDelete={() => { setChatAttachment(null); if(chatFileRef.current) chatFileRef.current.value = ""; }}
+                                                                sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
+                                                            />
+                                                        )}
+                                                        {chatScheduledTime && (
+                                                            <Chip 
+                                                                size="small" 
+                                                                icon={<AccessTimeIcon style={{fontSize: 14}}/>} 
+                                                                label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`} 
+                                                                onDelete={() => setChatScheduledTime("")}
+                                                                sx={{ bgcolor: 'rgba(253, 171, 61, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
+                                                            />
+                                                        )}
+                                                    </Box>
+                                                )}
+
+                                                <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                  <input
+                                                    type="file"
+                                                    ref={chatFileRef}
+                                                    style={{ display: 'none' }}
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            setChatAttachment(e.target.files[0]);
+                                                        }
+                                                    }}
+                                                  />
+                                                  <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                                                      <AttachFileIcon fontSize="small" />
+                                                  </IconButton>
+
+                                                  {/* Simple Schedule Input trigger - could use Popover/DatePicker, keeping simple for inline */}
+                                                  <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#7d82a8', '&:hover': { color: '#fff' } }}
+                                                      onClick={(e) => {
+                                                          // For simplicity in this text-based env, we can use a native input
+                                                          // or toggle a small absolute box
+                                                          const input = document.getElementById('chat-schedule-input');
+                                                          if(input) (input as HTMLInputElement).showPicker();
+                                                      }}
+                                                  >
+                                                      <AccessTimeIcon fontSize="small" />
+                                                      <input 
+                                                          id="chat-schedule-input"
+                                                          type="datetime-local" 
+                                                          style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
+                                                          onChange={(e) => setChatScheduledTime(e.target.value)}
+                                                      />
+                                                  </IconButton>
+
+                                                  <input
+                                                    value={chatInput}
+                                                    onChange={e => {
+                                                      setChatInput(e.target.value);
+                                                      if (chatTaskId) handleTaskTyping(chatTaskId);
+                                                    }}
+                                                    placeholder="Write a message..."
+                                                    onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+                                                    style={{
+                                                      flex: 1,
+                                                      backgroundColor: '#1e1f2b',
+                                                      border: '1px solid #3a3b5a',
+                                                      borderRadius: '24px',
+                                                      padding: '10px 16px',
+                                                      color: '#fff',
+                                                      fontSize: '14px',
+                                                      outline: 'none'
+                                                    }}
+                                                  />
+                                                  <IconButton
+                                                    onClick={handleSendChat}
+                                                    disabled={!chatInput.trim() && !chatAttachment}
+                                                    size="small"
+                                                    sx={{
+                                                      color: (chatInput.trim() || chatAttachment) ? '#4f51c0' : '#3a3b5a',
+                                                      bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(79, 81, 192, 0.1)' : 'transparent',
+                                                      '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
+                                                    }}
+                                                  >
+                                                    <SendIcon fontSize="small" />
+                                                  </IconButton>
+                                                </Box>
+                                              </Box>
+                                            </>
+                                          )}
+
+                                          {/* --- FILES TAB --- */}
+                                          {chatTab === 'files' && (
+                                              <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+                                                  {(() => {
+                                                     const fileCols = columns.filter(c => c.type === 'Files');
+                                                     let allFiles: any[] = [];
+                                                     fileCols.forEach(c => {
+                                                         const val = row.values[c.id];
+                                                         if(Array.isArray(val)) allFiles = [...allFiles, ...val];
+                                                     });
+                                                     
+                                                     if(allFiles.length === 0) return (
+                                                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.5 }}>
+                                                            <InsertDriveFileIcon sx={{ fontSize: 48, color: '#7d82a8', mb: 1 }} />
+                                                            <Typography sx={{ color: '#7d82a8' }}>No files attached</Typography>
+                                                         </Box>
+                                                     );
+                                          
+                                                     return allFiles.map((f, i) => (
+                                                       <Box key={i} sx={{ display:'flex', alignItems:'center', gap:1.5, p:1.5, mb:1.5, bgcolor:'#2c2d4a', borderRadius:2, border: '1px solid #35365a' }}>
+                                                          <Box sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', p: 1, borderRadius: 1 }}>
+                                                            <InsertDriveFileIcon sx={{color:'#6366f1'}} />
+                                                          </Box>
+                                                          <Box sx={{flex:1, minWidth:0}}>
+                                                             <Typography sx={{color:'#fff', fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'block'}} title={f.name}>{f.name || f.originalName || 'File'}</Typography>
+                                                             <Typography sx={{color:'#7d82a8', fontSize:11}}>{f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString() : 'Unknown date'}</Typography>
+                                                          </Box>
+                                                          <IconButton size="small" href={f.url} target="_blank" sx={{color:'#7d82a8', '&:hover':{color:'#fff'}}}>
+                                                             <Box component="span" sx={{ fontSize: 18 }}>⬇</Box>
+                                                          </IconButton>
+                                                       </Box>
+                                                     ));
+                                                  })()}
+                                              </Box>
+                                          )}
+
+                                          {/* --- ACTIVITY TAB --- */}
+                                          {chatTab === 'activity' && (
+                                               <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+                                                  {row.activity && row.activity.length > 0 ? (
+                                                     [...row.activity].reverse().map((act, i) => (
+                                                       <Box key={i} sx={{ mb: 2, display: 'flex', gap: 1.5, position: 'relative' }}>
+                                                         <Box sx={{ position: 'absolute', left: 16, top: 24, bottom: -16, width: 1, bgcolor: '#35365a', display: i === row.activity!.length - 1 ? 'none' : 'block' }} />
+                                                         <Avatar src={act.userAvatar} sx={{ width: 32, height: 32, fontSize: 12, bgcolor: '#3d3e5a', border: '2px solid #1e1f2b', zIndex: 1 }}>{act.user?.[0]}</Avatar>
+                                                         <Box sx={{ flex: 1 }}>
+                                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+                                                               <Typography sx={{color:'#fff', fontSize:13, fontWeight:600}}>{act.user}</Typography>
+                                                               <Typography sx={{color:'#7d82a8', fontSize:11}}>{new Date(act.time).toLocaleString()}</Typography>
+                                                            </Box>
+                                                            <Typography sx={{color:'#b0b5c9', fontSize:13, bgcolor: '#23243a', p: 1, borderRadius: 2 }}>{act.text}</Typography>
+                                                         </Box>
+                                                       </Box>
+                                                     ))
+                                                  ) : (
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.5 }}>
+                                                        <HistoryIcon sx={{ fontSize: 48, color: '#7d82a8', mb: 1 }} />
+                                                        <Typography sx={{ color: '#7d82a8' }}>No activity yet</Typography>
+                                                    </Box>
+                                                  )}
+                                               </Box>
+                                          )}
+
                                         </Box>
                                       </Box>
                                     </Popover>
