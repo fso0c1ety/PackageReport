@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Snackbar, Button, Alert } from "@mui/material"; // Added UI components
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
@@ -36,14 +37,53 @@ if (typeof window !== "undefined") {
 const NotificationRequester = () => {
     const { showNotification } = useNotification();
     const router = useRouter();
+    const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+
+    const initWebPush = async () => {
+        try {
+            if (messaging) {
+                    const currentToken = await getToken(messaging, { 
+                        vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
+                    });
+                    if (currentToken) {
+                        console.log('Web FCM Token:', currentToken);
+                        // Send token to backend
+                        await authenticatedFetch(getApiUrl('users/fcm'), {
+                            method: 'PUT',
+                            body: JSON.stringify({ token: currentToken })
+                        });
+                    }
+                    
+                    const { onMessage } = await import("firebase/messaging"); 
+                    onMessage(messaging, (payload) => {
+                        console.log('Message received. ', payload);
+                        const title = payload.notification?.title || 'Notification';
+                        const body = payload.notification?.body || 'New message';
+                        showNotification(`${title}: ${body}`, 'info');
+                    });
+            }
+        } catch(e) {
+            console.error('An error occurred while retrieving token on web. ', e);
+        }
+    };
+
+    const handleWebPermissionRequest = async () => {
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                setShowPermissionPrompt(false);
+                initWebPush();
+            } else {
+                console.warn("Notification permission denied");
+                setShowPermissionPrompt(false);
+            }
+        } catch (e) {
+            console.error("Error requesting permission", e);
+        }
+    };
+
     useEffect(() => {
         const initPush = async () => {
-            // Check if native or web.
-            // Note: For Web Push to work, ensure you have:
-            // 1. Created 'public/firebase-messaging-sw.js' with your Firebase config.
-            // 2. Initialized Firebase in your app entry point or here if using the JS SDK directly.
-            // 3. For Capacitor Push Notifications on Web, ensure the service worker is registered.
-
             try {
                 if (Capacitor.isNativePlatform()) {
                     let permStatus = await PushNotifications.checkPermissions();
@@ -53,7 +93,6 @@ const NotificationRequester = () => {
                     }
 
                     if (permStatus.receive !== 'granted') {
-                        // Try to request again or show instructions
                        try {
                             permStatus = await PushNotifications.requestPermissions();
                        } catch (e) {
@@ -71,12 +110,10 @@ const NotificationRequester = () => {
                             vibration: true,
                         });
 
-                        // Add Listeners
                         await PushNotifications.removeAllListeners();
 
                         await PushNotifications.addListener('registration', async (token) => {
                             console.log('Push Registration Token: ', token.value);
-                            // Send token to backend
                             try {
                                 const response = await authenticatedFetch(getApiUrl('users/fcm'), {
                                     method: 'PUT',
@@ -92,16 +129,13 @@ const NotificationRequester = () => {
                             }
                         });
 
-
                         await PushNotifications.addListener('registrationError', (error: any) => {
                             console.error('Error on registration: ' + JSON.stringify(error));
                         });
 
-
                         await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
                             console.log('Push received: ' + JSON.stringify(notification));
 
-                            // Show visible in-app notification (Snackbar)
                             const title = notification.title || notification.data?.title || 'Notification';
                             const body = notification.body || notification.data?.body || 'New message';
                             showNotification(`${title}: ${body}`, 'info');
@@ -111,14 +145,13 @@ const NotificationRequester = () => {
                             const taskId = notification.data?.taskId;
                             const type = notification.data?.type;
 
-                            // ALSO schedule a Local Notification for the System Tray if desired
                             await LocalNotifications.schedule({
                                 notifications: [
                                 {
                                     title,
                                     body,
                                     id: new Date().getTime(),
-                                    schedule: { at: new Date(Date.now() + 100) }, // Schedule for "now"
+                                    schedule: { at: new Date(Date.now() + 100) },
                                     sound: undefined,
                                     attachments: undefined,
                                     actionTypeId: "",
@@ -157,60 +190,51 @@ const NotificationRequester = () => {
                              handleNotificationTap(notification.notification.data);
                         });
                         
-                        // Add Local Notification Action Listener (for foreground notifications clicked)
                         await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
                             console.log('Local Notification action performed:', notification);
                             handleNotificationTap(notification.notification.extra);
                         });
 
-                        // Register with FCM
                         await PushNotifications.register();
                     }
                 } else {
                      // WEB Push Logic
-                     try {
-                        const permission = await Notification.requestPermission();
-                        if (permission === 'granted' && messaging) {
-                             const currentToken = await getToken(messaging, { 
-                                 vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
-                             });
-                             if (currentToken) {
-                                 console.log('Web FCM Token:', currentToken);
-                                 // Send token to backend
-                                 await authenticatedFetch(getApiUrl('users/fcm'), {
-                                     method: 'PUT',
-                                     body: JSON.stringify({ token: currentToken })
-                                 });
-                             }
-                             
-                             const { onMessage } = await import("firebase/messaging"); 
-                             onMessage(messaging, (payload) => {
-                                 console.log('Message received. ', payload);
-                                 const title = payload.notification?.title || 'Notification';
-                                 const body = payload.notification?.body || 'New message';
-                                 showNotification(`${title}: ${body}`, 'info');
-                             });
-
-                        }
-                    } catch(e) {
-                        console.error('An error occurred while retrieving token on web. ', e);
-                    }
+                     if (Notification.permission === 'granted') {
+                         initWebPush();
+                     } else if (Notification.permission === 'default') {
+                         setShowPermissionPrompt(true);
+                     }
                 }
             } catch (e) {
                 console.error('Error initializing push notifications', e);
             }
         };
 
-        initPush();
+        const timer = setTimeout(() => {
+            initPush();
+        }, 1000); // Small delay to ensure mount
 
         return () => {
-             // Cleanup listeners
              PushNotifications.removeAllListeners();
+             clearTimeout(timer);
         };
     }, []);
 
-    // This component renders nothing
-    return null;
+    if (!showPermissionPrompt) return null;
+
+    return (
+        <Snackbar
+            open={showPermissionPrompt}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            message="Would you like to receive notifications?"
+            action={
+                <Button color="primary" size="small" onClick={handleWebPermissionRequest}>
+                    Enable
+                </Button>
+            }
+            sx={{ bottom: { xs: 90, sm: 24 } }} // Adjust for mobile bottom bar if needed
+        />
+    );
 };
 
 export default NotificationRequester;
