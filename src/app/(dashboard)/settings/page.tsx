@@ -16,6 +16,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Close";
 import PhotoCamera from "@mui/icons-material/PhotoCamera";
+import { getApiUrl, authenticatedFetch } from "../../apiUrl";
 
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
@@ -57,27 +58,40 @@ export default function SettingsPage() {
     setIsEditing(true);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!editName.trim()) {
       setError("Name is required");
       return;
     }
 
-    const updatedUser = {
-      ...user,
-      name: editName,
-      email: editEmail,
-      avatar: editAvatar
-    };
+    try {
+      const res = await authenticatedFetch(getApiUrl('users/profile'), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, avatar: editAvatar }),
+      });
 
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-    setUser(updatedUser);
-    setIsEditing(false);
-    setSaved(true);
-    setError("");
+      if (!res.ok) throw new Error("Failed to update profile");
 
-    // Reload to propagate changes
-    setTimeout(() => window.location.reload(), 1000);
+      const updatedUser = {
+        ...user,
+        name: editName,
+        email: editEmail,
+        avatar: editAvatar
+      };
+
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setIsEditing(false);
+      setSaved(true);
+      setError("");
+
+      // Reload to propagate changes
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || "Failed to save profile");
+    }
   };
 
   const handleCancelEdit = () => {

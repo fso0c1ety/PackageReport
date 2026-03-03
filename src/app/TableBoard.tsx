@@ -2616,6 +2616,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 {displayPeople.map((p, i) => (
                   <Tooltip key={p.email || i} title={p.name}>
                     <Avatar
+                      src={(() => {
+                         // Use latest avatar from tableMembers if available
+                         const member = tableMembers.find(m => m.email === p.email);
+                         return member?.avatar || p.avatar;
+                      })()}
                       sx={{
                         width: isMobile ? 24 : 28,
                         height: isMobile ? 24 : 28,
@@ -2713,7 +2718,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       p: 1
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}>
+                        <Avatar 
+                          src={(() => {
+                             // Use latest avatar from tableMembers if available
+                             const member = tableMembers.find(m => m.email === p.email);
+                             return member?.avatar || p.avatar;
+                          })()} 
+                          sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}
+                        >
                           {p.name ? p.name.charAt(0).toUpperCase() : '?'}
                         </Avatar>
                         <Box>
@@ -3543,7 +3555,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 }
                             >
                                 <ListItemAvatar>
-                                    <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}>{user.name?.charAt(0).toUpperCase()}</Avatar>
+                                    <Avatar src={user.avatar} sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}>{user.name?.charAt(0).toUpperCase()}</Avatar>
                                 </ListItemAvatar>
                                 <ListItemText
                                     primary={user.name}
@@ -3604,7 +3616,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             return (
                                 <li key={key} {...otherProps}>
                                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Avatar sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
+                                        <Avatar src={option.avatar} sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
                                         <Typography variant="body2">{option.name || option.email}</Typography>
                                     </Box>
                                 </li>
@@ -5236,7 +5248,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     {rawVal.slice(0, 3).map((p: any, i) => (
                                       <Tooltip key={i} title={p.name || p.email}>
                                         <Avatar
-                                          src={p.avatar}
+                                          src={(() => {
+                                             // Use latest avatar from tableMembers if available
+                                             const member = tableMembers.find(m => m.email === p.email);
+                                             return member?.avatar || p.avatar;
+                                          })()}
                                           sx={{ width: 22, height: 22, border: '2px solid #23243a', fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
                                         >
                                           {p.name?.[0] || p.email?.[0] || '?'}
@@ -6271,7 +6287,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       (reviewTask.values.message || []).map((msg: any) => (
                         <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
                           <Avatar
-                            src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                            src={(() => {
+                              const m = tableMembers.find(tm => tm.name === msg.sender);
+                              return m?.avatar || (msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined);
+                            })()}
                             sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
                           >
                             {!msg.senderAvatar && (msg.sender?.[0] || 'U')}

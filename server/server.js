@@ -745,13 +745,13 @@ app.get('/api/tables/:tableId/members', authenticateToken, async (req, res) => {
     const sharedUsers = table.shared_users ? table.shared_users.map(u => u.userId) : [];
     const memberIds = [...new Set([ownerId, ...sharedUsers])];
     
-    const usersRes = await db.query('SELECT id, name, email FROM users WHERE id = ANY($1)', [memberIds]);
+    const usersRes = await db.query('SELECT id, name, email, avatar FROM users WHERE id = ANY($1)', [memberIds]);
     
     const members = usersRes.rows.map(user => ({
       id: user.id,
       name: user.name,
       email: user.email,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
+      avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
       role: user.id === ownerId ? 'owner' : 'member'
     }));
     
@@ -1417,6 +1417,19 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   }
 });
 
+app.put('/api/users/profile', authenticateToken, async (req, res) => {
+  const { name, avatar } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  try {
+    // Update the user's name and avatar in the users table
+    await db.query('UPDATE users SET name = $1, avatar = $2 WHERE id = $3', [name, avatar, req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
   try {
     await db.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
@@ -1451,7 +1464,13 @@ app.post('/api/test-notification', authenticateToken, async (req, res) => {
 // Using a table in PostgreSQL for chats
 app.get('/api/tables/:tableId/chat', async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM table_chats WHERE table_id = $1 ORDER BY timestamp ASC', [req.params.tableId]);
+    const result = await db.query(`
+      SELECT c.*, u.avatar as "senderAvatar"
+      FROM table_chats c
+      LEFT JOIN users u ON u.name = c.sender
+      WHERE c.table_id = $1 
+      ORDER BY c.timestamp ASC
+    `, [req.params.tableId]);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching chat messages:', err);
@@ -1589,13 +1608,18 @@ const createInviteNotification = async (recipientId, senderId, tableId, tableNam
 
 app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   try {
+    // Fetch user capabilities
+    const userRes = await db.query('SELECT avatar FROM users WHERE id = $1', [req.user.id]);
+    const senderAvatar = userRes.rows[0]?.avatar;
+
     const newMessage = {
       id: uuidv4(),
       table_id: req.params.tableId,
-      sender: req.body.sender || req.user.name, // Fallback to auth user name if not provided
+      sender: req.body.sender || req.user.name, 
       text: req.body.text,
       timestamp: req.body.timestamp || Date.now(),
-      attachment: req.body.attachment || null // Add attachment support
+      attachment: req.body.attachment || null,
+      senderAvatar: senderAvatar // Include avatar for immediate UI update
     };
 
     await db.query(
