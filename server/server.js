@@ -1263,10 +1263,15 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
             // Only if actionType is 'notification' or 'both'
             if (actionType === 'notification' || actionType === 'both') {
                  console.log('[AUTOMATION] Triggering notification for recipients:', recipients);
-                 const userRes = await db.query('SELECT id, email FROM users WHERE email = ANY($1)', [recipients]);
+                 
+                 // Fetch users with their FCM tokens
+                 const userRes = await db.query('SELECT id, email, fcm_token FROM users WHERE email = ANY($1)', [recipients]);
                  const matchedUsers = userRes.rows;
+                 
+                 const fcmTokens = [];
 
                  for (const u of matchedUsers) {
+                     // Add to internal notifications table (shows in top bar)
                      await db.query(`
                          INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
                          VALUES ($1, $2, $3, $4, $5, NOW())
@@ -1275,8 +1280,30 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                          tableName: table.name,
                          tableId: table.id,
                          taskId: id,
-                         logId: null // Notifications don't necessarily link to an email log
+                         logId: null
                      }, false]);
+
+                     // Collect FCM token for push notification
+                     if (u.fcm_token) {
+                       fcmTokens.push(u.fcm_token);
+                     }
+                 }
+
+                 // Send Push Notifications via Firebase
+                 if (fcmTokens.length > 0) {
+                   try {
+                     const pushTitle = 'Task Update';
+                     const pushBody = subject; // e.g. "Task updated: Projects"
+                     const pushData = {
+                       type: 'automation',
+                       tableId: table.id.toString(),
+                       taskId: id.toString()
+                     };
+                     await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
+                     console.log('[AUTOMATION] Sent push notifications to', fcmTokens.length, 'devices.');
+                   } catch (pushErr) {
+                     console.error('[AUTOMATION] Failed to send push notifications:', pushErr);
+                   }
                  }
             }
 
