@@ -11,6 +11,7 @@ const db = require('./db');
 const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
 const { sendPushNotification } = require('./firebase');
+const { sendNotification } = require('./notificationHelper');
 
 
 const http = require('http');
@@ -1004,85 +1005,45 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
     const oldActivity = oldValues.activity || [];
 
     // --- Notification Logic ---
-    const sendNotification = async (title, body, type, data) => {
-        try {
-            // Get recipients (workspace owner + shared users)
-            const workspaceRes = await db.query('SELECT owner_id FROM workspaces WHERE id = $1', [table.workspace_id]);
-            let recipientIds = new Set();
-            if (workspaceRes.rows.length > 0) recipientIds.add(workspaceRes.rows[0].owner_id);
-            
-            if (Array.isArray(table.shared_users)) {
-                table.shared_users.forEach(u => {
-                    if (typeof u === 'string') recipientIds.add(u);
-                    else if (u.userId) recipientIds.add(u.userId);
-                });
-            }
-
-            // Remove sender
-            if (req.user && req.user.id) recipientIds.delete(req.user.id);
-            
-            if (recipientIds.size > 0) {
-                const recipientsArray = Array.from(recipientIds);
-                
-                // 1. Send Push Notifications
-                const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
-                const tokens = tokensRes.rows.map(r => r.fcm_token);
-                if (tokens.length > 0) {
-                    await sendPushNotification(tokens, title, body, {
-                        type: type || 'chat_message',
-                        tableId: table.id,
-                        workspaceId: table.workspace_id,
-                        taskId: id,
-                        ...data
-                    });
-                }
-                
-                // 2. Save In-App Notifications
-                for (const recipientId of recipientsArray) {
-                     await db.query(`
-                       INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
-                       VALUES ($1, $2, $3, $4, $5, NOW())
-                   `, [uuidv4(), recipientId, type || 'chat_message', {
-                       subject: title,
-                       body: body,
-                       tableName: table.name,
-                       tableId: table.id,
-                       workspaceId: table.workspace_id,
-                       taskId: id,
-                       ...data
-                   }, false]);
-                }
-            }
-        } catch (e) {
-            console.error('[Notification] Failed to send:', e);
-        }
-    };
+    // (Helper function imported from notificationHelper.js)
 
     // Detect Task Chat (Discussion)
     if (newValues.message && Array.isArray(newValues.message)) {
         const oldLen = (oldValues.message && Array.isArray(oldValues.message)) ? oldValues.message.length : 0;
         if (newValues.message.length > oldLen) {
             const lastMsg = newValues.message[newValues.message.length - 1];
-            // Find task name (assume 'task' column or first text column)
-            // Use user-defined task column name if possible, fallback to 'task'
-            let taskName = 'Task';
-            if (table.columns && Array.isArray(table.columns)) {
-                const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
-                if (taskCol && newValues[taskCol.id]) {
-                    taskName = newValues[taskCol.id];
+            
+            // Check Schedule
+            const isScheduled = lastMsg.scheduledFor && new Date(lastMsg.scheduledFor) > new Date();
+            // Mark validation
+            lastMsg.notificationSent = !isScheduled;
+
+            if (isScheduled) {
+                console.log(`[Task] Message scheduled for ${lastMsg.scheduledFor}`);
+            } else {
+                // Find task name
+                let taskName = 'Task';
+                if (table.columns && Array.isArray(table.columns)) {
+                    const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
+                    if (taskCol && newValues[taskCol.id]) {
+                        taskName = newValues[taskCol.id];
+                    }
+                } else if (newValues['task']) {
+                    taskName = newValues['task'];
                 }
-            } else if (newValues['task']) {
-                taskName = newValues['task'];
+                
+                const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
+                
+                // Format: "{Users Name} commented on the {Tasks name}: (The message)"
+                await sendNotification(
+                    'New Discussion', 
+                    `${userName} commented on the ${taskName}: ${lastMsg.text}`,
+                    'task_chat',
+                    { taskId: id },
+                    table,
+                    req.user ? req.user.id : null
+                );
             }
-            
-            const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
-            
-            // Format: "{Users Name} commented on the {Tasks name}: (The message)"
-            await sendNotification(
-                'New Discussion', 
-                `${userName} commented on the ${taskName}: ${lastMsg.text}`,
-                'task_chat'
-            );
         }
     }
 
@@ -1090,7 +1051,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
     const columns = table.columns || [];
     if (Array.isArray(columns)) {
         for (const col of columns) {
-            if (col.type === 'Files') {
+            if (col.type === 'Files' || col.type === 'File') { // Handle both types
                 const oldFiles = oldValues && oldValues[col.id] && Array.isArray(oldValues[col.id]) ? oldValues[col.id] : [];
                 const newFiles = newValues && newValues[col.id] && Array.isArray(newValues[col.id]) ? newValues[col.id] : [];
                 
@@ -1107,7 +1068,10 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                             await sendNotification(
                                 'New File Comment',
                                 `${userName} commented on the ${fileName}: ${lastComment.text}`,
-                                'file_comment'
+                                'file_comment',
+                                { taskId: id },
+                                table,
+                                req.user ? req.user.id : null
                             );
                         }
                     }
@@ -1682,3 +1646,66 @@ server.listen(PORT, '0.0.0.0', () => {
         console.error('Error starting server/socket:', err);
     }
 });
+
+// --- Scheduled Message Processor (Cron Job) ---
+setInterval(async () => {
+    try {
+        // Find rows with scheduled messages that haven't been sent
+        // Using a broad text search for efficiency, then filtering in JS
+        const result = await db.query(`
+            SELECT r.id, r.table_id, r.values
+            FROM rows r
+            WHERE r.values::text LIKE '%"scheduledFor"%' 
+            AND r.values::text LIKE '%"notificationSent":false%'
+        `); 
+
+        for (const row of result.rows) {
+            let changed = false;
+            const messages = row.values.message;
+            if (!Array.isArray(messages)) continue;
+
+            const tableRes = await db.query('SELECT * FROM tables WHERE id = $1', [row.table_id]);
+            const table = tableRes.rows[0];
+            if (!table) continue;
+
+            for (const msg of messages) {
+                if (msg.scheduledFor && msg.notificationSent === false) {
+                    if (new Date(msg.scheduledFor) <= new Date()) {
+                        
+                        let taskName = 'Task';
+                        if (table.columns && Array.isArray(table.columns)) {
+                            const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
+                            if (taskCol && row.values[taskCol.id]) {
+                                taskName = row.values[taskCol.id];
+                            }
+                        } else if (row.values['task']) {
+                            taskName = row.values['task'];
+                        }
+
+                        const userName = msg.sender || 'System';
+                        
+                        // Send Notification via imported helper
+                        await sendNotification(
+                            'New Discussion',
+                            `${userName} commented on the ${taskName}: ${msg.text}`,
+                            'task_chat',
+                            { taskId: row.id },
+                            table,
+                            null
+                        );
+                        
+                        msg.notificationSent = true;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) {
+                await db.query('UPDATE rows SET values = $1 WHERE id = $2', [JSON.stringify(row.values), row.id]);
+                console.log(`[Scheduler] Processed scheduled messages for Task ${row.id}`);
+            }
+        }
+    } catch (e) {
+        console.error('Error processing scheduled messages:', e);
+    }
+}, 60000); // Check every minute
