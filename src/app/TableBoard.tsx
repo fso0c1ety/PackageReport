@@ -4817,9 +4817,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 })
                               }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
-                                  <div {...provided.dragHandleProps} style={{ display: 'flex', alignItems: 'center', cursor: 'grab' }}>
-                                    <MoreVertIcon sx={{ color: '#555', fontSize: 16 }} />
-                                    <MoreVertIcon sx={{ color: '#555', fontSize: 16, ml: -1 }} />
+                                  <div {...provided.dragHandleProps} style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      cursor: 'grab', 
+                                      width: 24, 
+                                      height: 24,
+                                      marginRight: 8
+                                  }}>
+                                    <Typography sx={{ color: '#9CA3AF', fontSize: 13, fontWeight: 600 }}>
+                                      {index + 1}
+                                    </Typography>
                                   </div>
                                   <TaskRowMenu
                                     row={row}
@@ -6842,8 +6851,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 {rows.map((row) => {
                                     // Try to find a meaningful name for the task
                                     const textCol = columns.find(c => c.type === 'Text');
-                                    const taskName = (textCol && row.values[textCol.id]) ? String(row.values[textCol.id]) : `Task ${row.id.substring(0, 8)}...`;
-                                    
+                                    let taskName = (textCol && row.values[textCol.id]) ? String(row.values[textCol.id]) : `Task ${row.id.substring(0, 8)}...`;
+                                    // Prepend the index/row number to the name for selection if it's the raw list being mapped
+                                    // But wait, the map currently is:
+                                    const rowIndex = rows.findIndex(r => r.id === row.id) + 1;
+                                    taskName = `Row ${rowIndex}: ${taskName}`;
+
                                     return (
                                         <MenuItem key={row.id} value={row.id}>
                                             <Checkbox checked={selectedTaskIds.indexOf(row.id) > -1} sx={{ color: '#818CF8' }} />

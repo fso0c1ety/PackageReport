@@ -1149,44 +1149,54 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
 
     // 4. Automation Logic
     // Prioritize task-specific automation over table-level
+    // (Updated to support task_ids array and action_type)
     const autoResult = await db.query(
-      'SELECT * FROM automations WHERE (task_id = $1 OR (table_id = $2 AND task_id IS NULL)) AND enabled = true ORDER BY task_id DESC NULLS LAST',
-      [id, req.params.tableId]
+      `SELECT * FROM automations 
+       WHERE table_id = $1 
+         AND enabled = true 
+         AND (
+           task_ids IS NULL 
+           OR jsonb_array_length(task_ids) = 0 
+           OR task_ids @> jsonb_build_array($2::text)
+         )
+       ORDER BY id ASC`, 
+      [req.params.tableId, id]
     );
-    const automation = autoResult.rows[0];
-    console.log('[AUTOMATION] Found automations:', autoResult.rows.length);
 
-    if (automation && automation.trigger_col) {
-      const triggerCol = automation.trigger_col;
-      console.log(`[AUTOMATION] Checking trigger "${triggerCol}":`, {
-        old: oldValues[triggerCol],
-        new: newValues[triggerCol]
-      });
-      if (oldValues[triggerCol] !== newValues[triggerCol]) {
-        // Trigger automation...
-        const subject = `Task updated: ${table.name}`;
+    console.log(`[AUTOMATION] Found ${autoResult.rows.length} matching automation(s) for task ${id}`);
 
-        let htmlRows = '';
-        const columns = table.columns || [];
-        const automationCols = automation.cols || [];
-
-        automationCols.forEach(colId => {
-          const col = columns.find(c => c.id === colId);
-          if (col) {
-            let val = newValues[colId];
-            if (typeof val === 'object' && val !== null) {
-              val = JSON.stringify(val);
-            }
-            htmlRows += `
-              <tr>
-                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 14px; font-weight: 500; width: 40%; vertical-align: top;">${col.name}</td>
-                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">${val}</td>
-              </tr>
-            `;
-          }
+    for (const automation of autoResult.rows) {
+      if (automation && automation.trigger_col) {
+        const triggerCol = automation.trigger_col;
+        console.log(`[AUTOMATION] Checking trigger "${triggerCol}":`, {
+          old: oldValues[triggerCol],
+          new: newValues[triggerCol]
         });
+        if (oldValues[triggerCol] !== newValues[triggerCol]) {
+          // Trigger automation...
+          const subject = `Task updated: ${table.name}`;
 
-        const html = `
+          let htmlRows = '';
+          const columns = table.columns || [];
+          const automationCols = automation.cols || [];
+
+          automationCols.forEach(colId => {
+            const col = columns.find(c => c.id === colId);
+            if (col) {
+              let val = newValues[colId];
+              if (typeof val === 'object' && val !== null) {
+                val = JSON.stringify(val);
+              }
+              htmlRows += `
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 14px; font-weight: 500; width: 40%; vertical-align: top;">${col.name}</td>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">${val}</td>
+                </tr>
+              `;
+            }
+          });
+
+          const html = `
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px 20px; background-color: #f3f4f6; color: #111827;">
   <div style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">
     <div style="background-color: #2563eb; padding: 32px 24px; text-align: center;">
@@ -1214,52 +1224,63 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
     </div>
   </div>
 </div>
-        `;
+          `;
 
-        const recipients = automation.recipients;
-        if (recipients && recipients.length > 0) {
-          // 1. Log to PostgreSQL activity_logs (initial)
-          console.log('[AUTOMATION] Triggering email for recipients:', recipients);
-          const logRes = await db.query(
-            'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-            [JSON.stringify(recipients), subject, html, Date.now(), table.id, id, 'pending']
-          );
-          const logId = logRes.rows[0].id;
+          const recipients = automation.recipients || [];
+          const actionType = automation.action_type || 'email';
 
-          // 2. Actually send the email (in background)
-          (async () => {
-            try {
-              await sendEmail({
-                to: recipients,
-                subject,
-                html
-              });
-              await db.query('UPDATE activity_logs SET status = $1 WHERE id = $2', ['sent', logId]);
+          if (recipients.length > 0) {
+            
+            // EMAIL LOGIC
+            // Only if actionType is 'email' or 'both'
+            if (actionType === 'email' || actionType === 'both') {
+              console.log('[AUTOMATION] Triggering email for recipients:', recipients);
+              const logRes = await db.query(
+                'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+                [JSON.stringify(recipients), subject, html, Date.now(), table.id, id, 'pending']
+              );
+              const logId = logRes.rows[0].id;
               
-              // 3. Create In-App Notification for Recipients (if they are registered users)
-               const userRes = await db.query('SELECT id, email FROM users WHERE email = ANY($1)', [recipients]);
-               const matchedUsers = userRes.rows;
+              const currentActionLogId = logId; // Capture for notification usage if needed
 
-               for (const u of matchedUsers) {
-                   // Avoid duplicate notifications if triggered multiple times quickly? usually fine.
-                   await db.query(`
-                       INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
-                       VALUES ($1, $2, $3, $4, $5, NOW())
-                   `, [uuidv4(), u.id, 'automation', {
-                       subject: subject,
-                       tableName: table.name,
-                       tableId: table.id,
-                       taskId: id,
-                       logId: logId
-                   }, false]);
-               }
-
-            } catch (mailErr) {
-              console.error('[AUTOMATION] Failed to send email to recipients:', recipients, 'Error:', mailErr);
-              const detailedError = mailErr.stack || mailErr.message || String(mailErr);
-              await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', detailedError, logId]);
+              (async () => {
+                try {
+                  await sendEmail({
+                    to: recipients,
+                    subject,
+                    html
+                  });
+                  await db.query('UPDATE activity_logs SET status = $1 WHERE id = $2', ['sent', currentActionLogId]);
+                } catch (mailErr) {
+                  console.error('[AUTOMATION] Failed to send email:', mailErr);
+                  const detailedError = mailErr.stack || mailErr.message || String(mailErr);
+                  await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', detailedError, currentActionLogId]);
+                }
+              })();
             }
-          })();
+
+            // NOTIFICATION LOGIC
+            // Only if actionType is 'notification' or 'both'
+            if (actionType === 'notification' || actionType === 'both') {
+                 console.log('[AUTOMATION] Triggering notification for recipients:', recipients);
+                 const userRes = await db.query('SELECT id, email FROM users WHERE email = ANY($1)', [recipients]);
+                 const matchedUsers = userRes.rows;
+
+                 for (const u of matchedUsers) {
+                     await db.query(`
+                         INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+                         VALUES ($1, $2, $3, $4, $5, NOW())
+                     `, [uuidv4(), u.id, 'automation', {
+                         subject: subject,
+                         tableName: table.name,
+                         tableId: table.id,
+                         taskId: id,
+                         logId: null // Notifications don't necessarily link to an email log
+                     }, false]);
+                 }
+            }
+
+          }
         }
       }
     }
