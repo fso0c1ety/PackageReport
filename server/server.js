@@ -535,9 +535,9 @@ app.put('/api/tables/:tableId/columns', authenticateToken, async (req, res) => {
   }
 });
 
-// Log all requests
+// Log all requests (Removed dangerous full body log)
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url} body:`, req.body);
+  // console.log(`${req.method} ${req.url} body:`, req.body);
   next();
 });
 
@@ -956,7 +956,7 @@ app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
       'INSERT INTO rows (id, table_id, values, created_by) VALUES ($1, $2, $3, $4)',
       [newTask.id, newTask.table_id, JSON.stringify(newTask.values), newTask.created_by]
     );
-    console.log(`Task created for table ${req.params.tableId}:`, newTask);
+    console.log(`Task created for table ${req.params.tableId}, ID: ${newTask.id}`);
     res.status(201).json(newTask);
   } catch (err) {
     console.error('Error creating task:', err);
@@ -976,11 +976,11 @@ app.put('/api/tables/:tableId/doc', async (req, res) => {
 });
 
 app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
-  const debugLogs = [];
-  const log = (msg, obj) => {
-    console.log(msg, obj);
-    debugLogs.push({ msg, obj });
-  };
+  // const debugLogs = []; 
+  // const log = (msg, obj) => {
+  //   console.log(msg, obj);
+  //   debugLogs.push({ msg, obj });
+  // };
 
   try {
     const { id, values } = req.body;
