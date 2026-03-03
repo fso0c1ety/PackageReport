@@ -1168,10 +1168,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
     for (const automation of autoResult.rows) {
       if (automation && automation.trigger_col) {
         const triggerCol = automation.trigger_col;
-        console.log(`[AUTOMATION] Checking trigger "${triggerCol}":`, {
-          old: oldValues[triggerCol],
-          new: newValues[triggerCol]
-        });
+        // console.log(`[AUTOMATION] Checking trigger "${triggerCol}"`);
         if (oldValues[triggerCol] !== newValues[triggerCol]) {
           // Trigger automation...
           const subject = `Task updated: ${table.name}`;
