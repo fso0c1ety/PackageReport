@@ -1367,19 +1367,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           console.warn("Failed to parse backend debug logs:", e, debugLogsHeader);
         }
       }
-      // Re-fetch latest rows from backend to ensure sync
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`));
-      let data = await res.json();
-      // If backend returns no rows, show placeholder
-      if (!Array.isArray(data) || data.length === 0) {
-        data = [
-          {
-            id: 'placeholder',
-            values: Object.fromEntries(columns.map(col => [col.id, col.type === 'People' ? [] : '']))
-          }
-        ];
-      }
-      setRows(data);
     }
   };
 
