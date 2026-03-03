@@ -217,7 +217,8 @@ import {
   Divider,
   ListItemAvatar
 } from "@mui/material";
-import PeopleSelector from "./PeopleSelector";
+import BoltIcon from '@mui/icons-material/Bolt';
+import PeopleSelector, { Person } from "./PeopleSelector";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SearchIcon from "@mui/icons-material/Search";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -256,6 +257,19 @@ const initialRows: Row[] = [
     },
   },
 ];
+
+const stringToColor = (string: string) => {
+  let hash = 0;
+  for (let i = 0; i < string.length; i++) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let color = '#';
+  for (let i = 0; i < 3; i++) {
+    const value = (hash >> (i * 8)) & 0xFF;
+    color += ('00' + value.toString(16)).slice(-2);
+  }
+  return color;
+}
 
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
   const theme = useTheme();
@@ -691,6 +705,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [emailTriggerCol, setEmailTriggerCol] = useState<string>("");
   const [emailCols, setEmailCols] = useState<string[]>([]);
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
+  const [automationEnabled, setAutomationEnabled] = useState(true);
+  
+  // New Automation States
+  const [automations, setAutomations] = useState<any[]>([]);
+  const [isEditingAutomation, setIsEditingAutomation] = useState(false);
+  const [currentAutomationId, setCurrentAutomationId] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (showEmailAutomation && tableId) {
+      authenticatedFetch(getApiUrl(`/automation/${tableId}`))
+        .then(res => res.ok ? res.json() : [])
+        .then(setAutomations)
+        .catch(console.error);
+    }
+  }, [showEmailAutomation, tableId]);
+  const [actionType, setActionType] = useState<'email' | 'notification' | 'both'>('email');
+  const [applyToAll, setApplyToAll] = useState(true);
+
   const [automationLoading, setAutomationLoading] = useState(false);
   // Find the first column of type 'People'
   const peopleCol = columns.find(col => col.type === 'People');
@@ -977,7 +1009,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [fileComment, setFileComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
-  const [automationEnabled, setAutomationEnabled] = useState(true);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -1065,10 +1096,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     // Initialize values for all columns
     const values: Record<string, any> = {};
     columns.forEach(col => {
-      if (col.type === "Status" && col.options && col.options.length > 0) {
-        values[col.id] = col.options[0].value;
-      } else if (col.type === "Dropdown" && col.options && col.options.length > 0) {
-        values[col.id] = col.options[0].value;
+      if (col.type === "Status") {
+        values[col.id] = ""; // Blank by default
+      } else if (col.type === "Dropdown") {
+        values[col.id] = ""; // Blank by default
       } else if (col.type === "Date") {
         values[col.id] = "";
       } else if (col.type === "Checkbox") {
@@ -1178,7 +1209,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     // Update all existing tasks to include the new column with a default value
     const defaultValue = (() => {
-      if (colType === "Status" || colType === "Dropdown") return newColumn.options && newColumn.options[0] ? newColumn.options[0].value : "";
+      if (colType === "Status" || colType === "Dropdown") return "";
       if (colType === "Checkbox") return false;
       if (colType === "Numbers") return 0;
       return "";
@@ -2110,6 +2141,31 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               {!isLabelEditing ? (
                 // --- Simple Selection Mode ---
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
+                  <Box
+                    onClick={() => {
+                        handleCellSave(row.id, col.id, col.type, "");
+                        setStatusAnchor(null);
+                        setEditingCell(null);
+                    }}
+                    sx={{
+                        color: '#7d82a8',
+                        fontStyle: 'italic',
+                        borderRadius: '4px',
+                        py: 0.75,
+                        px: 1.5,
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        transition: 'all 0.1s',
+                        bgcolor: !value ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', color: '#fff' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                    }}
+                   >
+                     <Box component="span">(Blank)</Box>
+                     {!value && <Box component="span" sx={{ color: '#6366f1', fontSize: 14 }}>✓</Box>}
+                   </Box>
                   {options.map((opt) => (
                     <Box
                       key={opt.value}
@@ -2316,6 +2372,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <Typography variant="caption" sx={{ color: '#7d82a8', mb: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>
                     Select Status
                   </Typography>
+                  <Box
+                    onClick={() => {
+                      handleCellSave(row.id, col.id, col.type, "");
+                      setStatusAnchor(null);
+                      setEditingCell(null);
+                    }}
+                    sx={{
+                      bgcolor: 'transparent',
+                      color: '#d0d4e4',
+                      border: '1px dashed #3a3b5a',
+                      borderRadius: '4px',
+                      py: 1,
+                      px: 2,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      fontWeight: 500,
+                      fontStyle: 'italic',
+                      transition: 'transform 0.1s',
+                      '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)', borderColor: '#fff', color: '#fff' },
+                    }}
+                  >
+                    (Blank)
+                  </Box>
                   {options.map((opt) => (
                     <Box
                       key={opt.value}
@@ -2581,6 +2660,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 {/* Search / Add */}
                 <PeopleSelector
                   value={people}
+                  // Pass the tableId so the selector knows to show board members
+                  tableId={tableId}
                   onChange={(newPeople) => {
                     handleCellSave(row.id, col.id, col.type, newPeople);
                     // Keep popover open to allow multiple adds
@@ -4201,6 +4282,38 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             Add column
           </Button>
         )}
+
+          {/* Automations Button */}
+          <Tooltip title="Configure Automations">
+            <Button
+              variant="outlined"
+              startIcon={<BoltIcon sx={{ fontSize: 18 }} />}
+              onClick={() => {
+                setShowEmailAutomation(true);
+                setMobileTab('details'); // Ensure not in a weird state
+              }}
+              sx={{
+                background: 'transparent',
+                backgroundColor: 'transparent',
+                color: '#bfc8e0',
+                borderColor: '#3a3b5a',
+                fontWeight: 500,
+                textTransform: 'none',
+                borderRadius: '8px',
+                px: 2,
+                height: 40,
+                zIndex: 2,
+                '&:hover': {
+                  borderColor: '#4f51c0',
+                  color: '#fff',
+                  bgcolor: 'rgba(79, 81, 192, 0.1)'
+                }
+              }}
+            >
+              Automations
+            </Button>
+          </Tooltip>
+
         <Button
           variant="outlined"
           startIcon={<GroupIcon sx={{ fontSize: 18 }} />}
@@ -4683,7 +4796,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
                                 '&:hover': { bgcolor: '#2c2d4a' },
                                 transition: 'background-color 0.2s',
-                                borderRadius: 4, // Attempt to round row corners
+                                borderRadius: 4, 
+                                borderLeft: row.created_by ? `4px solid ${stringToColor(row.created_by)}` : undefined,
                                 ...provided.draggableProps.style
                               }}
                             >
@@ -5559,7 +5673,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               width: { xs: '100%', md: 'auto' },
               bgcolor: '#1C1D26'
             }}>
-            {reviewTask && !showEmailAutomation && (
+            {reviewTask && (
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
                 {columns.map((col) => {
                   return (
@@ -5740,9 +5854,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         <Box sx={{ bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2, p: 0.5 }}>
                           <PeopleSelector
                             value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
-                            onChange={(newPeople) => {
-                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: newPeople } }) : null);
-                              handleCellSave(reviewTask.id, col.id, col.type, newPeople);
+                            tableId={tableId}
+                            onChange={(newPeople: Person[]) => {
+                              if (reviewTask) {
+                                  const updatedReviewTask = { 
+                                      ...reviewTask, 
+                                      values: { ...reviewTask.values, [col.id]: newPeople } 
+                                  };
+                                  setReviewTask(updatedReviewTask);
+                                  handleCellSave(reviewTask.id, col.id, col.type, newPeople);
+                              }
                             }}
                           />
                         </Box>
@@ -5845,51 +5966,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     </Box>
                   )
                 })}
+
                 <Box sx={{ mt: 2, pt: 3, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <Button
-                    startIcon={<SendIcon />}
-                    variant="contained"
-                    onClick={async () => {
-                      if (!reviewTask || !reviewTask.id || reviewTask.id === 'placeholder') {
-                        setShowEmailAutomation(true);
-                        return;
-                      }
-                      setAutomationLoading(true);
-                      // Try to load per-task automation config first
-                      let config = null;
-                      try {
-                        const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
-                        if (res.ok) {
-                          const allConfigs = await res.json();
-                          if (Array.isArray(allConfigs)) {
-                            config = allConfigs.find((a: any) => a.taskId === reviewTask.id) || allConfigs.find((a: any) => a.tableId === tableId && !a.taskId);
-                          } else if (allConfigs && typeof allConfigs === 'object') {
-                            // If backend returns a single config (legacy), use it
-                            config = allConfigs;
-                          }
-                        }
-                      } catch { }
-                      setAutomationEnabled(config?.enabled ?? true);
-                      setEmailTriggerCol(config?.triggerCol ?? "");
-                      setEmailCols(config?.cols ?? []);
-                      setEmailRecipients(config?.recipients ?? []);
-                      setAutomationLoading(false);
-                      setShowEmailAutomation(true);
-                    }}
-                    sx={{
-                      width: '100%',
-                      bgcolor: 'rgba(99, 102, 241, 0.1)',
-                      color: '#818CF8',
-                      borderRadius: 3,
-                      fontWeight: 600,
-                      py: 1.5,
-                      border: '1px solid rgba(99, 102, 241, 0.2)',
-                      boxShadow: 'none',
-                      '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.4)', boxShadow: 'none' }
-                    }}
-                  >
-                    Configure Email Automation
-                  </Button>
+                  
                 </Box>
               </Box>
             )}
@@ -6555,7 +6634,271 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       </Dialog>
 
 
-      {/* Premium Notification Snackbar - MOVED TO GLOBAL CONTEXT */}
+      {/* Automations Dialog */}
+      <Dialog
+        open={showEmailAutomation}
+        onClose={() => setShowEmailAutomation(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { bgcolor: '#1C1D26', color: '#fff', borderRadius: 4, maxHeight: '90vh' } }}
+      >
+        <DialogTitle sx={{ borderBottom: '1px solid rgba(255,255,255,0.06)', p: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: 1, bgcolor: 'rgba(99, 102, 241, 0.1)', borderRadius: 2, color: '#818CF8' }}><BoltIcon /></Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Automations</Typography>
+          </Box>
+          
+          {!isEditingAutomation && (
+            <IconButton onClick={() => {
+                // Reset form for new automation
+                setAutomationEnabled(true);
+                setEmailTriggerCol("");
+                setEmailCols([]);
+                setEmailRecipients([]);
+                setActionType("email");
+                setApplyToAll(true);
+                setCurrentAutomationId(null);
+                setIsEditingAutomation(true);
+            }} 
+            sx={{ 
+                bgcolor: '#818CF8', 
+                color: '#fff', 
+                '&:hover': { bgcolor: '#6366F1' },
+                width: 40, height: 40 
+            }}>
+                <AddIcon />
+            </IconButton>
+          )}
+
+          <IconButton onClick={() => setShowEmailAutomation(false)} sx={{ color: '#9CA3AF' }}><span style={{ fontSize: 24, lineHeight: 1 }}>×</span></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {!isEditingAutomation ? (
+            <Box sx={{ p: 3 }}>
+              {/* List of Automations */}
+              {automations.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 8, color: '#6B7280' }}>
+                   <BoltIcon sx={{ fontSize: 48, opacity: 0.2, mb: 2 }} />
+                   <Typography>No automations configured yet.</Typography>
+                   <Button 
+                     variant="text" 
+                     startIcon={<AddIcon />} 
+                     onClick={() => {
+                        setAutomationEnabled(true);
+                        setEmailTriggerCol("");
+                        setEmailCols([]);
+                        setEmailRecipients([]);
+                        setActionType("email");
+                        setApplyToAll(true);
+                        setCurrentAutomationId(null);
+                        setIsEditingAutomation(true);
+                     }}
+                     sx={{ mt: 2, color: '#818CF8' }}
+                   >
+                     Create your first automation
+                   </Button>
+                </Box>
+              ) : (
+                <Stack spacing={2}>
+                    {automations.map((auto: any) => (
+                        <Paper key={auto.id} sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Switch checked={auto.enabled} disabled size="small" />
+                            <Box sx={{ flex: 1 }}>
+                                <Typography sx={{ fontWeight: 600, color: '#fff' }}>
+                                    When {columns.find(c => c.id === auto.triggerCol)?.name || 'Unknown Column'} changes
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#9CA3AF' }}>
+                                    {auto.actionType === 'notification' ? 'Send Notification' : auto.actionType === 'both' ? 'Send Email & Notification' : 'Send Email'} 
+                                    {auto.taskId ? ' (Specific Task)' : ' (All Tasks)'}
+                                </Typography>
+                            </Box>
+                            <IconButton onClick={() => {
+                                setAutomationEnabled(auto.enabled);
+                                setEmailTriggerCol(auto.triggerCol);
+                                setEmailCols(auto.cols || []);
+                                setEmailRecipients(auto.recipients || []);
+                                setActionType(auto.actionType || 'email');
+                                setApplyToAll(!auto.taskId);
+                                setCurrentAutomationId(auto.id);
+                                setIsEditingAutomation(true);
+                            }} size="small" sx={{ color: '#9CA3AF' }}><EditIcon fontSize="small" /></IconButton>
+                            <IconButton onClick={async () => {
+                                if (confirm('Delete automation?')) {
+                                    await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'DELETE' });
+                                    // Refresh list
+                                    const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
+                                    if (res.ok) setAutomations(await res.json());
+                                }
+                            }} size="small" sx={{ color: '#EF4444' }}><DeleteIcon fontSize="small" /></IconButton>
+                        </Paper>
+                    ))}
+                </Stack>
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ p: 4, maxWidth: 600, mx: 'auto' }}>
+                {/* Edit Form */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, p: 2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }}>
+                  <Typography sx={{ color: '#D1D5DB', fontWeight: 600, mr: 2, flex: 1 }}>Enable Automation</Typography>
+                  <Switch
+                    checked={automationEnabled}
+                    onChange={e => setAutomationEnabled(e.target.checked)}
+                    sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#818CF8' }, '& .MuiSwitch-track': { bgcolor: '#4B5563' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#818CF8' } }}
+                  />
+                </Box>
+
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel id="auto-trigger-col" sx={{ color: '#9CA3AF' }}>Trigger Column</InputLabel>
+                  <Select
+                    labelId="auto-trigger-col"
+                    value={emailTriggerCol || ''}
+                    label="Trigger Column"
+                    onChange={e => setEmailTriggerCol(e.target.value)}
+                    sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                    MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
+                  >
+                    {columns.map(col => (
+                      <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel id="auto-action-type" sx={{ color: '#9CA3AF' }}>Action</InputLabel>
+                    <Select
+                        labelId="auto-action-type"
+                        value={actionType}
+                        label="Action"
+                        onChange={e => setActionType(e.target.value as any)}
+                        sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                        MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
+                    >
+                        <MenuItem value="notification">Notification Only</MenuItem>
+                        <MenuItem value="email">Email Only</MenuItem>
+                        <MenuItem value="both">Email & Notification</MenuItem>
+                    </Select>
+                </FormControl>
+
+                <Box sx={{ mb: 3 }}>
+                    <Typography gutterBottom sx={{ color: '#9CA3AF', fontSize: 13 }}>Apply to</Typography>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button 
+                            variant={applyToAll ? "contained" : "outlined"} 
+                            onClick={() => setApplyToAll(true)}
+                            fullWidth
+                            sx={{ 
+                                bgcolor: applyToAll ? '#818CF8' : 'transparent', 
+                                borderColor: applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
+                                color: applyToAll ? '#fff' : '#9CA3AF',
+                                '&:hover': { bgcolor: applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
+                            }}
+                        >
+                            All Tasks
+                        </Button>
+                        <Button 
+                            variant={!applyToAll ? "contained" : "outlined"} 
+                            onClick={() => setApplyToAll(false)}
+                            fullWidth
+                            disabled={!reviewTask} // Can only apply to specific if one is open/we have context but since we moved to top bar, maybe disable always? 
+                            // Actually, I should probably allow picking a task if applyToAll is false, OR just default to previous behavior if reviewTask is set.
+                            // If opened from top bar, reviewTask is null usually. So disable specific task option if no reviewTask.
+                            sx={{ 
+                                bgcolor: !applyToAll ? '#818CF8' : 'transparent', 
+                                borderColor: !applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
+                                color: !applyToAll ? '#fff' : '#9CA3AF',
+                                '&:hover': { bgcolor: !applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
+                            }}
+                        >
+                            Current Task Only
+                        </Button>
+                    </Box>
+                    {(!reviewTask && !applyToAll) && <Typography sx={{ color: '#EF4444', fontSize: 12, mt: 1 }}>Open a task to apply specifically, or select All Tasks</Typography>}
+                </Box>
+
+                {(actionType === 'email' || actionType === 'both') && (
+                    <>
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                        <InputLabel id="email-cols-label" sx={{ color: '#9CA3AF' }}>Include Columns</InputLabel>
+                        <Select
+                            labelId="email-cols-label"
+                            multiple
+                            value={emailCols}
+                            onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                            renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
+                            sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                            MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
+                        >
+                            {columns.map((col) => (
+                            <MenuItem key={col.id} value={col.id}>
+                                <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
+                                <ListItemText primary={col.name} />
+                            </MenuItem>
+                            ))}
+                        </Select>
+                        </FormControl>
+
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                        <InputLabel id="email-recipients-label" sx={{ color: '#9CA3AF' }}>Recipients</InputLabel>
+                        <Select
+                            labelId="email-recipients-label"
+                            multiple
+                            value={emailRecipients}
+                            onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                            renderValue={(selected) => selected.map((email: string) => {
+                            const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
+                            return person ? person.name : email;
+                            }).join(', ')}
+                            sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                            MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
+                        >
+                            {peopleOptions.map((person: { name: string; email: string }) => (
+                            <MenuItem key={person.email} value={person.email}>
+                                <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
+                                <ListItemText primary={person.name} />
+                            </MenuItem>
+                            ))}
+                        </Select>
+                        </FormControl>
+                    </>
+                )}
+
+                <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
+                  <Button variant="text" onClick={() => setIsEditingAutomation(false)} sx={{ color: '#9CA3AF' }}>Cancel</Button>
+                  <Box sx={{ flex: 1 }} />
+                  <Button
+                    variant="contained"
+                    onClick={async () => {
+                      const body = {
+                        id: currentAutomationId,
+                        enabled: automationEnabled,
+                        triggerCol: emailTriggerCol,
+                        cols: emailCols,
+                        recipients: emailRecipients,
+                        actionType: actionType,
+                        taskId: applyToAll ? null : (reviewTask ? reviewTask.id : null)
+                      };
+                      
+                      await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                      });
+                      
+                      // Refresh list
+                      const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
+                      if (res.ok) setAutomations(await res.json());
+                      
+                      setIsEditingAutomation(false);
+                    }}
+                    sx={{ bgcolor: '#818CF8', '&:hover': { bgcolor: '#6366F1' } }}
+                  >
+                    Save Changes
+                  </Button>
+                </Box>
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box >
   );
 }

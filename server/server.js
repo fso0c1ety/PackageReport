@@ -725,6 +725,49 @@ app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
   }
 });
 
+// Get all members of a table (Owner + Shared Users)
+app.get('/api/tables/:tableId/members', authenticateToken, async (req, res) => {
+  try {
+    const accessQuery = `
+      SELECT t.id, t.shared_users, w.owner_id
+      FROM tables t
+      JOIN workspaces w ON t.workspace_id = w.id
+      WHERE t.id = $1 AND (w.owner_id = $2 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $2))
+    `;
+    const accessRes = await db.query(accessQuery, [req.params.tableId, req.user.id]);
+    
+    if (accessRes.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const table = accessRes.rows[0];
+    const ownerId = table.owner_id;
+    const sharedUsers = table.shared_users ? table.shared_users.map(u => u.userId) : [];
+    const memberIds = [...new Set([ownerId, ...sharedUsers])];
+    
+    const usersRes = await db.query('SELECT id, name, email FROM users WHERE id = ANY($1)', [memberIds]);
+    
+    const members = usersRes.rows.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
+      role: user.id === ownerId ? 'owner' : 'member'
+    }));
+    
+    members.sort((a, b) => {
+        if (a.role === 'owner') return -1;
+        if (b.role === 'owner') return 1;
+        return a.name.localeCompare(b.name);
+    });
+    
+    res.json(members);
+  } catch (err) {
+    console.error('Error fetching table members:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get users shared with a table
 app.get('/api/tables/:tableId/shared-users', authenticateToken, async (req, res) => {
   try {
@@ -900,12 +943,18 @@ app.get('/api/tables/:tableId/tasks/:taskId', async (req, res) => {
   }
 });
 
-app.post('/api/tables/:tableId/tasks', async (req, res) => {
+app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
   try {
-    const newTask = { id: uuidv4(), table_id: req.params.tableId, values: req.body.values || {} };
+    const newTask = { 
+        id: uuidv4(), 
+        table_id: req.params.tableId, 
+        values: req.body.values || {},
+        created_by: req.user.id
+    };
+    
     await db.query(
-      'INSERT INTO rows (id, table_id, values) VALUES ($1, $2, $3)',
-      [newTask.id, newTask.table_id, JSON.stringify(newTask.values)]
+      'INSERT INTO rows (id, table_id, values, created_by) VALUES ($1, $2, $3, $4)',
+      [newTask.id, newTask.table_id, JSON.stringify(newTask.values), newTask.created_by]
     );
     console.log(`Task created for table ${req.params.tableId}:`, newTask);
     res.status(201).json(newTask);

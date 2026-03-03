@@ -40,7 +40,7 @@ interface PeopleSelectorProps {
   onClose?: (finalValue: Person[]) => void;
 }
 
-export default function PeopleSelector({ value = [], onChange, onClose, embed = false }: PeopleSelectorProps & { embed?: boolean }) {
+export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
@@ -50,39 +50,41 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
 
-  // Fetch people from backend on mount
+  // Fetch people from backend on mount (or when tableId changes)
   useEffect(() => {
     async function fetchPeople() {
       try {
+        if (tableId) {
+          try {
+            const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/members`));
+            if (res.ok) {
+              const members = await res.json();
+              if (Array.isArray(members) && members.length > 0) {
+                setPeople(members);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to fetch table members", e);
+          }
+        }
+
+        // Fallback to all people if no table context or failed (optional, but safer to have some fallback)
+        // But per request "let the board connected to that table as options", we really want only members.
+        // If the table fetch works, we use it. If it fails (e.g. new table not saved?), maybe fallback.
         const res = await authenticatedFetch(getApiUrl('/people'));
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             setPeople(data);
-          } else {
-            console.warn('No people loaded from backend /api/people:', data);
           }
-        } else {
-          console.error('Failed to fetch /api/people:', res.status, res.statusText);
         }
       } catch (err) {
-        console.error('Error fetching /api/people:', err);
-        // fallback to localStorage if backend fails
-        const stored = localStorage.getItem("suggestedPeople");
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setPeople(parsed);
-            }
-          } catch (e) {
-            console.error('Error parsing localStorage suggestedPeople:', e);
-          }
-        }
+        console.error('Error fetching people:', err);
       }
     }
     fetchPeople();
-  }, []);
+  }, [tableId]);
 
   // Save people to localStorage whenever it changes
   useEffect(() => {
