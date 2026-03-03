@@ -408,23 +408,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         .then((data) => {
           if (!isMounted) return;
           if (Array.isArray(data)) {
-             // Transform timestamp to readable time
-             const formattedData = data.map((msg: any) => ({
-                 ...msg,
-                 time: msg.timestamp ? dayjs(Number(msg.timestamp)).format('MMM D, HH:mm') : '',
-                 // Persist avatar if possible or it will fallback to UI Avatars
-             }));
-
              // If first load, sync the ref immediately to prevent notification
              if (isFirstLoadRef.current) {
-                 prevMessageCountRef.current = formattedData.length;
+                 prevMessageCountRef.current = data.length;
                  isFirstLoadRef.current = false;
              }
 
             setBoardChatMessages(prev => {
-              // Compare content only to avoid unnecessary re-renders (excluding time format differences if any)
-              if (JSON.stringify(prev) !== JSON.stringify(formattedData)) {
-                return formattedData;
+              if (JSON.stringify(prev) !== JSON.stringify(data)) {
+                return data;
               }
               return prev;
             });
@@ -1568,24 +1560,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Filter options
   const availablePeople = React.useMemo(() => {
-    // Return all table members AND anyone currently assigned to tasks
-    const names = new Set(tableMembers.map(m => m.name));
-    
-    // Add names from rows
-    rows.forEach(r => {
-      columns.filter(c => c.type === 'People').forEach(col => {
-        const val = r.values[col.id];
-        if (Array.isArray(val)) {
-          val.forEach((p: any) => {
-             const name = p?.name || (typeof p === 'string' ? p : null);
-             if (name) names.add(name);
-          });
-        }
-      });
-    });
-    
-    return Array.from(names).filter(Boolean).sort();
-  }, [tableMembers, rows, columns]);
+    // Return all table members for filtering options
+    return tableMembers.map(m => m.name).sort();
+  }, [tableMembers]);
 
   const availableStatuses = React.useMemo(() => {
     const statuses = new Set<string>();
@@ -1639,22 +1616,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         const hasPerson = peopleCols.some(col => {
           const val = row.values[col.id];
           if (Array.isArray(val)) {
-            return val.some((p: any) => {
-               // Support both object {name: "..."} and potentially string legacy data
-               let name = p?.name || (typeof p === 'string' ? p : "");
-               
-               // Try to resolve name from ID if not found directly or matching
-               if (!name && p?.id) {
-                 const member = tableMembers.find(m => m.id === p.id);
-                 if (member) name = member.name;
-               } else if (typeof p === 'string' && !filterPerson.includes(p)) {
-                 // Might be an ID?
-                 const member = tableMembers.find(m => m.id === p);
-                 if (member) name = member.name;
-               }
-
-               return name && filterPerson.includes(name);
-            });
+            return val.some((p: any) => filterPerson.includes(p.name)); // Match by name
           }
           return false;
         });
@@ -1673,7 +1635,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       return true;
     });
-  }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);
+  }, [rows, filterText, filterPerson, filterStatus, columns]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
@@ -2627,11 +2589,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 {displayPeople.map((p, i) => (
                   <Tooltip key={p.email || i} title={p.name}>
                     <Avatar
-                      src={(() => {
-                         // Use latest avatar from tableMembers if available
-                         const member = tableMembers.find(m => m.email === p.email);
-                         return member?.avatar || p.avatar;
-                      })()}
                       sx={{
                         width: isMobile ? 24 : 28,
                         height: isMobile ? 24 : 28,
@@ -2729,14 +2686,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       p: 1
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Avatar 
-                          src={(() => {
-                             // Use latest avatar from tableMembers if available
-                             const member = tableMembers.find(m => m.email === p.email);
-                             return member?.avatar || p.avatar;
-                          })()} 
-                          sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}
-                        >
+                        <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}>
                           {p.name ? p.name.charAt(0).toUpperCase() : '?'}
                         </Avatar>
                         <Box>
@@ -3566,7 +3516,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 }
                             >
                                 <ListItemAvatar>
-                                    <Avatar src={user.avatar} sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}>{user.name?.charAt(0).toUpperCase()}</Avatar>
+                                    <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}>{user.name?.charAt(0).toUpperCase()}</Avatar>
                                 </ListItemAvatar>
                                 <ListItemText
                                     primary={user.name}
@@ -3627,7 +3577,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             return (
                                 <li key={key} {...otherProps}>
                                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Avatar src={option.avatar} sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
+                                        <Avatar sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
                                         <Typography variant="body2">{option.name || option.email}</Typography>
                                     </Box>
                                 </li>
@@ -3774,20 +3724,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   
                   <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                     <Avatar
-                      src={(() => {
-                        const m = tableMembers.find(tm => tm.name === msg.sender);
-                        const av = m?.avatar || msg.senderAvatar;
-                        if (!av) return `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender)}&background=random&color=fff&bold=true`;
-                        if (av.startsWith('http') || av.startsWith('data:')) return av;
-                        return `${SERVER_URL}${av}`;
-                      })()}
+                      src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender)}&background=random&color=fff&bold=true`}
                       sx={{ 
                         width: 32, height: 32, 
                         border: '1px solid rgba(255,255,255,0.1)',
                         opacity: isSequence ? 0 : 1 
                       }}
                     >
-                      {msg.sender ? msg.sender.charAt(0).toUpperCase() : 'U'}
+                      {!msg.senderAvatar && (msg.sender?.charAt(0) || 'U')}
                     </Avatar>
                     
                     <Box sx={{
@@ -4984,13 +4928,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                             chatMessages.map(msg => (
                                               <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
                                                 <Avatar
-                                                  src={(() => {
-                                                    const m = tableMembers.find(tm => tm.name === msg.sender);
-                                                    const av = m?.avatar || msg.senderAvatar;
-                                                    if (!av) return undefined;
-                                                    if (av.startsWith('http') || av.startsWith('data:')) return av;
-                                                    return `${SERVER_URL}${av}`;
-                                                  })()}
+                                                  src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
                                                   sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
                                                 >
                                                   {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
@@ -5271,11 +5209,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     {rawVal.slice(0, 3).map((p: any, i) => (
                                       <Tooltip key={i} title={p.name || p.email}>
                                         <Avatar
-                                          src={(() => {
-                                             // Use latest avatar from tableMembers if available
-                                             const member = tableMembers.find(m => m.email === p.email);
-                                             return member?.avatar || p.avatar;
-                                          })()}
+                                          src={p.avatar}
                                           sx={{ width: 22, height: 22, border: '2px solid #23243a', fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
                                         >
                                           {p.name?.[0] || p.email?.[0] || '?'}
@@ -6310,13 +6244,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       (reviewTask.values.message || []).map((msg: any) => (
                         <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
                           <Avatar
-                            src={(() => {
-                              const m = tableMembers.find(tm => tm.name === msg.sender);
-                              const av = m?.avatar || msg.senderAvatar;
-                              if (!av) return undefined;
-                              if (av.startsWith('http') || av.startsWith('data:')) return av;
-                              return `${SERVER_URL}${av}`;
-                            })()}
+                            src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
                             sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
                           >
                             {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
@@ -6661,13 +6589,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               {fileDialog.file?.comments?.map((comment: any) => (
                 <Box key={comment.id} sx={{ display: 'flex', gap: 1.5 }}>
                   <Avatar
-                    src={(() => {
-                      const m = tableMembers.find(tm => tm.name === comment.user);
-                      const av = m?.avatar || comment.userAvatar;
-                      if (!av) return undefined;
-                      if (av.startsWith('http') || av.startsWith('data:')) return av;
-                      return `${SERVER_URL}${av}`;
-                    })()}
+                    src={comment.userAvatar ? (comment.userAvatar.startsWith('http') ? comment.userAvatar : `${SERVER_URL}${comment.userAvatar}`) : undefined}
                     sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600 }}
                   >
                     {!comment.userAvatar && (comment.user ? comment.user.charAt(0).toUpperCase() : 'U')}

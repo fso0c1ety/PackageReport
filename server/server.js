@@ -535,9 +535,9 @@ app.put('/api/tables/:tableId/columns', authenticateToken, async (req, res) => {
   }
 });
 
-// Log all requests (Removed dangerous full body log)
+// Log all requests
 app.use((req, res, next) => {
-  // console.log(`${req.method} ${req.url} body:`, req.body);
+  console.log(`${req.method} ${req.url} body:`, req.body);
   next();
 });
 
@@ -745,13 +745,13 @@ app.get('/api/tables/:tableId/members', authenticateToken, async (req, res) => {
     const sharedUsers = table.shared_users ? table.shared_users.map(u => u.userId) : [];
     const memberIds = [...new Set([ownerId, ...sharedUsers])];
     
-    const usersRes = await db.query('SELECT id, name, email, avatar FROM users WHERE id = ANY($1)', [memberIds]);
+    const usersRes = await db.query('SELECT id, name, email FROM users WHERE id = ANY($1)', [memberIds]);
     
     const members = usersRes.rows.map(user => ({
       id: user.id,
       name: user.name,
       email: user.email,
-      avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
       role: user.id === ownerId ? 'owner' : 'member'
     }));
     
@@ -921,21 +921,10 @@ app.get('/api/tables/:tableId/tasks', async (req, res) => {
       "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::integer ASC NULLS LAST, id ASC",
       [req.params.tableId]
     );
-
-    // Manual streaming to reduce memory peak of huge JSON.stringify
-    res.setHeader('Content-Type', 'application/json');
-    res.write('[');
-    const len = result.rows.length;
-    for (let i = 0; i < len; i++) {
-      // Periodic flush to keep memory low (though specific to underlying buffering)
-      const chunk = JSON.stringify(result.rows[i]);
-      res.write((i === 0 ? '' : ',') + chunk);
-    }
-    res.write(']');
-    res.end();
+    res.json(result.rows);
   } catch (err) {
     console.error('Error fetching tasks:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -967,7 +956,7 @@ app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
       'INSERT INTO rows (id, table_id, values, created_by) VALUES ($1, $2, $3, $4)',
       [newTask.id, newTask.table_id, JSON.stringify(newTask.values), newTask.created_by]
     );
-    console.log(`Task created for table ${req.params.tableId}, ID: ${newTask.id}`);
+    console.log(`Task created for table ${req.params.tableId}:`, newTask);
     res.status(201).json(newTask);
   } catch (err) {
     console.error('Error creating task:', err);
@@ -987,11 +976,11 @@ app.put('/api/tables/:tableId/doc', async (req, res) => {
 });
 
 app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
-  // const debugLogs = []; 
-  // const log = (msg, obj) => {
-  //   console.log(msg, obj);
-  //   debugLogs.push({ msg, obj });
-  // };
+  const debugLogs = [];
+  const log = (msg, obj) => {
+    console.log(msg, obj);
+    debugLogs.push({ msg, obj });
+  };
 
   try {
     const { id, values } = req.body;
@@ -1179,7 +1168,10 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
     for (const automation of autoResult.rows) {
       if (automation && automation.trigger_col) {
         const triggerCol = automation.trigger_col;
-        // console.log(`[AUTOMATION] Checking trigger "${triggerCol}"`);
+        console.log(`[AUTOMATION] Checking trigger "${triggerCol}":`, {
+          old: oldValues[triggerCol],
+          new: newValues[triggerCol]
+        });
         if (oldValues[triggerCol] !== newValues[triggerCol]) {
           // Trigger automation...
           const subject = `Task updated: ${table.name}`;
@@ -1425,19 +1417,6 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/users/profile', authenticateToken, async (req, res) => {
-  const { name, avatar } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
-  try {
-    // Update the user's name and avatar in the users table
-    await db.query('UPDATE users SET name = $1, avatar = $2 WHERE id = $3', [name, avatar, req.user.id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error updating profile:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
   try {
     await db.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
@@ -1472,27 +1451,11 @@ app.post('/api/test-notification', authenticateToken, async (req, res) => {
 // Using a table in PostgreSQL for chats
 app.get('/api/tables/:tableId/chat', async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT c.*, u.avatar as "senderAvatar"
-      FROM table_chats c
-      LEFT JOIN users u ON u.name = c.sender
-      WHERE c.table_id = $1 
-      ORDER BY c.timestamp ASC
-    `, [req.params.tableId]);
-
-    // Manual streaming to reduce memory peak of huge JSON.stringify
-    res.setHeader('Content-Type', 'application/json');
-    res.write('[');
-    const len = result.rows.length;
-    for (let i = 0; i < len; i++) {
-      const chunk = JSON.stringify(result.rows[i]);
-      res.write((i === 0 ? '' : ',') + chunk);
-    }
-    res.write(']');
-    res.end();
+    const result = await db.query('SELECT * FROM table_chats WHERE table_id = $1 ORDER BY timestamp ASC', [req.params.tableId]);
+    res.json(result.rows);
   } catch (err) {
     console.error('Error fetching chat messages:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1626,18 +1589,13 @@ const createInviteNotification = async (recipientId, senderId, tableId, tableNam
 
 app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   try {
-    // Fetch user capabilities
-    const userRes = await db.query('SELECT avatar FROM users WHERE id = $1', [req.user.id]);
-    const senderAvatar = userRes.rows[0]?.avatar;
-
     const newMessage = {
       id: uuidv4(),
       table_id: req.params.tableId,
-      sender: req.body.sender || req.user.name, 
+      sender: req.body.sender || req.user.name, // Fallback to auth user name if not provided
       text: req.body.text,
       timestamp: req.body.timestamp || Date.now(),
-      attachment: req.body.attachment || null,
-      senderAvatar: senderAvatar // Include avatar for immediate UI update
+      attachment: req.body.attachment || null // Add attachment support
     };
 
     await db.query(

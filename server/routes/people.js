@@ -10,16 +10,17 @@ router.get('/people', async (req, res) => {
 
     if (search) {
       result = await db.query(
-        'SELECT id, name, email, avatar FROM users WHERE name ILIKE $1 OR email ILIKE $1 LIMIT 10',
+        'SELECT id, name, email FROM users WHERE name ILIKE $1 OR email ILIKE $1 LIMIT 10',
         [`%${search}%`]
       );
     } else {
-      result = await db.query('SELECT id, name, email, avatar FROM users LIMIT 10');
+      result = await db.query('SELECT id, name, email FROM users LIMIT 10');
     }
 
     const usersWithAvatars = result.rows.map(user => {
-      // Return stored avatar or fallback to UI Avatars
-      const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
+      // Generate a dynamic avatar using ui-avatars.com based on the user's name
+      // Use random background colors and make it visually pleasing
+      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
       return {
         ...user,
         avatar: avatarUrl

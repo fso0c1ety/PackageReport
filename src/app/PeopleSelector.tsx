@@ -29,7 +29,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 const defaultPeople: Person[] = [];
 
 export interface Person {
-  id?: string;
   name: string;
   email: string;
   avatar: string | null;
