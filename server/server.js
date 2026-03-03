@@ -921,10 +921,21 @@ app.get('/api/tables/:tableId/tasks', async (req, res) => {
       "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::integer ASC NULLS LAST, id ASC",
       [req.params.tableId]
     );
-    res.json(result.rows);
+
+    // Manual streaming to reduce memory peak of huge JSON.stringify
+    res.setHeader('Content-Type', 'application/json');
+    res.write('[');
+    const len = result.rows.length;
+    for (let i = 0; i < len; i++) {
+      // Periodic flush to keep memory low (though specific to underlying buffering)
+      const chunk = JSON.stringify(result.rows[i]);
+      res.write((i === 0 ? '' : ',') + chunk);
+    }
+    res.write(']');
+    res.end();
   } catch (err) {
     console.error('Error fetching tasks:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1468,10 +1479,20 @@ app.get('/api/tables/:tableId/chat', async (req, res) => {
       WHERE c.table_id = $1 
       ORDER BY c.timestamp ASC
     `, [req.params.tableId]);
-    res.json(result.rows);
+
+    // Manual streaming to reduce memory peak of huge JSON.stringify
+    res.setHeader('Content-Type', 'application/json');
+    res.write('[');
+    const len = result.rows.length;
+    for (let i = 0; i < len; i++) {
+      const chunk = JSON.stringify(result.rows[i]);
+      res.write((i === 0 ? '' : ',') + chunk);
+    }
+    res.write(']');
+    res.end();
   } catch (err) {
     console.error('Error fetching chat messages:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
   }
 });
 
