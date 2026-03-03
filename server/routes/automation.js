@@ -4,7 +4,7 @@ const db = require('../db');
 
 // Save/Update automation for a table or task
 router.post('/automation/:tableId', async (req, res) => {
-  const { id, triggerCol, cols, recipients, enabled, taskId, actionType } = req.body;
+  const { id, triggerCol, cols, recipients, enabled, taskIds, actionType } = req.body;
   const tableId = req.params.tableId;
 
   try {
@@ -12,15 +12,15 @@ router.post('/automation/:tableId', async (req, res) => {
       // Update existing automation
       await db.query(`
         UPDATE automations 
-        SET trigger_col = $1, enabled = $2, recipients = $3, cols = $4, action_type = $5, task_id = $6
+        SET trigger_col = $1, enabled = $2, recipients = $3, cols = $4, action_type = $5, task_ids = $6
         WHERE id = $7 AND table_id = $8
-      `, [triggerCol, enabled, JSON.stringify(recipients), JSON.stringify(cols), actionType || 'email', taskId || null, id, tableId]);
+      `, [triggerCol, enabled, JSON.stringify(recipients || []), JSON.stringify(cols || []), actionType || 'email', JSON.stringify(taskIds || []), id, tableId]);
     } else {
       // Create new automation
       await db.query(`
-        INSERT INTO automations (table_id, task_id, trigger_col, enabled, recipients, cols, action_type)
+        INSERT INTO automations (table_id, task_ids, trigger_col, enabled, recipients, cols, action_type)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [tableId, taskId || null, triggerCol, enabled, JSON.stringify(recipients), JSON.stringify(cols), actionType || 'email']);
+      `, [tableId, JSON.stringify(taskIds || []), triggerCol, enabled, JSON.stringify(recipients || []), JSON.stringify(cols || []), actionType || 'email']);
     }
 
     res.json({ success: true });
@@ -50,7 +50,7 @@ router.get('/automation/:tableId', async (req, res) => {
     const mapped = result.rows.map(row => ({
       id: row.id,
       tableId: row.table_id,
-      taskId: row.task_id,
+      taskIds: row.task_ids || (row.task_id ? [row.task_id] : []), // Fallback to task_id if task_ids is empty
       triggerCol: row.trigger_col,
       enabled: row.enabled,
       recipients: row.recipients,

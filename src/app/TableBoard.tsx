@@ -722,14 +722,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [showEmailAutomation, tableId]);
   const [actionType, setActionType] = useState<'email' | 'notification' | 'both'>('email');
   const [applyToAll, setApplyToAll] = useState(true);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
   const [automationLoading, setAutomationLoading] = useState(false);
-  // Find the first column of type 'People'
-  const peopleCol = columns.find(col => col.type === 'People');
-  // Extract people options from the current task's people column
-  const peopleOptions = (reviewTask && peopleCol && Array.isArray(reviewTask.values[peopleCol.id]))
-    ? reviewTask.values[peopleCol.id].map((p: any) => ({ name: p.name, email: p.email }))
-    : [];
+  const [tableMembers, setTableMembers] = useState<Person[]>([]);
+
+  // Fetch table members (Owner + Shared Users)
+  useEffect(() => {
+    if (tableId) {
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/members`))
+        .then(res => res.ok ? res.json() : [])
+        .then(setTableMembers)
+        .catch(console.error);
+    }
+  }, [tableId]);
+
+  // People options for Automation (derived from table members)
+  const peopleOptions = React.useMemo(() => {
+    return tableMembers.map(m => ({ name: m.name, email: m.email }));
+  }, [tableMembers]);
+
   // --- Sample people list ---
   const samplePeople = [
     {
@@ -1548,21 +1560,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Filter options
   const availablePeople = React.useMemo(() => {
-    const people = new Set<string>();
-    const peopleCols = columns.filter(c => c.type === 'People');
-    rows.forEach(r => {
-      peopleCols.forEach(c => {
-        const cellVal = r.values[c.id];
-        if (Array.isArray(cellVal)) {
-          cellVal.forEach((p: any) => {
-            if (p.name) people.add(p.name);
-            // else if (p.email) people.add(p.email); // Use name primarily
-          });
-        }
-      });
-    });
-    return Array.from(people).sort();
-  }, [rows, columns]);
+    // Return all table members for filtering options
+    return tableMembers.map(m => m.name).sort();
+  }, [tableMembers]);
 
   const availableStatuses = React.useMemo(() => {
     const statuses = new Set<string>();
@@ -4797,7 +4797,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 '&:hover': { bgcolor: '#2c2d4a' },
                                 transition: 'background-color 0.2s',
                                 borderRadius: 4, 
-                                borderLeft: row.created_by ? `4px solid ${stringToColor(row.created_by)}` : undefined,
                                 ...provided.draggableProps.style
                               }}
                             >
@@ -4808,6 +4807,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 borderBottom: 'none',
                                 borderTopLeftRadius: 12,
                                 borderBottomLeftRadius: 12,
+                                borderLeft: row.created_by ? `6px solid ${stringToColor(row.created_by)}` : undefined,
                                 ...(isMobile && {
                                   position: 'sticky',
                                   left: 0,
@@ -6657,6 +6657,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 setEmailRecipients([]);
                 setActionType("email");
                 setApplyToAll(true);
+                setSelectedTaskIds([]);
                 setCurrentAutomationId(null);
                 setIsEditingAutomation(true);
             }} 
@@ -6690,6 +6691,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         setEmailRecipients([]);
                         setActionType("email");
                         setApplyToAll(true);
+                        setSelectedTaskIds([]);
                         setCurrentAutomationId(null);
                         setIsEditingAutomation(true);
                      }}
@@ -6702,14 +6704,32 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 <Stack spacing={2}>
                     {automations.map((auto: any) => (
                         <Paper key={auto.id} sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Switch checked={auto.enabled} disabled size="small" />
+                            <Switch checked={auto.enabled} size="small" onChange={async (e) => {
+                                const newEnabled = e.target.checked;
+                                // Update locally first for responsiveness
+                                setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: newEnabled } : a));
+                                // API call
+                                await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ 
+                                        id: auto.id, 
+                                        enabled: newEnabled,
+                                        triggerCol: auto.triggerCol,
+                                        cols: auto.cols,
+                                        recipients: auto.recipients,
+                                        actionType: auto.actionType,
+                                        taskIds: auto.taskIds 
+                                    })
+                                });
+                            }} />
                             <Box sx={{ flex: 1 }}>
                                 <Typography sx={{ fontWeight: 600, color: '#fff' }}>
                                     When {columns.find(c => c.id === auto.triggerCol)?.name || 'Unknown Column'} changes
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: '#9CA3AF' }}>
                                     {auto.actionType === 'notification' ? 'Send Notification' : auto.actionType === 'both' ? 'Send Email & Notification' : 'Send Email'} 
-                                    {auto.taskId ? ' (Specific Task)' : ' (All Tasks)'}
+                                    {auto.taskIds && auto.taskIds.length > 0 ? ` (${auto.taskIds.length} tasks)` : ' (All Tasks)'}
                                 </Typography>
                             </Box>
                             <IconButton onClick={() => {
@@ -6718,7 +6738,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 setEmailCols(auto.cols || []);
                                 setEmailRecipients(auto.recipients || []);
                                 setActionType(auto.actionType || 'email');
-                                setApplyToAll(!auto.taskId);
+                                setApplyToAll(!auto.taskIds || auto.taskIds.length === 0);
+                                setSelectedTaskIds(auto.taskIds || []);
                                 setCurrentAutomationId(auto.id);
                                 setIsEditingAutomation(true);
                             }} size="small" sx={{ color: '#9CA3AF' }}><EditIcon fontSize="small" /></IconButton>
@@ -6737,15 +6758,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </Box>
           ) : (
             <Box sx={{ p: 4, maxWidth: 600, mx: 'auto' }}>
-                {/* Edit Form */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, p: 2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }}>
-                  <Typography sx={{ color: '#D1D5DB', fontWeight: 600, mr: 2, flex: 1 }}>Enable Automation</Typography>
-                  <Switch
-                    checked={automationEnabled}
-                    onChange={e => setAutomationEnabled(e.target.checked)}
-                    sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#818CF8' }, '& .MuiSwitch-track': { bgcolor: '#4B5563' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#818CF8' } }}
-                  />
-                </Box>
+                {/* 
+                   Removed the "Enable Automation" switch from here as per user request.
+                   It is now controlled via the list view.
+                   We default automationEnabled to true when creating, but preserve it when editing (though we won't show the switch).
+                */}
 
                 <FormControl fullWidth sx={{ mb: 3 }}>
                   <InputLabel id="auto-trigger-col" sx={{ color: '#9CA3AF' }}>Trigger Column</InputLabel>
@@ -6781,10 +6798,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                 <Box sx={{ mb: 3 }}>
                     <Typography gutterBottom sx={{ color: '#9CA3AF', fontSize: 13 }}>Apply to</Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <Button 
                             variant={applyToAll ? "contained" : "outlined"} 
-                            onClick={() => setApplyToAll(true)}
+                            onClick={() => { setApplyToAll(true); setSelectedTaskIds([]); }}
                             fullWidth
                             sx={{ 
                                 bgcolor: applyToAll ? '#818CF8' : 'transparent', 
@@ -6799,9 +6816,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             variant={!applyToAll ? "contained" : "outlined"} 
                             onClick={() => setApplyToAll(false)}
                             fullWidth
-                            disabled={!reviewTask} // Can only apply to specific if one is open/we have context but since we moved to top bar, maybe disable always? 
-                            // Actually, I should probably allow picking a task if applyToAll is false, OR just default to previous behavior if reviewTask is set.
-                            // If opened from top bar, reviewTask is null usually. So disable specific task option if no reviewTask.
                             sx={{ 
                                 bgcolor: !applyToAll ? '#818CF8' : 'transparent', 
                                 borderColor: !applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
@@ -6809,10 +6823,37 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 '&:hover': { bgcolor: !applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
                             }}
                         >
-                            Current Task Only
+                            Select Tasks
                         </Button>
                     </Box>
-                    {(!reviewTask && !applyToAll) && <Typography sx={{ color: '#EF4444', fontSize: 12, mt: 1 }}>Open a task to apply specifically, or select All Tasks</Typography>}
+                    
+                    {!applyToAll && (
+                        <FormControl fullWidth sx={{ mb: 1 }}>
+                            <InputLabel id="select-tasks-label" sx={{ color: '#9CA3AF' }}>Tasks</InputLabel>
+                            <Select
+                                labelId="select-tasks-label"
+                                multiple
+                                value={selectedTaskIds}
+                                onChange={(e) => setSelectedTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                renderValue={(selected) => `${selected.length} tasks selected`}
+                                sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                                MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff', maxHeight: 300 } } }}
+                            >
+                                {rows.map((row) => {
+                                    // Try to find a meaningful name for the task
+                                    const textCol = columns.find(c => c.type === 'Text');
+                                    const taskName = (textCol && row.values[textCol.id]) ? String(row.values[textCol.id]) : `Task ${row.id.substring(0, 8)}...`;
+                                    
+                                    return (
+                                        <MenuItem key={row.id} value={row.id}>
+                                            <Checkbox checked={selectedTaskIds.indexOf(row.id) > -1} sx={{ color: '#818CF8' }} />
+                                            <ListItemText primary={taskName} secondary={row.id} secondaryTypographyProps={{ sx: { color: 'rgba(255,255,255,0.5)', fontSize: 10 } }} />
+                                        </MenuItem>
+                                    );
+                                })}
+                            </Select>
+                        </FormControl>
+                    )}
                 </Box>
 
                 {(actionType === 'email' || actionType === 'both') && (
@@ -6875,7 +6916,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         cols: emailCols,
                         recipients: emailRecipients,
                         actionType: actionType,
-                        taskId: applyToAll ? null : (reviewTask ? reviewTask.id : null)
+                        taskIds: applyToAll ? [] : selectedTaskIds
                       };
                       
                       await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
