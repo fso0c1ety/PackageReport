@@ -1641,7 +1641,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           if (Array.isArray(val)) {
             return val.some((p: any) => {
                // Support both object {name: "..."} and potentially string legacy data
-               const name = p?.name || (typeof p === 'string' ? p : "");
+               let name = p?.name || (typeof p === 'string' ? p : "");
+               
+               // Try to resolve name from ID if not found directly or matching
+               if (!name && p?.id) {
+                 const member = tableMembers.find(m => m.id === p.id);
+                 if (member) name = member.name;
+               } else if (typeof p === 'string' && !filterPerson.includes(p)) {
+                 // Might be an ID?
+                 const member = tableMembers.find(m => m.id === p);
+                 if (member) name = member.name;
+               }
+
                return name && filterPerson.includes(name);
             });
           }
@@ -1662,7 +1673,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       return true;
     });
-  }, [rows, filterText, filterPerson, filterStatus, columns]);
+  }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
