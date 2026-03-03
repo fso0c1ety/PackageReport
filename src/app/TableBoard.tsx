@@ -4808,6 +4808,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 borderTopLeftRadius: 12,
                                 borderBottomLeftRadius: 12,
                                 borderLeft: row.created_by ? `6px solid ${stringToColor(row.created_by)}` : undefined,
+                                position: 'relative', // Establish containing block for avatar
                                 ...(isMobile && {
                                   position: 'sticky',
                                   left: 0,
@@ -4816,6 +4817,31 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   borderRight: '1px solid #2e2f45'
                                 })
                               }}>
+                                {/* Creator Avatar on Highlighted Task */}
+                                {row.created_by && (() => {
+                                  const creator = tableMembers.find(m => m.id === row.created_by);
+                                  if (!creator) return null;
+                                  return (
+                                    <Tooltip title={`Created by ${creator.name}`}>
+                                      <Avatar 
+                                        src={creator.avatar} 
+                                        sx={{ 
+                                          width: 16, 
+                                          height: 16, 
+                                          position: 'absolute', 
+                                          top: 2, 
+                                          left: 8, 
+                                          fontSize: '0.5rem',
+                                          bgcolor: stringToColor(row.created_by),
+                                          border: '1px solid #23243a',
+                                          zIndex: 2
+                                        }}
+                                      >
+                                        {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
+                                      </Avatar>
+                                    </Tooltip>
+                                  );
+                                })()}
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
                                   <div {...provided.dragHandleProps} style={{ 
                                       display: 'flex', 
@@ -5128,14 +5154,44 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             cursor: 'pointer',
                             transition: 'transform 0.2s, box-shadow 0.2s',
                             border: '1px solid transparent',
+                            borderLeft: task.created_by ? `4px solid ${stringToColor(task.created_by)}` : undefined,
+                            position: 'relative',
                             '&:hover': {
                               transform: 'translateY(-2px)',
                               boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                              border: `1px solid ${statusColor}44`
+                              border: `1px solid ${statusColor}44`,
+                              borderLeft: task.created_by ? `4px solid ${stringToColor(task.created_by)}` : undefined
                             }
                           }}
                           onClick={() => setReviewTask(task)}
                         >
+                          {/* Creator Avatar Badge */}
+                          {task.created_by && (() => {
+                             const creator = tableMembers.find(m => m.id === task.created_by);
+                             if (!creator) return null;
+                             return (
+                               <Tooltip title={`Created by ${creator.name}`}>
+                                 <Avatar 
+                                   src={creator.avatar} 
+                                   sx={{ 
+                                     width: 18, 
+                                     height: 18, 
+                                     position: 'absolute', 
+                                     top: 6, 
+                                     right: 6, 
+                                     fontSize: '0.6rem',
+                                     fontWeight: 'bold',
+                                     bgcolor: stringToColor(task.created_by),
+                                     border: '2px solid #23243a',
+                                     zIndex: 2
+                                   }}
+                                 >
+                                   {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
+                                 </Avatar>
+                               </Tooltip>
+                             );
+                          })()}
+
                           {/* Primary Text (Use first column) */}
                           <Typography sx={{ fontWeight: 500, color: '#fff', mb: 1, lineHeight: 1.4 }}>
                             {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
