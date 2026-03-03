@@ -408,15 +408,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         .then((data) => {
           if (!isMounted) return;
           if (Array.isArray(data)) {
+             // Transform timestamp to readable time
+             const formattedData = data.map((msg: any) => ({
+                 ...msg,
+                 time: msg.timestamp ? dayjs(Number(msg.timestamp)).format('MMM D, HH:mm') : '',
+                 // Persist avatar if possible or it will fallback to UI Avatars
+             }));
+
              // If first load, sync the ref immediately to prevent notification
              if (isFirstLoadRef.current) {
-                 prevMessageCountRef.current = data.length;
+                 prevMessageCountRef.current = formattedData.length;
                  isFirstLoadRef.current = false;
              }
 
             setBoardChatMessages(prev => {
-              if (JSON.stringify(prev) !== JSON.stringify(data)) {
-                return data;
+              // Compare content only to avoid unnecessary re-renders (excluding time format differences if any)
+              if (JSON.stringify(prev) !== JSON.stringify(formattedData)) {
+                return formattedData;
               }
               return prev;
             });
@@ -1560,9 +1568,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Filter options
   const availablePeople = React.useMemo(() => {
-    // Return all table members for filtering options
-    return tableMembers.map(m => m.name).sort();
-  }, [tableMembers]);
+    // Return all table members AND anyone currently assigned to tasks
+    const names = new Set(tableMembers.map(m => m.name));
+    
+    // Add names from rows
+    rows.forEach(r => {
+      columns.filter(c => c.type === 'People').forEach(col => {
+        const val = r.values[col.id];
+        if (Array.isArray(val)) {
+          val.forEach((p: any) => {
+             const name = p?.name || (typeof p === 'string' ? p : null);
+             if (name) names.add(name);
+          });
+        }
+      });
+    });
+    
+    return Array.from(names).filter(Boolean).sort();
+  }, [tableMembers, rows, columns]);
 
   const availableStatuses = React.useMemo(() => {
     const statuses = new Set<string>();
@@ -1616,7 +1639,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         const hasPerson = peopleCols.some(col => {
           const val = row.values[col.id];
           if (Array.isArray(val)) {
-            return val.some((p: any) => filterPerson.includes(p.name)); // Match by name
+            return val.some((p: any) => {
+               // Support both object {name: "..."} and potentially string legacy data
+               const name = p?.name || (typeof p === 'string' ? p : "");
+               return name && filterPerson.includes(name);
+            });
           }
           return false;
         });
