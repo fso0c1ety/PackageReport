@@ -5138,19 +5138,36 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                   {(() => {
                                                      const fileCols = columns.filter(c => c.type === 'Files');
                                                      let allFiles: any[] = [];
+                                                     
+                                                     // 1. Files from Columns
                                                      fileCols.forEach(c => {
                                                          const val = row.values[c.id];
                                                          if(Array.isArray(val)) allFiles = [...allFiles, ...val];
                                                      });
+
+                                                     // 2. Files from Chat Messages
+                                                     if (row.values.message && Array.isArray(row.values.message)) {
+                                                         row.values.message.forEach((msg: any) => {
+                                                             if (msg.attachment) {
+                                                                 allFiles.push({
+                                                                     ...msg.attachment,
+                                                                     uploadedAt: msg.timestamp || new Date().toISOString()
+                                                                 });
+                                                             }
+                                                         });
+                                                     }
                                                      
-                                                     if(allFiles.length === 0) return (
+                                                     // 3. Deduplicate by URL
+                                                     const uniqueFiles = Array.from(new Map(allFiles.map((item) => [item.url, item])).values());
+                                                     
+                                                     if(uniqueFiles.length === 0) return (
                                                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.5 }}>
                                                             <InsertDriveFileIcon sx={{ fontSize: 48, color: '#7d82a8', mb: 1 }} />
                                                             <Typography sx={{ color: '#7d82a8' }}>No files attached</Typography>
                                                          </Box>
                                                      );
                                           
-                                                     return allFiles.map((f, i) => (
+                                                     return uniqueFiles.map((f, i) => (
                                                        <Box key={i} sx={{ display:'flex', alignItems:'center', gap:1.5, p:1.5, mb:1.5, bgcolor:'#2c2d4a', borderRadius:2, border: '1px solid #35365a' }}>
                                                           <Box sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', p: 1, borderRadius: 1 }}>
                                                             <InsertDriveFileIcon sx={{color:'#6366f1'}} />
