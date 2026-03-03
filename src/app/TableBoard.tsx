@@ -408,15 +408,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         .then((data) => {
           if (!isMounted) return;
           if (Array.isArray(data)) {
+             // Transform timestamp to readable time
+             const formattedData = data.map((msg: any) => ({
+                 ...msg,
+                 time: msg.timestamp ? dayjs(Number(msg.timestamp)).format('MMM D, HH:mm') : '',
+             }));
+
              // If first load, sync the ref immediately to prevent notification
              if (isFirstLoadRef.current) {
-                 prevMessageCountRef.current = data.length;
+                 prevMessageCountRef.current = formattedData.length;
                  isFirstLoadRef.current = false;
              }
 
             setBoardChatMessages(prev => {
-              if (JSON.stringify(prev) !== JSON.stringify(data)) {
-                return data;
+              // Compare content only to avoid unnecessary re-renders
+              if (JSON.stringify(prev) !== JSON.stringify(formattedData)) {
+                return formattedData;
               }
               return prev;
             });
@@ -1597,17 +1604,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       });
       if (!textMatch) return false;
 
-      // 2. People Filter
+      // 2. People Filter (Assignee or Creator)
       if (filterPerson.length > 0) {
+        // Find IDs for selected names
+        const selectedMemberIds = filterPerson.map(name => 
+            tableMembers.find(m => m.name === name)?.id
+        ).filter(Boolean);
+
         const peopleCols = columns.filter(c => c.type === 'People');
-        const hasPerson = peopleCols.some(col => {
+        
+        const isAssigned = peopleCols.some(col => {
           const val = row.values[col.id];
           if (Array.isArray(val)) {
             return val.some((p: any) => filterPerson.includes(p.name)); // Match by name
           }
           return false;
         });
-        if (!hasPerson) return false;
+        
+        const isCreator = row.created_by && selectedMemberIds.includes(row.created_by);
+
+        if (!isAssigned && !isCreator) return false;
       }
 
       // 3. Status Filter
@@ -1622,7 +1638,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       return true;
     });
-  }, [rows, filterText, filterPerson, filterStatus, columns]);
+  }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
