@@ -3763,14 +3763,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   
                   <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                     <Avatar
-                      src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender)}&background=random&color=fff&bold=true`}
+                      src={(() => {
+                        const m = tableMembers.find(tm => tm.name === msg.sender);
+                        const av = m?.avatar || msg.senderAvatar;
+                        if (!av) return `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender)}&background=random&color=fff&bold=true`;
+                        if (av.startsWith('http') || av.startsWith('data:')) return av;
+                        return `${SERVER_URL}${av}`;
+                      })()}
                       sx={{ 
                         width: 32, height: 32, 
                         border: '1px solid rgba(255,255,255,0.1)',
                         opacity: isSequence ? 0 : 1 
                       }}
                     >
-                      {!msg.senderAvatar && (msg.sender?.charAt(0) || 'U')}
+                      {msg.sender ? msg.sender.charAt(0).toUpperCase() : 'U'}
                     </Avatar>
                     
                     <Box sx={{
@@ -4967,7 +4973,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                             chatMessages.map(msg => (
                                               <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
                                                 <Avatar
-                                                  src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
+                                                  src={(() => {
+                                                    const m = tableMembers.find(tm => tm.name === msg.sender);
+                                                    const av = m?.avatar || msg.senderAvatar;
+                                                    if (!av) return undefined;
+                                                    if (av.startsWith('http') || av.startsWith('data:')) return av;
+                                                    return `${SERVER_URL}${av}`;
+                                                  })()}
                                                   sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
                                                 >
                                                   {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
@@ -6289,7 +6301,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           <Avatar
                             src={(() => {
                               const m = tableMembers.find(tm => tm.name === msg.sender);
-                              return m?.avatar || (msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined);
+                              const av = m?.avatar || msg.senderAvatar;
+                              if (!av) return undefined;
+                              if (av.startsWith('http') || av.startsWith('data:')) return av;
+                              return `${SERVER_URL}${av}`;
                             })()}
                             sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
                           >
@@ -6635,7 +6650,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               {fileDialog.file?.comments?.map((comment: any) => (
                 <Box key={comment.id} sx={{ display: 'flex', gap: 1.5 }}>
                   <Avatar
-                    src={comment.userAvatar ? (comment.userAvatar.startsWith('http') ? comment.userAvatar : `${SERVER_URL}${comment.userAvatar}`) : undefined}
+                    src={(() => {
+                      const m = tableMembers.find(tm => tm.name === comment.user);
+                      const av = m?.avatar || comment.userAvatar;
+                      if (!av) return undefined;
+                      if (av.startsWith('http') || av.startsWith('data:')) return av;
+                      return `${SERVER_URL}${av}`;
+                    })()}
                     sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600 }}
                   >
                     {!comment.userAvatar && (comment.user ? comment.user.charAt(0).toUpperCase() : 'U')}
