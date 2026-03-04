@@ -1157,6 +1157,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
           const subject = `Task updated: ${table.name}`;
 
           let htmlRows = '';
+          let textSummaryLines = [];
           const columns = table.columns || [];
           const automationCols = automation.cols || [];
 
@@ -1167,14 +1168,21 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
               if (typeof val === 'object' && val !== null) {
                 val = JSON.stringify(val);
               }
+              // Build HTML
               htmlRows += `
                 <tr>
                   <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 14px; font-weight: 500; width: 40%; vertical-align: top;">${col.name}</td>
-                  <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">${val}</td>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">${val || '-'}</td>
                 </tr>
               `;
+              
+              // Build Text Summary (for Notifications)
+              textSummaryLines.push(`${col.name}: ${val || '-'}`);
             }
           });
+
+          // Join lines for notification body
+          const textSummary = textSummaryLines.length > 0 ? textSummaryLines.join('\n') : 'Check task for details.';
 
           const html = `
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px 20px; background-color: #f3f4f6; color: #111827;">
@@ -1264,6 +1272,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                                  VALUES ($1, $2, $3, $4, $5, NOW())
                              `, [uuidv4(), u.id, 'automation', {
                                  subject: subject,
+                                 body: textSummary, // Pass details for UI if needed
                                  tableName: table.name,
                                  tableId: table.id,
                                  taskId: id,
@@ -1278,15 +1287,15 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
         
                          // Send Push Notifications via Firebase
                          if (fcmTokens.length > 0) {
-                           const pushTitle = 'Task Update';
-                           const pushBody = subject; // e.g. "Task updated: Projects"
+                           const pushTitle = subject;
+                           const pushBody = textSummary || "Task updated.";
                            const pushData = {
                              type: 'automation',
                              tableId: table.id.toString(),
                              taskId: id.toString()
                            };
                            await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
-                           console.log('[AUTOMATION] Sent push notifications to', fcmTokens.length, 'devices.');
+                           console.log('[AUTOMATION] Sent push notifications with details to', fcmTokens.length, 'devices.');
                          }
                      } catch (pushErr) {
                          successNotif = false;

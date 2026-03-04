@@ -222,6 +222,22 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                   <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     {data.subject}
                   </Box>
+                  {data.body && (
+                      <Box component="pre" sx={{ 
+                          color: '#9CA3AF', 
+                          fontWeight: 500, 
+                          fontSize: '0.7rem', 
+                          mt: 0.5, 
+                          mb: 0, 
+                          whiteSpace: 'pre-wrap', 
+                          fontFamily: 'inherit',
+                          maxHeight: 120,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                      }}>
+                          {data.body}
+                      </Box>
+                  )}
               </>
           );
       }
