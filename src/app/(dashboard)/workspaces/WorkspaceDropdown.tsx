@@ -157,11 +157,11 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
                 {ws.name}
               </Typography>
             </Box>
-            {isShared && ws.owner_avatar && (
+            {isShared && (
               <Tooltip title={`Shared by ${ws.owner_name}`}>
                 <Box
                   component="img"
-                  src={ws.owner_avatar}
+                  src={ws.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ws.owner_name || 'User')}&background=random&color=fff&bold=true`}
                   sx={{
                     width: 20,
                     height: 20,

@@ -539,7 +539,7 @@ export default function HomeDashboard() {
                       >
                          {/* Owner */}
                          <Avatar
-                            src={ws.owner_avatar}
+                            src={ws.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ws.owner_name || ws.name || 'User')}&background=random&color=fff&bold=true`}
                             alt={ws.owner_name}
                             title={`Owner: ${ws.owner_name}`}
                             sx={{ bgcolor: '#6366f1' }}
@@ -551,7 +551,7 @@ export default function HomeDashboard() {
                          {ws.members && ws.members.map((m: any) => (
                              <Avatar
                                 key={m.id}
-                                src={m.avatar}
+                                src={m.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name || 'User')}&background=random&color=fff&bold=true`}
                                 alt={m.name}
                                 title={m.name}
                                 sx={{ bgcolor: '#4f46e5' }}

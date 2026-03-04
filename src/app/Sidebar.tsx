@@ -25,6 +25,7 @@ import {
   useMediaQuery,
   Autocomplete,
   FormControl,
+  Avatar,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
@@ -111,6 +112,7 @@ export default function Sidebar({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { showNotification } = useNotification();
+  const [currentUser, setCurrentUser] = useState<any>(null); // Added state for user
 
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -152,8 +154,18 @@ export default function Sidebar({
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
 
-
-  // Fetch workspaces
+ and user
+  useEffect(() => {
+    // Load local user
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        setCurrentUser(JSON.parse(userStr));
+      }
+    } catch (e) {
+      console.error("Failed to parse user from local storage", e);
+    }
+    es
   useEffect(() => {
     authenticatedFetch(getApiUrl("workspaces"))
       .then((res) => res.json())
@@ -547,27 +559,25 @@ export default function Sidebar({
       <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
       <Box sx={{ p: 2 }}>
         <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            p: 1,
-            borderRadius: 2,
-            cursor: "pointer",
-            "&:hover": { bgcolor: "rgba(255,255,255,0.05)" },
-          }}
-        >
-          <Box
+          sAvatar
+            src={currentUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || "User")}&background=random&color=fff&bold=true`}
+            alt={currentUser?.name || "User"}
             sx={{
               width: 32,
               height: 32,
-              borderRadius: "50%",
               bgcolor: "#4f46e5",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
               fontSize: "0.875rem",
               fontWeight: 600,
+            }}
+          >
+            {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+          </Avatar>
+          <Box sx={{ overflow: "hidden" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+              {currentUser?.name || "Loading..."}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+              {currentUser?.email || "Pro Plan"}ht: 600,
             }}
           >
             VH
