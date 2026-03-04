@@ -1211,82 +1211,108 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
 
           if (recipients.length > 0) {
             
-            // EMAIL LOGIC
-            // Only if actionType is 'email' or 'both'
-            if (actionType === 'email' || actionType === 'both') {
-              console.log('[AUTOMATION] Triggering email for recipients:', recipients);
-              const logRes = await db.query(
-                'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-                [JSON.stringify(recipients), subject, html, Date.now(), table.id, id, 'pending']
-              );
-              const logId = logRes.rows[0].id;
-              
-              const currentActionLogId = logId; // Capture for notification usage if needed
+            console.log(`[AUTOMATION] Triggering '${actionType}' for recipients:`, recipients);
 
-              (async () => {
-                try {
-                  await sendEmail({
-                    to: recipients,
-                    subject,
-                    html
-                  });
-                  await db.query('UPDATE activity_logs SET status = $1 WHERE id = $2', ['sent', currentActionLogId]);
-                } catch (mailErr) {
-                  console.error('[AUTOMATION] Failed to send email:', mailErr);
-                  const detailedError = mailErr.stack || mailErr.message || String(mailErr);
-                  await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', detailedError, currentActionLogId]);
+            // Create activity log entry (Pending) - Logs for ALL types now
+            const logRes = await db.query(
+              'INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+              [JSON.stringify(recipients), subject, html, Date.now(), table.id, id, 'pending']
+            );
+            const logId = logRes.rows[0].id;
+
+            (async () => {
+              try {
+                let successEmail = true;
+                let successNotif = true;
+                let errorMessages = [];
+
+                // 1. EMAIL LOGIC
+                if (actionType === 'email' || actionType === 'both') {
+                  try {
+                    console.log('[AUTOMATION] Sending email...');
+                    await sendEmail({
+                      to: recipients,
+                      subject,
+                      html
+                    });
+                  } catch (mailErr) {
+                    successEmail = false;
+                    console.error('[AUTOMATION] Failed to send email:', mailErr);
+                    errorMessages.push(`Email: ${mailErr.message || mailErr}`);
+                  }
                 }
-              })();
-            }
 
-            // NOTIFICATION LOGIC
-            // Only if actionType is 'notification' or 'both'
-            if (actionType === 'notification' || actionType === 'both') {
-                 console.log('[AUTOMATION] Triggering notification for recipients:', recipients);
-                 
-                 // Fetch users with their FCM tokens
-                 const userRes = await db.query('SELECT id, email, fcm_token FROM users WHERE email = ANY($1)', [recipients]);
-                 const matchedUsers = userRes.rows;
-                 
-                 const fcmTokens = [];
-
-                 for (const u of matchedUsers) {
-                     // Add to internal notifications table (shows in top bar)
-                     await db.query(`
-                         INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
-                         VALUES ($1, $2, $3, $4, $5, NOW())
-                     `, [uuidv4(), u.id, 'automation', {
-                         subject: subject,
-                         tableName: table.name,
-                         tableId: table.id,
-                         taskId: id,
-                         logId: null
-                     }, false]);
-
-                     // Collect FCM token for push notification
-                     if (u.fcm_token) {
-                       fcmTokens.push(u.fcm_token);
+                // 2. NOTIFICATION LOGIC
+                if (actionType === 'notification' || actionType === 'both') {
+                     try {
+                         console.log('[AUTOMATION] Sending notification...');
+                         
+                         // Fetch users with their FCM tokens
+                         const userRes = await db.query('SELECT id, email, fcm_token FROM users WHERE email = ANY($1)', [recipients]);
+                         const matchedUsers = userRes.rows;
+                         
+                         if (matchedUsers.length === 0) {
+                            console.warn('[AUTOMATION] No matching users found via email for notification.');
+                         }
+        
+                         const fcmTokens = [];
+        
+                         for (const u of matchedUsers) {
+                             // Add to internal notifications table (shows in top bar)
+                             await db.query(`
+                                 INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+                                 VALUES ($1, $2, $3, $4, $5, NOW())
+                             `, [uuidv4(), u.id, 'automation', {
+                                 subject: subject,
+                                 tableName: table.name,
+                                 tableId: table.id,
+                                 taskId: id,
+                                 logId: logId
+                             }, false]);
+        
+                             // Collect FCM token for push notification
+                             if (u.fcm_token) {
+                               fcmTokens.push(u.fcm_token);
+                             }
+                         }
+        
+                         // Send Push Notifications via Firebase
+                         if (fcmTokens.length > 0) {
+                           const pushTitle = 'Task Update';
+                           const pushBody = subject; // e.g. "Task updated: Projects"
+                           const pushData = {
+                             type: 'automation',
+                             tableId: table.id.toString(),
+                             taskId: id.toString()
+                           };
+                           await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
+                           console.log('[AUTOMATION] Sent push notifications to', fcmTokens.length, 'devices.');
+                         }
+                     } catch (pushErr) {
+                         successNotif = false;
+                         console.error('[AUTOMATION] Failed to send notifications:', pushErr);
+                         errorMessages.push(`Notification: ${pushErr.message || pushErr}`);
                      }
-                 }
+                }
 
-                 // Send Push Notifications via Firebase
-                 if (fcmTokens.length > 0) {
-                   try {
-                     const pushTitle = 'Task Update';
-                     const pushBody = subject; // e.g. "Task updated: Projects"
-                     const pushData = {
-                       type: 'automation',
-                       tableId: table.id.toString(),
-                       taskId: id.toString()
-                     };
-                     await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
-                     console.log('[AUTOMATION] Sent push notifications to', fcmTokens.length, 'devices.');
-                   } catch (pushErr) {
-                     console.error('[AUTOMATION] Failed to send push notifications:', pushErr);
-                   }
-                 }
-            }
-
+                // Update activity log status
+                let finalStatus = 'sent';
+                if (!successEmail || !successNotif) {
+                  finalStatus = 'error'; 
+                } else if (errorMessages.length > 0) {
+                   // e.g. partial failure
+                   finalStatus = 'error';
+                }
+                
+                const finalErrorMsg = errorMessages.length > 0 ? errorMessages.join('; ') : null;
+                
+                await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', [finalStatus, finalErrorMsg, logId]);
+                
+              } catch (critErr) {
+                 console.error('[AUTOMATION] Critical error in async execution:', critErr);
+                 await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', 'Critical execution failure', logId]);
+              }
+            })();
           }
         }
       }

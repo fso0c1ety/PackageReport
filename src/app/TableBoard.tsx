@@ -4858,23 +4858,45 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </TableHead>
 
                 <Droppable droppableId="rows-droppable" type="row">
-                  {(provided) => (
+                  {(provided) => {
+                    // Find first status column for row coloring
+                    const firstStatusCol = [...columns].sort((a, b) => a.order - b.order).find(c => c.type === 'Status');
+                    
+                    return (
                     <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                      {filteredRows.map((row, index) => (
+                      {filteredRows.map((row, index) => {
+                        // Calculate background color based on status
+                        let rowBg = '#23243a';
+                        let rowHoverBg = '#2c2d4a';
+                        
+                        if (firstStatusCol) {
+                           const val = row.values[firstStatusCol.id];
+                           // Status options usually have { value, color }
+                           const opt = firstStatusCol.options?.find((o: any) => o.value === val);
+                           if (opt && opt.color && opt.color.startsWith('#')) {
+                               // Add ~12% opacity (hex 1F) for background
+                               rowBg = opt.color + '1F';
+                               // Add ~20% opacity (hex 33) for hover
+                               rowHoverBg = opt.color + '33';
+                           }
+                        }
+
+                        return (
                         <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
                           {(provided, snapshot) => (
                             <TableRow
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               sx={{
-                                bgcolor: snapshot.isDragging ? '#2c2d4a' : '#23243a',
-                                '&:hover': { bgcolor: '#2c2d4a' },
+                                bgcolor: snapshot.isDragging ? '#2c2d4a' : rowBg,
+                                '&:hover': { bgcolor: rowHoverBg },
                                 transition: 'background-color 0.2s',
                                 borderRadius: 4, 
                                 ...provided.draggableProps.style
                               }}
                             >
                               {/* Row Drag Handle, Menu, and Message Icon */}
+
                               <TableCell sx={{
                                 width: 60,
                                 p: 0,
@@ -5310,10 +5332,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             </TableRow>
                           )}
                         </Draggable>
-                      ))}
+                      )})}
                       {provided.placeholder}
                     </TableBody>
-                  )}
+                  )}}
                 </Droppable>
               </Table >
             </TableContainer >
@@ -7284,52 +7306,49 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     )}
                 </Box>
 
-                {(actionType === 'email' || actionType === 'both') && (
-                    <>
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel id="email-cols-label" sx={{ color: '#9CA3AF' }}>Include Columns</InputLabel>
-                        <Select
-                            labelId="email-cols-label"
-                            multiple
-                            value={emailCols}
-                            onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                            renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
-                            sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
-                            MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
-                        >
-                            {columns.map((col) => (
-                            <MenuItem key={col.id} value={col.id}>
-                                <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
-                                <ListItemText primary={col.name} />
-                            </MenuItem>
-                            ))}
-                        </Select>
-                        </FormControl>
+                {/* Options always visible regardless of action type */}
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel id="email-cols-label" sx={{ color: '#9CA3AF' }}>Include Columns</InputLabel>
+                    <Select
+                        labelId="email-cols-label"
+                        multiple
+                        value={emailCols}
+                        onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                        renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
+                        sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                        MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
+                    >
+                        {columns.map((col) => (
+                        <MenuItem key={col.id} value={col.id}>
+                            <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
+                            <ListItemText primary={col.name} />
+                        </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
 
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel id="email-recipients-label" sx={{ color: '#9CA3AF' }}>Recipients</InputLabel>
-                        <Select
-                            labelId="email-recipients-label"
-                            multiple
-                            value={emailRecipients}
-                            onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                            renderValue={(selected) => selected.map((email: string) => {
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel id="email-recipients-label" sx={{ color: '#9CA3AF' }}>Recipients</InputLabel>
+                    <Select
+                        labelId="email-recipients-label"
+                        multiple
+                        value={emailRecipients}
+                        onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                        renderValue={(selected) => selected.map((email: string) => {
                             const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
                             return person ? person.name : email;
-                            }).join(', ')}
-                            sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
-                            MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
-                        >
-                            {peopleOptions.map((person: { name: string; email: string }) => (
-                            <MenuItem key={person.email} value={person.email}>
-                                <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
-                                <ListItemText primary={person.name} />
-                            </MenuItem>
-                            ))}
-                        </Select>
-                        </FormControl>
-                    </>
-                )}
+                        }).join(', ')}
+                        sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' }}
+                        MenuProps={{ PaperProps: { sx: { bgcolor: '#1C1D26', color: '#fff' } } }}
+                    >
+                        {peopleOptions.map((person: { name: string; email: string }) => (
+                        <MenuItem key={person.email} value={person.email}>
+                            <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
+                            <ListItemText primary={person.name} />
+                        </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
 
                 <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
                   <Button variant="text" onClick={() => setIsEditingAutomation(false)} sx={{ color: '#9CA3AF' }}>Cancel</Button>
