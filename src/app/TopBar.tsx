@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List } from "@mui/material";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List, useTheme } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -12,20 +12,23 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CommentIcon from "@mui/icons-material/Comment";
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl } from "./apiUrl";
+import { useThemeContext } from "./ThemeContext";
 
 interface TopBarProps {
   onMenuClick?: () => void;
 }
 
 const StyledIconButton = styled(IconButton)(({ theme }) => ({
-  color: "#94a3b8",
+  color: theme.palette.text.secondary,
   transition: "all 0.2s",
   "&:hover": {
-    color: "#fff",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    color: theme.palette.text.primary,
+    backgroundColor: theme.palette.action.hover,
     transform: "translateY(-1px)",
   },
 }));
@@ -40,6 +43,8 @@ type Notification = {
 
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
+  const theme = useTheme();
+  const { toggleTheme, mode } = useThemeContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<any>(null);
   const open = Boolean(anchorEl);
@@ -197,7 +202,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           case 'chat_message': return '#ec4899'; // Pink
           case 'file_comment': return '#f59e0b'; // Amber
           case 'task_chat': return '#8b5cf6'; // Violet
-          default: return '#64748b'; // Slate
+          default: return theme.palette.text.secondary; // Slate
       }
   };
 
@@ -207,8 +212,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       if (type === 'invite' && data) {
           return (
               <>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Table Invite</Typography>
-                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Table Invite</Typography>
+                  <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     User requested to share table <strong>{data.tableName}</strong> with you.
                   </Box>
               </>
@@ -218,13 +223,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       if (type === 'automation' && data) {
           return (
               <>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Automation Alert</Typography>
-                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Automation Alert</Typography>
+                  <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     {data.subject}
                   </Box>
                   {data.body && (
                       <Box component="pre" sx={{ 
-                          color: '#9CA3AF', 
+                          color: theme.palette.text.secondary, 
                           fontWeight: 500, 
                           fontSize: '0.7rem', 
                           mt: 0.5, 
@@ -245,8 +250,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       if (type === 'chat_message' && data) {
           return (
               <>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>New Chat Message</Typography>
-                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>New Chat Message</Typography>
+                  <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     <strong>{data.tableName}</strong>: {data.body}
                   </Box>
               </>
@@ -256,8 +261,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       if ((type === 'task_chat' || type === 'file_comment') && data) {
           return (
               <>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{data.subject}</Typography>
-                  <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>{data.subject}</Typography>
+                  <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     {data.body}
                   </Box>
               </>
@@ -267,8 +272,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       // Handle legacy or generic notifications
       return (
             <>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Notification</Typography>
-                <Box component="span" sx={{ color: '#d0d4e4', display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Notification</Typography>
+                <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     {data?.subject || data?.body || 'You have a new notification'}
                 </Box>
             </>
@@ -288,9 +293,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       sx={{
         width: "100%",
         height: { xs: 60, sm: 72 },
-        bgcolor: "#23243a", // Match app background
+        bgcolor: theme.palette.background.default, 
         display: "flex",
         alignItems: "center",
+        borderBottom: `1px solid ${theme.palette.divider}`,
         px: { xs: 2, md: 4, lg: 6 },
         justifyContent: "space-between",
         position: "sticky",
@@ -304,7 +310,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           <IconButton
             onClick={onMenuClick}
             sx={{
-              color: '#fff',
+              color: theme.palette.text.primary,
               display: { md: 'none' },
               mr: 1
             }}
@@ -320,14 +326,24 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           display: 'flex',
           alignItems: 'center',
           gap: { xs: 1, sm: 2 },
-          bgcolor: "rgba(255, 255, 255, 0.03)",
+          bgcolor: theme.palette.mode === 'dark' ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)",
           p: 0.5,
           pl: 2,
           pr: 1,
           borderRadius: "30px",
-          border: "1px solid rgba(255, 255, 255, 0.05)"
+          border: `1px solid ${theme.palette.divider}`
         }}
       >
+
+        {/* Theme Toggle */}
+        <Tooltip title={mode === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+          <StyledIconButton size="small" onClick={toggleTheme}>
+            {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+          </StyledIconButton>
+        </Tooltip>
+
+        <Box sx={{ width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
+
         <Tooltip title="Search">
           <StyledIconButton size="small">
             <SearchIcon fontSize="small" />
@@ -339,9 +355,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             size="small"
             onClick={handleNotifOpen}
             sx={{
-                color: "#94a3b8",
+                color: theme.palette.text.secondary,
                 transition: "all 0.2s",
-                "&:hover": { color: "#fff", backgroundColor: "rgba(255, 255, 255, 0.05)" }
+                "&:hover": { color: theme.palette.text.primary, backgroundColor: theme.palette.action.hover }
             }}
           >
             <Badge badgeContent={unreadCount} max={99} color="error" invisible={unreadCount === 0}>
@@ -358,9 +374,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                 sx: { 
                     width: 380, 
                     maxHeight: 500, 
-                    bgcolor: '#1e1f2b', 
-                    color: '#fff', 
-                    border: '1px solid #3a3b5a',
+                    bgcolor: theme.palette.background.paper, 
+                    color: theme.palette.text.primary, 
+                    border: `1px solid ${theme.palette.divider}`,
                     mt: 1,
                     overflowY: 'auto'
                 }
@@ -368,15 +384,15 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #3a3b5a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="subtitle2" fontWeight={600}>Updates & Messages</Typography>
-                {unreadCount > 0 && <Box component="span" sx={{ fontSize: '0.7rem', color: '#6366f1' }}>Marked as read</Box>}
+                {unreadCount > 0 && <Box component="span" sx={{ fontSize: '0.7rem', color: theme.palette.primary.main }}>Marked as read</Box>}
             </Box>
             <List sx={{ p: 0 }}>
                 {notifications.length === 0 ? (
                     <Box sx={{ p: 4, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <NotificationsNoneIcon sx={{ color: '#3a3b5a', fontSize: 40 }} />
-                        <Typography variant="body2" color="#7d82a8">You're all caught up!</Typography>
+                        <NotificationsNoneIcon sx={{ color: theme.palette.text.disabled, fontSize: 40 }} />
+                        <Typography variant="body2" color="text.secondary">You're all caught up!</Typography>
                     </Box>
                 ) : (
                     notifications.map((notif) => (
@@ -389,10 +405,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                                 alignItems: 'flex-start', 
                                 gap: 1, 
                                 py: 2,
-                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                borderBottom: `1px solid ${theme.palette.divider}`,
                                 whiteSpace: 'normal',
                                 transition: 'all 0.2s',
-                                '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' }
+                                '&:hover': { bgcolor: theme.palette.action.hover }
                             }}
                         >
                             <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
@@ -400,19 +416,19 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                                     width: 32, 
                                     height: 32, 
                                     bgcolor: getNotificationColor(notif.type), 
-                                    color: '#fff',
-                                    border: '2px solid #1e1f2b'
+                                    color: 'text.primary',
+                                    border: `2px solid ${theme.palette.background.paper}`
                                 }}>
                                     {getNotificationIcon(notif.type)}
                                 </Avatar>
                                 <Box sx={{ flex: 1 }}>
                                     {renderNotificationContent(notif)}
-                                    <Typography variant="caption" sx={{ color: '#7d82a8', mt: 0.5, display: 'block', fontSize: '0.65rem' }}>
+                                    <Typography variant="caption" sx={{ color: theme.palette.text.disabled, mt: 0.5, display: 'block', fontSize: '0.65rem' }}>
                                         {new Date(notif.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                     </Typography>
                                 </Box>
                                     {!notif.read && (
-                                        <Box sx={{ width: 8, height: 8, bgcolor: '#6366f1', borderRadius: '50%', mt: 1 }} />
+                                        <Box sx={{ width: 8, height: 8, bgcolor: theme.palette.primary.main, borderRadius: '50%', mt: 1 }} />
                                     )}
                             </Box>
                             
@@ -432,7 +448,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                                         variant="contained" 
                                         color="primary"
                                         onClick={(e) => { e.stopPropagation(); handleInviteAction(notif.id, 'accept'); }}
-                                        sx={{ fontSize: '0.75rem', py: 0.25, minWidth: 70, bgcolor: '#6366f1' }}
+                                        sx={{ fontSize: '0.75rem', py: 0.25, minWidth: 70 }}
                                     >
                                         Accept
                                     </Button>
@@ -456,7 +472,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           </StyledIconButton>
         </Tooltip>
 
-        <Box sx={{ width: 1, height: 24, bgcolor: "rgba(255,255,255,0.1)", mx: 0.5 }} />
+        <Box sx={{ width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
 
         <Tooltip title="Account settings">
           <IconButton
@@ -472,12 +488,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
               sx={{
                 width: 36,
                 height: 36,
-                bgcolor: '#6366f1',
+                bgcolor: theme.palette.primary.main,
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: 'pointer',
-                border: '2px solid rgba(35, 36, 58, 1)',
-                boxShadow: '0 0 0 2px #6366f1',
+                border: `2px solid ${theme.palette.background.default}`,
+                boxShadow: `0 0 0 2px ${theme.palette.primary.main}`,
                 transition: "all 0.2s",
                 "&:hover": {
                   transform: "scale(1.05)"
@@ -500,8 +516,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
               overflow: 'visible',
               filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
               mt: 1.5,
-              bgcolor: '#2b2c40',
-              color: '#fff',
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
               '& .MuiAvatar-root': {
                 width: 32,
                 height: 32,
@@ -516,7 +532,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                 right: 14,
                 width: 10,
                 height: 10,
-                bgcolor: '#2b2c40',
+                bgcolor: theme.palette.background.paper,
                 transform: 'translateY(-50%) rotate(45deg)',
                 zIndex: 0,
               },
@@ -527,13 +543,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         >
           <MenuItem onClick={() => router.push('/settings')}>
             <ListItemIcon>
-              <PersonIcon fontSize="small" sx={{ color: '#fff' }} />
+              <PersonIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
             </ListItemIcon>
             Profile Settings
           </MenuItem>
           <MenuItem onClick={handleLogout}>
             <ListItemIcon>
-              <LogoutIcon fontSize="small" sx={{ color: '#fff' }} />
+              <LogoutIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
             </ListItemIcon>
             Logout
           </MenuItem>

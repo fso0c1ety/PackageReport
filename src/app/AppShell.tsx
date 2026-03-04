@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
-import MenuIcon from "@mui/icons-material/Menu";
+import { useTheme } from "@mui/material"; // Added
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const theme = useTheme();
 
   return (
     <Box
@@ -16,7 +16,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         display: "flex",
         minHeight: "100vh",
         width: "100%",
-        bgcolor: "#23243a",
+        bgcolor: theme.palette.background.default,
+        color: theme.palette.text.primary,
         flexDirection: { xs: "column", md: "row" },
         overflowX: "clip",
       }}
@@ -35,6 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           minHeight: "100vh",
           width: 0,
           minWidth: 0,
+          bgcolor: theme.palette.background.default, // ensure background coverage
         }}
       >
         <TopBar onMenuClick={() => setMobileSidebarOpen(true)} />
@@ -43,7 +45,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           component="main"
           sx={{
             flex: 1,
-            bgcolor: "#23243a",
+            // bgcolor: theme.palette.background.default, // redundant but harmless
             width: 0,
             minWidth: 0,
             overflowX: "clip",

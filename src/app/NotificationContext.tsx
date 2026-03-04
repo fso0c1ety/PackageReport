@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { Snackbar, Alert, AlertColor, Box, Typography, IconButton, Grow } from "@mui/material";
+import { Snackbar, Alert, AlertColor, Box, Typography, IconButton, Grow, useTheme } from "@mui/material";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import InfoIcon from '@mui/icons-material/Info';
@@ -15,6 +15,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
+    const theme = useTheme();
     const [notification, setNotification] = useState<{
         open: boolean;
         message: string;
@@ -73,11 +74,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                         minWidth: '320px',
                         maxWidth: '400px',
                         width: '100%',
-                        bgcolor: '#1e1f2b', // Dark theme background
-                        color: '#fff',
+                        bgcolor: 'background.paper', // Dark theme background
+                        color: 'text.primary',
                         p: 2,
                         borderRadius: '16px',
-                        border: '1px solid rgba(255,255,255,0.08)',
+                        border: `1px solid ${theme.palette.divider}`,
                         boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5)',
                         backdropFilter: 'blur(12px)',
                         position: 'relative',
@@ -116,8 +117,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                         size="small" 
                         onClick={(e) => handleClose(e)} 
                         sx={{ 
-                            color: '#6b7280', 
-                            '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
+                            color: theme.palette.text.secondary, 
+                            '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover },
                             mt: -0.5,
                             mr: -0.5
                         }}

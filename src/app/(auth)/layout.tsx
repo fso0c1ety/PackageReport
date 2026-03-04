@@ -10,7 +10,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         component="main"
         sx={{
           minHeight: '100vh',
-          bgcolor: '#23243a', // Matches HomeDashboard background
+          bgcolor: 'background.default', // Matches HomeDashboard background
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

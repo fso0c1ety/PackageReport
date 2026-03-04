@@ -10,7 +10,7 @@ export default function DatePickerTest() {
   const [value, setValue] = React.useState(null);
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ p: 4, bgcolor: "#222", color: "#fff", minHeight: 300 }}>
+      <Box sx={{ p: 4, bgcolor: "#222", color: 'text.primary', minHeight: 300 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           MUI DatePicker Test
         </Typography>
@@ -21,8 +21,8 @@ export default function DatePickerTest() {
             textField: {
               size: "small",
               autoFocus: true,
-              InputProps: { style: { color: "#fff" } },
-              sx: { bgcolor: "#333", color: "#fff" },
+              InputProps: { style: { color: 'text.primary' } },
+              sx: { bgcolor: "#333", color: 'text.primary' },
             },
           }}
         />

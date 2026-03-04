@@ -26,14 +26,17 @@ export const viewport = {
 };
 
 import { NotificationProvider } from "./NotificationContext";
+import ThemeRegistry from "./ThemeRegistry";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`} style={{ background: '#23243a', color: '#fff', overflowX: 'hidden' }}>
-        <NotificationProvider>
-          {children}
-        </NotificationProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`} style={{ overflowX: 'hidden' }}>
+        <ThemeRegistry>
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );

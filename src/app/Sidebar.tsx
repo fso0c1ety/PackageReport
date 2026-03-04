@@ -26,6 +26,7 @@ import {
   Autocomplete,
   FormControl,
   Avatar,
+  alpha,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
@@ -57,6 +58,7 @@ interface SidebarItemProps {
 }
 
 function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps) {
+  const theme = useTheme();
   return (
     <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }} onClick={onClick}>
       <ListItemButton
@@ -67,12 +69,12 @@ function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps)
           mb: 0.5,
           borderRadius: 2,
           width: "auto",
-          bgcolor: isActive ? "rgba(99, 102, 241, 0.15)" : "transparent",
-          color: isActive ? "#ffffff" : "#94a3b8",
+          bgcolor: isActive ? theme.palette.action.selected : "transparent",
+          color: isActive ? theme.palette.primary.main : theme.palette.text.secondary,
           transition: "all 0.2s ease-in-out",
           "&:hover": {
-            bgcolor: "rgba(255, 255, 255, 0.08)",
-            color: "#ffffff",
+            bgcolor: theme.palette.action.hover,
+            color: theme.palette.text.primary,
             transform: "translateX(4px)",
           },
         }}
@@ -80,7 +82,7 @@ function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps)
         <ListItemIcon
           sx={{
             minWidth: 36,
-            color: isActive ? "#818cf8" : "inherit",
+            color: isActive ? theme.palette.primary.main : "inherit",
           }}
         >
           {icon}
@@ -113,6 +115,7 @@ export default function Sidebar({
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { showNotification } = useNotification();
   const [currentUser, setCurrentUser] = useState<any>(null); // Added state for user
+
 
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -349,18 +352,18 @@ export default function Sidebar({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "#292a43", // Slightly lighter distinct background
-        color: "#ffffff",
-        paddingTop: { xs: "env(safe-area-inset-top)", md: 0 }, // Add padding for safe area on mobile
-        // Removed borderRight as the container has rounded edges and shadow
+        bgcolor: theme.palette.background.paper, 
+        color: theme.palette.text.primary,
+        borderRight: `1px solid ${theme.palette.divider}`,
+        paddingTop: { xs: "env(safe-area-inset-top)", md: 0 },
       }}
     >
       {/* Brand Header */}
       <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 2 }}>
         <Box
           sx={{
-            width: 48,
-            height: 48,
+            width: 40,
+            height: 40,
             position: 'relative',
             borderRadius: "8px",
             overflow: "hidden",
@@ -384,10 +387,7 @@ export default function Sidebar({
             fontFamily: "var(--font-outfit)",
             fontSize: "1.25rem",
             letterSpacing: "-0.02em",
-            background: "linear-gradient(to right, #fff, #cbd5e1)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            textShadow: "0 2px 10px rgba(255,255,255,0.1)",
+            color: theme.palette.text.primary,
           }}
         >
           Smart Manage
@@ -400,22 +400,22 @@ export default function Sidebar({
           sx={{
             display: "flex",
             alignItems: "center",
-            bgcolor: searchFocused ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+            bgcolor: alpha(theme.palette.text.primary, 0.05),
             borderRadius: "8px",
             px: 1.5,
             py: 0.8,
             border: "1px solid",
-            borderColor: searchFocused ? "#6366f1" : "transparent",
+            borderColor: searchFocused ? theme.palette.primary.main : "transparent",
             transition: "all 0.2s",
           }}
         >
-          <SearchIcon sx={{ fontSize: 20, color: "#64748b", mr: 1 }} />
+          <SearchIcon sx={{ fontSize: 20, color: theme.palette.text.secondary, mr: 1 }} />
           <input
             placeholder="Search..."
             style={{
               background: "transparent",
               border: "none",
-              color: "#fff",
+              color: theme.palette.text.primary,
               fontSize: "0.875rem",
               width: "100%",
               outline: "none",
@@ -445,7 +445,7 @@ export default function Sidebar({
           />
         </Box>
 
-        <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mx: 3, mb: 3 }} />
+        <Divider sx={{ borderColor: theme.palette.divider, mx: 3, mb: 3 }} />
 
         {/* AI Tools Section */}
         <Box sx={{ mb: 3 }}>
@@ -455,7 +455,7 @@ export default function Sidebar({
               px: 3,
               mb: 1.5,
               display: "block",
-              color: "#64748b",
+              color: theme.palette.text.secondary,
               fontWeight: 700,
               textTransform: "uppercase",
               fontSize: "0.7rem",
@@ -488,7 +488,7 @@ export default function Sidebar({
             <Typography
               variant="caption"
               sx={{
-                color: "#64748b",
+                color: theme.palette.text.secondary,
                 fontWeight: 700,
                 textTransform: "uppercase",
                 fontSize: "0.7rem",
@@ -502,14 +502,15 @@ export default function Sidebar({
                 size="small"
                 onClick={() => setDialogOpen(true)}
                 sx={{
-                  color: "#94a3b8",
-                  "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
+                  color: theme.palette.text.secondary,
+                  "&:hover": { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover },
                 }}
               >
                 <AddIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
+
           <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1 }}>
             <WorkspaceDropdown />
           </Box>
@@ -521,8 +522,8 @@ export default function Sidebar({
               startIcon={<ShareIcon />}
               onClick={() => setShareDialogOpen(true)}
               sx={{
-                bgcolor: '#6366f1',
-                '&:hover': { bgcolor: '#5558dd' },
+                bgcolor: theme.palette.primary.main,
+                '&:hover': { bgcolor: theme.palette.primary.dark },
                 borderRadius: 2,
                 textTransform: 'none',
                 fontWeight: 600,
@@ -538,9 +539,9 @@ export default function Sidebar({
               startIcon={<AddLinkIcon />}
               onClick={() => setJoinDialogOpen(true)}
               sx={{
-                color: '#fff',
-                borderColor: '#3a3b5a',
-                '&:hover': { borderColor: '#6366f1', bgcolor: 'rgba(99, 102, 241, 0.1)' },
+                color: theme.palette.text.primary,
+                borderColor: theme.palette.divider,
+                '&:hover': { borderColor: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1) },
                 borderRadius: 2,
                 textTransform: 'none',
                 fontWeight: 600,
@@ -555,7 +556,7 @@ export default function Sidebar({
       </Box>
 
       {/* Footer Profile */}
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+      <Divider sx={{ borderColor: theme.palette.divider }} />
       <Box sx={{ p: 2 }}>
         <Box
           sx={{
@@ -565,7 +566,7 @@ export default function Sidebar({
             p: 1,
             borderRadius: 2,
             cursor: "pointer",
-            "&:hover": { bgcolor: "rgba(255,255,255,0.05)" },
+            "&:hover": { bgcolor: theme.palette.action.hover },
           }}
         >
           <Avatar
@@ -574,7 +575,7 @@ export default function Sidebar({
             sx={{
               width: 32,
               height: 32,
-              bgcolor: "#4f46e5",
+              bgcolor: theme.palette.primary.main,
               fontSize: "0.875rem",
               fontWeight: 600,
             }}
@@ -582,10 +583,10 @@ export default function Sidebar({
             {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
           </Avatar>
           <Box sx={{ overflow: "hidden" }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2, color: theme.palette.text.primary }}>
               {currentUser?.name || "Loading..."}
             </Typography>
-            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
               {currentUser?.email || "Pro Plan"}
             </Typography>
           </Box>
@@ -600,21 +601,21 @@ export default function Sidebar({
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#1e1f2b',
-            color: '#fff',
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
             borderRadius: 3,
-            border: '1px solid #3a3b5a',
+            border: `1px solid ${theme.palette.divider}`,
             backgroundImage: 'none'
           }
         }}
         BackdropProps={{
           sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            bgcolor: alpha(theme.palette.common.black, 0.5),
             backdropFilter: 'blur(4px)'
           }
         }}
       >
-        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+        <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1, borderBottom: 'none' }}>
           Create New Workspace
         </DialogTitle>
         <DialogContent sx={{ pb: 3, pt: 1 }}>
@@ -627,16 +628,16 @@ export default function Sidebar({
             variant="outlined"
             size="medium"
             InputLabelProps={{
-              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+              sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } }
             }}
             InputProps={{
               sx: {
-                color: '#fff',
-                bgcolor: '#26273b',
+                color: theme.palette.text.primary,
+                bgcolor: theme.palette.action.hover,
                 borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.text.secondary },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main }
               }
             }}
             sx={{ mt: 1 }}
@@ -645,7 +646,7 @@ export default function Sidebar({
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button
             onClick={() => setDialogOpen(false)}
-            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
           >
             Cancel
           </Button>
@@ -654,9 +655,9 @@ export default function Sidebar({
             disabled={!newWorkspaceName.trim()}
             variant="contained"
             sx={{
-              bgcolor: '#6366f1',
-              '&:hover': { bgcolor: '#5558dd' },
-              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              bgcolor: theme.palette.primary.main,
+              '&:hover': { bgcolor: theme.palette.primary.dark },
+              '&.Mui-disabled': { bgcolor: theme.palette.action.disabledBackground, color: theme.palette.text.disabled },
               boxShadow: 'none',
               textTransform: 'none',
               fontWeight: 600
@@ -675,21 +676,21 @@ export default function Sidebar({
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#1e1f2b',
-            color: '#fff',
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
             borderRadius: 3,
-            border: '1px solid #3a3b5a',
+            border: `1px solid ${theme.palette.divider}`,
             backgroundImage: 'none'
           }
         }}
         BackdropProps={{
           sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            bgcolor: alpha(theme.palette.common.black, 0.5),
             backdropFilter: 'blur(4px)'
           }
         }}
       >
-        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+        <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1, borderBottom: 'none' }}>
           Rename Workspace
         </DialogTitle>
         <DialogContent sx={{ pb: 3, pt: 1 }}>
@@ -702,16 +703,16 @@ export default function Sidebar({
             variant="outlined"
             size="medium"
             InputLabelProps={{
-              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+              sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } }
             }}
             InputProps={{
               sx: {
-                color: '#fff',
-                bgcolor: '#26273b',
+                color: theme.palette.text.primary,
+                bgcolor: theme.palette.action.hover,
                 borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.text.secondary },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main }
               }
             }}
             sx={{ mt: 1 }}
@@ -720,7 +721,7 @@ export default function Sidebar({
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button
             onClick={() => setRenameDialogOpen(false)}
-            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
           >
             Cancel
           </Button>
@@ -729,9 +730,9 @@ export default function Sidebar({
             disabled={!renameValue.trim() || renameValue.trim() === editingWorkspace?.name}
             variant="contained"
             sx={{
-              bgcolor: '#6366f1',
-              '&:hover': { bgcolor: '#5558dd' },
-              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              bgcolor: theme.palette.primary.main,
+              '&:hover': { bgcolor: theme.palette.primary.dark },
+              '&.Mui-disabled': { bgcolor: theme.palette.action.disabledBackground, color: theme.palette.text.disabled },
               boxShadow: 'none',
               textTransform: 'none',
               fontWeight: 600
@@ -750,25 +751,25 @@ export default function Sidebar({
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#1e1f2b',
-            color: '#fff',
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
             borderRadius: 3,
-            border: '1px solid #3a3b5a',
+            border: `1px solid ${theme.palette.divider}`,
             backgroundImage: 'none'
           }
         }}
         BackdropProps={{
           sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            bgcolor: alpha(theme.palette.common.black, 0.5),
             backdropFilter: 'blur(4px)'
           }
         }}
       >
-        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+        <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1, borderBottom: 'none' }}>
           Share Board
         </DialogTitle>
         <DialogContent sx={{ pb: 3, pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="body2" sx={{ color: '#94a3b8', mb: 1 }}>
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
             Select a user and choose which table to share with them. They will be able to access the board and chat.
           </Typography>
 
@@ -796,8 +797,8 @@ export default function Sidebar({
                         width: 28,
                         height: 28,
                         borderRadius: '50%',
-                        bgcolor: '#6366f1',
-                        color: '#fff',
+                        bgcolor: theme.palette.primary.main,
+                        color: theme.palette.text.primary,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -809,10 +810,10 @@ export default function Sidebar({
                     </Box>
                   )}
                   <Box>
-                    <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
+                    <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
                       {option.name}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                       {option.email}
                     </Typography>
                   </Box>
@@ -823,22 +824,22 @@ export default function Sidebar({
                   {...params}
                   label="Search user by name or email"
                   variant="outlined"
-                  InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
+                  InputLabelProps={{ sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } } }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      color: '#fff',
-                      bgcolor: '#26273b',
+                      color: theme.palette.text.primary,
+                      bgcolor: theme.palette.action.hover,
                       borderRadius: 2,
-                      '& fieldset': { borderColor: '#3a3b5a' },
-                      '&:hover fieldset': { borderColor: '#4a4b6a' },
-                      '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                      '& fieldset': { borderColor: theme.palette.divider },
+                      '&:hover fieldset': { borderColor: theme.palette.text.secondary },
+                      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
                     },
-                    '& .MuiSvgIcon-root': { color: '#7d82a8' } // dropdown icon color
+                    '& .MuiSvgIcon-root': { color: theme.palette.text.secondary } // dropdown icon color
                   }}
                 />
               )}
               PaperComponent={({ children }) => (
-                <Box sx={{ bgcolor: '#26273b', color: '#fff' }}>{children}</Box>
+                <Box sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary }}>{children}</Box>
               )}
             />
           </FormControl>
@@ -854,22 +855,22 @@ export default function Sidebar({
                   {...params}
                   label="Select Workspace"
                   variant="outlined"
-                  InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
+                  InputLabelProps={{ sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } } }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      color: '#fff',
-                      bgcolor: '#26273b',
+                      color: theme.palette.text.primary,
+                      bgcolor: theme.palette.action.hover,
                       borderRadius: 2,
-                      '& fieldset': { borderColor: '#3a3b5a' },
-                      '&:hover fieldset': { borderColor: '#4a4b6a' },
-                      '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                      '& fieldset': { borderColor: theme.palette.divider },
+                      '&:hover fieldset': { borderColor: theme.palette.text.secondary },
+                      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
                     },
-                    '& .MuiSvgIcon-root': { color: '#7d82a8' }
+                    '& .MuiSvgIcon-root': { color: theme.palette.text.secondary }
                   }}
                 />
               )}
               PaperComponent={({ children }) => (
-                <Box sx={{ bgcolor: '#26273b', color: '#fff' }}>{children}</Box>
+                <Box sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary }}>{children}</Box>
               )}
             />
           </FormControl>
@@ -890,29 +891,29 @@ export default function Sidebar({
                   {...params}
                   label="Select Table"
                   variant="outlined"
-                  InputLabelProps={{ sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } } }}
+                  InputLabelProps={{ sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } } }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      color: '#fff',
-                      bgcolor: '#26273b',
+                      color: theme.palette.text.primary,
+                      bgcolor: theme.palette.action.hover,
                       borderRadius: 2,
-                      '& fieldset': { borderColor: '#3a3b5a' },
-                      '&:hover fieldset': { borderColor: '#4a4b6a' },
-                      '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                      '& fieldset': { borderColor: theme.palette.divider },
+                      '&:hover fieldset': { borderColor: theme.palette.text.secondary },
+                      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
                       '&.Mui-disabled': { opacity: 0.6 }
                     },
-                    '& .MuiSvgIcon-root': { color: '#7d82a8' }
+                    '& .MuiSvgIcon-root': { color: theme.palette.text.secondary }
                   }}
                 />
               )}
               PaperComponent={({ children }) => (
-                <Box sx={{ bgcolor: '#26273b', color: '#fff' }}>{children}</Box>
+                <Box sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary }}>{children}</Box>
               )}
             />
           </FormControl>
 
           <Box sx={{ mt: 1 }}>
-            <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block', fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1, display: 'block', fontWeight: 600 }}>
               PERMISSION
             </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -921,13 +922,13 @@ export default function Sidebar({
                 fullWidth
                 onClick={() => setSharePermission('edit')}
                 sx={{
-                  bgcolor: sharePermission === 'edit' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                  color: sharePermission === 'edit' ? '#6366f1' : '#94a3b8',
-                  border: `1px solid ${sharePermission === 'edit' ? '#6366f1' : '#3a3b5a'}`,
+                  bgcolor: sharePermission === 'edit' ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                  color: sharePermission === 'edit' ? theme.palette.primary.main : theme.palette.text.secondary,
+                  border: `1px solid ${sharePermission === 'edit' ? theme.palette.primary.main : theme.palette.divider}`,
                   borderRadius: 2,
                   textTransform: 'none',
                   fontWeight: 600,
-                  '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.1)' }
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
                 }}
               >
                 Editable
@@ -937,13 +938,13 @@ export default function Sidebar({
                 fullWidth
                 onClick={() => setSharePermission('read')}
                 sx={{
-                  bgcolor: sharePermission === 'read' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                  color: sharePermission === 'read' ? '#6366f1' : '#94a3b8',
-                  border: `1px solid ${sharePermission === 'read' ? '#6366f1' : '#3a3b5a'}`,
+                  bgcolor: sharePermission === 'read' ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                  color: sharePermission === 'read' ? theme.palette.primary.main : theme.palette.text.secondary,
+                  border: `1px solid ${sharePermission === 'read' ? theme.palette.primary.main : theme.palette.divider}`,
                   borderRadius: 2,
                   textTransform: 'none',
                   fontWeight: 600,
-                  '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.1)' }
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
                 }}
               >
                 Read-only
@@ -956,21 +957,21 @@ export default function Sidebar({
               mt: 1,
               p: 2,
               borderRadius: 2,
-              bgcolor: 'rgba(99, 102, 241, 0.1)',
-              border: '1px dashed rgba(99, 102, 241, 0.3)',
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+              border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: 1
             }}>
-              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                 INVITE CODE FOR THIS BOARD
               </Typography>
               {isGeneratingCode ? (
-                <Typography variant="h6" sx={{ color: '#fff', letterSpacing: 2 }}>Loading...</Typography>
+                <Typography variant="h6" sx={{ color: theme.palette.text.primary, letterSpacing: 2 }}>Loading...</Typography>
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="h5" sx={{ color: '#6366f1', fontWeight: 700, letterSpacing: 4 }}>
+                  <Typography variant="h5" sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: 4 }}>
                     {currentTableInviteCode || "------"}
                   </Typography>
                   <Tooltip title="Copy Code">
@@ -979,13 +980,13 @@ export default function Sidebar({
                         navigator.clipboard.writeText(currentTableInviteCode);
                         alert("Code copied!");
                       }
-                    }} sx={{ color: '#6366f1' }}>
+                    }} sx={{ color: theme.palette.primary.main }}>
                       <ContentCopyIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 </Box>
               )}
-              <Typography variant="caption" sx={{ color: '#94a3b8', textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
                 Share this code with teammates so they can join this table.
               </Typography>
             </Box>
@@ -996,7 +997,7 @@ export default function Sidebar({
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button
             onClick={() => setShareDialogOpen(false)}
-            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
           >
             Cancel
           </Button>
@@ -1005,9 +1006,9 @@ export default function Sidebar({
             disabled={!shareSelectedUser || !shareSelectedTable}
             variant="contained"
             sx={{
-              bgcolor: '#6366f1',
-              '&:hover': { bgcolor: '#5558dd' },
-              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              bgcolor: theme.palette.primary.main,
+              '&:hover': { bgcolor: theme.palette.primary.dark },
+              '&.Mui-disabled': { bgcolor: theme.palette.action.disabledBackground, color: theme.palette.text.disabled },
               boxShadow: 'none',
               textTransform: 'none',
               fontWeight: 600
@@ -1026,25 +1027,25 @@ export default function Sidebar({
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#1e1f2b',
-            color: '#fff',
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
             borderRadius: 3,
-            border: '1px solid #3a3b5a',
+            border: `1px solid ${theme.palette.divider}`,
             backgroundImage: 'none'
           }
         }}
         BackdropProps={{
           sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            bgcolor: alpha(theme.palette.common.black, 0.5),
             backdropFilter: 'blur(4px)'
           }
         }}
       >
-        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1, borderBottom: 'none' }}>
+        <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1, borderBottom: 'none' }}>
           Join Board with Code
         </DialogTitle>
         <DialogContent sx={{ pb: 3, pt: 1 }}>
-          <Typography variant="body2" sx={{ color: '#94a3b8', mb: 2 }}>
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 2 }}>
             Enter the invitation code provided by the board owner to join.
           </Typography>
           <TextField
@@ -1057,16 +1058,16 @@ export default function Sidebar({
             size="medium"
             placeholder="e.g. ABC-123"
             InputLabelProps={{
-              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+              sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } }
             }}
             InputProps={{
               sx: {
-                color: '#fff',
-                bgcolor: '#26273b',
+                color: theme.palette.text.primary,
+                bgcolor: theme.palette.action.hover,
                 borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4a4b6a' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' }
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.text.secondary },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main }
               }
             }}
             sx={{
@@ -1082,7 +1083,7 @@ export default function Sidebar({
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button
             onClick={() => setJoinDialogOpen(false)}
-            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
           >
             Cancel
           </Button>
@@ -1091,9 +1092,9 @@ export default function Sidebar({
             disabled={!inviteCodeValue.trim()}
             variant="contained"
             sx={{
-              bgcolor: '#6366f1',
-              '&:hover': { bgcolor: '#5558dd' },
-              '&.Mui-disabled': { bgcolor: 'rgba(99, 102, 241, 0.3)', color: 'rgba(255,255,255,0.3)' },
+              bgcolor: theme.palette.primary.main,
+              '&:hover': { bgcolor: theme.palette.primary.dark },
+              '&.Mui-disabled': { bgcolor: theme.palette.action.disabledBackground, color: theme.palette.text.disabled },
               boxShadow: 'none',
               textTransform: 'none',
               fontWeight: 600
@@ -1125,8 +1126,8 @@ export default function Sidebar({
           "& .MuiDrawer-paper": {
             boxSizing: "border-box",
             width: drawerWidth,
-            bgcolor: "#23243a",
-            borderRight: "1px solid rgba(255,255,255,0.08)",
+            bgcolor: theme.palette.background.default,
+            borderRight: `1px solid ${theme.palette.divider}`,
           },
         }}
       >
@@ -1156,7 +1157,7 @@ export default function Sidebar({
             height: "calc(100vh - 32px)", // Full height minus vertical margins
             borderRadius: "24px", // Rounded corners
             overflow: "hidden",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)", // Shadow
+            boxShadow: theme.shadows[8], // Shadow
           },
         }}
         open

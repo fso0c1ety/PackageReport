@@ -25,7 +25,7 @@ import {
   DialogActions,
   TextField,
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
@@ -43,8 +43,8 @@ import LogoutIcon from "@mui/icons-material/Logout";
 
 const DashboardContainer = styled(Box)(({ theme }) => ({
   minHeight: "100%",
-  backgroundColor: "#23243a", // Matches app background
-  color: "#fff",
+  backgroundColor: theme.palette.background.default, // Matches app background
+  color: theme.palette.text.primary,
   fontFamily: "'Inter', sans-serif",
   padding: theme.spacing(4),
   width: '100%',
@@ -67,7 +67,7 @@ const SectionTitle = styled(Typography)(({ theme }) => ({
   fontWeight: 700,
   fontSize: "1.1rem",
   marginBottom: theme.spacing(2),
-  color: "#fff",
+  color: theme.palette.text.primary,
   display: "flex",
   alignItems: "center",
   gap: theme.spacing(1),
@@ -78,8 +78,8 @@ const SectionTitle = styled(Typography)(({ theme }) => ({
 }));
 
 const StyledCard = styled(Card)(({ theme }) => ({
-  backgroundColor: "#2c2d4a",
-  color: "#fff",
+  backgroundColor: theme.palette.action.hover,
+  color: theme.palette.text.primary,
   borderRadius: "16px",
   border: "1px solid rgba(255, 255, 255, 0.05)",
   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -151,6 +151,7 @@ function getLastWorkspace() {
 // --- Main Component ---
 
 export default function HomeDashboard() {
+  const theme = useTheme();
   const router = useRouter();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
@@ -311,7 +312,7 @@ export default function HomeDashboard() {
           <Typography variant="h4" fontWeight={800} sx={{ mb: 1, letterSpacing: "-0.02em", fontSize: { md: "2.25rem" } }}>
             {greeting}, {currentUser?.name ? currentUser.name.split(' ')[0] : 'there'}
           </Typography>
-          <Typography variant="body1" sx={{ color: "#94a3b8", fontSize: { md: "1.1rem" } }}>
+          <Typography variant="body1" sx={{ color: theme.palette.text.secondary, fontSize: { md: "1.1rem" } }}>
             Here's what's happening with your projects today.
           </Typography>
         </Box>
@@ -362,7 +363,7 @@ export default function HomeDashboard() {
                           top: 12,
                           left: 12,
                           bgcolor: "rgba(0,0,0,0.4)",
-                          color: "#fff",
+                          color: theme.palette.text.primary,
                           backdropFilter: "blur(4px)",
                           fontWeight: 600,
                           fontSize: "0.7rem",
@@ -373,7 +374,7 @@ export default function HomeDashboard() {
                       <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { md: "1.15rem" } }}>
                         Dashboard & Reporting
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.85rem" } }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.85rem" } }}>
                         Overview of all project metrics
                       </Typography>
                     </CardContent>
@@ -417,7 +418,7 @@ export default function HomeDashboard() {
                             top: 12,
                             left: 12,
                             bgcolor: "rgba(99, 102, 241, 0.8)", // Accent color
-                            color: "#fff",
+                            color: theme.palette.text.primary,
                             fontWeight: 600,
                             fontSize: "0.7rem",
                           }}
@@ -427,7 +428,7 @@ export default function HomeDashboard() {
                         <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { md: "1.15rem" } }}>
                           {lastWorkspace.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.85rem" } }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.85rem" } }}>
                           Continue where you left off
                         </Typography>
                       </CardContent>
@@ -450,7 +451,7 @@ export default function HomeDashboard() {
                 variant="text"
                 disableRipple
                 sx={{
-                  color: "#94a3b8",
+                  color: theme.palette.text.secondary,
                   background: "transparent",
                   backgroundColor: "transparent",
                   textTransform: "none",
@@ -492,7 +493,7 @@ export default function HomeDashboard() {
                       borderRadius: 4
                     }}>
                       <FolderIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.1)', mb: 2 }} />
-                      <Typography variant="body1" sx={{ color: "#94a3b8", textAlign: 'center' }}>
+                      <Typography variant="body1" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
                         No workspaces found. Use the "+" button in the sidebar to create one.
                       </Typography>
                     </Box>
@@ -533,8 +534,8 @@ export default function HomeDashboard() {
                           position: "absolute",
                           top: 8,
                           right: 8,
-                          color: "#94a3b8",
-                          "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" }
+                          color: theme.palette.text.secondary,
+                          "&:hover": { color: theme.palette.text.primary, bgcolor: "rgba(255,255,255,0.1)" }
                         }}
                       >
                         <MoreVertIcon fontSize="small" />
@@ -583,7 +584,7 @@ export default function HomeDashboard() {
                         <Typography variant="subtitle2" fontWeight={600} noWrap sx={{ fontSize: { md: "1rem" } }}>
                           {ws.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: { md: "0.80rem" } }} noWrap>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.80rem" } }} noWrap>
                           {isShared ? `Owned by ${ws.owner_name || 'Verify'}` : (ws.type || "General Workspace")}
                         </Typography>
                       </Box>
@@ -600,16 +601,16 @@ export default function HomeDashboard() {
         onClose={handleMenuClose}
         PaperProps={{
           sx: {
-            bgcolor: "#1e1f2b",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.1)",
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
           }
         }}
       >
         {selectedWorkspace?.owner_id === currentUser?.id ? (
         <>
             <MenuItem onClick={handleRenameStart}>
-            <ListItemIcon sx={{ color: "#94a3b8" }}>
+            <ListItemIcon sx={{ color: theme.palette.text.secondary }}>
                 <EditIcon fontSize="small" />
             </ListItemIcon>
             Rename
@@ -636,9 +637,9 @@ export default function HomeDashboard() {
         onClose={() => setIsRenameOpen(false)}
         PaperProps={{
           sx: {
-            bgcolor: "#1e1f2b",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.1)",
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
           }
         }}
       >
@@ -653,8 +654,8 @@ export default function HomeDashboard() {
             value={renameName}
             onChange={(e) => setRenameName(e.target.value)}
             sx={{
-              input: { color: "#fff" },
-              label: { color: "#94a3b8" },
+              input: { color: theme.palette.text.primary },
+              label: { color: theme.palette.text.secondary },
               '& .MuiOutlinedInput-root': {
                 '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
                 '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
@@ -664,7 +665,7 @@ export default function HomeDashboard() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIsRenameOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
+          <Button onClick={() => setIsRenameOpen(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
           <Button onClick={handleRenameSubmit} sx={{ color: "#6366f1" }}>Save</Button>
         </DialogActions>
       </Dialog>
@@ -674,20 +675,20 @@ export default function HomeDashboard() {
         onClose={() => setIsDeleteOpen(false)}
         PaperProps={{
           sx: {
-            bgcolor: "#1e1f2b",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.1)",
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
           }
         }}
       >
         <DialogTitle>Delete Workspace?</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#94a3b8" }}>
+          <DialogContentText sx={{ color: theme.palette.text.secondary }}>
             Are you sure you want to delete this workspace? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIsDeleteOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
+          <Button onClick={() => setIsDeleteOpen(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} sx={{ color: "#ef4444" }}>Delete</Button>
         </DialogActions>
       </Dialog>
@@ -697,21 +698,21 @@ export default function HomeDashboard() {
         onClose={() => setIsLeaveOpen(false)}
         PaperProps={{
           sx: {
-            bgcolor: "#1e1f2b",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.1)",
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
           }
         }}
       >
         <DialogTitle>Leave Shared Workspace?</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#94a3b8" }}>
+          <DialogContentText sx={{ color: theme.palette.text.secondary }}>
             Are you sure you want to disconnect from this shared workspace?<br/><br/>
             You will lose access to all shared tables within this workspace. You will need to be re-invited to access them again.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIsLeaveOpen(false)} sx={{ color: "#94a3b8" }}>Cancel</Button>
+          <Button onClick={() => setIsLeaveOpen(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
           <Button onClick={handleLeaveConfirm} color="error" variant="contained" sx={{ bgcolor: "#ef4444", "&:hover": { bgcolor: "#af3434" } }}>
             Disconnect
           </Button>
@@ -730,7 +731,7 @@ export default function HomeDashboard() {
                 variant="text"
                 disableRipple
                 sx={{
-                  color: "#94a3b8",
+                  color: theme.palette.text.secondary,
                   background: "transparent",
                   backgroundColor: "transparent",
                   textTransform: "none",
@@ -790,7 +791,7 @@ export default function HomeDashboard() {
                       <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "1.1rem" }}>
                         {template.title}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mt: 0.5, fontSize: "0.85rem" }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: "block", mt: 0.5, fontSize: "0.85rem" }}>
                         Ready-to-use template
                       </Typography>
                     </Box>
@@ -810,8 +811,8 @@ export default function HomeDashboard() {
             </SectionTitle>
             <StyledCard sx={{ flex: 1, display: "flex", flexDirection: "column", height: '100%', maxHeight: { xs: '400px', md: 'none' } }}>
               {/* Inbox Header */}
-              <Box sx={{ p: { xs: 2, md: 2.5 }, borderBottom: "1px solid rgba(255,255,255,0.05)", bgcolor: "rgba(0,0,0,0.1)" }}>
-                <Typography variant="subtitle2" fontWeight={600} sx={{ color: "#94a3b8", fontSize: { md: "0.95rem" } }}>
+              <Box sx={{ p: { xs: 2, md: 2.5 }, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: "rgba(0,0,0,0.1)" }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.95rem" } }}>
                   Recent Activity
                 </Typography>
               </Box>
@@ -819,7 +820,7 @@ export default function HomeDashboard() {
               {/* Updates List */}
               <Box sx={{ overflowY: "auto", flex: 1, "::-webkit-scrollbar": { width: 4 }, "::-webkit-scrollbar-thumb": { bgcolor: "rgba(255,255,255,0.1)", borderRadius: 2 } }}>
                 {emailUpdates.length === 0 && !loading && (
-                  <Box sx={{ p: 4, textAlign: "center", color: "#94a3b8" }}>
+                  <Box sx={{ p: 4, textAlign: "center", color: theme.palette.text.secondary }}>
                     <Typography variant="body2">No recent updates</Typography>
                   </Box>
                 )}
@@ -830,15 +831,15 @@ export default function HomeDashboard() {
                         {update.tableId ? update.tableId[0].toUpperCase() : 'T'}
                       </Avatar>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: "#fff", display: "block", mb: 0.5, fontSize: { xs: "0.75rem", md: "0.85rem" } }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary, display: "block", mb: 0.5, fontSize: { xs: "0.75rem", md: "0.85rem" } }}>
                           {update.subject || "Task Update"}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: "block", fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                           {update.timestamp ? new Date(Number(update.timestamp)).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                         </Typography>
                       </Box>
                       {update.badge && (
-                        <Chip label={update.badge} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: "#22c55e", color: "#fff", fontWeight: 700 }} />
+                        <Chip label={update.badge} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: "#22c55e", color: theme.palette.text.primary, fontWeight: 700 }} />
                       )}
                       {update.status && (
                         <Chip
@@ -857,7 +858,7 @@ export default function HomeDashboard() {
                         borderRadius: 2,
                         border: "1px solid rgba(255, 255, 255, 0.05)",
                         "& h2": { fontSize: "0.85rem", fontWeight: 700, mt: 0, mb: 0.5, color: "#e2e8f0" },
-                        "& ul": { m: 0, pl: 2, fontSize: "0.75rem", color: "#94a3b8" },
+                        "& ul": { m: 0, pl: 2, fontSize: "0.75rem", color: theme.palette.text.secondary },
                         "& li": { mb: 0.25 },
                         "& b": { color: "#cbd5e1" } // lighter text for labels
                       }}
@@ -873,7 +874,7 @@ export default function HomeDashboard() {
                 ))}
               </Box>
 
-              <Box sx={{ p: 1.5, borderTop: "1px solid rgba(255,255,255,0.05)", textAlign: "center" }}>
+              <Box sx={{ p: 1.5, borderTop: `1px solid ${theme.palette.divider}`, textAlign: "center" }}>
                 <Button
                   size="small"
                   variant="text"

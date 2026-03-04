@@ -1,6 +1,6 @@
 import React from "react";
 import type { ColumnType } from "../types";
-import { Box, Typography, Paper, TextField, InputAdornment } from "@mui/material";
+import { Box, Typography, Paper, TextField, InputAdornment, useTheme } from "@mui/material";
 import { Grid as MuiGrid } from "@mui/material";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
@@ -46,14 +46,15 @@ const columnOptions = [
 
 
 export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps) {
+  const theme = useTheme();
   return (
-    <Box sx={{ bgcolor: '#23243a', p: { xs: 0.5, sm: 0 }, m: 0, borderRadius: 4, minWidth: 0, minHeight: 0, width: { xs: 220, sm: 'auto' }, maxWidth: { xs: 220, sm: 'none' } }}>
+    <Box sx={{ bgcolor: 'background.default', p: { xs: 0.5, sm: 0 }, m: 0, borderRadius: 4, minWidth: 0, minHeight: 0, width: { xs: 220, sm: 'auto' }, maxWidth: { xs: 220, sm: 'none' } }}>
       <Paper elevation={0} sx={{
         p: { xs: 1, sm: 3 },
         width: { xs: 300, sm: 450 },
         borderRadius: 4,
-        bgcolor: '#23243a',
-        color: '#fff',
+        bgcolor: 'background.default',
+        color: 'text.primary',
         boxShadow: 'none',
         border: 'none',
         m: 0,
@@ -64,19 +65,19 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
         fullWidth
         placeholder="Search or describe your column"
         size="small"
-        sx={{ mb: { xs: 1, sm: 2 }, bgcolor: '#2c2d4a', borderRadius: 2, input: { color: '#fff', fontSize: { xs: 13, sm: 16 } } }}
+        sx={{ mb: { xs: 1, sm: 2 }, bgcolor: 'action.hover', borderRadius: 2, input: { color: 'text.primary', fontSize: { xs: 13, sm: 16 } } }}
         InputProps={{
-          startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#bfc8e0', fontSize: { xs: 13, sm: 16 } }}>🔍</Typography></InputAdornment>,
+          startAdornment: <InputAdornment position="start"><Typography sx={{ color: 'text.secondary', fontSize: { xs: 13, sm: 16 } }}>🔍</Typography></InputAdornment>,
         }}
       />
-      <Typography variant="subtitle2" sx={{ mb: { xs: 0.5, sm: 1 }, mt: { xs: 1, sm: 2 }, color: '#bfc8e0', fontSize: { xs: 13, sm: 16 } }}>
+      <Typography variant="subtitle2" sx={{ mb: { xs: 0.5, sm: 1 }, mt: { xs: 1, sm: 2 }, color: 'text.secondary', fontSize: { xs: 13, sm: 16 } }}>
         Essentials
       </Typography>
       <MuiGrid container spacing={{ xs: 1, sm: 2 }}>
         {columnOptions.slice(0, 6).map((opt) => (
           <MuiGrid size={{ xs: 4 }} key={opt.label}>
             <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: '#23243a', '&:hover': { bgcolor: '#35365a' } }}
+              sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: 'background.default', '&:hover': { bgcolor: theme.palette.action.hover } }}
               onClick={() => onSelect(opt.type as ColumnType, opt.label)}
             >
               {React.cloneElement(opt.icon, { fontSize: 'small' })}
@@ -85,14 +86,14 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
           </MuiGrid>
         ))}
       </MuiGrid>
-      <Typography variant="subtitle2" sx={{ mb: { xs: 0.5, sm: 1 }, mt: { xs: 1.5, sm: 3 }, color: '#bfc8e0', fontSize: { xs: 13, sm: 16 } }}>
+      <Typography variant="subtitle2" sx={{ mb: { xs: 0.5, sm: 1 }, mt: { xs: 1.5, sm: 3 }, color: 'text.secondary', fontSize: { xs: 13, sm: 16 } }}>
         Super useful
       </Typography>
       <MuiGrid container spacing={{ xs: 1, sm: 2 }}>
         {columnOptions.slice(6).map((opt) => (
           <MuiGrid size={{ xs: 4 }} key={opt.label}>
             <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: '#23243a', '&:hover': { bgcolor: '#35365a' } }}
+              sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: 'background.default', '&:hover': { bgcolor: theme.palette.action.hover } }}
               onClick={() => onSelect(opt.type as ColumnType, opt.label)}
             >
               {React.cloneElement(opt.icon, { fontSize: 'small' })}
@@ -102,7 +103,7 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
         ))}
       </MuiGrid>
         <Box sx={{ textAlign: 'center', mt: { xs: 1, sm: 3 } }}>
-          <Typography variant="body2" sx={{ cursor: 'pointer', fontWeight: 600, color: '#bfc8e0', fontSize: { xs: 12, sm: 15 } }}>
+          <Typography variant="body2" sx={{ cursor: 'pointer', fontWeight: 600, color: 'text.secondary', fontSize: { xs: 12, sm: 15 } }}>
             More columns
           </Typography>
         </Box>

@@ -250,7 +250,7 @@ function WorkspaceContent() {
           sx={{
             ml: 1,
             bgcolor: '#0073ea',
-            color: '#fff',
+            color: 'text.primary',
             '&:hover': { bgcolor: '#0060c2' },
             width: 32,
             height: 32
@@ -296,10 +296,10 @@ function WorkspaceContent() {
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: '#1e1f2b',
-            color: '#fff',
+            bgcolor: 'background.paper',
+            color: 'text.primary',
             borderRadius: 3,
-            border: '1px solid #3a3b5a',
+            border: '1px solid '+theme.palette.divider+'',
             backgroundImage: 'none'
           }
         }}
@@ -310,7 +310,7 @@ function WorkspaceContent() {
           }
         }}
       >
-        <DialogTitle sx={{ color: '#fff', fontWeight: 600, pb: 1 }}>Rename Table</DialogTitle>
+        <DialogTitle sx={{ color: 'text.primary', fontWeight: 600, pb: 1 }}>Rename Table</DialogTitle>
         <DialogContent sx={{ pb: 3 }}>
           <TextField
             autoFocus
@@ -327,11 +327,11 @@ function WorkspaceContent() {
             error={!!renameError}
             helperText={renameError}
             InputLabelProps={{
-              sx: { color: '#7d82a8', '&.Mui-focused': { color: '#6366f1' } }
+              sx: { color: 'text.secondary', '&.Mui-focused': { color: '#6366f1' } }
             }}
             InputProps={{
               sx: {
-                color: '#fff',
+                color: 'text.primary',
                 bgcolor: '#26273b',
                 borderRadius: 2,
                 '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3a3b5a' },
@@ -345,7 +345,7 @@ function WorkspaceContent() {
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button
             onClick={handleRenameCancel}
-            sx={{ color: '#7d82a8', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.05)' } }}
+            sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary', bgcolor: 'rgba(255,255,255,0.05)' } }}
           >
             Cancel
           </Button>

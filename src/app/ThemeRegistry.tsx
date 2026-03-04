@@ -5,7 +5,9 @@ import { CacheProvider } from '@emotion/react';
 import createCache, { EmotionCache } from '@emotion/cache';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import theme from '../theme';
+// import theme from '../theme'; // Handled by CustomThemeProvider
+import { CustomThemeProvider } from './ThemeContext';
+
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 
@@ -58,12 +60,11 @@ export default function ThemeRegistry({ children }: ThemeRegistryProps) {
 
   return (
     <CacheProvider value={cache}>
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
+      <CustomThemeProvider>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
           {children}
-        </ThemeProvider>
-      </LocalizationProvider>
+        </LocalizationProvider>
+      </CustomThemeProvider>
     </CacheProvider>
   );
 }

@@ -54,8 +54,8 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 
 const DashboardRoot = styled(Box)(({ theme }) => ({
   minHeight: "100vh",
-  backgroundColor: "#23243a",
-  color: "#fff",
+  backgroundColor: theme.palette.background.default,
+  color: theme.palette.text.primary,
   fontFamily: "'Inter', sans-serif",
   display: "flex",
   flexDirection: "column",
@@ -68,7 +68,7 @@ const HeaderSection = styled(Box)(({ theme }) => ({
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  backgroundColor: "#23243a",
+  backgroundColor: theme.palette.background.default,
 
   // Responsive adjustments to span full width, 
   // countering the parent container's padding.
@@ -112,8 +112,8 @@ const ContentSection = styled(Box)(({ theme }) => ({
 }));
 
 const StyledCard = styled(Card)(({ theme }) => ({
-  backgroundColor: "#2c2d4a",
-  color: "#fff",
+  backgroundColor: theme.palette.action.hover,
+  color: theme.palette.text.primary,
   borderRadius: "16px",
   border: "1px solid rgba(255, 255, 255, 0.05)",
   boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
@@ -124,8 +124,8 @@ const StyledCard = styled(Card)(({ theme }) => ({
 }));
 
 const StatCard = styled(Card)(({ theme }) => ({
-  backgroundColor: "#2c2d4a",
-  color: "#fff",
+  backgroundColor: theme.palette.action.hover,
+  color: theme.palette.text.primary,
   borderRadius: "16px",
   padding: theme.spacing(3),
   display: "flex",
@@ -165,7 +165,7 @@ const SectionHeader = styled(Typography)(({ theme }) => ({
   fontWeight: 700,
   fontSize: "1.1rem",
   marginBottom: theme.spacing(2),
-  color: "#fff",
+  color: theme.palette.text.primary,
   display: "flex",
   alignItems: "center",
   gap: theme.spacing(1),
@@ -312,7 +312,7 @@ export default function DashboardPage() {
           <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: "-0.03em", mb: 0.5 }}>
             Analytics & Reports
           </Typography>
-          <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             Track project health, team velocity, and task completion
           </Typography>
         </Box>
@@ -320,7 +320,7 @@ export default function DashboardPage() {
           variant="outlined"
           startIcon={<DownloadIcon />}
           sx={{
-            color: "#fff",
+            color: 'text.primary',
             borderColor: "rgba(255,255,255,0.2)",
             textTransform: "none",
             '&:hover': { borderColor: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.1)" }
@@ -339,12 +339,12 @@ export default function DashboardPage() {
           </Box>
 
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel sx={{ color: "#94a3b8" }}>Workspace</InputLabel>
+            <InputLabel sx={{ color: 'text.secondary' }}>Workspace</InputLabel>
             <Select
               value={selectedWorkspace}
               label="Workspace"
               onChange={e => setSelectedWorkspace(e.target.value)}
-              sx={{ color: "#fff", '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
+              sx={{ color: 'text.primary', '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
             >
               <MenuItem value="">All Workspaces</MenuItem>
               {workspaces.map(ws => <MenuItem key={ws.id} value={ws.id}>{ws.name}</MenuItem>)}
@@ -352,12 +352,12 @@ export default function DashboardPage() {
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel sx={{ color: "#94a3b8" }}>Assignee</InputLabel>
+            <InputLabel sx={{ color: 'text.secondary' }}>Assignee</InputLabel>
             <Select
               value={selectedPerson}
               label="Assignee"
               onChange={e => setSelectedPerson(e.target.value)}
-              sx={{ color: "#fff", '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
+              sx={{ color: 'text.primary', '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
             >
               <MenuItem value="">All Team Members</MenuItem>
               {allPeople.map((name: any) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
@@ -369,12 +369,12 @@ export default function DashboardPage() {
             placeholder="Search tasks..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            InputProps={{ startAdornment: <SearchIcon sx={{ color: "#94a3b8", mr: 1, fontSize: 18 }} /> }}
+            InputProps={{ startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1, fontSize: 18 }} /> }}
             sx={{
               ml: "auto",
               width: 300,
               '& .MuiOutlinedInput-root': {
-                color: "#fff",
+                color: 'text.primary',
                 '& fieldset': { borderColor: "rgba(255,255,255,0.1)" },
                 '&:hover fieldset': { borderColor: "rgba(255,255,255,0.2)" },
                 '&.Mui-focused fieldset': { borderColor: "#6366f1" }
@@ -501,7 +501,7 @@ export default function DashboardPage() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
-                      itemStyle={{ color: '#fff', fontWeight: 600 }}
+                      itemStyle={{ color: 'text.primary', fontWeight: 600 }}
                     />
                     <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
                   </PieChart>
@@ -540,7 +540,7 @@ export default function DashboardPage() {
                     <Tooltip
                       cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                       contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8 }}
-                      itemStyle={{ color: '#fff' }}
+                      itemStyle={{ color: 'text.primary' }}
                     />
                     <Bar
                       dataKey="count"
@@ -568,10 +568,10 @@ export default function DashboardPage() {
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ bgcolor: "#23243a", color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>TASK NAME</TableCell>
-                  <TableCell sx={{ bgcolor: "#23243a", color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>WORKSPACE</TableCell>
-                  <TableCell sx={{ bgcolor: "#23243a", color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>STATUS</TableCell>
-                  <TableCell sx={{ bgcolor: "#23243a", color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>ASSIGNEES</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.default', color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>TASK NAME</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.default', color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>WORKSPACE</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.default', color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>STATUS</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.default', color: "#64748b", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>ASSIGNEES</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -582,13 +582,13 @@ export default function DashboardPage() {
 
                   return (
                     <TableRow key={idx} hover sx={{ '&:hover': { bgcolor: "rgba(255,255,255,0.02)" } }}>
-                      <TableCell sx={{ color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.05)", fontWeight: 500 }}>
+                      <TableCell sx={{ color: 'text.primary', borderBottom: "1px solid rgba(255,255,255,0.05)", fontWeight: 500 }}>
                         {(() => {
                           const taskName = task.values?.task || Object.values(task.values || {})[0];
                           return (typeof taskName === 'string' || typeof taskName === 'number') ? taskName : (task.values?.task_name || 'Untitled');
                         })()}
                       </TableCell>
-                      <TableCell sx={{ color: "#94a3b8", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <TableCell sx={{ color: 'text.secondary', borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                         {task._table?.name}
                       </TableCell>
                       <TableCell sx={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>

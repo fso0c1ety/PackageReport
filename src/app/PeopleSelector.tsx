@@ -234,15 +234,15 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
               <ListItemText 
                 primary={person.name} 
                 secondary={person.email} 
-                primaryTypographyProps={{ style: { color: '#fff', fontWeight: isSelected ? 600 : 400 } }} 
-                secondaryTypographyProps={{ style: { color: '#7d82a8' } }} 
+                primaryTypographyProps={{ style: { color: 'text.primary', fontWeight: isSelected ? 600 : 400 } }} 
+                secondaryTypographyProps={{ style: { color: 'text.secondary' } }} 
               />
               {isSelected && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#0073ea', mr: 2 }} />}
             </ListItem>
           );
         })}
       </List>
-      <Divider sx={{ my: 1, borderColor: '#3a3b5a' }} />
+      <Divider sx={{ my: 1, borderColor: theme.palette.divider }} />
     </Box>
   );
 

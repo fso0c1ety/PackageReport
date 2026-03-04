@@ -9,6 +9,7 @@ import {
   TextField,
   IconButton,
   Alert,
+  useTheme,
 } from "@mui/material";
 import Avatar from "@mui/material/Avatar";
 import Divider from "@mui/material/Divider";
@@ -19,6 +20,7 @@ import PhotoCamera from "@mui/icons-material/PhotoCamera";
 import { getApiUrl, authenticatedFetch } from "../../apiUrl";
 
 export default function SettingsPage() {
+  const theme = useTheme();
   const [user, setUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -119,12 +121,12 @@ export default function SettingsPage() {
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 600, mx: "auto" }}>
-      <Typography variant="h4" fontWeight={800} sx={{ mb: 4, color: "#fff" }}>
+      <Typography variant="h4" fontWeight={800} sx={{ mb: 4, color: 'text.primary' }}>
         Settings
       </Typography>
 
       {/* User Profile Section */}
-      <Card sx={{ bgcolor: "#2c2d4a", color: "#fff", borderRadius: 4, mb: 3 }}>
+      <Card sx={{ bgcolor: 'background.paper', color: 'text.primary', borderRadius: 4, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2, justifyContent: "space-between" }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -135,7 +137,7 @@ export default function SettingsPage() {
                     width: 80,
                     height: 80,
                     fontSize: 32,
-                    bgcolor: '#6366f1',
+                    bgcolor: theme.palette.primary.main,
                     boxShadow: '0 8px 16px rgba(0,0,0,0.2)'
                   }}
                 >
@@ -150,15 +152,16 @@ export default function SettingsPage() {
                       position: 'absolute',
                       bottom: -5,
                       right: -5,
-                      bgcolor: 'white',
-                      '&:hover': { bgcolor: '#f0f0f0' },
+                      bgcolor: theme.palette.background.paper,
+                      '&:hover': { bgcolor: theme.palette.action.hover },
                       boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
                       width: 32,
                       height: 32,
+                      border: `1px solid ${theme.palette.divider}`
                     }}
                   >
                     <input hidden accept="image/*" type="file" onChange={handleAvatarChange} />
-                    <PhotoCamera sx={{ fontSize: 18, color: '#6366f1' }} />
+                    <PhotoCamera sx={{ fontSize: 18, color: theme.palette.primary.main }} />
                   </IconButton>
                 )}
               </Box>
@@ -170,7 +173,7 @@ export default function SettingsPage() {
                       onChange={(e) => setEditName(e.target.value)}
                       variant="standard"
                       placeholder="Name"
-                      InputProps={{ style: { color: "white", fontSize: "1.25rem", fontWeight: 700 } }}
+                      InputProps={{ style: { color: theme.palette.text.primary, fontSize: "1.25rem", fontWeight: 700 } }}
                       sx={{ mb: 1, display: "block" }}
                     />
                     <TextField
@@ -178,7 +181,7 @@ export default function SettingsPage() {
                       onChange={(e) => setEditEmail(e.target.value)}
                       variant="standard"
                       placeholder="Email"
-                      InputProps={{ style: { color: "#94a3b8", fontSize: "0.875rem" } }}
+                      InputProps={{ style: { color: theme.palette.text.secondary, fontSize: "0.875rem" } }}
                       sx={{ display: "block" }}
                     />
                   </>
@@ -187,7 +190,7 @@ export default function SettingsPage() {
                     <Typography variant="h5" fontWeight={700}>
                       {user?.name || "User Name"}
                     </Typography>
-                    <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       {user?.email || "Email address"}
                     </Typography>
                   </>
@@ -197,17 +200,17 @@ export default function SettingsPage() {
             <Box>
               {isEditing ? (
                 <Box sx={{ display: "flex", gap: 1 }}>
-                  <IconButton onClick={handleSaveProfile} sx={{ color: "#6366f1" }}>
+                  <IconButton onClick={handleSaveProfile} sx={{ color: theme.palette.primary.main }}>
                     <SaveIcon />
                   </IconButton>
-                  <IconButton onClick={handleCancelEdit} sx={{ color: "#ef4444" }}>
+                  <IconButton onClick={handleCancelEdit} sx={{ color: theme.palette.error.main }}>
                     <CancelIcon />
                   </IconButton>
                 </Box>
               ) : (
                 <IconButton 
                   onClick={() => user ? setIsEditing(true) : handleCreateNewUser()} 
-                  sx={{ color: "#fff", bgcolor: "rgba(255,255,255,0.1)", "&:hover": { bgcolor: "rgba(255,255,255,0.2)" } }}
+                  sx={{ color: 'text.primary', bgcolor: theme.palette.action.hover, "&:hover": { bgcolor: theme.palette.action.selected } }}
                 >
                   <EditIcon />
                 </IconButton>
@@ -215,9 +218,9 @@ export default function SettingsPage() {
             </Box>
           </Box>
           
-          <Divider sx={{ bgcolor: "rgba(255,255,255,0.05)", mb: 2 }} />
+          <Divider sx={{ bgcolor: theme.palette.divider, mb: 2 }} />
           
-          <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             Your personalized avatar is automatically generated based on your name.
           </Typography>
 
