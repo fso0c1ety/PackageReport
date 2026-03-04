@@ -781,6 +781,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [rows, setRows] = useState<Row[]>(initialRows);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [editValue, setEditValue] = useState<any>("");
+  const editValueRef = React.useRef(editValue);
+  useEffect(() => { editValueRef.current = editValue; }, [editValue]);
   const [editAnchorEl, setEditAnchorEl] = useState<null | HTMLElement>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
@@ -2881,31 +2883,53 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       // Date
       if (col.type === "Date") {
         return (
+          <Box
+            // Catch blur at container level.
+          >
           <DatePicker
-            value={editValue || null}
-            onChange={val => setEditValue(val)}
+            value={editValue ? dayjs(editValue) : null}
+            onChange={(val) => {
+               setEditValue(val);
+               // Also update the ref immediately so synchronous reads (like onClose) get the latest value
+               // Even though useEffect handles sync on render, onChange -> onClose happens before render finishes.
+               editValueRef.current = val;
+            }}
+            // Use onAccept to save when a date is picked from calendar (redundant if using onClose correctly, but safer)
+            onAccept={(val) => {
+               if (val && dayjs(val).isValid()) {
+                  handleCellSave(row.id, col.id, col.type, val);
+               }
+            }}
+            // Use onClose to save when the popup closes (click outside, escape, or select)
+            onClose={() => {
+                // Now we can use the ref to get the truly latest value even if state update hasn't propagated
+                setTimeout(() => {
+                   // If we just accepted via onAccept, this is redundant but harmless (idempotent save usually)
+                   // But if we clicked away, this saves the latest typed value (or clicked date key)
+                   handleCellSave(row.id, col.id, col.type, editValueRef.current);
+                }, 100);
+            }}
             slotProps={{
               textField: {
                 size: 'small',
                 autoFocus: true,
                 InputProps: { style: { color: theme.palette.text.primary } },
-                sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary },
-                onBlur: () => {
-                  if (editValue && dayjs(editValue).isValid()) {
-                    handleCellSave(row.id, col.id, col.type, editValue);
-                  }
+                sx: { 
+                    bgcolor: theme.palette.background.paper, 
+                    color: theme.palette.text.primary,
+                    '& .MuiInputBase-input': { color: theme.palette.text.primary }
                 },
                 onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (editValue && dayjs(editValue).isValid()) {
-                      handleCellSave(row.id, col.id, col.type, editValue);
-                    }
+                    // Manually trigger save with current ref value
+                    handleCellSave(row.id, col.id, col.type, editValueRef.current);
                   }
                 }
               }
             }}
           />
+          </Box>
         );
       }
 
@@ -3216,7 +3240,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             px: isMobile ? 0.5 : 1,
             borderRadius: 2,
             transition: 'all 0.2s',
-            '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', boxShadow: userPermission !== 'read' ? '0 0 0 1px #3f4060' : 'none' }
+            '&:hover': { bgcolor: userPermission !== 'read' ? theme.palette.action.hover : 'transparent', boxShadow: userPermission !== 'read' ? `0 0 0 1px ${theme.palette.divider}` : 'none' }
           }}
         >
           <TimelineIcon sx={{ fontSize: isMobile ? 14 : 16, mr: 1, color: theme.palette.text.secondary }} />
@@ -3270,7 +3294,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             borderRadius: 2,
             px: isMobile ? 1 : 1.5,
             transition: 'all 0.2s',
-            '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', boxShadow: userPermission !== 'read' ? '0 0 0 1px #3f4060' : 'none' }
+            '&:hover': { bgcolor: userPermission !== 'read' ? theme.palette.action.hover : 'transparent', boxShadow: userPermission !== 'read' ? `0 0 0 1px ${theme.palette.divider}` : 'none' }
           }}
           onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value, col.type)}
         >
@@ -3327,7 +3351,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           px: 1,
           ml: -1, /* Offset the cell padding so it aligns nicely */
           transition: 'all 0.2s',
-          '&:hover': { bgcolor: userPermission !== 'read' ? '#2c2d4a' : 'transparent', boxShadow: userPermission !== 'read' ? '0 0 0 1px #3f4060' : 'none' }
+          '&:hover': { bgcolor: userPermission !== 'read' ? theme.palette.action.hover : 'transparent', boxShadow: userPermission !== 'read' ? `0 0 0 1px ${theme.palette.divider}` : 'none' }
         }}
         onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value)}
       >
@@ -4892,7 +4916,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               sx={{
-                                bgcolor: snapshot.isDragging ? '#2c2d4a' : rowBg,
+                                bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
                                 '&:hover': { bgcolor: rowHoverBg },
                                 transition: 'background-color 0.2s',
                                 borderRadius: 4, 
@@ -4913,8 +4937,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   position: 'sticky',
                                   left: 0,
                                   zIndex: 11, // Higher than first data col (zIndex 10)
-                                  bgcolor: snapshot.isDragging ? '#2c2d4a' : theme.palette.background.default,
-                                  borderRight: '1px solid #2e2f45'
+                                  bgcolor: snapshot.isDragging ? theme.palette.background.paper : theme.palette.background.default,
+                                  borderRight: `1px solid ${theme.palette.divider}`
                                 })
                               }}>
                                 {/* Creator Avatar on Highlighted Task */}
@@ -5316,8 +5340,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       position: 'sticky',
                                       left: 60, // Width of the drag handle column
                                       zIndex: 10,
-                                      bgcolor: snapshot.isDragging ? '#2c2d4a' : theme.palette.background.default,
-                                      borderRight: '1px solid #2e2f45',
+                                      bgcolor: snapshot.isDragging ? theme.palette.background.paper : theme.palette.background.default,
+                                      borderRight: `1px solid ${theme.palette.divider}`,
                                       boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
                                     } : {
                                       position: 'relative',
