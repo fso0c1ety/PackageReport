@@ -2935,7 +2935,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               onClose={() => handleCellSave(row.id, col.id, col.type, editValue)}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
               transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-              PaperProps={{ sx: { bgcolor: theme.palette.action.hover, p: 2, borderRadius: 2, boxShadow: 6, border: '1px solid #3f4060', mt: 1 } }}
+              PaperProps={{ sx: { bgcolor: theme.palette.background.paper, p: 2, borderRadius: 2, boxShadow: theme.shadows[8], border: `1px solid ${theme.palette.divider}`, mt: 1 } }}
             >
               <Stack direction="row" spacing={1} alignItems="center">
                 <DatePicker
@@ -2952,8 +2952,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         label: { color: theme.palette.text.secondary },
                         '& .MuiInputLabel-root': { color: theme.palette.text.secondary },
                         '& .MuiInputBase-input': { color: theme.palette.text.primary },
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3f4060' },
-                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#5f6190' },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.text.primary },
                         '& .MuiSvgIcon-root': { color: theme.palette.text.secondary }
                       }
                     },
@@ -2975,8 +2975,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         label: { color: theme.palette.text.secondary },
                         '& .MuiInputLabel-root': { color: theme.palette.text.secondary },
                         '& .MuiInputBase-input': { color: theme.palette.text.primary },
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#3f4060' },
-                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#5f6190' },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.text.primary },
                         '& .MuiSvgIcon-root': { color: theme.palette.text.secondary }
                       }
                     },
@@ -2986,7 +2986,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 <IconButton
                   size="small"
                   onClick={(e) => { e.stopPropagation(); handleCellSave(row.id, col.id, col.type, editValue); }}
-                  sx={{ color: '#00c875', bgcolor: 'rgba(0, 200, 117, 0.1)', '&:hover': { bgcolor: 'rgba(0, 200, 117, 0.2)' } }}
+                  sx={{ color: theme.palette.success.main, bgcolor: alpha(theme.palette.success.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.2) } }}
                 >
                   <CheckIcon fontSize="small" />
                 </IconButton>

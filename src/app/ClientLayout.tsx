@@ -38,7 +38,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
           display: 'flex',
           flexDirection: 'column',
           height: '100vh',
-          width: 0, // important for flex containers to not overflow
+          width: { xs: '100%', md: 0 }, // important for flex containers to not overflow
           overflow: 'hidden',
         }}
       >
