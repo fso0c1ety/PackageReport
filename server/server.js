@@ -221,16 +221,16 @@ app.get('/api/workspaces', authenticateToken, async (req, res) => {
         u.avatar as owner_avatar,
         COALESCE(
           (
-            SELECT json_agg(json_build_object('id', um.id, 'name', um.name, 'avatar', um.avatar))
+            SELECT jsonb_agg(jsonb_build_object('id', um.id, 'name', um.name, 'avatar', um.avatar))
             FROM (
-                SELECT DISTINCT (elem->>'userId')::uuid as uid
+                SELECT DISTINCT (elem->>'userId') as uid
                 FROM tables t2, jsonb_array_elements(t2.shared_users) elem
                 WHERE t2.workspace_id = w.id
             ) distinct_users
             JOIN users um ON um.id = distinct_users.uid
             WHERE um.id != w.owner_id  -- Exclude owner from members list to avoid duplication
           ), 
-          '[]'::json
+          '[]'::jsonb
         ) as members
       FROM workspaces w
       JOIN users u ON w.owner_id = u.id
