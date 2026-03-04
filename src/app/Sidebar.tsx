@@ -154,7 +154,7 @@ export default function Sidebar({
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
 
- and user
+  // Fetch workspaces and user
   useEffect(() => {
     // Load local user
     try {
@@ -165,8 +165,7 @@ export default function Sidebar({
     } catch (e) {
       console.error("Failed to parse user from local storage", e);
     }
-    es
-  useEffect(() => {
+
     authenticatedFetch(getApiUrl("workspaces"))
       .then((res) => res.json())
       .then(setWorkspaces)
