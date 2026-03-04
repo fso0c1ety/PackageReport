@@ -218,7 +218,8 @@ import {
   Divider,
   ListItemAvatar,
   Tabs,
-  Tab
+  Tab,
+  CircularProgress
 } from "@mui/material";
 import BoltIcon from '@mui/icons-material/Bolt';
 import PeopleSelector, { Person } from "./PeopleSelector";
@@ -388,8 +389,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [chatTab, setChatTab] = useState<'chat' | 'files' | 'activity'>('chat');
   const [chatAttachment, setChatAttachment] = useState<File | null>(null);
   const [chatScheduledTime, setChatScheduledTime] = useState<string>(""); 
+  const [isSending, setIsSending] = useState(false);
   const chatFileRef = React.useRef<HTMLInputElement>(null);
   // -----------------------------------
+
 
   // Scroll to bottom of Board Chat when messages update or chat opens
   useEffect(() => {
@@ -2037,14 +2040,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (chatFileRef.current) chatFileRef.current.value = "";
   };
   
-  const handleSendChat = async () => {
+  const handleSendChat = async (targetIdOverride?: string) => {
     // Determine if we can send (text OR attachment must exist)
-    if (!chatTaskId) return;
+    const targetId = targetIdOverride || chatTaskId || (reviewTask ? reviewTask.id : null);
+    if (!targetId) return;
     if (!chatInput.trim() && !chatAttachment) return;
+    if (isSending) return;
 
+    setIsSending(true);
     let attachment = null;
-    const row = rows.find(r => r.id === chatTaskId);
-    if (!row) return;
+    const row = rows.find(r => r.id === targetId);
+    if (!row) {
+        setIsSending(false);
+        return;
+    }
 
     try {
         // 1. Upload File if present
@@ -2098,6 +2107,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         // Update Local State
         setChatMessages(prev => [...prev, newMsg]);
         setRows(prev => prev.map(r => r.id === row.id ? { ...r, values: updatedValues } : r));
+        
+        // If reviewing, update that state too
+        if (reviewTask && reviewTask.id === row.id) {
+            setReviewTask(prev => prev ? ({ ...prev, values: updatedValues }) : null);
+        }
 
         // Reset inputs
         setChatInput("");
@@ -2107,6 +2121,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     } catch (e) {
       console.error("Failed to send chat or upload file", e);
+    } finally {
+      setIsSending(false);
     }
   };
   const renderCell = (row: Row, col: Column) => {
@@ -5116,8 +5132,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                     }}
                                                   />
                                                   <IconButton
-                                                    onClick={handleSendChat}
-                                                    disabled={!chatInput.trim() && !chatAttachment}
+                                                    onClick={() => handleSendChat()}
+                                                    disabled={isSending || (!chatInput.trim() && !chatAttachment)}
                                                     size="small"
                                                     sx={{
                                                       color: (chatInput.trim() || chatAttachment) ? '#4f51c0' : '#3a3b5a',
@@ -5125,7 +5141,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                       '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
                                                     }}
                                                   >
-                                                    <SendIcon fontSize="small" />
+                                                    {isSending ? <CircularProgress size={16} /> : <SendIcon fontSize="small" />}
                                                   </IconButton>
                                                 </Box>
                                               </Box>
@@ -6491,7 +6507,61 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         {taskTypingUsers[reviewTask.id].join(', ')} is typing...
                       </Typography>
                     )}
-                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    
+                    {/* Attachments / Schedule preview (Copied from Popover) */}
+                    {(chatAttachment || chatScheduledTime) && (
+                        <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                            {chatAttachment && (
+                                <Chip 
+                                    size="small" 
+                                    icon={<InsertDriveFileIcon style={{fontSize: 14}}/>} 
+                                    label={chatAttachment.name} 
+                                    onDelete={() => { setChatAttachment(null); if(chatFileRef.current) chatFileRef.current.value = ""; }}
+                                    sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
+                                />
+                            )}
+                            {chatScheduledTime && (
+                                <Chip 
+                                    size="small" 
+                                    icon={<AccessTimeIcon style={{fontSize: 14}}/>} 
+                                    label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`} 
+                                    onDelete={() => setChatScheduledTime("")}
+                                    sx={{ bgcolor: 'rgba(253, 171, 61, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
+                                />
+                            )}
+                        </Box>
+                    )}
+
+                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <input
+                        type="file"
+                        ref={chatFileRef}
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                                setChatAttachment(e.target.files[0]);
+                            }
+                        }}
+                      />
+                      <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                          <AttachFileIcon fontSize="small" />
+                      </IconButton>
+
+                      <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#7d82a8', '&:hover': { color: '#fff' } }}
+                          onClick={(e) => {
+                              const input = document.getElementById('chat-schedule-input-details');
+                              if(input) (input as HTMLInputElement).showPicker();
+                          }}
+                      >
+                          <AccessTimeIcon fontSize="small" />
+                          <input 
+                              id="chat-schedule-input-details"
+                              type="datetime-local" 
+                              style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
+                              onChange={(e) => setChatScheduledTime(e.target.value)}
+                          />
+                      </IconButton>
+
                       <input
                         value={chatInput}
                         onChange={e => {
@@ -6499,32 +6569,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           if (reviewTask) handleTaskTyping(reviewTask.id);
                         }}
                         placeholder="Write an update..."
-                        onKeyDown={async (e) => {
-                          if (e.key === 'Enter' && chatInput.trim() && reviewTask) {
-                            const newMsg = {
-                              id: uuidv4(),
-                              sender: currentUser?.name || "User",
-                              senderAvatar: currentUser?.avatar,
-                              text: chatInput,
-                              timestamp: new Date().toISOString()
-                            };
-                            // Optimistic update
-                            const currentMessages = reviewTask.values.message || [];
-                            const updatedMessages = [...currentMessages, newMsg];
-
-                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, message: updatedMessages } }) : null);
-                            setChatInput("");
-
-                            // Backend save
-                            handleCellSave(reviewTask.id, 'message', 'text', updatedMessages);
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (chatInput.trim() || chatAttachment) && reviewTask && !isSending) {
+                            handleSendChat(reviewTask.id);
                           }
                         }}
                         style={{
-                          width: '100%',
+                          flex: 1, // Changed to flex to respect container
                           backgroundColor: 'rgba(255,255,255,0.03)',
                           border: '1px solid transparent',
                           borderRadius: '12px',
-                          padding: '12px 48px 12px 16px',
+                          padding: '12px 16px', // Removed extra right padding
                           color: '#F3F4F6',
                           fontSize: '14px',
                           outline: 'none',
@@ -6534,37 +6589,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       />
                       <IconButton
                         onClick={async () => {
-                          if (chatInput.trim() && reviewTask) {
-                            const newMsg = {
-                              id: uuidv4(),
-                              sender: currentUser?.name || "User",
-                              senderAvatar: currentUser?.avatar,
-                              text: chatInput,
-                              timestamp: new Date().toISOString()
-                            };
-                            // Optimistic update
-                            const currentMessages = reviewTask.values.message || [];
-                            const updatedMessages = [...currentMessages, newMsg];
-
-                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, message: updatedMessages } }) : null);
-                            setChatInput("");
-
-                            // Backend save
-                            handleCellSave(reviewTask.id, 'message', 'text', updatedMessages);
-                          }
+                           if ((chatInput.trim() || chatAttachment) && reviewTask) {
+                                handleSendChat(reviewTask.id);
+                           }
                         }}
-                        disabled={!chatInput.trim()}
+                        disabled={isSending || (!chatInput.trim() && !chatAttachment)}
                         size="small"
                         sx={{
-                          position: 'absolute',
-                          right: 8,
-                          color: chatInput.trim() ? '#818CF8' : '#4B5563',
-                          bgcolor: chatInput.trim() ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                          '&:hover': { bgcolor: chatInput.trim() ? 'rgba(99, 102, 241, 0.2)' : 'transparent' }
+                          color: (chatInput.trim() || chatAttachment) ? '#818CF8' : '#4B5563',
+                          bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                          '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(99, 102, 241, 0.2)' : 'transparent' }
                         }}
                       >
-                        <SendIcon fontSize="small" />
+                         {isSending ? <CircularProgress size={16} /> : <SendIcon fontSize="small" />}
                       </IconButton>
+                    </Box>
                     </Box>
                   </Box>
                 </Box>
@@ -6584,6 +6623,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           taskFiles.push({ file: f, colId: col.id, colName: col.name });
                         });
                       });
+
+                      // Add files from Chat Messages
+                      if (reviewTask.values.message && Array.isArray(reviewTask.values.message)) {
+                          reviewTask.values.message.forEach((msg: any) => {
+                              if (msg.attachment) {
+                                  taskFiles.push({
+                                      file: { ...msg.attachment, uploadedAt: msg.timestamp },
+                                      colId: 'chat',
+                                      colName: 'Chat Attachment'
+                                  });
+                              }
+                          });
+                      }
+
+                      // Deduplicate by file URL to avoid showing same file from both Column and Chat
+                      const uniqueTaskFiles = Array.from(new Map(taskFiles.map(item => [item.file.url, item])).values());
+                      taskFiles = uniqueTaskFiles;
                     }
 
                     if (taskFiles.length === 0) {
@@ -6875,6 +6931,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
         {/* Footer Actions */}
         <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 2, bgcolor: '#1C1D26', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          {fileDialog.colId !== 'chat' ? (
           <Button
             onClick={handleFileDelete}
             sx={{ color: '#EF4444', fontWeight: 600, px: 2, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
@@ -6882,6 +6939,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           >
             Delete File
           </Button>
+          ) : <div />}
 
           <Box sx={{ display: 'flex', gap: 2 }}>
             {fileDialog.file?.url && (
