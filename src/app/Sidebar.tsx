@@ -774,14 +774,22 @@ export default function Sidebar({
               filterOptions={(x) => x} // Disable local filtering, let backend handle it
               renderOption={(props, option) => (
                 <li {...props} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {option.avatar && (
-                    <Box
-                      component="img"
-                      src={option.avatar}
-                      alt={option.name}
-                      sx={{ width: 28, height: 28, borderRadius: '50%' }}
-                    />
-                  )}
+                  <Box
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      bgcolor: '#6366f1',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {option.name ? option.name[0].toUpperCase() : '?'}
+                  </Box>
                   <Box>
                     <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
                       {option.name}
