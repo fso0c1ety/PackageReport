@@ -2432,7 +2432,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 sx: {
                   mt: 1,
                   p: 2,
-                  bgcolor: theme.palette.background.default,
+                  bgcolor: theme.palette.background.paper, 
                   color: theme.palette.text.primary,
                   borderRadius: 3,
                   boxShadow: theme.shadows[10],
