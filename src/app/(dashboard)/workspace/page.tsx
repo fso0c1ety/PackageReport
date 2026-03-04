@@ -197,14 +197,14 @@ function WorkspaceContent() {
               minHeight: 48,
               fontWeight: 500,
               fontSize: '0.95rem',
-              color: '#ffffff',
+              color: theme.palette.text.secondary,
               mr: 2,
               '&:hover': {
-                color: '#ffffff',
-                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'
+                color: theme.palette.text.primary,
+                bgcolor: theme.palette.action.hover
               },
               '&.Mui-selected': {
-                color: '#ffffff',
+                color: theme.palette.primary.main,
                 fontWeight: 600
               }
             }

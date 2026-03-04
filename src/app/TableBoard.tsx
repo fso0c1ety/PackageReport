@@ -2204,7 +2204,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 sx: {
                   mt: 0.5,
                   p: 1.5,
-                  bgcolor: theme.palette.background.paper,
+                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff',
                   color: theme.palette.text.primary,
                   borderRadius: 2,
                   boxShadow: theme.shadows[8],
@@ -2319,10 +2319,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               fontSize: '0.85rem' 
                             },
                             '& .MuiOutlinedInput-root': {
-                                bgcolor: theme.palette.background.default,
+                                bgcolor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#ffffff',
                                 borderRadius: 1,
                                 '& fieldset': { borderColor: theme.palette.divider },
-                                '&:hover fieldset': { borderColor: '#5f6190' },
+                                '&:hover fieldset': { borderColor: theme.palette.text.primary },
                                 '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
                             }
                           }}
@@ -2432,10 +2432,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 sx: {
                   mt: 1,
                   p: 2,
-                  bgcolor: theme.palette.background.paper, 
+                  bgcolor: theme.palette.background.paper,
                   color: theme.palette.text.primary,
                   borderRadius: 3,
-                  boxShadow: theme.shadows[10],
+                  boxShadow: theme.shadows[8],
                   border: `1px solid ${theme.palette.divider}`,
                   minWidth: 220,
                   maxWidth: 280
@@ -2455,7 +2455,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       setEditingCell(null);
                     }}
                     sx={{
-                      bgcolor: 'transparent',
+                      bgcolor: theme.palette.background.paper,
                       color: theme.palette.text.primary,
                       border: `1px dashed ${theme.palette.divider}`,
                       borderRadius: '4px',
@@ -2466,7 +2466,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       fontWeight: 500,
                       fontStyle: 'italic',
                       transition: 'transform 0.1s',
-                      '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)', borderColor: theme.palette.text.primary, color: theme.palette.text.primary },
+                      '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)', borderColor: theme.palette.primary.main, color: theme.palette.primary.main },
                     }}
                   >
                     (Blank)
@@ -2557,12 +2557,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           onBlur={() => handleSaveStatusLabel(effectiveCol.id, idx)}
                           style={{
                             flex: 1,
-                            background: theme.palette.action.hover,
+                            background: theme.palette.background.paper,
                             border: `1px solid ${theme.palette.divider}`,
                             color: theme.palette.text.primary,
                             padding: '4px 8px',
                             borderRadius: '4px',
-                            fontSize: '0.875rem'
+                            fontSize: '0.875rem',
+                            outline: 'none'
                           }}
                         />
                         <IconButton
@@ -2591,12 +2592,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       onKeyDown={(e) => e.key === 'Enter' && handleAddStatusLabel(effectiveCol.id)}
                       style={{
                         flex: 1,
-                        background: alpha(theme.palette.text.primary, 0.05),
+                        background: theme.palette.background.paper,
                         border: `1px solid ${theme.palette.divider}`,
                         color: theme.palette.text.primary,
                         padding: '4px 8px',
                         borderRadius: '4px',
-                        fontSize: '0.875rem'
+                        fontSize: '0.875rem',
+                        outline: 'none'
                       }}
                     />
                     <IconButton
@@ -3736,7 +3738,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            bgcolor: 'rgba(21, 22, 33, 0.95)',
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(21, 22, 33, 0.95)' : 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(12px)'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -3811,9 +3813,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     </Avatar>
                     
                     <Box sx={{
-                      bgcolor: isMe ? '#6366f1' : '#26273b',
-                      background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#26273b',
-                      color: isMe ? '#fff' : '#e2e8f0',
+                      bgcolor: isMe ? '#6366f1' : (theme.palette.mode === 'dark' ? '#26273b' : theme.palette.grey[100]),
+                      background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : (theme.palette.mode === 'dark' ? '#26273b' : theme.palette.grey[100]),
+                      color: isMe ? '#fff' : (theme.palette.mode === 'dark' ? '#e2e8f0' : theme.palette.text.primary),
                       p: 1.5,
                       px: 2,
                       borderRadius: 2.5,
@@ -3910,7 +3912,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             p: 2, 
             pt: 1.5,
             borderTop: `1px solid ${theme.palette.divider}`, 
-            bgcolor: 'rgba(21, 22, 33, 0.98)',
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(21, 22, 33, 0.98)' : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(20px)',
             boxShadow: '0 -4px 20px rgba(0,0,0,0.2)'
           }}>
@@ -4067,7 +4069,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         fullWidth
         PaperProps={{
           sx: {
-            bgcolor: 'rgba(21, 22, 33, 0.95)',
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(21, 22, 33, 0.95)' : 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(24px)',
             color: theme.palette.text.primary,
             borderRadius: 3,
@@ -5016,14 +5018,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                           {/* --- CHAT TAB --- */}
                                           {chatTab === 'chat' && (
                                             <>
-                                              <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 2, sm: 2.5 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2.5, bgcolor: '#1a1b25' }}>
+                                              <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 2, sm: 2.5 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2.5, bgcolor: theme.palette.mode === 'dark' ? '#1a1b25' : '#f8f9fa' }}>
                                                 {chatMessages.length === 0 ? (
                                                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
                                                     <Box sx={{ p: 2, borderRadius: '50%', bgcolor: theme.palette.action.selected, mb: 2 }}>
                                                         <ChatBubbleOutlineIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
                                                     </Box>
                                                     <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>No messages yet</Typography>
-                                                    <Typography variant="caption" sx={{ color: '#565875' }}>Start the conversation!</Typography>
+                                                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Start the conversation!</Typography>
                                                   </Box>
                                                 ) : (
                                                   chatMessages.map(msg => {
@@ -5051,16 +5053,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                       )}
                                                       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
-                                                          {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: '#cbd5e1', fontSize: 12 }}>{msg.sender}</Typography>}
-                                                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>
+                                                          {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary, fontSize: 12 }}>{msg.sender}</Typography>}
+                                                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }}>
                                                             {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
                                                           </Typography>
                                                         </Box>
                                                         
                                                         <Box sx={{
-                                                          bgcolor: isMe ? '#6366f1' : '#2a2b3d',
-                                                          background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#2a2b3d',
-                                                          color: isMe ? '#fff' : '#e2e8f0',
+                                                          bgcolor: isMe ? '#6366f1' : theme.palette.mode === 'dark' ? '#2a2b3d' : '#e2e8f0',
+                                                          background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : theme.palette.mode === 'dark' ? '#2a2b3d' : '#e2e8f0',
+                                                          color: isMe ? '#fff' : theme.palette.text.primary,
                                                           p: 1.5,
                                                           px: 2,
                                                           borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
@@ -5168,28 +5170,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                       />
                                                   </IconButton>
 
-                                                  <input
-                                                    value={chatInput}
-                                                    onChange={e => {
-                                                      setChatInput(e.target.value);
-                                                      if (chatTaskId) handleTaskTyping(chatTaskId);
-                                                    }}
-                                                    placeholder="Type a message..."
-                                                    onKeyDown={e => e.key === 'Enter' && handleSendChat()}
-                                                    style={{
-                                                      flex: 1,
-                                                      backgroundColor: '#13141f',
-                                                      border: '1px solid #2d2e3d',
-                                                      borderRadius: '20px',
-                                                      padding: '10px 16px',
-                                                      color: '#e2e8f0',
-                                                      fontSize: '14px',
-                                                      outline: 'none',
-                                                      transition: 'all 0.2s'
-                                                    }}
-                                                    onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-                                                    onBlur={(e) => e.target.style.borderColor = '#2d2e3d'}
-                                                  />
+                                                      <input
+                                                        value={chatInput}
+                                                        onChange={e => {
+                                                          setChatInput(e.target.value);
+                                                          if (chatTaskId) handleTaskTyping(chatTaskId);
+                                                        }}
+                                                        placeholder="Type a message..."
+                                                        onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+                                                        style={{
+                                                          flex: 1,
+                                                          backgroundColor: theme.palette.mode === 'dark' ? '#13141f' : '#f1f5f9',
+                                                          border: `1px solid ${theme.palette.mode === 'dark' ? '#2d2e3d' : '#e2e8f0'}`,
+                                                          borderRadius: '20px',
+                                                          padding: '10px 16px',
+                                                          color: theme.palette.text.primary,
+                                                          fontSize: '14px',
+                                                          outline: 'none',
+                                                          transition: 'all 0.2s'
+                                                        }}
+                                                        onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                                                        onBlur={(e) => e.target.style.borderColor =  theme.palette.mode === 'dark' ? '#2d2e3d' : '#e2e8f0'}
+                                                      />
                                                   <IconButton
                                                     onClick={() => handleSendChat()}
                                                     disabled={isSending || (!chatInput.trim() && !chatAttachment)}
