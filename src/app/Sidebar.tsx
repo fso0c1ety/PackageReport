@@ -558,7 +558,17 @@ export default function Sidebar({
       <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
       <Box sx={{ p: 2 }}>
         <Box
-          sAvatar
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            p: 1,
+            borderRadius: 2,
+            cursor: "pointer",
+            "&:hover": { bgcolor: "rgba(255,255,255,0.05)" },
+          }}
+        >
+          <Avatar
             src={currentUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || "User")}&background=random&color=fff&bold=true`}
             alt={currentUser?.name || "User"}
             sx={{
@@ -576,17 +586,7 @@ export default function Sidebar({
               {currentUser?.name || "Loading..."}
             </Typography>
             <Typography variant="caption" sx={{ color: "#94a3b8" }}>
-              {currentUser?.email || "Pro Plan"}ht: 600,
-            }}
-          >
-            VH
-          </Box>
-          <Box sx={{ overflow: "hidden" }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-              Valon Halili
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
-              Pro Plan
+              {currentUser?.email || "Pro Plan"}
             </Typography>
           </Box>
         </Box>
