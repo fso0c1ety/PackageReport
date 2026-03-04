@@ -215,7 +215,23 @@ app.get('/api/workspaces', authenticateToken, async (req, res) => {
   }
   try {
     const result = await db.query(`
-      SELECT DISTINCT w.*, u.name as owner_name, u.avatar as owner_avatar
+      SELECT DISTINCT 
+        w.*, 
+        u.name as owner_name, 
+        u.avatar as owner_avatar,
+        COALESCE(
+          (
+            SELECT json_agg(json_build_object('id', um.id, 'name', um.name, 'avatar', um.avatar))
+            FROM (
+                SELECT DISTINCT (elem->>'userId')::uuid as uid
+                FROM tables t2, jsonb_array_elements(t2.shared_users) elem
+                WHERE t2.workspace_id = w.id
+            ) distinct_users
+            JOIN users um ON um.id = distinct_users.uid
+            WHERE um.id != w.owner_id  -- Exclude owner from members list to avoid duplication
+          ), 
+          '[]'::json
+        ) as members
       FROM workspaces w
       JOIN users u ON w.owner_id = u.id
       LEFT JOIN tables t ON w.id = t.workspace_id

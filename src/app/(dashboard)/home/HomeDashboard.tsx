@@ -9,6 +9,7 @@ import {
   Card,
   CardContent,
   Avatar,
+  AvatarGroup,
   IconButton,
   Button,
   Chip,
@@ -520,21 +521,47 @@ export default function HomeDashboard() {
                       >
                         <MoreVertIcon fontSize="small" />
                       </IconButton>
-                      <Avatar
-                        variant="rounded"
-                        src={ws.owner_avatar}
-                        sx={{
-                          bgcolor: "rgba(99, 102, 241, 0.15)",
-                          color: "#818cf8",
-                          width: { xs: 48, md: 52 },
-                          height: { xs: 48, md: 52 },
-                          fontWeight: 700,
-                          fontSize: { md: "1.35rem" },
+                      
+                      {/* User Avatars instead of Workspace Icon */}
+                      <AvatarGroup 
+                        max={4}
+                        sx={{ 
+                            justifyContent: { xs: 'center', md: 'flex-start' },
+                            mr: { md: 1 },
+                            '& .MuiAvatar-root': {
+                                width: 36, 
+                                height: 36, 
+                                fontSize: 13,
+                                border: '2px solid #2c2d4a',
+                                bgcolor: '#3a3b5a'
+                            }
                         }}
                       >
-                        {ws.name.charAt(0).toUpperCase()}
-                      </Avatar>
-                      <Box sx={{ overflow: "hidden" }}>
+                         {/* Owner */}
+                         <Avatar
+                            src={ws.owner_avatar}
+                            alt={ws.owner_name}
+                            title={`Owner: ${ws.owner_name}`}
+                            sx={{ bgcolor: '#6366f1' }}
+                         >
+                            {ws.owner_name ? ws.owner_name[0] : (ws.name ? ws.name[0] : 'U')}
+                         </Avatar>
+
+                         {/* Members */}
+                         {ws.members && ws.members.map((m: any) => (
+                             <Avatar
+                                key={m.id}
+                                src={m.avatar}
+                                alt={m.name}
+                                title={m.name}
+                                sx={{ bgcolor: '#4f46e5' }}
+                             >
+                                 {m.name ? m.name[0] : '?'}
+                             </Avatar>
+                         ))}
+                      </AvatarGroup>
+
+                      <Box sx={{ overflow: "hidden", textAlign: { xs: 'center', md: 'left' } }}>
                         <Typography variant="subtitle2" fontWeight={600} noWrap sx={{ fontSize: { md: "1rem" } }}>
                           {ws.name}
                         </Typography>
