@@ -480,6 +480,24 @@ export default function HomeDashboard() {
                     <Skeleton variant="rectangular" height={100} sx={{ bgcolor: "rgba(255,255,255,0.05)", borderRadius: 2 }} />
                   </Grid>
                 ))
+                : workspaces.length === 0 ? (
+                  <Grid size={{ xs: 12 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      p: 4,
+                      border: '1px dashed rgba(255,255,255,0.1)',
+                      borderRadius: 4
+                    }}>
+                      <FolderIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.1)', mb: 2 }} />
+                      <Typography variant="body1" sx={{ color: "#94a3b8", textAlign: 'center' }}>
+                        No workspaces found. Use the "+" button in the sidebar to create one.
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )
                 : workspaces.map((ws) => {
                   const isShared = currentUser && ws.owner_id && ws.owner_id !== currentUser.id;
                   return (
