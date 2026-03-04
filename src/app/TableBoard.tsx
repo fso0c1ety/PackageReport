@@ -4998,51 +4998,71 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                     <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
                                                   </Box>
                                                 ) : (
-                                                  chatMessages.map(msg => (
-                                                    <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
+                                                  chatMessages.map(msg => {
+                                                    const isMe = currentUser && msg.sender === currentUser.name;
+                                                    return (
+                                                    <Box key={msg.id} sx={{ 
+                                                        alignSelf: isMe ? 'flex-end' : 'flex-start', 
+                                                        maxWidth: '85%', 
+                                                        display: 'flex', 
+                                                        flexDirection: isMe ? 'row-reverse' : 'row',
+                                                        gap: 1.5,
+                                                        mb: 2
+                                                    }}>
                                                       <Avatar
                                                         src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                                                        sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
+                                                        sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0 }}
                                                       >
                                                         {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
                                                       </Avatar>
-                                                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
-                                                          <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
-                                                            {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : ''}
+                                                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
+                                                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#e5e7eb', fontSize: 12 }}>{isMe ? 'You' : (msg.sender || 'User')}</Typography>
+                                                          <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: 11 }}>
+                                                            {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
                                                           </Typography>
-                                                          {msg.scheduledFor && (
-                                                            <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(253, 171, 61, 0.2)', color: '#fdab3d' }} />
-                                                          )}
                                                         </Box>
                                                         
                                                         {msg.attachment && (
                                                             <Box component="a" href={msg.attachment.url} target="_blank" 
                                                                  sx={{ 
-                                                                     display: 'flex', alignItems: 'center', gap: 1, 
-                                                                     bgcolor: 'rgba(99, 102, 241, 0.1)', 
-                                                                     border: '1px solid rgba(99, 102, 241, 0.2)',
-                                                                     p: 1, mb: 0.5, borderRadius: 1, textDecoration: 'none'
+                                                                     display: 'flex', alignItems: 'center', gap: 1.5, 
+                                                                     bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.05)', 
+                                                                     border: isMe ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.1)',
+                                                                     p: 1.5, mb: 0.5, borderRadius: 2, textDecoration: 'none',
+                                                                     color: isMe ? '#fff' : '#d0d4e4',
+                                                                     maxWidth: '100%',
+                                                                     transition: 'background-color 0.2s',
+                                                                     '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.1)' }
                                                                  }}
                                                             >
-                                                                <InsertDriveFileIcon sx={{ fontSize: 18, color: '#6366f1' }} />
-                                                                <Typography sx={{ fontSize: 12, color: '#d0d4e4', textDecoration: 'none' }}>{msg.attachment.name}</Typography>
+                                                                <InsertDriveFileIcon sx={{ fontSize: 24, color: isMe ? '#fff' : '#818cf8', opacity: 0.9 }} />
+                                                                <Box sx={{minWidth: 0, flex: 1}}>
+                                                                    <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                                                    <Typography sx={{ fontSize: 11, opacity: 0.7 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
+                                                                </Box>
                                                             </Box>
                                                         )}
 
                                                         <Box sx={{
-                                                          bgcolor: '#2c2d4a',
+                                                          bgcolor: isMe ? '#6366f1' : '#2c2d4a',
+                                                          color: isMe ? '#fff' : '#d0d4e4',
                                                           px: 2,
                                                           py: 1.5,
-                                                          borderRadius: '0 12px 12px 12px',
-                                                          border: '1px solid #3a3b5a'
+                                                          borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                                                          border: isMe ? 'none' : '1px solid #3a3b5a',
+                                                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                                          maxWidth: '100%'
                                                         }}>
-                                                          <Typography variant="body2" sx={{ color: '#d0d4e4', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
+                                                          <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{msg.text}</Typography>
                                                         </Box>
+                                                        
+                                                        {msg.scheduledFor && (
+                                                            <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)' }} />
+                                                        )}
                                                       </Box>
                                                     </Box>
-                                                  ))
+                                                  )})
                                                 )}
                                                 <div id="chat-bottom" ref={taskChatEndRef} />
                                               </Box>
@@ -6470,34 +6490,70 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         <Typography variant="caption" sx={{ color: '#6B7280' }}>Start the conversation below</Typography>
                       </Box>
                     ) : (
-                      (reviewTask.values.message || []).map((msg: any) => (
-                        <Box key={msg.id} sx={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 1.5 }}>
+                      (reviewTask.values.message || []).map((msg: any) => {
+                        const isMe = currentUser && msg.sender === currentUser.name;
+                        return (
+                        <Box key={msg.id} sx={{ 
+                            alignSelf: isMe ? 'flex-end' : 'flex-start', 
+                            maxWidth: '85%', 
+                            display: 'flex', 
+                            flexDirection: isMe ? 'row-reverse' : 'row',
+                            gap: 1.5
+                        }}>
                           <Avatar
                             src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                            sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
+                            sx={{ width: 32, height: 32, fontSize: 13, bgcolor: '#6366f1', fontWeight: 600, mt: 0 }}
                           >
                             {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
                           </Avatar>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#F3F4F6', fontSize: 13 }}>{msg.sender || 'User'}</Typography>
-                              <Typography variant="caption" sx={{ color: '#6B7280', fontSize: 11 }}>
+                          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 600, color: '#e5e7eb', fontSize: 12 }}>{isMe ? 'You' : (msg.sender || 'User')}</Typography>
+                              <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: 11 }}>
                                 {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
                               </Typography>
                             </Box>
+
+                            {msg.attachment && (
+                                <Box component="a" href={msg.attachment.url} target="_blank" 
+                                        sx={{ 
+                                            display: 'flex', alignItems: 'center', gap: 1.5, 
+                                            bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.05)', 
+                                            border: isMe ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.1)',
+                                            p: 1.5, mb: 0.5, borderRadius: 2, textDecoration: 'none',
+                                            color: isMe ? '#fff' : '#d0d4e4',
+                                            maxWidth: '100%',
+                                            transition: 'background-color 0.2s',
+                                            '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.1)' }
+                                        }}
+                                >
+                                    <InsertDriveFileIcon sx={{ fontSize: 24, color: isMe ? '#fff' : '#818cf8', opacity: 0.9 }} />
+                                    <Box sx={{minWidth: 0, flex: 1}}>
+                                        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                        <Typography sx={{ fontSize: 11, opacity: 0.7 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
                             <Box sx={{
-                              bgcolor: 'rgba(255,255,255,0.03)',
-                              px: 2,
-                              py: 1.5,
-                              borderRadius: '0 16px 16px 16px',
-                              border: '1px solid rgba(255,255,255,0.06)',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                bgcolor: isMe ? '#6366f1' : '#2c2d4a',
+                                color: isMe ? '#fff' : '#d0d4e4',
+                                px: 2,
+                                py: 1.5,
+                                borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                                border: isMe ? 'none' : '1px solid #3a3b5a',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                maxWidth: '100%'
                             }}>
-                              <Typography variant="body2" sx={{ color: '#E5E7EB', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordWrap: 'break-word', wordBreak: 'break-word', fontSize: 14 }}>{msg.text}</Typography>
+                              <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{msg.text}</Typography>
                             </Box>
+
+                            {msg.scheduledFor && (
+                                <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)' }} />
+                            )}
                           </Box>
                         </Box>
-                      ))
+                      )})
                     )}
                     <div ref={taskDetailsChatEndRef} />
                   </Box>
