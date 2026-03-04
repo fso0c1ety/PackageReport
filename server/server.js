@@ -1656,7 +1656,6 @@ setInterval(async () => {
             SELECT r.id, r.table_id, r.values
             FROM rows r
             WHERE r.values::text LIKE '%"scheduledFor"%' 
-            AND r.values::text LIKE '%"notificationSent":false%'
         `); 
 
         for (const row of result.rows) {
@@ -1669,7 +1668,7 @@ setInterval(async () => {
             if (!table) continue;
 
             for (const msg of messages) {
-                if (msg.scheduledFor && msg.notificationSent === false) {
+                if (msg.scheduledFor && !msg.notificationSent) {
                     if (new Date(msg.scheduledFor) <= new Date()) {
                         
                         let taskName = 'Task';

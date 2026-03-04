@@ -2082,7 +2082,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           text: chatInput,
           timestamp: new Date().toISOString(),
           attachment: attachment,
-          scheduledFor: chatScheduledTime ? new Date(chatScheduledTime).toISOString() : undefined
+          scheduledFor: chatScheduledTime ? new Date(chatScheduledTime).toISOString() : undefined,
+          notificationSent: chatScheduledTime ? false : undefined
         };
 
         // Construct updated values
@@ -4991,11 +4992,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                           {/* --- CHAT TAB --- */}
                                           {chatTab === 'chat' && (
                                             <>
-                                              <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                              <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 2, sm: 2.5 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2.5, bgcolor: '#1a1b25' }}>
                                                 {chatMessages.length === 0 ? (
                                                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
-                                                    <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#4f51c0', mb: 1, opacity: 0.5 }} />
-                                                    <Typography variant="body2" sx={{ color: '#7d82a8' }}>No messages yet</Typography>
+                                                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'rgba(99, 102, 241, 0.1)', mb: 2 }}>
+                                                        <ChatBubbleOutlineIcon sx={{ fontSize: 32, color: '#6366f1' }} />
+                                                    </Box>
+                                                    <Typography variant="body2" sx={{ color: '#7d82a8', fontWeight: 500 }}>No messages yet</Typography>
+                                                    <Typography variant="caption" sx={{ color: '#565875' }}>Start the conversation!</Typography>
                                                   </Box>
                                                 ) : (
                                                   chatMessages.map(msg => {
@@ -5003,62 +5007,72 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                      return (
                                                     <Box key={msg.id} sx={{ 
                                                         alignSelf: isMe ? 'flex-end' : 'flex-start', 
-                                                        maxWidth: '85%', 
+                                                        maxWidth: { xs: '92%', sm: '80%' }, 
                                                         display: 'flex', 
                                                         flexDirection: isMe ? 'row-reverse' : 'row',
-                                                        gap: 1,
+                                                        gap: 1.5,
                                                         mb: 0.5
                                                     }}>
                                                       {!isMe && (
                                                         <Avatar
                                                             src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                                                            sx={{ width: 28, height: 28, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }}
+                                                            sx={{ 
+                                                                width: 32, height: 32, fontSize: 13, 
+                                                                bgcolor: '#6366f1', fontWeight: 600, mt: 0,
+                                                                boxShadow: '0 2px 5px rgba(0,0,0,0.2)' 
+                                                            }}
                                                         >
                                                             {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
                                                         </Avatar>
                                                       )}
                                                       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
-                                                          {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: '#9ca3af', fontSize: 11 }}>{msg.sender}</Typography>}
-                                                          <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 10 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
+                                                          {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: '#cbd5e1', fontSize: 12 }}>{msg.sender}</Typography>}
+                                                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>
                                                             {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
                                                           </Typography>
                                                         </Box>
                                                         
-                                                        {msg.attachment && (
-                                                            <Box component="a" href={msg.attachment.url} target="_blank" 
-                                                                 sx={{ 
-                                                                     display: 'flex', alignItems: 'center', gap: 1.5, 
-                                                                     bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.05)', 
-                                                                     p: 1.5, mb: 0.5, borderRadius: 2, textDecoration: 'none',
-                                                                     color: isMe ? '#fff' : '#d0d4e4',
-                                                                     maxWidth: '100%',
-                                                                     transition: 'background-color 0.2s',
-                                                                     '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.1)' }
-                                                                 }}
-                                                            >
-                                                                <InsertDriveFileIcon sx={{ fontSize: 20, color: isMe ? '#fff' : '#818cf8', opacity: 0.9 }} />
-                                                                <Box sx={{minWidth: 0, flex: 1}}>
-                                                                    <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
-                                                                    <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
-                                                                </Box>
-                                                            </Box>
-                                                        )}
-
                                                         <Box sx={{
-                                                          bgcolor: isMe ? '#6366f1' : 'rgba(255,255,255,0.08)',
-                                                          color: isMe ? '#fff' : '#e5e7eb',
+                                                          bgcolor: isMe ? '#6366f1' : '#2a2b3d',
+                                                          background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#2a2b3d',
+                                                          color: isMe ? '#fff' : '#e2e8f0',
+                                                          p: 1.5,
                                                           px: 2,
-                                                          py: 1,
-                                                          borderRadius: isMe ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                                                          boxShadow: 'none',
-                                                          maxWidth: '100%'
+                                                          borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                                                          boxShadow: isMe ? '0 4px 12px rgba(99, 102, 241, 0.25)' : '0 2px 4px rgba(0,0,0,0.1)',
+                                                          border: isMe ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                                                          maxWidth: '100%',
+                                                          position: 'relative'
                                                         }}>
-                                                          <Typography variant="body2" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13.5 }}>{msg.text}</Typography>
+                                                            {msg.attachment && (
+                                                                <Box component="a" href={msg.attachment.url} target="_blank" 
+                                                                     onClick={(e) => e.stopPropagation()}
+                                                                     sx={{ 
+                                                                         display: 'flex', alignItems: 'center', gap: 1.5, 
+                                                                         bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)', 
+                                                                         p: 1, px: 1.5, mb: msg.text ? 1 : 0, borderRadius: 2, textDecoration: 'none',
+                                                                         color: isMe ? '#fff' : '#e2e8f0',
+                                                                         width: '100%',
+                                                                         transition: 'all 0.2s',
+                                                                         border: '1px solid rgba(255,255,255,0.1)',
+                                                                         '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
+                                                                     }}
+                                                                >
+                                                                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 0.75, borderRadius: 1.5, display: 'flex' }}>
+                                                                        <InsertDriveFileIcon sx={{ fontSize: 18, color: '#fff' }} />
+                                                                    </Box>
+                                                                    <Box sx={{minWidth: 0, flex: 1}}>
+                                                                        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                                                        <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
+                                                                    </Box>
+                                                                </Box>
+                                                            )}
+                                                          {msg.text && <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem', fontWeight: 400, letterSpacing: '0.01em' }}>{msg.text}</Typography>}
                                                         </Box>
                                                         
                                                         {msg.scheduledFor && (
-                                                            <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 18, fontSize: '0.6rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)' }} />
+                                                            <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
                                                         )}
                                                       </Box>
                                                     </Box>
@@ -5068,23 +5082,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                               </Box>
 
                                               {/* Input Area */}
-                                              <Box sx={{ px: 2, py: 2, borderTop: '1px solid #2d2e45', bgcolor: '#23243a' }}>
+                                              <Box sx={{ px: 2, py: 2, borderTop: '1px solid rgba(255,255,255,0.08)', bgcolor: '#1e1f2b' }}>
                                                 {chatTaskId && taskTypingUsers[chatTaskId]?.length > 0 && (
-                                                  <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
+                                                  <Typography variant="caption" sx={{ color: '#818cf8', mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, fontWeight: 500, fontSize: '0.75rem' }}>
+                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#818cf8', display: 'inline-block' }}></span>
                                                     {taskTypingUsers[chatTaskId].join(', ')} is typing...
                                                   </Typography>
                                                 )}
                                                 
                                                 {/* Attachments / Schedule preview */}
                                                 {(chatAttachment || chatScheduledTime) && (
-                                                    <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                                                    <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', px: 0.5 }}>
                                                         {chatAttachment && (
                                                             <Chip 
                                                                 size="small" 
                                                                 icon={<InsertDriveFileIcon style={{fontSize: 14}}/>} 
                                                                 label={chatAttachment.name} 
                                                                 onDelete={() => { setChatAttachment(null); if(chatFileRef.current) chatFileRef.current.value = ""; }}
-                                                                sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
+                                                                sx={{ bgcolor: '#312e81', color: '#fff', border: '1px solid rgba(99, 102, 241, 0.3)', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
                                                             />
                                                         )}
                                                         {chatScheduledTime && (
@@ -5093,7 +5108,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                                 icon={<AccessTimeIcon style={{fontSize: 14}}/>} 
                                                                 label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`} 
                                                                 onDelete={() => setChatScheduledTime("")}
-                                                                sx={{ bgcolor: 'rgba(253, 171, 61, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
+                                                                sx={{ bgcolor: 'rgba(253, 171, 61, 0.15)', color: '#fdba74', border: '1px solid rgba(253, 171, 61, 0.3)', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
                                                             />
                                                         )}
                                                     </Box>
@@ -5110,15 +5125,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                         }
                                                     }}
                                                   />
-                                                  <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                                                  <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#64748b', transition: 'color 0.2s', '&:hover': { color: '#94a3b8', bgcolor: 'rgba(255,255,255,0.05)' } }}>
                                                       <AttachFileIcon fontSize="small" />
                                                   </IconButton>
 
-                                                  {/* Simple Schedule Input trigger - could use Popover/DatePicker, keeping simple for inline */}
-                                                  <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#7d82a8', '&:hover': { color: '#fff' } }}
+                                                  <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#64748b', transition: 'color 0.2s', '&:hover': { color: '#94a3b8', bgcolor: 'rgba(255,255,255,0.05)' } }}
                                                       onClick={(e) => {
-                                                          // For simplicity in this text-based env, we can use a native input
-                                                          // or toggle a small absolute box
                                                           const input = document.getElementById('chat-schedule-input');
                                                           if(input) (input as HTMLInputElement).showPicker();
                                                       }}
@@ -5138,30 +5150,35 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                       setChatInput(e.target.value);
                                                       if (chatTaskId) handleTaskTyping(chatTaskId);
                                                     }}
-                                                    placeholder="Write a message..."
+                                                    placeholder="Type a message..."
                                                     onKeyDown={e => e.key === 'Enter' && handleSendChat()}
                                                     style={{
                                                       flex: 1,
-                                                      backgroundColor: '#1e1f2b',
-                                                      border: '1px solid #3a3b5a',
-                                                      borderRadius: '24px',
+                                                      backgroundColor: '#13141f',
+                                                      border: '1px solid #2d2e3d',
+                                                      borderRadius: '20px',
                                                       padding: '10px 16px',
-                                                      color: '#fff',
+                                                      color: '#e2e8f0',
                                                       fontSize: '14px',
-                                                      outline: 'none'
+                                                      outline: 'none',
+                                                      transition: 'all 0.2s'
                                                     }}
+                                                    onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                                                    onBlur={(e) => e.target.style.borderColor = '#2d2e3d'}
                                                   />
                                                   <IconButton
                                                     onClick={() => handleSendChat()}
                                                     disabled={isSending || (!chatInput.trim() && !chatAttachment)}
                                                     size="small"
                                                     sx={{
-                                                      color: (chatInput.trim() || chatAttachment) ? '#4f51c0' : '#3a3b5a',
-                                                      bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(79, 81, 192, 0.1)' : 'transparent',
-                                                      '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? 'rgba(79, 81, 192, 0.2)' : 'transparent' }
+                                                      color: (chatInput.trim() || chatAttachment) ? '#fff' : '#475569',
+                                                      bgcolor: (chatInput.trim() || chatAttachment) ? '#6366f1' : 'rgba(255,255,255,0.05)',
+                                                      transition: 'all 0.2s',
+                                                      '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? '#4f46e5' : 'rgba(255,255,255,0.05)', transform: (chatInput.trim() || chatAttachment) ? 'scale(1.05)' : 'none' },
+                                                      width: 32, height: 32
                                                     }}
                                                   >
-                                                    {isSending ? <CircularProgress size={16} /> : <SendIcon fontSize="small" />}
+                                                    {isSending ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <SendIcon sx={{ fontSize: 16 }} />}
                                                   </IconButton>
                                                 </Box>
                                               </Box>
@@ -6495,62 +6512,72 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         return (
                         <Box key={msg.id} sx={{ 
                             alignSelf: isMe ? 'flex-end' : 'flex-start', 
-                            maxWidth: '75%', 
+                            maxWidth: { xs: '90%', sm: '80%' }, 
                             display: 'flex', 
                             flexDirection: isMe ? 'row-reverse' : 'row',
-                            gap: 1,
-                            mb: 0.5 // tighter spacing between messages
+                            gap: 1.5,
+                            mb: 1
                         }}>
                           {!isMe && (
                             <Avatar
                               src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                              sx={{ width: 28, height: 28, fontSize: 12, bgcolor: '#6366f1', fontWeight: 600, mt: 0.5 }} // Smaller avatar
+                              sx={{ 
+                                  width: 32, height: 32, fontSize: 13, 
+                                  bgcolor: '#6366f1', fontWeight: 600, mt: 0,
+                                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)' 
+                              }}
                             >
                               {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
                             </Avatar>
                           )}
                           <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
-                                {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: '#9ca3af', fontSize: 11 }}>{msg.sender}</Typography>}
-                                <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 10 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
+                                {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: '#cbd5e1', fontSize: 12 }}>{msg.sender}</Typography>}
+                                <Typography variant="caption" sx={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>
                                     {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </Typography>
                             </Box>
 
-                            {msg.attachment && (
-                                <Box component="a" href={msg.attachment.url} target="_blank" 
-                                        sx={{ 
-                                            display: 'flex', alignItems: 'center', gap: 1.5, 
-                                            bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.05)', 
-                                            p: 1.5, mb: 0.5, borderRadius: 2, textDecoration: 'none',
-                                            color: isMe ? '#fff' : '#d0d4e4',
-                                            maxWidth: '100%',
-                                            transition: 'background-color 0.2s',
-                                            '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.1)' }
-                                        }}
-                                >
-                                    <InsertDriveFileIcon sx={{ fontSize: 20, color: isMe ? '#fff' : '#818cf8', opacity: 0.9 }} />
-                                    <Box sx={{minWidth: 0, flex: 1}}>
-                                        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
-                                        <Typography sx={{ fontSize: 10, opacity: 0.7 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
-                                    </Box>
-                                </Box>
-                            )}
-
                             <Box sx={{
-                                bgcolor: isMe ? '#6366f1' : 'rgba(255,255,255,0.08)',
-                                color: isMe ? '#fff' : '#e5e7eb',
+                                bgcolor: isMe ? '#6366f1' : '#2a2b3d',
+                                background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#2a2b3d',
+                                color: isMe ? '#fff' : '#e2e8f0',
+                                p: 1.5,
                                 px: 2,
-                                py: 1,
-                                borderRadius: isMe ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                                boxShadow: 'none',
-                                maxWidth: '100%'
+                                borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                                boxShadow: isMe ? '0 4px 12px rgba(99, 102, 241, 0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
+                                border: isMe ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                                maxWidth: '100%',
+                                position: 'relative'
                             }}>
-                              <Typography variant="body2" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13.5 }}>{msg.text}</Typography>
+                                {msg.attachment && (
+                                    <Box component="a" href={msg.attachment.url} target="_blank" 
+                                            onClick={(e) => e.stopPropagation()}
+                                            sx={{ 
+                                                display: 'flex', alignItems: 'center', gap: 1.5, 
+                                                bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)', 
+                                                p: 1, px: 1.5, mb: msg.text ? 1 : 0, borderRadius: 2, textDecoration: 'none',
+                                                color: isMe ? '#fff' : '#e2e8f0',
+                                                width: '100%',
+                                                transition: 'all 0.2s',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
+                                            }}
+                                    >
+                                        <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 0.75, borderRadius: 1.5, display: 'flex' }}>
+                                            <InsertDriveFileIcon sx={{ fontSize: 18, color: '#fff' }} />
+                                        </Box>
+                                        <Box sx={{minWidth: 0, flex: 1}}>
+                                            <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                            <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+                              {msg.text && <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem', fontWeight: 400, letterSpacing: '0.01em' }}>{msg.text}</Typography>}
                             </Box>
 
                             {msg.scheduledFor && (
-                                <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 18, fontSize: '0.6rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d' }} />
+                                <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
                             )}
                           </Box>
                         </Box>
@@ -6558,23 +6585,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     )}
                     <div ref={taskDetailsChatEndRef} />
                   </Box>
-                  <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)', bgcolor: '#1C1D26' }}>
+                  <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)', bgcolor: '#1e1f2b' }}>
                     {reviewTask && taskTypingUsers[reviewTask.id] && taskTypingUsers[reviewTask.id].length > 0 && (
-                      <Typography variant="caption" sx={{ color: '#7d82a8', mb: 1, display: 'block', fontStyle: 'italic', ml: 1 }}>
+                      <Typography variant="caption" sx={{ color: '#818cf8', mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, fontWeight: 500, fontSize: '0.75rem' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#818cf8', display: 'inline-block' }}></span>
                         {taskTypingUsers[reviewTask.id].join(', ')} is typing...
                       </Typography>
                     )}
                     
                     {/* Attachments / Schedule preview (Copied from Popover) */}
                     {(chatAttachment || chatScheduledTime) && (
-                        <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', px: 0.5 }}>
                             {chatAttachment && (
                                 <Chip 
                                     size="small" 
                                     icon={<InsertDriveFileIcon style={{fontSize: 14}}/>} 
                                     label={chatAttachment.name} 
                                     onDelete={() => { setChatAttachment(null); if(chatFileRef.current) chatFileRef.current.value = ""; }}
-                                    sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
+                                    sx={{ bgcolor: '#312e81', color: '#fff', border: '1px solid rgba(99, 102, 241, 0.3)', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
                                 />
                             )}
                             {chatScheduledTime && (
@@ -6583,7 +6611,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     icon={<AccessTimeIcon style={{fontSize: 14}}/>} 
                                     label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`} 
                                     onDelete={() => setChatScheduledTime("")}
-                                    sx={{ bgcolor: 'rgba(253, 171, 61, 0.2)', color: '#fff', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
+                                    sx={{ bgcolor: 'rgba(253, 171, 61, 0.15)', color: '#fdba74', border: '1px solid rgba(253, 171, 61, 0.3)', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
                                 />
                             )}
                         </Box>
@@ -6600,11 +6628,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             }
                         }}
                       />
-                      <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#7d82a8', '&:hover': { color: '#fff' } }}>
+                      <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#64748b', transition: 'color 0.2s', '&:hover': { color: '#94a3b8', bgcolor: 'rgba(255,255,255,0.05)' } }}>
                           <AttachFileIcon fontSize="small" />
                       </IconButton>
 
-                      <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#7d82a8', '&:hover': { color: '#fff' } }}
+                      <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#64748b', transition: 'color 0.2s', '&:hover': { color: '#94a3b8', bgcolor: 'rgba(255,255,255,0.05)' } }}
                           onClick={(e) => {
                               const input = document.getElementById('chat-schedule-input-details');
                               if(input) (input as HTMLInputElement).showPicker();
@@ -6633,16 +6661,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         }}
                         style={{
                           flex: 1, 
-                          backgroundColor: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '24px',
-                          padding: '12px 20px',
-                          color: '#fff',
+                          backgroundColor: '#13141f',
+                          border: '1px solid #2d2e3d',
+                          borderRadius: '20px',
+                          padding: '10px 16px',
+                          color: '#e2e8f0',
                           fontSize: '14px',
                           outline: 'none',
-                          transition: 'all 0.2s',
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                          transition: 'all 0.2s'
                         }}
+                        onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                        onBlur={(e) => e.target.style.borderColor = '#2d2e3d'}
                       />
                       <IconButton
                         onClick={async () => {
@@ -6654,14 +6683,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         size="medium"
                         sx={{
                           color: (chatInput.trim() || chatAttachment) ? '#fff' : '#6B7280',
+                          width: 32,
+                            height: 32,
                           bgcolor: (chatInput.trim() || chatAttachment) ? '#6366f1' : 'transparent',
                           '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? '#4f46e5' : 'rgba(255,255,255,0.05)' },
-                          width: 40,
-                          height: 40,
                           ml: 1
                         }}
                       >
-                         {isSending ? <CircularProgress size={16} /> : <SendIcon fontSize="small" />}
+                         {isSending ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <SendIcon sx={{ fontSize: 16 }} />}
                       </IconButton>
                     </Box>
                   </Box>
