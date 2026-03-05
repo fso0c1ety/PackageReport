@@ -1292,6 +1292,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                            const pushData = {
                              type: 'automation',
                              tableId: table.id.toString(),
+                             workspaceId: table.workspace_id,
                              taskId: id.toString()
                            };
                            await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
