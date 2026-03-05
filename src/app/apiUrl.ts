@@ -1,36 +1,11 @@
 // Utility to get API URL (adjust as needed for your environment)
-// Default fallback
-const IS_PROD = process.env.NODE_ENV === 'production';
-
-// Determine default URL based on environment and hostname
-let defaultUrl = "http://localhost:4000";
-
-if (typeof window !== 'undefined') {
-    if (window.location.hostname.includes('onrender.com')) {
-        defaultUrl = "https://packagereport.onrender.com";
-    } else {
-        defaultUrl = `http://${window.location.hostname}:4000`;
-    }
-} else {
-    // Server-side default
-    defaultUrl = IS_PROD ? "https://packagereport.onrender.com" : "http://localhost:4000";
-}
-
-export const DEFAULT_SERVER_URL = defaultUrl;
+export const DEFAULT_SERVER_URL = "https://packagereport.onrender.com";
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {
-    // Only use production URL if we are on the production domain
-    if (window.location.hostname.includes('onrender.com')) {
-         return "https://packagereport.onrender.com";
-    }
-    
     // Check local storage for overrides
     const stored = localStorage.getItem('server_url');
     if (stored) return stored;
-
-    // Otherwise always default to the local backend (dynamically based on hostname)
-    return `http://${window.location.hostname}:4000`;
   }
   return DEFAULT_SERVER_URL;
 }
