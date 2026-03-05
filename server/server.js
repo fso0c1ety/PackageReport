@@ -1,5 +1,7 @@
 // --- Task Order Endpoint for Drag-and-Drop ---
 // (Endpoint is now placed at the end of the file, after all initialization)
+console.log('Server process starting...');
+process.on('exit', (code) => console.log(`Process exit with code: ${code}`));
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +20,12 @@ const http = require('http');
 const { Server } = require("socket.io");
 
 const app = express();
+
+// Root endpoint request method
+app.get('/', (req, res) => {
+  res.send('Backend is running!');
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -1688,6 +1696,14 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
     console.error('Error posting chat message:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 server.listen(PORT, '0.0.0.0', () => {

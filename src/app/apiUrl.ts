@@ -6,6 +6,18 @@ export function getServerUrl() {
     // Check local storage for overrides
     const stored = localStorage.getItem('server_url');
     if (stored) return stored;
+
+    // Use local backend if running on localhost or local network
+    const hostname = window.location.hostname;
+    
+    // If on localhost, prefer 127.0.0.1 explicitly to avoid IPv6 issues
+    if (hostname === 'localhost') {
+        return 'http://127.0.0.1:4000';
+    }
+
+    if (hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
+        return `http://${hostname}:4000`;
+    }
   }
   return DEFAULT_SERVER_URL;
 }
@@ -13,7 +25,7 @@ export function getServerUrl() {
 export function getApiUrl(path: string) {
   // Use Express backend (LAN IP for mobile/desktop)
   const base = getServerUrl();
-  // console.log('[API] Using server URL:', base); // Debugging log
+  console.log('[API] Using server URL:', base); // Debugging log
 
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
@@ -44,10 +56,20 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  // console.log(`[Fetch] ${url}`); // Debug
+
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    if (typeof window !== 'undefined') {
+        console.error(`[Fetch Failed] ${url}`, err);
+    }
+    throw err;
+  }
 
   if (response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {

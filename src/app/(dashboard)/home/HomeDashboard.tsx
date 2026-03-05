@@ -24,6 +24,7 @@ import {
   DialogContentText,
   DialogActions,
   TextField,
+  CircularProgress,
 } from "@mui/material";
 import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -158,6 +159,7 @@ export default function HomeDashboard() {
   // Start with null to prevent hydration mismatch
   const [lastWorkspace, setLastWorkspace] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [greeting, setGreeting] = useState("Good morning");
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -271,27 +273,50 @@ export default function HomeDashboard() {
 
   // Fetch Data
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchWorkspaces = async () => {
       try {
-        const [wsRes, updatesRes] = await Promise.all([
-          authenticatedFetch(getApiUrl("workspaces")),
-          authenticatedFetch(getApiUrl("email-updates")),
-        ]);
+        const wsRes = await authenticatedFetch(getApiUrl("workspaces"));
+        if (!wsRes.ok) {
+            throw new Error(`Failed to fetch workspaces: ${wsRes.status}`);
+        }
         const wsData = await wsRes.json();
-        const updatesData = await updatesRes.json();
-
-        setWorkspaces(Array.isArray(wsData) ? wsData : []);
-        setEmailUpdates(Array.isArray(updatesData) ? updatesData : []);
+        
+        if (Array.isArray(wsData)) {
+            setWorkspaces(wsData);
+            setError(null);
+        } else {
+            // If API returns an error object, treat it as an error, not empty array
+            console.error("Workspace API returned non-array:", wsData);
+            setError("Could not load workspaces.");
+        }
       } catch (err) {
-        console.error("Failed to load dashboard data", err);
+        console.error("Failed to load workspaces", err);
+        setError("Failed to load workspaces. Please simplify your network settings or check your connection.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    const fetchUpdates = async () => {
+      try {
+        const updatesRes = await authenticatedFetch(getApiUrl("email-updates"));
+        const updatesData = await updatesRes.json();
+        setEmailUpdates(Array.isArray(updatesData) ? updatesData : []);
+      } catch (err) {
+        console.error("Failed to load email updates", err);
+      }
+    };
+
+    // Initial fetches (independent to avoid blocking UI)
+    fetchWorkspaces();
+    fetchUpdates();
+
     // Poll for updates (optional)
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => {
+        fetchWorkspaces();
+        fetchUpdates();
+    }, 30000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -475,12 +500,32 @@ export default function HomeDashboard() {
             </Box>
 
             <Grid container spacing={{ xs: 1, md: 3 }}>
-              {loading
-                ? [1, 2, 3].map((n) => (
-                  <Grid size={{ xs: 6, sm: 6, md: 6 }} key={n}>
-                    <Skeleton variant="rectangular" height={100} sx={{ bgcolor: "rgba(255,255,255,0.05)", borderRadius: 2 }} />
-                  </Grid>
-                ))
+              {loading ? (
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+                    <CircularProgress size={32} sx={{ color: "#6366f1" }} />
+                  </Box>
+                </Grid>
+              ) : error ? (
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ 
+                    p: 4, 
+                    border: '1px solid rgba(239, 68, 68, 0.2)', 
+                    borderRadius: 2,
+                    bgcolor: 'rgba(239, 68, 68, 0.05)',
+                    textAlign: 'center'
+                  }}>
+                    <Typography color="error">{error}</Typography>
+                    <Button 
+                        size="small" 
+                        onClick={() => window.location.reload()} 
+                        sx={{ mt: 2, color: "#6366f1" }}
+                    >
+                        Retry
+                    </Button>
+                  </Box>
+                </Grid>
+              )
                 : workspaces.length === 0 ? (
                   <Grid size={{ xs: 12 }}>
                     <Box sx={{ 
@@ -607,22 +652,20 @@ export default function HomeDashboard() {
           }
         }}
       >
-        {selectedWorkspace?.owner_id === currentUser?.id ? (
-        <>
-            <MenuItem onClick={handleRenameStart}>
+        {selectedWorkspace?.owner_id === currentUser?.id ? [
+            <MenuItem key="rename" onClick={handleRenameStart}>
             <ListItemIcon sx={{ color: theme.palette.text.secondary }}>
                 <EditIcon fontSize="small" />
             </ListItemIcon>
             Rename
-            </MenuItem>
-            <MenuItem onClick={handleDeleteStart} sx={{ color: "#ef4444" }}>
+            </MenuItem>,
+            <MenuItem key="delete" onClick={handleDeleteStart} sx={{ color: "#ef4444" }}>
             <ListItemIcon sx={{ color: "#ef4444" }}>
                 <DeleteOutlineIcon fontSize="small" />
             </ListItemIcon>
             Delete
             </MenuItem>
-        </>
-        ) : (
+        ] : (
             <MenuItem onClick={handleLeaveStart} sx={{ color: "#ef4444" }}>
             <ListItemIcon sx={{ color: "#ef4444" }}>
                 <LogoutIcon fontSize="small" />
