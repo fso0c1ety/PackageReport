@@ -28,7 +28,14 @@ export const DEFAULT_SERVER_URL = defaultUrl;
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('server_url') || DEFAULT_SERVER_URL;
+    // If we are on localhost, prioritize localhost backend unless explicitly overridden
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+         return "http://localhost:4000";
+    }
+    
+    // Otherwise check local storage or fall back to default
+    const stored = localStorage.getItem('server_url');
+    if (stored) return stored;
   }
   return DEFAULT_SERVER_URL;
 }
@@ -36,6 +43,8 @@ export function getServerUrl() {
 export function getApiUrl(path: string) {
   // Use Express backend (LAN IP for mobile/desktop)
   const base = getServerUrl();
+  console.log('[API] Using server URL:', base); // Debugging log
+
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
