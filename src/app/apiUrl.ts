@@ -4,38 +4,33 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 // Determine default URL based on environment and hostname
 let defaultUrl = "http://localhost:4000";
-if (IS_PROD) {
-    if (typeof window !== 'undefined') {
-        // If on production domain, point to production backend
-        if (window.location.hostname.includes('onrender.com')) {
-            defaultUrl = "https://packagereport.onrender.com";
-        } else {
-            // Otherwise (e.g. localhost preview of production build), point to local backend
-            defaultUrl = `http://${window.location.hostname}:4000`;
-        }
-    } else {
-        // Server-side (SSG/SSR): Default to production URL
+
+if (typeof window !== 'undefined') {
+    if (window.location.hostname.includes('onrender.com')) {
         defaultUrl = "https://packagereport.onrender.com";
+    } else {
+        defaultUrl = `http://${window.location.hostname}:4000`;
     }
 } else {
-    // Development mode
-    defaultUrl = (typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : "http://localhost:4000"); // Standard local dev
+    // Server-side default
+    defaultUrl = IS_PROD ? "https://packagereport.onrender.com" : "http://localhost:4000";
 }
 
 export const DEFAULT_SERVER_URL = defaultUrl;
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {
-    // If we are on localhost, prioritize localhost backend unless explicitly overridden
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-         return "http://localhost:4000";
+    // Only use production URL if we are on the production domain
+    if (window.location.hostname.includes('onrender.com')) {
+         return "https://packagereport.onrender.com";
     }
     
-    // Otherwise check local storage or fall back to default
+    // Check local storage for overrides
     const stored = localStorage.getItem('server_url');
     if (stored) return stored;
+
+    // Otherwise always default to the local backend (dynamically based on hostname)
+    return `http://${window.location.hostname}:4000`;
   }
   return DEFAULT_SERVER_URL;
 }
@@ -43,7 +38,7 @@ export function getServerUrl() {
 export function getApiUrl(path: string) {
   // Use Express backend (LAN IP for mobile/desktop)
   const base = getServerUrl();
-  console.log('[API] Using server URL:', base); // Debugging log
+  // console.log('[API] Using server URL:', base); // Debugging log
 
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
