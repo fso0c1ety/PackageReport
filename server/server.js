@@ -18,13 +18,18 @@ const { sendNotification } = require('./notificationHelper');
 
 const http = require('http');
 const { Server } = require("socket.io");
+const next = require('next');
+
+const dev = process.env.NODE_ENV !== 'production';
+const nextApp = next({ dev });
+const handle = nextApp.getRequestHandler();
 
 const app = express();
 
-// Root endpoint request method
-app.get('/', (req, res) => {
-  res.send('Backend is running!');
-});
+// Root endpoint handled by Next.js
+// app.get('/', (req, res) => {
+//   res.send('Backend is running!');
+// });
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -1706,13 +1711,20 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-    try {
-        console.log(`Express server running on http://0.0.0.0:${PORT}`);
-        console.log(`Socket.IO listening on port ${PORT}`);
-    } catch (err) {
-        console.error('Error starting server/socket:', err);
-    }
+nextApp.prepare().then(() => {
+    app.all('*', (req, res) => {
+        return handle(req, res);
+    });
+
+    server.listen(PORT, '0.0.0.0', () => {
+        try {
+            console.log(`> Ready on http://localhost:${PORT}`);
+            console.log(`Express server running on http://0.0.0.0:${PORT}`);
+            console.log(`Socket.IO listening on port ${PORT}`);
+        } catch (err) {
+            console.error('Error starting server/socket:', err);
+        }
+    });
 });
 
 // --- Scheduled Message Processor (Cron Job) ---
