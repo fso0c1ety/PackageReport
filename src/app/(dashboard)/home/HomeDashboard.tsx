@@ -262,11 +262,20 @@ export default function HomeDashboard() {
   const [isCreatingTemplate, setIsCreatingTemplate] = useState<string | null>(null);
 
   const handleCreateFromTemplate = async (template: typeof TEMPLATES[0]) => {
+    if (workspaces.length === 0) {
+        console.error("No workspace available to create table");
+        return;
+    }
+    
+    // Default to the first workspace, or find one named 'Main Workspace'
+    const targetWorkspace = workspaces.find(w => w.name === 'Main Workspace') || workspaces[0];
+
     try {
       setIsCreatingTemplate(template.title);
 
       const newTablePayload = {
         name: template.title,
+        workspaceId: targetWorkspace.id,
         columns: template.columns.map((col, idx) => ({
           id: uuidv4(),
           name: col.name,
