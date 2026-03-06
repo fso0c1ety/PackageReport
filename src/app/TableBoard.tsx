@@ -278,92 +278,6 @@ const stringToColor = (string: string) => {
   return color;
 }
 
-// Separate component to prevent table re-renders on every keystroke
-function DateCellEditor({ 
-  initialValue, 
-  onSave 
-}: { 
-  initialValue: any, 
-  onSave: (val: any) => void 
-}) {
-  const theme = useTheme();
-  // Initialize with Dayjs object if valid, else null
-  const [value, setValue] = useState(initialValue ? dayjs(initialValue) : null);
-  const valueRef = React.useRef(value);
-  const isSavingRef = React.useRef(false);
-  const isPickerOpenRef = React.useRef(false);
-  
-  // Use a ref for the input to manage focus manually if needed
-  const inputRef = React.useRef<HTMLInputElement | null>(null);
-
-  // Keep ref in sync
-  useEffect(() => {
-     valueRef.current = value;
-  }, [value]);
-
-  const handleSave = () => {
-    if (isSavingRef.current) return;
-    isSavingRef.current = true;
-    onSave(valueRef.current);
-  };
-
-  const slotProps = React.useMemo(() => ({
-    textField: {
-      size: 'small' as const,
-      inputRef: inputRef,
-      autoFocus: true,
-      InputProps: { style: { color: theme.palette.text.primary } },
-      sx: { 
-          bgcolor: theme.palette.background.paper, 
-          color: theme.palette.text.primary,
-          '& .MuiInputBase-input': { color: theme.palette.text.primary, fontSize: '0.875rem' }
-      },
-      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          handleSave();
-        }
-      },
-      onBlur: () => {
-          if (isPickerOpenRef.current) return;
-          setTimeout(() => {
-             if (!isPickerOpenRef.current && !isSavingRef.current) {
-                 handleSave();
-             }
-          }, 200);
-      }
-    }
-  }), [theme]); // Do not re-create on every render
-
-  return (
-    <Box>
-      <DatePicker
-        value={value}
-        onChange={(newValue) => {
-           setValue(newValue);
-           valueRef.current = newValue;
-        }}
-        onOpen={() => {
-            isPickerOpenRef.current = true;
-        }}
-        onAccept={(newValue) => {
-           if (newValue && newValue.isValid()) {
-              valueRef.current = newValue;
-              handleSave();
-           }
-        }}
-        onClose={() => {
-            if (isPickerOpenRef.current) {
-                isPickerOpenRef.current = false;
-                setTimeout(() => handleSave(), 100);
-            }
-        }}
-        slotProps={slotProps}
-      />
-    </Box>
-  );
-}
-
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -2969,11 +2883,53 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       // Date
       if (col.type === "Date") {
         return (
-          <DateCellEditor
-            initialValue={editValue}
-            // When editor requests save, call handleCellSave
-            onSave={(val: any) => handleCellSave(row.id, col.id, col.type, val)}
+          <Box
+            // Catch blur at container level.
+          >
+          <DatePicker
+            value={editValue ? dayjs(editValue) : null}
+            onChange={(val) => {
+               setEditValue(val);
+               // Also update the ref immediately so synchronous reads (like onClose) get the latest value
+               // Even though useEffect handles sync on render, onChange -> onClose happens before render finishes.
+               editValueRef.current = val;
+            }}
+            // Use onAccept to save when a date is picked from calendar (redundant if using onClose correctly, but safer)
+            onAccept={(val) => {
+               if (val && dayjs(val).isValid()) {
+                  handleCellSave(row.id, col.id, col.type, val);
+               }
+            }}
+            // Use onClose to save when the popup closes (click outside, escape, or select)
+            onClose={() => {
+                // Now we can use the ref to get the truly latest value even if state update hasn't propagated
+                setTimeout(() => {
+                   // If we just accepted via onAccept, this is redundant but harmless (idempotent save usually)
+                   // But if we clicked away, this saves the latest typed value (or clicked date key)
+                   handleCellSave(row.id, col.id, col.type, editValueRef.current);
+                }, 100);
+            }}
+            slotProps={{
+              textField: {
+                size: 'small',
+                autoFocus: true,
+                InputProps: { style: { color: theme.palette.text.primary } },
+                sx: { 
+                    bgcolor: theme.palette.background.paper, 
+                    color: theme.palette.text.primary,
+                    '& .MuiInputBase-input': { color: theme.palette.text.primary }
+                },
+                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    // Manually trigger save with current ref value
+                    handleCellSave(row.id, col.id, col.type, editValueRef.current);
+                  }
+                }
+              }
+            }}
           />
+          </Box>
         );
       }
 
