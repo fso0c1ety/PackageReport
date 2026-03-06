@@ -802,8 +802,14 @@ export default function HomeDashboard() {
                 { title: "Project Tracker", color: "#e11d48", icon: "📊" },
                 { title: "CRM & Sales", color: "#2563eb", icon: "💼" },
                 { title: "Content Calendar", color: "#d97706", icon: "📅" },
+                { title: "Software Development", color: "#10b981", icon: "🖥️" },
+                { title: "Event Planning", color: "#8b5cf6", icon: "🎉" },
+                { title: "HR & Recruiting", color: "#ec4899", icon: "👥" },
+                { title: "Agile Sprint", color: "#3b82f6", icon: "🔄" },
+                { title: "Personal Finance", color: "#22c55e", icon: "💰" },
+                { title: "Marketing Campaign", color: "#f59e0b", icon: "📢" },
               ].map((template) => (
-                <Grid size={{ lg: 4 }} key={template.title}>
+                <Grid size={{ md: 6, lg: 4 }} key={template.title}>
                   <StyledCard
                     sx={{
                       cursor: "pointer",
