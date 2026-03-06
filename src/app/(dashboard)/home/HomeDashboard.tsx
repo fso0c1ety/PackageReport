@@ -30,6 +30,7 @@ import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
+import { v4 as uuidv4 } from "uuid";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
 import AddIcon from "@mui/icons-material/Add";
@@ -151,10 +152,148 @@ function getLastWorkspace() {
 
 // --- Main Component ---
 
+
+const TEMPLATES = [
+  {
+    title: "Project Tracker",
+    color: "#e11d48",
+    icon: "📊",
+    columns: [
+      { name: "Priority", type: "Dropdown", options: [{value: "High"}, {value: "Medium"}, {value: "Low"}] },
+      { name: "Due Date", type: "Date" },
+      { name: "Owner", type: "People" },
+      { name: "Status", type: "Status", options: [{value: "Stuck"}, {value: "Working on it"}, {value: "Done"}] },
+    ]
+  },
+  {
+    title: "CRM & Sales",
+    color: "#2563eb",
+    icon: "💼",
+    columns: [
+      { name: "Stage", type: "Status", options: [{value: "Lead"}, {value: "Contacted"}, {value: "Negotiation"}, {value: "Won"}, {value: "Lost"}] },
+      { name: "Deal Value", type: "Numbers" },
+      { name: "Sales Rep", type: "People" },
+      { name: "Last Contact", type: "Date" },
+    ]
+  },
+  {
+    title: "Content Calendar",
+    color: "#d97706",
+    icon: "📅",
+    columns: [
+      { name: "Platform", type: "Dropdown", options: [{value: "Blog"}, {value: "LinkedIn"}, {value: "Twitter"}, {value: "Instagram"}] },
+      { name: "Author", type: "People" },
+      { name: "Publish Date", type: "Date" },
+      { name: "Status", type: "Status", options: [{value: "Idea"}, {value: "Drafting"}, {value: "Scheduled"}, {value: "Published"}] },
+    ]
+  },
+  {
+    title: "Software Development",
+    color: "#10b981",
+    icon: "🖥️",
+    columns: [
+      { name: "Assignee", type: "People" },
+      { name: "Type", type: "Dropdown", options: [{value: "Feature"}, {value: "Bug"}, {value: "Task"}] },
+      { name: "Priority", type: "Status", options: [{value: "Critical"}, {value: "High"}, {value: "Normal"}, {value: "Low"}] },
+      { name: "Status", type: "Status", options: [{value: "Backlog"}, {value: "In Progress"}, {value: "Code Review"}, {value: "Done"}] },
+    ]
+  },
+  {
+    title: "Event Planning",
+    color: "#8b5cf6",
+    icon: "🎉",
+    columns: [
+      { name: "Date", type: "Date" },
+      { name: "Location", type: "Text" },
+      { name: "Budget", type: "Numbers" },
+      { name: "Status", type: "Status", options: [{value: "Planning"}, {value: "Booked"}, {value: "Confirmed"}, {value: "Done"}] },
+    ]
+  },
+  {
+    title: "HR & Recruiting",
+    color: "#ec4899",
+    icon: "👥",
+    columns: [
+      { name: "Position", type: "Dropdown", options: [{value: "Engineering"}, {value: "Product"}, {value: "Sales"}, {value: "Marketing"}] },
+      { name: "Candidate", type: "Text" },
+      { name: "Interviewer", type: "People" },
+      { name: "Status", type: "Status", options: [{value: "Applied"}, {value: "Screening"}, {value: "Interview"}, {value: "Offer"}, {value: "Hired"}] },
+    ]
+  },
+  {
+    title: "Agile Sprint",
+    color: "#3b82f6",
+    icon: "🔄",
+    columns: [
+      { name: "Story Points", type: "Numbers" },
+      { name: "Sprint", type: "Dropdown", options: [{value: "Sprint 1"}, {value: "Sprint 2"}, {value: "Sprint 3"}] },
+      { name: "Assignee", type: "People" },
+      { name: "Status", type: "Status", options: [{value: "To Do"}, {value: "In Progress"}, {value: "Blocked"}, {value: "Done"}] },
+    ]
+  },
+  {
+    title: "Personal Finance",
+    color: "#22c55e", 
+    icon: "💰",
+    columns: [
+       { name: "Category", type: "Dropdown", options: [{value: "Housing"}, {value: "Food"}, {value: "Transport"}, {value: "Entertainment"}] },
+       { name: "Amount", type: "Numbers" },
+       { name: "Due Date", type: "Date" },
+       { name: "Status", type: "Status", options: [{value: "Pending"}, {value: "Paid"}] },
+    ]
+  },
+  {
+    title: "Marketing Campaign",
+    color: "#f59e0b",
+    icon: "📢",
+    columns: [
+       { name: "Channel", type: "Dropdown", options: [{value: "Social Media"}, {value: "Email"}, {value: "SEO"}, {value: "PPC"}] },
+       { name: "Budget", type: "Numbers" },
+       { name: "Launch Date", type: "Date" },
+       { name: "Status", type: "Status", options: [{value: "Planning"}, {value: "Active"}, {value: "Paused"}, {value: "Completed"}] },
+    ]
+  },
+];
+
 export default function HomeDashboard() {
   const theme = useTheme();
   const router = useRouter();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState<string | null>(null);
+
+  const handleCreateFromTemplate = async (template: typeof TEMPLATES[0]) => {
+    try {
+      setIsCreatingTemplate(template.title);
+
+      const newTablePayload = {
+        name: template.title,
+        columns: template.columns.map((col, idx) => ({
+          id: uuidv4(),
+          name: col.name,
+          type: col.type,
+          order: idx,
+          options: col.options || undefined
+        }))
+      };
+
+      const res = await authenticatedFetch(getApiUrl("/tables"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTablePayload),
+      });
+
+      if (res.ok) {
+        const newTable = await res.json();
+        router.push(`/board/${newTable.id}`);
+      } else {
+        console.error("Failed to create template table");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCreatingTemplate(null);
+    }
+  };
   const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
   // Start with null to prevent hydration mismatch
   const [lastWorkspace, setLastWorkspace] = useState<any>(null);
@@ -798,37 +937,36 @@ export default function HomeDashboard() {
             </Box>
 
             <Grid container spacing={3}>
-              {[
-                { title: "Project Tracker", color: "#e11d48", icon: "📊" },
-                { title: "CRM & Sales", color: "#2563eb", icon: "💼" },
-                { title: "Content Calendar", color: "#d97706", icon: "📅" },
-                { title: "Software Development", color: "#10b981", icon: "🖥️" },
-                { title: "Event Planning", color: "#8b5cf6", icon: "🎉" },
-                { title: "HR & Recruiting", color: "#ec4899", icon: "👥" },
-                { title: "Agile Sprint", color: "#3b82f6", icon: "🔄" },
-                { title: "Personal Finance", color: "#22c55e", icon: "💰" },
-                { title: "Marketing Campaign", color: "#f59e0b", icon: "📢" },
-              ].map((template) => (
+              {TEMPLATES.map((template) => (
                 <Grid size={{ md: 6, lg: 4 }} key={template.title}>
                   <StyledCard
+                    onClick={() => handleCreateFromTemplate(template)}
                     sx={{
                       cursor: "pointer",
                       height: "100%",
-                      p: 3, // Reduced padding
+                      p: 3, 
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
                       textAlign: "center",
-                      gap: 2, // Reduced gap
+                      gap: 2, 
                       border: "1px dashed rgba(255,255,255,0.1)",
-                      "&:hover": { borderColor: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.05)" }
+                      "&:hover": { borderColor: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.05)" },
+                      opacity: isCreatingTemplate ? 0.5 : 1,
+                      pointerEvents: isCreatingTemplate ? "none" : "auto",
+                      position: "relative"
                     }}
                   >
+                    {isCreatingTemplate === template.title && (
+                        <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.3)", zIndex: 10, borderRadius: 2 }}>
+                            <CircularProgress size={24} color="inherit" />
+                        </Box>
+                    )}
                     <Avatar
                       sx={{
                         bgcolor: `${template.color}20`,
                         color: template.color,
-                        width: 64, // Reduced from 72
+                        width: 64, 
                         height: 64,
                         fontSize: "1.75rem",
                         mb: 1
