@@ -267,8 +267,32 @@ export default function HomeDashboard() {
         return;
     }
     
-    // Default to the first workspace, or find one named 'Main Workspace'
-    const targetWorkspace = workspaces.find(w => w.name === 'Main Workspace') || workspaces[0];
+    // Identify current user ID to prefer owned workspaces
+    let userId = currentUser?.id;
+    if (!userId) {
+       try {
+          const userJson = localStorage.getItem("user");
+          if (userJson) userId = JSON.parse(userJson).id;
+       } catch (e) {}
+    }
+
+    // Filter for owned workspaces to avoid 403 Forbidden
+    const ownedWorkspaces = userId ? workspaces.filter(w => w.owner_id === userId) : [];
+    
+    // Selection logic:
+    // 1. Owned 'Main Workspace'
+    // 2. Any Owned Workspace
+    // 3. Any 'Main Workspace' (fallback)
+    // 4. First available workspace (fallback)
+    let targetWorkspace = ownedWorkspaces.find(w => w.name === 'Main Workspace');
+    if (!targetWorkspace) targetWorkspace = ownedWorkspaces[0];
+    if (!targetWorkspace) targetWorkspace = workspaces.find(w => w.name === 'Main Workspace');
+    if (!targetWorkspace) targetWorkspace = workspaces[0];
+
+    if (!targetWorkspace) {
+         console.error("Could not find a valid workspace target");
+         return;
+    }
 
     try {
       setIsCreatingTemplate(template.title);
