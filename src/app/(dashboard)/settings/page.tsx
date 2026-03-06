@@ -266,7 +266,7 @@ export default function SettingsPage() {
                     {isEditing ? (
                         <Box>
                              <IconButton onClick={handleSaveProfile} color="primary"><SaveIcon /></IconButton>
-                             <IconButton onClick={() => { setIsEditing(false); setError(""); }} color="error"><CloseIcon /></IconButton>
+                             <IconButton onClick={() => { setIsEditing(false); setProfileError(""); }} color="error"><CloseIcon /></IconButton>
                         </Box>
                     ) : (
                         <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)}>
@@ -276,8 +276,8 @@ export default function SettingsPage() {
                 </Box>
             </Box>
 
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-            {saved && <Alert severity="success" sx={{ mb: 2 }}>Profile updated successfully!</Alert>}
+            {profileError && <Alert severity="error" sx={{ mb: 2 }}>{profileError}</Alert>}
+            {profileSaved && <Alert severity="success" sx={{ mb: 2 }}>Profile updated successfully!</Alert>}
         </TabPanel>
 
         {/* APPEARANCE TAB */}
