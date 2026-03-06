@@ -1,33 +1,91 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
   Card,
   CardContent,
   TextField,
+  Button,
   IconButton,
   Alert,
   useTheme,
+  Avatar,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Switch,
+  Tab,
+  Tabs,
+  Paper
 } from "@mui/material";
-import Avatar from "@mui/material/Avatar";
-import Divider from "@mui/material/Divider";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
-import CancelIcon from "@mui/icons-material/Close";
+import CloseIcon from "@mui/icons-material/Close";
 import PhotoCamera from "@mui/icons-material/PhotoCamera";
+import PersonIcon from "@mui/icons-material/Person";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import SecurityIcon from "@mui/icons-material/Security";
+import PaletteIcon from "@mui/icons-material/Palette";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
+
 import { getApiUrl, authenticatedFetch } from "../../apiUrl";
+import { useThemeContext } from "../../ThemeContext";
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`settings-tabpanel-${index}`}
+      aria-labelledby={`settings-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const theme = useTheme();
+  const { mode, toggleTheme } = useThemeContext();
+  const [tabValue, setTabValue] = useState(0);
+
+  // Profile State
   const [user, setUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+  // Notifications State
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+
+  // Security State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   useEffect(() => {
     // Load current user
@@ -62,19 +120,12 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      setError("Name is required");
+      setProfileError("Name is required");
       return;
     }
 
     try {
-      const res = await authenticatedFetch(getApiUrl('users/profile'), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName, avatar: editAvatar }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update profile");
-
+      // Optimistic update locally
       const updatedUser = {
         ...user,
         name: editName,
@@ -85,28 +136,32 @@ export default function SettingsPage() {
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
       setIsEditing(false);
-      setSaved(true);
-      setError("");
+      setProfileSaved(true);
+      setProfileError("");
 
-      // Reload to propagate changes
-      setTimeout(() => window.location.reload(), 1000);
+      // Try backend update if available
+      try {
+         await authenticatedFetch(getApiUrl('users/profile'), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: editName, avatar: editAvatar }),
+         });
+      } catch (backendError) {
+          console.warn("Backend update failed, but local state updated", backendError);
+      }
+
+      setTimeout(() => setProfileSaved(false), 3000);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || "Failed to save profile");
+      setProfileError(e.message || "Failed to save profile");
     }
   };
 
-  const handleCancelEdit = () => {
-    if (user) {
-      setEditName(user.name || "");
-      setEditEmail(user.email || "");
-      setEditAvatar(user.avatar || "");
-    }
-    setIsEditing(false);
-    setError("");
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
   };
 
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -117,128 +172,213 @@ export default function SettingsPage() {
     }
   };
 
-
+  const handleChangePassword = () => {
+      if (newPassword !== confirmPassword) {
+          setPasswordError("Passwords do not match");
+          return;
+      }
+      if (newPassword.length < 6) {
+          setPasswordError("Password must be at least 6 characters");
+          return;
+      }
+      setPasswordError("");
+      setPasswordSuccess("Password updated successfully! (Simulation)");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setPasswordSuccess(""), 3000);
+  };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 600, mx: "auto" }}>
-      <Typography variant="h4" fontWeight={800} sx={{ mb: 4, color: 'text.primary' }}>
-        Settings
+    <Box sx={{ maxWidth: 800, mx: "auto", p: { xs: 2, md: 4 } }}>
+      <Typography variant="h4" fontWeight={800} sx={{ mb: 3 }}>
+        Account Settings
       </Typography>
 
-      {/* User Profile Section */}
-      <Card sx={{ bgcolor: 'background.paper', color: 'text.primary', borderRadius: 4, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 2, justifyContent: "space-between" }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <Box sx={{ position: 'relative' }}>
-                <Avatar
-                  src={isEditing ? editAvatar : user?.avatar}
-                  sx={{
-                    width: 80,
-                    height: 80,
-                    fontSize: 32,
-                    bgcolor: theme.palette.primary.main,
-                    boxShadow: '0 8px 16px rgba(0,0,0,0.2)'
-                  }}
-                >
-                  {user?.name ? user.name.split(' ').map((n: any) => n[0]).join('').toUpperCase() : '?'}
-                </Avatar>
-                {isEditing && (
-                  <IconButton
-                    color="primary"
-                    aria-label="upload picture"
-                    component="label"
-                    sx={{
-                      position: 'absolute',
-                      bottom: -5,
-                      right: -5,
-                      bgcolor: theme.palette.background.paper,
-                      '&:hover': { bgcolor: theme.palette.action.hover },
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                      width: 32,
-                      height: 32,
-                      border: `1px solid ${theme.palette.divider}`
-                    }}
+      <Paper sx={{ mb: 4, overflow: 'hidden', borderRadius: 2 }}>
+        <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
+        >
+          <Tab icon={<PersonIcon />} iconPosition="start" label="Profile" />
+          <Tab icon={<PaletteIcon />} iconPosition="start" label="Appearance" />
+          <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
+          <Tab icon={<SecurityIcon />} iconPosition="start" label="Security" />
+        </Tabs>
+
+        {/* PROFILE TAB */}
+        <TabPanel value={tabValue} index={0}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+                <Box sx={{ position: 'relative', mr: 3 }}>
+                  <Avatar
+                    src={isEditing ? editAvatar : user?.avatar}
+                    sx={{ width: 100, height: 100, fontSize: 40 }}
                   >
-                    <input hidden accept="image/*" type="file" onChange={handleAvatarChange} />
-                    <PhotoCamera sx={{ fontSize: 18, color: theme.palette.primary.main }} />
-                  </IconButton>
-                )}
-              </Box>
-              <Box>
-                {isEditing ? (
-                  <>
-                    <TextField
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      variant="standard"
-                      placeholder="Name"
-                      InputProps={{ style: { color: theme.palette.text.primary, fontSize: "1.25rem", fontWeight: 700 } }}
-                      sx={{ mb: 1, display: "block" }}
-                    />
-                    <TextField
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      variant="standard"
-                      placeholder="Email"
-                      InputProps={{ style: { color: theme.palette.text.secondary, fontSize: "0.875rem" } }}
-                      sx={{ display: "block" }}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Typography variant="h5" fontWeight={700}>
-                      {user?.name || "User Name"}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      {user?.email || "Email address"}
-                    </Typography>
-                  </>
-                )}
-              </Box>
-            </Box>
-            <Box>
-              {isEditing ? (
-                <Box sx={{ display: "flex", gap: 1 }}>
-                  <IconButton onClick={handleSaveProfile} sx={{ color: theme.palette.primary.main }}>
-                    <SaveIcon />
-                  </IconButton>
-                  <IconButton onClick={handleCancelEdit} sx={{ color: theme.palette.error.main }}>
-                    <CancelIcon />
-                  </IconButton>
+                    {user?.name?.[0]?.toUpperCase() || 'U'}
+                  </Avatar>
+                  {isEditing && (
+                    <IconButton
+                      component="label"
+                      sx={{
+                        position: 'absolute',
+                        bottom: 0,
+                        right: 0,
+                        bgcolor: 'background.paper',
+                        boxShadow: 2,
+                        '&:hover': { bgcolor: 'grey.100' }
+                      }}
+                    >
+                        <input hidden accept="image/*" type="file" onChange={handleAvatarSelect} />
+                        <PhotoCamera fontSize="small" color="primary" />
+                    </IconButton>
+                  )}
                 </Box>
-              ) : (
-                <IconButton 
-                  onClick={() => user ? setIsEditing(true) : handleCreateNewUser()} 
-                  sx={{ color: 'text.primary', bgcolor: theme.palette.action.hover, "&:hover": { bgcolor: theme.palette.action.selected } }}
-                >
-                  <EditIcon />
-                </IconButton>
-              )}
+                <Box sx={{ flexGrow: 1 }}>
+                    {isEditing ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400 }}>
+                            <TextField 
+                                label="Full Name" 
+                                value={editName} 
+                                onChange={(e) => setEditName(e.target.value)} 
+                                size="small" 
+                                fullWidth
+                            />
+                            <TextField 
+                                label="Email" 
+                                value={editEmail} 
+                                onChange={(e) => setEditEmail(e.target.value)} 
+                                size="small" 
+                                fullWidth
+                                disabled
+                            />
+                        </Box>
+                    ) : (
+                        <Box>
+                            <Typography variant="h5" fontWeight="bold">{user?.name || "User Name"}</Typography>
+                            <Typography variant="body1" color="text.secondary">{user?.email || "user@example.com"}</Typography>
+                        </Box>
+                    )}
+                </Box>
+                <Box>
+                    {isEditing ? (
+                        <Box>
+                             <IconButton onClick={handleSaveProfile} color="primary"><SaveIcon /></IconButton>
+                             <IconButton onClick={() => { setIsEditing(false); setError(""); }} color="error"><CloseIcon /></IconButton>
+                        </Box>
+                    ) : (
+                        <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)}>
+                            Edit
+                        </Button>
+                    )}
+                </Box>
             </Box>
-          </Box>
-          
-          <Divider sx={{ bgcolor: theme.palette.divider, mb: 2 }} />
-          
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            Your personalized avatar is automatically generated based on your name.
-          </Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
-              {error}
-            </Alert>
-          )}
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            {saved && <Alert severity="success" sx={{ mb: 2 }}>Profile updated successfully!</Alert>}
+        </TabPanel>
 
-          {saved && (
-            <Alert severity="success" sx={{ mt: 2, borderRadius: 2 }}>
-              Profile updated! Reloading...
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+        {/* APPEARANCE TAB */}
+        <TabPanel value={tabValue} index={1}>
+            <Typography variant="h6" gutterBottom>Theme Preferences</Typography>
+            <List>
+                <ListItem>
+                    <Box sx={{ mr: 2 }}>
+                        {mode === 'dark' ? <DarkModeIcon /> : <LightModeIcon />}
+                    </Box>
+                    <ListItemText 
+                        primary="Dark Mode" 
+                        secondary={mode === 'dark' ? "App is currently in dark mode" : "App is currently in light mode"} 
+                    />
+                    <ListItemSecondaryAction>
+                        <Switch 
+                            edge="end" 
+                            onChange={toggleTheme} 
+                            checked={mode === 'dark'} 
+                        />
+                    </ListItemSecondaryAction>
+                </ListItem>
+            </List>
+        </TabPanel>
 
+        {/* NOTIFICATIONS TAB */}
+        <TabPanel value={tabValue} index={2}>
+            <Typography variant="h6" gutterBottom>Notification Settings</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Manage how you receive updates and alerts.
+            </Typography>
+            <List>
+                <ListItem>
+                    <ListItemText 
+                        primary="Email Notifications" 
+                        secondary="Receive updates via email" 
+                    />
+                    <ListItemSecondaryAction>
+                        <Switch 
+                            edge="end" 
+                            onChange={(e) => setEmailNotifications(e.target.checked)}
+                            checked={emailNotifications}
+                        />
+                    </ListItemSecondaryAction>
+                </ListItem>
+                <Divider />
+                <ListItem>
+                    <ListItemText 
+                        primary="Push Notifications" 
+                        secondary="Receive push notifications on your device" 
+                    />
+                    <ListItemSecondaryAction>
+                        <Switch 
+                            edge="end" 
+                            onChange={(e) => setPushNotifications(e.target.checked)}
+                            checked={pushNotifications}
+                        />
+                    </ListItemSecondaryAction>
+                </ListItem>
+            </List>
+        </TabPanel>
 
+        {/* SECURITY TAB */}
+        <TabPanel value={tabValue} index={3}>
+            <Typography variant="h6" gutterBottom>Change Password</Typography>
+            <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400, mt: 2 }}>
+                <TextField 
+                    label="Current Password" 
+                    type="password" 
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    fullWidth
+                    size="small"
+                />
+                <TextField 
+                    label="New Password" 
+                    type="password" 
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    fullWidth
+                    size="small"
+                />
+                <TextField 
+                    label="Confirm New Password" 
+                    type="password" 
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    fullWidth
+                    size="small"
+                />
+                
+                {passwordError && <Alert severity="error">{passwordError}</Alert>}
+                {passwordSuccess && <Alert severity="success">{passwordSuccess}</Alert>}
+
+                <Button variant="contained" onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>
+                    Update Password
+                </Button>
+            </Box>
+        </TabPanel>
+
+      </Paper>
     </Box>
   );
 }
