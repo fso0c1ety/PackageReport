@@ -342,6 +342,17 @@ export default function HomeDashboard() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
+  // State for Templates Gallery
+  const [galleryAnchorEl, setGalleryAnchorEl] = useState<null | HTMLElement>(null);
+  const isGalleryOpen = Boolean(galleryAnchorEl);
+
+  const handleGalleryOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setGalleryAnchorEl(event.currentTarget);
+  };
+
+  const handleGalleryClose = () => {
+    setGalleryAnchorEl(null);
+  };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, ws: any) => {
     event.stopPropagation();
@@ -945,6 +956,11 @@ export default function HomeDashboard() {
                 size="small"
                 variant="text"
                 disableRipple
+                onClick={handleGalleryOpen}
+                id="gallery-button"
+                aria-controls={isGalleryOpen ? 'gallery-menu' : undefined}
+                aria-haspopup="true"
+                aria-expanded={isGalleryOpen ? 'true' : undefined}
                 sx={{
                   color: theme.palette.text.secondary,
                   background: "transparent",
@@ -970,7 +986,7 @@ export default function HomeDashboard() {
             </Box>
 
             <Grid container spacing={3}>
-              {TEMPLATES.map((template) => (
+              {TEMPLATES.slice(0, 3).map((template) => (
                 <Grid size={{ md: 6, lg: 4 }} key={template.title}>
                   <StyledCard
                     onClick={() => handleCreateFromTemplate(template)}
@@ -1019,6 +1035,66 @@ export default function HomeDashboard() {
                 </Grid>
               ))}
             </Grid>
+
+            {/* Gallery Menu (Popover) for additional templates */}
+             <Menu
+                id="gallery-menu"
+                anchorEl={galleryAnchorEl}
+                open={isGalleryOpen}
+                onClose={handleGalleryClose}
+                MenuListProps={{
+                'aria-labelledby': 'gallery-button',
+                }}
+                PaperProps={{
+                    sx: {
+                        width: 320,
+                        maxHeight: 400,
+                        overflowY: 'auto',
+                        mt: 1.5,
+                        borderRadius: 2,
+                        boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+                        border: `1px solid ${theme.palette.divider}`,
+                        bgcolor: theme.palette.background.paper
+                    }
+                }}
+                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="subtitle1" fontWeight={600}>Template Gallery</Typography>
+                    <Typography variant="caption" color="text.secondary">Select a template to start</Typography>
+                </Box>
+                {TEMPLATES.slice(3).map((template) => (
+                    <MenuItem 
+                        key={template.title} 
+                        onClick={() => {
+                            handleCreateFromTemplate(template);
+                            handleGalleryClose();
+                        }}
+                        sx={{ py: 1.5, px: 2, gap: 2 }}
+                    >
+                        <Avatar
+                            sx={{
+                                bgcolor: `${template.color}20`,
+                                color: template.color,
+                                width: 40,
+                                height: 40,
+                                fontSize: "1.25rem",
+                            }}
+                        >
+                            {template.icon}
+                        </Avatar>
+                        <Box>
+                            <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.2 }}>
+                                {template.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Ready-to-use
+                            </Typography>
+                        </Box>
+                    </MenuItem>
+                ))}
+            </Menu>
           </Box>
         </Grid>
 
