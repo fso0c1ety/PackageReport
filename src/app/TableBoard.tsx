@@ -4660,23 +4660,76 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
-        {/* Column Selector Popover */}
-        {showColSelector && colSelectorAnchor && (
-          <Popover
-            open={showColSelector}
-            anchorEl={colSelectorAnchor}
-            onClose={() => setShowColSelector(false)}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-            PaperProps={{ sx: { bgcolor: theme.palette.background.default, color: theme.palette.text.primary, borderRadius: 3, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', border: `1px solid ${theme.palette.divider}` } }}
-          >
-            <ColumnTypeSelector
-              onSelect={(type, label) => {
-                handleAddColumn(type, label);
-                setShowColSelector(false);
+        {/* Column Selector - Dialog on Mobile, Popover on Desktop */}
+        {showColSelector && (
+          isMobile ? (
+            <Dialog
+              open={showColSelector}
+              onClose={() => setShowColSelector(false)}
+              fullWidth
+              maxWidth="sm"
+              PaperProps={{
+                sx: {
+                  m: { xs: 0, sm: 2 },
+                  width: '100%',
+                  maxWidth: { xs: '100vw', sm: 500 },
+                  height: '80vh',
+                  bgcolor: theme.palette.background.paper,
+                  color: theme.palette.text.primary,
+                  borderRadius: { xs: 0, sm: 4 },
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+                  p: 0,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  '@media (max-width: 600px)': {
+                    maxWidth: '100vw',
+                    m: 0,
+                    borderRadius: 0,
+                    height: '100%'
+                  },
+                }
               }}
-            />
-          </Popover>
+            >
+              <Box sx={{ 
+                p: { xs: 2, sm: 3 }, 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                bgcolor: theme.palette.background.paper
+              }}>
+                <Typography variant="h6" fontWeight={700}>Add new column</Typography>
+                <IconButton onClick={() => setShowColSelector(false)} size="small">
+                  <span style={{ fontSize: 24, lineHeight: 1 }}>×</span>
+                </IconButton>
+              </Box>
+              <Box sx={{ overflowY: 'auto', p: 0, flex: 1 }}>
+                <ColumnTypeSelector
+                  onSelect={(type, label) => {
+                    handleAddColumn(type, label);
+                    setShowColSelector(false);
+                  }}
+                />
+              </Box>
+            </Dialog>
+          ) : colSelectorAnchor && (
+            <Popover
+              open={showColSelector}
+              anchorEl={colSelectorAnchor}
+              onClose={() => setShowColSelector(false)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              PaperProps={{ sx: { bgcolor: theme.palette.background.default, color: theme.palette.text.primary, borderRadius: 3, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', border: `1px solid ${theme.palette.divider}` } }}
+            >
+              <ColumnTypeSelector
+                onSelect={(type, label) => {
+                  handleAddColumn(type, label);
+                  setShowColSelector(false);
+                }}
+              />
+            </Popover>
+          )
         )}
         <Menu
           anchorEl={headerMenuAnchor}

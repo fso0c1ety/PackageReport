@@ -117,25 +117,21 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
 
   return (
     <Fade in={true} timeout={300}>
-      <Paper 
-        elevation={24}
+      <Box 
         sx={{
-          p: 3,
-          width: { xs: 320, sm: 480 },
-          borderRadius: 4,
-          bgcolor: theme.palette.mode === 'dark' ? '#1c1f2e' : '#ffffff',
+          p: { xs: 2.5, sm: 3 },
+          width: '100%',
+          bgcolor: 'transparent',
           color: 'text.primary',
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: theme.palette.mode === 'dark' ? '0 12px 40px rgba(0,0,0,0.5)' : '0 12px 40px rgba(0,0,0,0.1)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '80vh',
+          maxHeight: '100%',
         }}
       >
         {/* Header & Search */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: theme.palette.text.primary }}>
+          <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: theme.palette.text.primary, display: { xs: 'none', sm: 'block' } }}>
             Add new column
           </Typography>
           <Box
@@ -168,7 +164,7 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
         <Box sx={{ 
           overflowY: 'auto', 
           flex: 1,
-          px: 0.5, // Padding for hover shadows
+          px: 0.5, 
           pb: 1,
           '&::-webkit-scrollbar': { width: 6 },
           '&::-webkit-scrollbar-track': { background: 'transparent' },
@@ -217,9 +213,8 @@ export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps
               </Typography>
             </Box>
           )}
-
         </Box>
-      </Paper>
+      </Box>
     </Fade>
   );
 }
