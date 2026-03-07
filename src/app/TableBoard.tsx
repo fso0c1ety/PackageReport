@@ -287,17 +287,33 @@ function DateCellEditor({
   onSave: (val: any) => void 
 }) {
   const theme = useTheme();
+  // Ensure we consistently use Dayjs or null
   const [value, setValue] = useState(initialValue ? dayjs(initialValue) : null);
   const [isOpen, setIsOpen] = useState(true);
+  
+  // Refs to track state for event handlers and cleanup
   const valueRef = React.useRef(value);
+  const savedRef = React.useRef(false);
 
   useEffect(() => {
     valueRef.current = value;
   }, [value]);
 
   const handleSave = () => {
+    // Prevent double saving
+    if (savedRef.current) return;
+    savedRef.current = true;
     onSave(valueRef.current);
   };
+
+  // Ensure modification is saved when component unmounts (e.g. clicking another cell)
+  useEffect(() => {
+    return () => {
+      if (!savedRef.current) {
+        handleSave();
+      }
+    };
+  }, []);
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
@@ -308,9 +324,8 @@ function DateCellEditor({
         onOpen={() => setIsOpen(true)}
         onClose={() => {
             setIsOpen(false);
-            // Small timeout to ensure onChange has processed if strictly necessary, 
-            // but ref usage should be immediate from onChange.
-            // Using a microtask just to be safe if focus shifts weirdly.
+            // Schedule save for next tick to allow any pending state updates,
+            // but 'savedRef' will prevent duplicates if unmount happens first.
             setTimeout(handleSave, 0); 
         }}
         onChange={(newValue) => {
@@ -331,7 +346,15 @@ function DateCellEditor({
                 height: '100%',
                 bgcolor: theme.palette.background.paper,
                 '& .MuiInputBase-root': {
-                    padding: '8px 8px', // Better padding
+                    padding: '0 8px', // Centered vertical padding
+                    height: '100%',
+                    alignItems: 'center'
+                },
+                '& .MuiInputBase-input': {
+                    padding: 0,
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center'
                 }
             },
             onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -341,6 +364,9 @@ function DateCellEditor({
                 handleSave();
               }
             }
+          },
+          popper: {
+             sx: { zIndex: theme.zIndex.tooltip + 10 }
           }
         }}
       />
