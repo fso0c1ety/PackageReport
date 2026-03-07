@@ -235,7 +235,6 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SendIcon from "@mui/icons-material/Send";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
-import CloseIcon from "@mui/icons-material/Close";
 import LogoutIcon from "@mui/icons-material/Logout";
 import GroupIcon from "@mui/icons-material/Group";
 import ColumnTypeSelector from "./ColumnTypeSelector";
@@ -4661,58 +4660,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
-        {/* Column Selector Popover (Desktop) / Dialog (Mobile) */}
-        {showColSelector && (
-          isMobile ? (
-            <Dialog
-              fullScreen
-              open={showColSelector}
-              onClose={() => setShowColSelector(false)}
-              PaperProps={{
-                sx: {
-                  bgcolor: theme.palette.background.default,
-                  color: theme.palette.text.primary,
-                }
+        {/* Column Selector Popover */}
+        {showColSelector && colSelectorAnchor && (
+          <Popover
+            open={showColSelector}
+            anchorEl={colSelectorAnchor}
+            onClose={() => setShowColSelector(false)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            PaperProps={{ sx: { bgcolor: theme.palette.background.default, color: theme.palette.text.primary, borderRadius: 3, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', border: `1px solid ${theme.palette.divider}` } }}
+          >
+            <ColumnTypeSelector
+              onSelect={(type, label) => {
+                handleAddColumn(type, label);
+                setShowColSelector(false);
               }}
-            >
-              <DialogTitle sx={{ 
-                p: 2, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                borderBottom: `1px solid ${theme.palette.divider}`
-              }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Add Column</Typography>
-                <IconButton onClick={() => setShowColSelector(false)} sx={{ color: theme.palette.text.secondary }}>
-                  <CloseIcon />
-                </IconButton>
-              </DialogTitle>
-              <DialogContent sx={{ p: 2 }}>
-                <ColumnTypeSelector
-                  onSelect={(type, label) => {
-                    handleAddColumn(type, label);
-                    setShowColSelector(false);
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-          ) : colSelectorAnchor && (
-            <Popover
-              open={showColSelector}
-              anchorEl={colSelectorAnchor}
-              onClose={() => setShowColSelector(false)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-              PaperProps={{ sx: { bgcolor: theme.palette.background.default, color: theme.palette.text.primary, borderRadius: 3, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', border: `1px solid ${theme.palette.divider}` } }}
-            >
-              <ColumnTypeSelector
-                onSelect={(type, label) => {
-                  handleAddColumn(type, label);
-                  setShowColSelector(false);
-                }}
-              />
-            </Popover>
-          )
+            />
+          </Popover>
         )}
         <Menu
           anchorEl={headerMenuAnchor}
