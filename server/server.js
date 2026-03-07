@@ -1,6 +1,10 @@
 // --- Task Order Endpoint for Drag-and-Drop ---
 // (Endpoint is now placed at the end of the file, after all initialization)
 const express = require('express');
+const next = require('next');
+const dev = process.env.NODE_ENV !== 'production';
+const nextApp = next({ dev });
+const handle = nextApp.getRequestHandler();
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -16,11 +20,6 @@ const { sendNotification } = require('./notificationHelper');
 
 const http = require('http');
 const { Server } = require("socket.io");
-const next = require('next');
-
-const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev, dir: path.join(__dirname, '..') }); // Point to project root
-const handle = nextApp.getRequestHandler();
 
 const app = express();
 const server = http.createServer(app);
@@ -154,6 +153,20 @@ app.get('/uploads/:filename', (req, res) => {
     }
 });
 
+// Serve frontend static export if it exists
+/*
+const outDir = path.join(__dirname, '../out');
+if (fs.existsSync(outDir)) {
+  app.use(express.static(outDir));
+  // Handle SPA routing: serve index.html for unknown routes if it's a GET request
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      return res.sendFile(path.join(outDir, 'index.html'));
+    }
+    next();
+  });
+}
+*/
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
@@ -1682,24 +1695,22 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   }
 });
 
-
 nextApp.prepare().then(() => {
-    // Handle all other routes with Next.js
     app.all('*', (req, res) => {
         return handle(req, res);
     });
 
     server.listen(PORT, '0.0.0.0', () => {
         try {
-            console.log(`> Ready on http://localhost:${PORT}`);
             console.log(`Express server running on http://0.0.0.0:${PORT}`);
             console.log(`Socket.IO listening on port ${PORT}`);
         } catch (err) {
             console.error('Error starting server/socket:', err);
         }
     });
+}).catch(err => {
+    console.error('Error starting Next.js:', err);
 });
-
 
 // --- Scheduled Message Processor (Cron Job) ---
 setInterval(async () => {
