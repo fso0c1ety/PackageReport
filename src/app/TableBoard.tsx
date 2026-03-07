@@ -315,51 +315,61 @@ function DateCellEditor({
     };
   }, []);
 
+  // Stable slotProps to avoid remounting issues during typing
+  const slotProps = React.useMemo(() => ({
+    textField: {
+      size: 'small' as const,
+      autoFocus: true,
+      fullWidth: true,
+      variant: "standard" as const,
+      InputProps: { 
+          disableUnderline: true,
+          style: { fontSize: '0.875rem' } 
+      },
+      sx: { 
+          height: '100%',
+          bgcolor: theme.palette.background.paper,
+          '& .MuiInputBase-root': {
+              padding: '0 8px',
+              height: '100%',
+              alignItems: 'center'
+          },
+          '& .MuiInputBase-input': {
+              padding: 0,
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center'
+          }
+      },
+      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleSave();
+        }
+      }
+    },
+    popper: {
+       sx: { zIndex: theme.zIndex.tooltip + 10 }
+    }
+  }), [theme]);
+
+  // Handle onChange specifically for keyboard typing
+  const handleChange = (newValue: any, context: any) => {
+    setValue(newValue);
+    valueRef.current = newValue;
+    if (context && context.validationError === null && newValue && dayjs(newValue).isValid()) {
+        // Automatically save when a valid date is typed and selected, avoiding unmount bugs
+        // Actually, if we want to allow typing without auto-saving on every letter, we shouldn't save here.
+    }
+  };
+
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
       <DatePicker
         value={value}
         onAccept={() => handleSave()}
-        onChange={(newValue) => {
-           setValue(newValue);
-           valueRef.current = newValue;
-        }}
-        slotProps={{
-          textField: {
-            size: 'small',
-            autoFocus: true,
-            fullWidth: true,
-            variant: "standard",
-            InputProps: { 
-                disableUnderline: true,
-                style: { fontSize: '0.875rem' } 
-            },
-            sx: { 
-                height: '100%',
-                bgcolor: theme.palette.background.paper,
-                '& .MuiInputBase-root': {
-                    padding: '0 8px', // Centered vertical padding
-                    height: '100%',
-                    alignItems: 'center'
-                },
-                '& .MuiInputBase-input': {
-                    padding: 0,
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center'
-                }
-            },
-            onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSave();
-              }
-            }
-          },
-          popper: {
-             sx: { zIndex: theme.zIndex.tooltip + 10 }
-          }
-        }}
+        onChange={handleChange}
+        slotProps={slotProps}
       />
     </Box>
   );
