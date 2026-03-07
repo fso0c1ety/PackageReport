@@ -319,15 +319,10 @@ function DateCellEditor({
     <Box sx={{ width: '100%', height: '100%' }}>
       <DatePicker
         value={value}
-        format="MMM D, YYYY"
         open={isOpen}
         onOpen={() => setIsOpen(true)}
-        onClose={() => {
-            setIsOpen(false);
-            // Schedule save for next tick to allow any pending state updates,
-            // but 'savedRef' will prevent duplicates if unmount happens first.
-            setTimeout(handleSave, 0); 
-        }}
+        onClose={() => setIsOpen(false)}
+        onAccept={() => handleSave()}
         onChange={(newValue) => {
            setValue(newValue);
            valueRef.current = newValue;
