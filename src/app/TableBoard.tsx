@@ -1314,9 +1314,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       options:
         colType === "Country"
           ? fullCountryList.map(c => ({ value: c }))
-          : ["Status", "Dropdown", "People"].includes(colType)
-            ? []
-            : undefined,
+          : colType === "Priority"
+            ? [{ value: 'High', color: '#e2445c' }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }]
+            : ["Status", "Dropdown", "People"].includes(colType)
+              ? []
+              : undefined,
     };
     const updatedColumns = [...columns, newColumn];
     setColumns(updatedColumns);
@@ -1335,7 +1337,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     // Update all existing tasks to include the new column with a default value
     const defaultValue = (() => {
-      if (colType === "Status" || colType === "Dropdown") return "";
+      if (colType === "Status" || colType === "Dropdown" || colType === "Priority") return "";
       if (colType === "Checkbox") return false;
       if (colType === "Numbers") return 0;
       return "";
@@ -2462,7 +2464,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
 
     // Status/Priority (Keep original colorful logic)
-    if (effectiveCol.type === "Status" || effectiveCol.id === "priority") {
+    if (effectiveCol.type === "Status" || effectiveCol.type === "Priority" || effectiveCol.id === "priority") {
       const options = effectiveCol.options || [];
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       const isLabelEditing = editingLabelsColId === effectiveCol.id;
@@ -6188,7 +6190,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         renderValue={(selected) => {
                            if (!selected || selected === "") return <Typography sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: 13 }}>Select option</Typography>;
                            
-                           const options = col.options || (col.id === 'priority' ? [{ value: 'High', color: theme.palette.error.main }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : []);
+                           const options = col.options || (col.id === 'priority' || col.type === 'Priority' ? [{ value: 'High', color: theme.palette.error.main }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : []);
                            const selectedOpt = options.find((opt: any) => opt.value === selected);
                            
                            return (
@@ -6204,7 +6206,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
 
                           <MenuItem value="" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: 13 }}>Select option</MenuItem>
-                          {(col.options || (col.id === 'priority' ? [{ value: 'High', color: theme.palette.error.main }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : [])).map((opt) => (
+                          {(col.options || (col.id === 'priority' || col.type === 'Priority' ? [{ value: 'High', color: theme.palette.error.main }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : [])).map((opt) => (
                             <MenuItem
                               key={opt.value}
                               value={opt.value}
