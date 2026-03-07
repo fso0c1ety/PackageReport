@@ -289,7 +289,6 @@ function DateCellEditor({
   const theme = useTheme();
   // Ensure we consistently use Dayjs or null
   const [value, setValue] = useState(initialValue ? dayjs(initialValue) : null);
-  const [isOpen, setIsOpen] = useState(true);
   
   // Refs to track state for event handlers and cleanup
   const valueRef = React.useRef(value);
@@ -309,8 +308,9 @@ function DateCellEditor({
   // Ensure modification is saved when component unmounts (e.g. clicking another cell)
   useEffect(() => {
     return () => {
+      // Just check savedRef, no need to set it here as cleanup runs last
       if (!savedRef.current) {
-        handleSave();
+        onSave(valueRef.current);
       }
     };
   }, []);
@@ -319,9 +319,6 @@ function DateCellEditor({
     <Box sx={{ width: '100%', height: '100%' }}>
       <DatePicker
         value={value}
-        open={isOpen}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
         onAccept={() => handleSave()}
         onChange={(newValue) => {
            setValue(newValue);
@@ -355,7 +352,6 @@ function DateCellEditor({
             onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                setIsOpen(false);
                 handleSave();
               }
             }
