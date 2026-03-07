@@ -1,10 +1,8 @@
 // --- Task Order Endpoint for Drag-and-Drop ---
 // (Endpoint is now placed at the end of the file, after all initialization)
+console.log('Server process starting...');
+process.on('exit', (code) => console.log(`Process exit with code: ${code}`));
 const express = require('express');
-const next = require('next');
-const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev });
-const handle = nextApp.getRequestHandler();
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -20,8 +18,19 @@ const { sendNotification } = require('./notificationHelper');
 
 const http = require('http');
 const { Server } = require("socket.io");
+const next = require('next');
+
+const dev = process.env.NODE_ENV !== 'production';
+const nextApp = next({ dev });
+const handle = nextApp.getRequestHandler();
 
 const app = express();
+
+// Root endpoint handled by Next.js
+// app.get('/', (req, res) => {
+//   res.send('Backend is running!');
+// });
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -154,7 +163,6 @@ app.get('/uploads/:filename', (req, res) => {
 });
 
 // Serve frontend static export if it exists
-/*
 const outDir = path.join(__dirname, '../out');
 if (fs.existsSync(outDir)) {
   app.use(express.static(outDir));
@@ -166,7 +174,6 @@ if (fs.existsSync(outDir)) {
     next();
   });
 }
-*/
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
@@ -1298,6 +1305,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                            const pushData = {
                              type: 'automation',
                              tableId: table.id.toString(),
+                             workspaceId: table.workspace_id,
                              taskId: id.toString()
                            };
                            await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
@@ -1695,21 +1703,30 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   }
 });
 
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 nextApp.prepare().then(() => {
-    app.all('*', (req, res) => {
+    // In Express 5, '*' is not a valid wildcard for path-to-regexp v0.1.7+ style matching used by default.
+    // Use '(.*)' to match everything.
+    app.all('(.*)', (req, res) => {
         return handle(req, res);
     });
 
     server.listen(PORT, '0.0.0.0', () => {
         try {
+            console.log(`> Ready on http://localhost:${PORT}`);
             console.log(`Express server running on http://0.0.0.0:${PORT}`);
             console.log(`Socket.IO listening on port ${PORT}`);
         } catch (err) {
             console.error('Error starting server/socket:', err);
         }
     });
-}).catch(err => {
-    console.error('Error starting Next.js:', err);
 });
 
 // --- Scheduled Message Processor (Cron Job) ---
