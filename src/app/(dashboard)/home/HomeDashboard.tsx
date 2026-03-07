@@ -267,32 +267,8 @@ export default function HomeDashboard() {
         return;
     }
     
-    // Identify current user ID to prefer owned workspaces
-    let userId = currentUser?.id;
-    if (!userId) {
-       try {
-          const userJson = localStorage.getItem("user");
-          if (userJson) userId = JSON.parse(userJson).id;
-       } catch (e) {}
-    }
-
-    // Filter for owned workspaces to avoid 403 Forbidden
-    const ownedWorkspaces = userId ? workspaces.filter(w => w.owner_id === userId) : [];
-    
-    // Selection logic:
-    // 1. Owned 'Main Workspace'
-    // 2. Any Owned Workspace
-    // 3. Any 'Main Workspace' (fallback)
-    // 4. First available workspace (fallback)
-    let targetWorkspace = ownedWorkspaces.find(w => w.name === 'Main Workspace');
-    if (!targetWorkspace) targetWorkspace = ownedWorkspaces[0];
-    if (!targetWorkspace) targetWorkspace = workspaces.find(w => w.name === 'Main Workspace');
-    if (!targetWorkspace) targetWorkspace = workspaces[0];
-
-    if (!targetWorkspace) {
-         console.error("Could not find a valid workspace target");
-         return;
-    }
+    // Default to the first workspace, or find one named 'Main Workspace'
+    const targetWorkspace = workspaces.find(w => w.name === 'Main Workspace') || workspaces[0];
 
     try {
       setIsCreatingTemplate(template.title);
@@ -341,18 +317,8 @@ export default function HomeDashboard() {
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
-  // State for Templates Gallery
-  const [galleryAnchorEl, setGalleryAnchorEl] = useState<null | HTMLElement>(null);
-  const isGalleryOpen = Boolean(galleryAnchorEl);
-
-  const handleGalleryOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setGalleryAnchorEl(event.currentTarget);
-  };
-
-  const handleGalleryClose = () => {
-    setGalleryAnchorEl(null);
-  };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, ws: any) => {
     event.stopPropagation();
@@ -950,17 +916,13 @@ export default function HomeDashboard() {
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
               <SectionTitle sx={{ mb: 0 }}>
                 <DashboardIcon sx={{ color: "#6366f1", fontSize: 20 }} />
-                Start with a Template
+                Start with a Template (Top 3)
               </SectionTitle>
               <Button
                 size="small"
                 variant="text"
                 disableRipple
-                onClick={handleGalleryOpen}
-                id="gallery-button"
-                aria-controls={isGalleryOpen ? 'gallery-menu' : undefined}
-                aria-haspopup="true"
-                aria-expanded={isGalleryOpen ? 'true' : undefined}
+                onClick={() => setIsGalleryOpen(true)}
                 sx={{
                   color: theme.palette.text.secondary,
                   background: "transparent",
@@ -1035,66 +997,6 @@ export default function HomeDashboard() {
                 </Grid>
               ))}
             </Grid>
-
-            {/* Gallery Menu (Popover) for additional templates */}
-             <Menu
-                id="gallery-menu"
-                anchorEl={galleryAnchorEl}
-                open={isGalleryOpen}
-                onClose={handleGalleryClose}
-                MenuListProps={{
-                'aria-labelledby': 'gallery-button',
-                }}
-                PaperProps={{
-                    sx: {
-                        width: 320,
-                        maxHeight: 400,
-                        overflowY: 'auto',
-                        mt: 1.5,
-                        borderRadius: 2,
-                        boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
-                        border: `1px solid ${theme.palette.divider}`,
-                        bgcolor: theme.palette.background.paper
-                    }
-                }}
-                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            >
-                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="subtitle1" fontWeight={600}>Template Gallery</Typography>
-                    <Typography variant="caption" color="text.secondary">Select a template to start</Typography>
-                </Box>
-                {TEMPLATES.slice(3).map((template) => (
-                    <MenuItem 
-                        key={template.title} 
-                        onClick={() => {
-                            handleCreateFromTemplate(template);
-                            handleGalleryClose();
-                        }}
-                        sx={{ py: 1.5, px: 2, gap: 2 }}
-                    >
-                        <Avatar
-                            sx={{
-                                bgcolor: `${template.color}20`,
-                                color: template.color,
-                                width: 40,
-                                height: 40,
-                                fontSize: "1.25rem",
-                            }}
-                        >
-                            {template.icon}
-                        </Avatar>
-                        <Box>
-                            <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.2 }}>
-                                {template.title}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                Ready-to-use
-                            </Typography>
-                        </Box>
-                    </MenuItem>
-                ))}
-            </Menu>
           </Box>
         </Grid>
 
@@ -1200,6 +1102,86 @@ export default function HomeDashboard() {
           </Box>
         </Grid>
       </Grid>
+
+      <Dialog
+        open={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 3
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+          <Box>
+            <Typography variant="h6" fontWeight={700}>Template Gallery</Typography>
+            <Typography variant="caption" color="text.secondary">Choose a template to start with</Typography>
+          </Box>
+          <Button onClick={() => setIsGalleryOpen(false)} color="inherit" size="small">Close</Button>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ p: 3 }}>
+            <Grid container spacing={3}>
+              {TEMPLATES.map((template) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.title}>
+                  <StyledCard
+                    onClick={() => {
+                        handleCreateFromTemplate(template);
+                        setIsGalleryOpen(false);
+                    }}
+                    sx={{
+                      cursor: "pointer",
+                      height: "100%",
+                      p: 2, 
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      textAlign: "center",
+                      gap: 1.5, 
+                      border: "1px dashed rgba(255,255,255,0.1)",
+                      transition: "all 0.2s",
+                      "&:hover": { borderColor: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.05)", transform: "translateY(-2px)" },
+                      opacity: isCreatingTemplate === template.title ? 1 : (isCreatingTemplate ? 0.5 : 1),
+                      pointerEvents: isCreatingTemplate ? "none" : "auto",
+                      position: "relative"
+                    }}
+                  >
+                    {isCreatingTemplate === template.title && (
+                        <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.3)", zIndex: 10, borderRadius: 2 }}>
+                            <CircularProgress size={24} color="inherit" />
+                        </Box>
+                    )}
+                    <Avatar
+                      sx={{
+                        bgcolor: `${template.color}20`,
+                        color: template.color,
+                        width: 50, 
+                        height: 50,
+                        fontSize: "1.5rem",
+                        mb: 0.5
+                      }}
+                    >
+                      {template.icon}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        {template.title}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.5, lineHeight: 1.2, display: "block" }}>
+                        {template.columns.length} columns pre-configured
+                      </Typography>
+                    </Box>
+                  </StyledCard>
+                </Grid>
+              ))}
+            </Grid>
+        </DialogContent>
+      </Dialog>
     </DashboardContainer>
   );
 }
