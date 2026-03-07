@@ -278,6 +278,75 @@ const stringToColor = (string: string) => {
   return color;
 }
 
+// Separate component to prevent table re-renders on every keystroke
+function DateCellEditor({ 
+  initialValue, 
+  onSave 
+}: { 
+  initialValue: any, 
+  onSave: (val: any) => void 
+}) {
+  const theme = useTheme();
+  const [value, setValue] = useState(initialValue ? dayjs(initialValue) : null);
+  const [isOpen, setIsOpen] = useState(true);
+  const valueRef = React.useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  const handleSave = () => {
+    onSave(valueRef.current);
+  };
+
+  return (
+    <Box sx={{ width: '100%', height: '100%' }}>
+      <DatePicker
+        value={value}
+        format="MMM D, YYYY"
+        open={isOpen}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => {
+            setIsOpen(false);
+            // Small timeout to ensure onChange has processed if strictly necessary, 
+            // but ref usage should be immediate from onChange.
+            // Using a microtask just to be safe if focus shifts weirdly.
+            setTimeout(handleSave, 0); 
+        }}
+        onChange={(newValue) => {
+           setValue(newValue);
+           valueRef.current = newValue;
+        }}
+        slotProps={{
+          textField: {
+            size: 'small',
+            autoFocus: true,
+            fullWidth: true,
+            variant: "standard",
+            InputProps: { 
+                disableUnderline: true,
+                style: { fontSize: '0.875rem' } 
+            },
+            sx: { 
+                height: '100%',
+                bgcolor: theme.palette.background.paper,
+                '& .MuiInputBase-root': {
+                    padding: '8px 8px', // Better padding
+                }
+            },
+            onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setIsOpen(false);
+                handleSave();
+              }
+            }
+          }
+        }}
+      />
+    </Box>
+  );
+}
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
