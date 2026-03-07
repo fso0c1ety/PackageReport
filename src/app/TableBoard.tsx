@@ -2969,52 +2969,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       // Date
       if (col.type === "Date") {
         return (
-          <Box
-            // Catch blur at container level.
-          >
-          <DatePicker
-            value={editValue ? dayjs(editValue) : null}
-            onChange={(val) => {
-               setEditValue(val);
-               // Also update the ref immediately so synchronous reads (like onClose) get the latest value
-               // Even though useEffect handles sync on render, onChange -> onClose happens before render finishes.
-               editValueRef.current = val;
-            }}
-            // Use onAccept to save when a date is picked from calendar (redundant if using onClose correctly, but safer)
-            onAccept={(val) => {
-               if (val && dayjs(val).isValid()) {
-                  handleCellSave(row.id, col.id, col.type, val);
-               }
-            }}
-            // Use onClose to save when the popup closes (click outside, escape, or select)
-            onClose={() => {
-                // Now we can use the ref to get the truly latest value even if state update hasn't propagated
-                setTimeout(() => {
-                   // If we just accepted via onAccept, this is redundant but harmless (idempotent save usually)
-                   // But if we clicked away, this saves the latest typed value (or clicked date key)
-                   handleCellSave(row.id, col.id, col.type, editValueRef.current);
-                }, 100);
-            }}
-            slotProps={{
-              textField: {
-                size: 'small',
-                autoFocus: true,
-                InputProps: { style: { color: theme.palette.text.primary } },
-                sx: { 
-                    bgcolor: theme.palette.background.paper, 
-                    color: theme.palette.text.primary,
-                    '& .MuiInputBase-input': { color: theme.palette.text.primary }
-                },
-                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    // Manually trigger save with current ref value
-                    handleCellSave(row.id, col.id, col.type, editValueRef.current);
-                  }
-                }
-              }
-            }}
-          />
+          <Box sx={{ width: '100%', height: 32, borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
+            <DateCellEditor
+              initialValue={editValue}
+              onSave={(val) => handleCellSave(row.id, col.id, col.type, val)}
+            />
           </Box>
         );
       }
@@ -6263,28 +6222,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                       {/* Date */}
                       {col.type === "Date" && (
-                        <input
-                          type="date"
-                          value={reviewTask.values[col.id] || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
-                            handleCellSave(reviewTask.id, col.id, col.type, val);
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: theme.palette.action.hover,
-                            border: '1px solid transparent',
-                            borderRadius: '8px',
-                            color: theme.palette.text.primary,
-                            outline: 'none',
-                            fontSize: '14px',
-                            fontFamily: 'inherit',
-                            fontWeight: 500,
-                            transition: 'all 0.2s',
-                          }}
-                        />
+                        <Box sx={{ width: '100%', height: 36, bgcolor: theme.palette.action.hover, borderRadius: '8px', overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
+                          <DateCellEditor
+                            initialValue={reviewTask.values[col.id] || ''}
+                            onSave={(val) => {
+                              const dateStr = val && dayjs(val).isValid() ? dayjs(val).format('YYYY-MM-DD') : '';
+                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: dateStr } }) : null);
+                              handleCellSave(reviewTask.id, col.id, col.type, dateStr);
+                            }}
+                          />
+                        </Box>
                       )}
 
                       {/* Checkbox */}
