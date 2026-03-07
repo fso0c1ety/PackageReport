@@ -1,113 +1,225 @@
-import React from "react";
+import React, { useState } from "react";
 import type { ColumnType } from "../types";
-import { Box, Typography, Paper, TextField, InputAdornment, useTheme } from "@mui/material";
-import { Grid as MuiGrid } from "@mui/material";
+import { Box, Typography, Paper, InputAdornment, useTheme, Fade, styled } from "@mui/material";
+import InputBase from '@mui/material/InputBase';
+import SearchIcon from '@mui/icons-material/Search';
+
+// Essential Icons
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
 import DateRangeIcon from "@mui/icons-material/DateRange";
 import PeopleIcon from "@mui/icons-material/People";
 import ArrowDropDownCircleIcon from "@mui/icons-material/ArrowDropDownCircle";
 import NumbersIcon from "@mui/icons-material/Numbers";
+
+// Useful Icons
 import TimelineIcon from "@mui/icons-material/Timeline";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
-import DescriptionIcon from "@mui/icons-material/Description";
-import LinkIcon from "@mui/icons-material/Link";
 import FunctionsIcon from "@mui/icons-material/Functions";
 import InfoIcon from "@mui/icons-material/Info";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
 import FlagIcon from '@mui/icons-material/Flag';
-import ChatIcon from '@mui/icons-material/Chat';
 
 interface ColumnTypeSelectorProps {
   onSelect: (type: ColumnType, label: string) => void;
 }
 
-
-
 const columnOptions = [
-  { label: "Status", icon: <CheckBoxIcon sx={(theme) => ({ color: theme.palette.success.main })} />, color: '#00c875', type: 'Status' },
-  { label: "Text", icon: <TextFieldsIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Text' },
-  { label: "Dropdown", icon: <ArrowDropDownCircleIcon sx={{ color: '#ffcb00' }} />, color: '#ffcb00', type: 'Dropdown' },
-  { label: "Date", icon: <DateRangeIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Date' },
-  { label: "Numbers", icon: <NumbersIcon sx={{ color: '#fdab3d' }} />, color: '#fdab3d', type: 'Numbers' },
-  { label: "Files", icon: <InsertDriveFileIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Files' },
-  { label: "monday Doc", icon: <DescriptionIcon sx={{ color: '#a25ddc' }} />, color: '#a25ddc', type: 'Doc' },
-  { label: "Connect boards", icon: <LinkIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Connect' },
-  { label: "Timeline", icon: <TimelineIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Timeline' },
-  { label: "Checkbox", icon: <CheckBoxIcon sx={{ color: '#00c875' }} />, color: '#00c875', type: 'Checkbox' },
-  { label: "Formula", icon: <FunctionsIcon sx={{ color: '#fdab3d' }} />, color: '#fdab3d', type: 'Formula' },
-  { label: "Extract info", icon: <InfoIcon sx={{ color: '#579bfc' }} />, color: '#579bfc', type: 'Extract' },
-  { label: "Priority", icon: <PriorityHighIcon sx={{ color: '#e2445c' }} />, color: '#e2445c', type: 'Priority' },
-  { label: "Country", icon: <FlagIcon sx={{ color: '#1976d2' }} />, color: '#1976d2', type: 'Country' },
-  { label: "Message", icon: <ChatIcon sx={{ color: '#fd397a' }} />, color: '#fd397a', type: 'Message' },
+  // Essentials (First 6)
+  { label: "Status", icon: <CheckBoxIcon />, color: '#00c875', type: 'Status' },
+  { label: "Text", icon: <TextFieldsIcon />, color: '#579bfc', type: 'Text' },
+  { label: "People", icon: <PeopleIcon />, color: '#0073ea', type: 'People' },
+  { label: "Dropdown", icon: <ArrowDropDownCircleIcon />, color: '#ffcb00', type: 'Dropdown' },
+  { label: "Date", icon: <DateRangeIcon />, color: '#00d2d2', type: 'Date' },
+  { label: "Numbers", icon: <NumbersIcon />, color: '#fdab3d', type: 'Numbers' },
+  // Super useful (Rest)
+  { label: "Files", icon: <InsertDriveFileIcon />, color: '#579bfc', type: 'Files' },
+  { label: "Timeline", icon: <TimelineIcon />, color: '#ff158a', type: 'Timeline' },
+  { label: "Checkbox", icon: <CheckBoxIcon />, color: '#00c875', type: 'Checkbox' },
+  { label: "Formula", icon: <FunctionsIcon />, color: '#784bd1', type: 'Formula' },
+  { label: "Extract info", icon: <InfoIcon />, color: '#579bfc', type: 'Extract' },
+  { label: "Priority", icon: <PriorityHighIcon />, color: '#e2445c', type: 'Priority' },
+  { label: "Country", icon: <FlagIcon />, color: '#1976d2', type: 'Country' },
 ];
 
-
-
+const StyledSearchInput = styled(InputBase)(({ theme }) => ({
+  color: theme.palette.text.primary,
+  width: '100%',
+  '& .MuiInputBase-input': {
+    padding: theme.spacing(1, 1, 1, 0),
+    paddingLeft: `calc(1em + ${theme.spacing(3)})`,
+    transition: theme.transitions.create('width'),
+    width: '100%',
+    fontSize: '0.9rem',
+  },
+}));
 
 export default function ColumnTypeSelector({ onSelect }: ColumnTypeSelectorProps) {
   const theme = useTheme();
-  return (
-    <Box sx={{ bgcolor: 'background.default', p: { xs: 0.5, sm: 0 }, m: 0, borderRadius: 4, minWidth: 0, minHeight: 0, width: { xs: 220, sm: 'auto' }, maxWidth: { xs: 220, sm: 'none' } }}>
-      <Paper elevation={0} sx={{
-        p: { xs: 1, sm: 3 },
-        width: { xs: 300, sm: 450 },
-        borderRadius: 4,
-        bgcolor: 'background.default',
-        color: 'text.primary',
-        boxShadow: 'none',
-        border: 'none',
-        m: 0,
-        minWidth: 0,
-        minHeight: 0
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredOptions = columnOptions.filter(opt => 
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const essentials = filteredOptions.filter(opt => columnOptions.indexOf(opt) < 6);
+  const superUseful = filteredOptions.filter(opt => columnOptions.indexOf(opt) >= 6);
+
+  const renderOption = (opt: typeof columnOptions[0]) => (
+    <Box
+      key={opt.label}
+      onClick={() => onSelect(opt.type as ColumnType, opt.label)}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        cursor: 'pointer',
+        p: 2,
+        borderRadius: 3,
+        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : '#f8f9fa',
+        border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#edf1f5'}`,
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        height: '100%',
+        '&:hover': {
+          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#fff',
+          borderColor: opt.color,
+          transform: 'translateY(-2px)',
+          boxShadow: `0 4px 12px ${opt.color}20`,
+        }
+      }}
+    >
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        p: 1.5,
+        borderRadius: '50%',
+        bgcolor: `${opt.color}15`,
+        color: opt.color,
       }}>
-      <TextField
-        fullWidth
-        placeholder="Search or describe your column"
-        size="small"
-        sx={{ mb: { xs: 1, sm: 2 }, bgcolor: 'action.hover', borderRadius: 2, input: { color: 'text.primary', fontSize: { xs: 13, sm: 16 } } }}
-        InputProps={{
-          startAdornment: <InputAdornment position="start"><Typography sx={{ color: 'text.secondary', fontSize: { xs: 13, sm: 16 } }}>🔍</Typography></InputAdornment>,
+        {React.cloneElement(opt.icon, { fontSize: 'medium' })}
+      </Box>
+      <Typography 
+        variant="body2" 
+        fontWeight={600} 
+        sx={{ 
+          color: theme.palette.text.primary,
+          fontSize: '0.85rem',
+          textAlign: 'center'
         }}
-      />
-      <Typography variant="subtitle2" sx={{ mb: { xs: 0.5, sm: 1 }, mt: { xs: 1, sm: 2 }, color: 'text.secondary', fontSize: { xs: 13, sm: 16 } }}>
-        Essentials
+      >
+        {opt.label}
       </Typography>
-      <MuiGrid container spacing={{ xs: 1, sm: 2 }}>
-        {columnOptions.slice(0, 6).map((opt) => (
-          <MuiGrid size={{ xs: 4 }} key={opt.label}>
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: 'background.default', '&:hover': { bgcolor: theme.palette.action.hover } }}
-              onClick={() => onSelect(opt.type as ColumnType, opt.label)}
-            >
-              {React.cloneElement(opt.icon, { fontSize: 'small' })}
-              <Typography fontWeight={600} sx={{ color: opt.color, fontSize: { xs: 12, sm: 15 } }}>{opt.label}</Typography>
-            </Box>
-          </MuiGrid>
-        ))}
-      </MuiGrid>
-      <Typography variant="subtitle2" sx={{ mb: { xs: 0.5, sm: 1 }, mt: { xs: 1.5, sm: 3 }, color: 'text.secondary', fontSize: { xs: 13, sm: 16 } }}>
-        Super useful
-      </Typography>
-      <MuiGrid container spacing={{ xs: 1, sm: 2 }}>
-        {columnOptions.slice(6).map((opt) => (
-          <MuiGrid size={{ xs: 4 }} key={opt.label}>
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, cursor: 'pointer', p: { xs: 0.5, sm: 1 }, borderRadius: 2, bgcolor: 'background.default', '&:hover': { bgcolor: theme.palette.action.hover } }}
-              onClick={() => onSelect(opt.type as ColumnType, opt.label)}
-            >
-              {React.cloneElement(opt.icon, { fontSize: 'small' })}
-              <Typography fontWeight={600} sx={{ color: opt.color, fontSize: { xs: 12, sm: 15 } }}>{opt.label}</Typography>
-            </Box>
-          </MuiGrid>
-        ))}
-      </MuiGrid>
-        <Box sx={{ textAlign: 'center', mt: { xs: 1, sm: 3 } }}>
-          <Typography variant="body2" sx={{ cursor: 'pointer', fontWeight: 600, color: 'text.secondary', fontSize: { xs: 12, sm: 15 } }}>
-            More columns
+    </Box>
+  );
+
+  return (
+    <Fade in={true} timeout={300}>
+      <Paper 
+        elevation={24}
+        sx={{
+          p: 3,
+          width: { xs: 320, sm: 480 },
+          borderRadius: 4,
+          bgcolor: theme.palette.mode === 'dark' ? '#1c1f2e' : '#ffffff',
+          color: 'text.primary',
+          border: `1px solid ${theme.palette.divider}`,
+          boxShadow: theme.palette.mode === 'dark' ? '0 12px 40px rgba(0,0,0,0.5)' : '0 12px 40px rgba(0,0,0,0.1)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '80vh',
+        }}
+      >
+        {/* Header & Search */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: theme.palette.text.primary }}>
+            Add new column
           </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : '#f4f5f7',
+              borderRadius: 2,
+              px: 2,
+              border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'transparent'}`,
+              transition: 'all 0.2s',
+              '&:focus-within': {
+                borderColor: theme.palette.primary.main,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.4)' : '#fff',
+                boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
+              }
+            }}
+          >
+            <SearchIcon sx={{ color: theme.palette.text.secondary, mr: 1 }} />
+            <InputBase
+              placeholder="Search columns..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ flex: 1, py: 1.25, fontSize: '0.95rem' }}
+            />
+          </Box>
+        </Box>
+
+        {/* Scrollable Content */}
+        <Box sx={{ 
+          overflowY: 'auto', 
+          flex: 1,
+          px: 0.5, // Padding for hover shadows
+          pb: 1,
+          '&::-webkit-scrollbar': { width: 6 },
+          '&::-webkit-scrollbar-track': { background: 'transparent' },
+          '&::-webkit-scrollbar-thumb': { background: theme.palette.divider, borderRadius: 3 },
+          '&::-webkit-scrollbar-thumb:hover': { background: theme.palette.text.secondary }
+        }}>
+          
+          {essentials.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, color: theme.palette.text.secondary, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                Essentials
+              </Typography>
+              <Box sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, 
+                gap: 2 
+              }}>
+                {essentials.map(renderOption)}
+              </Box>
+            </Box>
+          )}
+
+          {superUseful.length > 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, color: theme.palette.text.secondary, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                Super useful
+              </Typography>
+              <Box sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, 
+                gap: 2 
+              }}>
+                {superUseful.map(renderOption)}
+              </Box>
+            </Box>
+          )}
+
+          {filteredOptions.length === 0 && (
+            <Box sx={{ textAlign: 'center', py: 4, opacity: 0.7 }}>
+              <SearchIcon sx={{ fontSize: 40, color: theme.palette.text.secondary, mb: 1 }} />
+              <Typography variant="body1" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
+                No columns found
+              </Typography>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                Try searching for something else
+              </Typography>
+            </Box>
+          )}
+
         </Box>
       </Paper>
-    </Box>
+    </Fade>
   );
 }
