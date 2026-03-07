@@ -1714,7 +1714,7 @@ process.on('unhandledRejection', (reason, promise) => {
 nextApp.prepare().then(() => {
     // In Express 5, '*' is not a valid wildcard for path-to-regexp v0.1.7+ style matching used by default.
     // Use '(.*)' to match everything.
-    app.all('(.*)', (req, res) => {
+    app.all(/(.*)/, (req, res) => {
         return handle(req, res);
     });
 
