@@ -287,16 +287,14 @@ function DateCellEditor({
   onSave: (val: any) => void 
 }) {
   const theme = useTheme();
-  // Ensure we consistently use Dayjs or null
-  const [value, setValue] = useState(initialValue ? dayjs(initialValue) : null);
+  
+  // Use uncontrolled pattern (defaultValue) instead of controlled state
+  // to prevent day.js from forcefully reformatting partial years (e.g., '2' -> '0002') while typing.
+  const initialDayjs = React.useMemo(() => initialValue ? dayjs(initialValue) : null, [initialValue]);
   
   // Refs to track state for event handlers and cleanup
-  const valueRef = React.useRef(value);
+  const valueRef = React.useRef(initialDayjs);
   const savedRef = React.useRef(false);
-
-  useEffect(() => {
-    valueRef.current = value;
-  }, [value]);
 
   const handleSave = () => {
     // Prevent double saving
@@ -353,21 +351,16 @@ function DateCellEditor({
     }
   }), [theme]);
 
-  // Handle onChange specifically for keyboard typing
-  const handleChange = (newValue: any, context: any) => {
-    setValue(newValue);
+  // Keep track of the latest typed/selected value
+  const handleChange = (newValue: any) => {
     valueRef.current = newValue;
-    if (context && context.validationError === null && newValue && dayjs(newValue).isValid()) {
-        // Automatically save when a valid date is typed and selected, avoiding unmount bugs
-        // Actually, if we want to allow typing without auto-saving on every letter, we shouldn't save here.
-    }
   };
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
       <DatePicker
-        value={value}
-        onAccept={() => handleSave()}
+        defaultValue={initialDayjs}
+        onClose={() => handleSave()}
         onChange={handleChange}
         slotProps={slotProps}
       />
