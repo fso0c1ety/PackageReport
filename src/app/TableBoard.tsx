@@ -4869,8 +4869,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         <TableCell
                           padding="checkbox"
                           sx={{
-                            minWidth: 48,
-                            width: 48,
+                            minWidth: 60,
+                            width: 60,
                             position: 'sticky',
                             left: 0,
                             zIndex: 10,
@@ -4890,7 +4890,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   transition: 'background-color 0.2s',
                                   bgcolor: snapshot.isDragging ? `${theme.palette.action.selected} !important` : theme.palette.background.paper,
                                   '&:hover': { bgcolor: `${theme.palette.action.hover} !important` },
-                                  '&:hover .column-actions': { opacity: 1 }
+                                  '&:hover .column-actions': { opacity: 1 },
+                                  ...(isMobile && index === 0 && {
+                                    position: 'sticky',
+                                    left: 60, // Width of the checkbox/control header cell
+                                    zIndex: 10,
+                                    bgcolor: `${theme.palette.background.paper} !important`,
+                                    borderRight: `1px solid ${theme.palette.divider}`
+                                  })
                                 }}
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -5030,6 +5037,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                               <TableCell sx={{
                                 width: 60,
+                                minWidth: 60,
                                 p: 0,
                                 borderBottom: 'none',
                                 borderTopLeftRadius: 12,
@@ -5040,8 +5048,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   position: 'sticky',
                                   left: 0,
                                   zIndex: 11, // Higher than first data col (zIndex 10)
-                                  bgcolor: snapshot.isDragging ? theme.palette.background.paper : theme.palette.background.default,
-                                  borderRight: `1px solid ${theme.palette.divider}`
+                                  bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
+                                  borderRight: `1px solid ${theme.palette.divider}`,
+                                  'tr:hover &': { bgcolor: rowHoverBg }
                                 })
                               }}>
                                 {/* Creator Avatar on Highlighted Task */}
@@ -5443,9 +5452,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       position: 'sticky',
                                       left: 60, // Width of the drag handle column
                                       zIndex: 10,
-                                      bgcolor: snapshot.isDragging ? theme.palette.background.paper : theme.palette.background.default,
+                                      bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
                                       borderRight: `1px solid ${theme.palette.divider}`,
-                                      boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                                      boxShadow: '2px 0 5px rgba(0,0,0,0.1)',
+                                      'tr:hover &': { bgcolor: rowHoverBg }
                                     } : {
                                       position: 'relative',
                                       zIndex: 1

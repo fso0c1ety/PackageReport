@@ -35,6 +35,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 
 import { getApiUrl, authenticatedFetch } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
+import { useSearchParams, useRouter } from "next/navigation";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -64,8 +65,26 @@ function TabPanel(props: TabPanelProps) {
 
 export default function SettingsPage() {
   const theme = useTheme();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { mode, toggleTheme } = useThemeContext();
-  const [tabValue, setTabValue] = useState(0);
+  
+  const tabMap: Record<string, number> = {
+    profile: 0,
+    appearance: 1,
+    notifications: 2,
+    security: 3
+  };
+
+  const initialTab = searchParams.get("tab");
+  const [tabValue, setTabValue] = useState(tabMap[initialTab || ""] || 0);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && tabMap[tab] !== undefined) {
+      setTabValue(tabMap[tab]);
+    }
+  }, [searchParams]);
 
   // Profile State
   const [user, setUser] = useState<any>(null);
@@ -157,8 +176,12 @@ export default function SettingsPage() {
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+    const tabName = Object.keys(tabMap).find(key => tabMap[key] === newValue);
+    if (tabName) {
+      router.push(`/settings?tab=${tabName}`, { scroll: false });
+    }
   };
 
   const handleAvatarSelect = (event: React.ChangeEvent<HTMLInputElement>) => {

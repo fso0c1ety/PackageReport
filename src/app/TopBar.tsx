@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List, useTheme } from "@mui/material";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List, useTheme, Divider } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -14,6 +14,8 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CommentIcon from "@mui/icons-material/Comment";
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
+import PaletteIcon from '@mui/icons-material/Palette';
+import SecurityIcon from '@mui/icons-material/Security';
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl } from "./apiUrl";
@@ -541,12 +543,31 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-          <MenuItem onClick={() => router.push('/settings')}>
+          <MenuItem onClick={() => router.push('/settings?tab=profile')}>
             <ListItemIcon>
               <PersonIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
             </ListItemIcon>
-            Profile Settings
+            Profile
           </MenuItem>
+          <MenuItem onClick={() => router.push('/settings?tab=appearance')}>
+            <ListItemIcon>
+              <PaletteIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+            </ListItemIcon>
+            Appearance
+          </MenuItem>
+          <MenuItem onClick={() => router.push('/settings?tab=notifications')}>
+            <ListItemIcon>
+              <NotificationsNoneIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+            </ListItemIcon>
+            Notifications
+          </MenuItem>
+          <MenuItem onClick={() => router.push('/settings?tab=security')}>
+            <ListItemIcon>
+              <SecurityIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+            </ListItemIcon>
+            Security
+          </MenuItem>
+          <Divider />
           <MenuItem onClick={handleLogout}>
             <ListItemIcon>
               <LogoutIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
