@@ -71,16 +71,13 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     throw err;
   }
 
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      localStorage.removeItem('token'); // Clear invalid token
       window.location.href = '/login';
       return new Promise(() => { }) as unknown as Response;
     }
-    throw new Error("Unauthorized");
-  }
-
-  if (response.status === 403) {
-    return response; // Return forbidden response to let caller handle it
+    throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");
   }
 
   return response;

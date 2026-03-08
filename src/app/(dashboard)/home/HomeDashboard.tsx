@@ -449,6 +449,7 @@ export default function HomeDashboard() {
     const fetchUpdates = async () => {
       try {
         const updatesRes = await authenticatedFetch(getApiUrl("email-updates"));
+        if (!updatesRes.ok) throw new Error("Failed to fetch email updates");
         const updatesData = await updatesRes.json();
         setEmailUpdates(Array.isArray(updatesData) ? updatesData : []);
       } catch (err) {

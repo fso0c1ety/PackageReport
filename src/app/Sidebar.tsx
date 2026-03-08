@@ -170,7 +170,10 @@ export default function Sidebar({
     }
 
     authenticatedFetch(getApiUrl("workspaces"))
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch workspaces");
+        return res.json();
+      })
       .then((data) => {
         if (Array.isArray(data)) setWorkspaces(data);
       })

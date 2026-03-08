@@ -9,7 +9,7 @@ function authenticateToken(req, res, next) {
   if (token == null) return res.sendStatus(401);
 
   jwt.verify(token, SECRET_KEY, (err, user) => {
-    if (err) return res.sendStatus(403);
+    if (err) return res.status(403).json({ error: 'Forbidden', message: 'Token is invalid or expired' });
     req.user = user;
     next();
   });
