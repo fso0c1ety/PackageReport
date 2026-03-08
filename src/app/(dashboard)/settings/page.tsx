@@ -32,6 +32,9 @@ import SecurityIcon from "@mui/icons-material/Security";
 import PaletteIcon from "@mui/icons-material/Palette";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
+import WorkIcon from "@mui/icons-material/Work";
+import BusinessIcon from "@mui/icons-material/Business";
+import CallIcon from "@mui/icons-material/Call";
 
 import { getApiUrl, authenticatedFetch } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -92,6 +95,9 @@ export default function SettingsPage() {
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
+  const [editJobTitle, setEditJobTitle] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
 
@@ -107,19 +113,32 @@ export default function SettingsPage() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
   useEffect(() => {
-    // Load current user
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        setEditName(parsedUser.name || "");
-        setEditEmail(parsedUser.email || "");
-        setEditAvatar(parsedUser.avatar || "");
-      } catch (e) {
-        console.error("Failed to parse user", e);
-      }
-    }
+    const fetchProfile = async () => {
+        try {
+            const res = await authenticatedFetch(getApiUrl('users/profile'));
+            if (res.ok) {
+                const data = await res.json();
+                setUser(data);
+                setEditName(data.name || "");
+                setEditEmail(data.email || "");
+                setEditAvatar(data.avatar || "");
+                setEditJobTitle(data.job_title || "");
+                setEditCompany(data.company || "");
+                setEditPhone(data.phone || "");
+                
+                // Keep local storage in sync
+                const storedUser = localStorage.getItem("user");
+                if (storedUser) {
+                    const parsed = JSON.parse(storedUser);
+                    localStorage.setItem("user", JSON.stringify({ ...parsed, ...data }));
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch profile", e);
+        }
+    };
+    
+    fetchProfile();
   }, []);
 
   const handleCreateNewUser = () => {
@@ -144,30 +163,28 @@ export default function SettingsPage() {
     }
 
     try {
-      // Optimistic update locally
-      const updatedUser = {
-        ...user,
-        name: editName,
-        email: editEmail,
-        avatar: editAvatar
-      };
+      const res = await authenticatedFetch(getApiUrl('users/profile'), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          name: editName, 
+          avatar: editAvatar,
+          job_title: editJobTitle,
+          company: editCompany,
+          phone: editPhone
+        }),
+      });
 
+      if (!res.ok) throw new Error("Failed to update profile on server");
+      
+      const updatedUser = await res.json();
+      
+      // Update local state and localStorage
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
       setIsEditing(false);
       setProfileSaved(true);
       setProfileError("");
-
-      // Try backend update if available
-      try {
-         await authenticatedFetch(getApiUrl('users/profile'), {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: editName, avatar: editAvatar }),
-         });
-      } catch (backendError) {
-          console.warn("Backend update failed, but local state updated", backendError);
-      }
 
       setTimeout(() => setProfileSaved(false), 3000);
     } catch (e: any) {
@@ -261,27 +278,68 @@ export default function SettingsPage() {
                 </Box>
                 <Box sx={{ flexGrow: 1 }}>
                     {isEditing ? (
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400 }}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, maxWidth: 600 }}>
                             <TextField 
                                 label="Full Name" 
                                 value={editName} 
                                 onChange={(e) => setEditName(e.target.value)} 
                                 size="small" 
-                                fullWidth
+                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
                             />
                             <TextField 
                                 label="Email" 
                                 value={editEmail} 
-                                onChange={(e) => setEditEmail(e.target.value)} 
                                 size="small" 
-                                fullWidth
+                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
                                 disabled
+                            />
+                            <TextField 
+                                label="Job Title" 
+                                value={editJobTitle} 
+                                onChange={(e) => setEditJobTitle(e.target.value)} 
+                                size="small" 
+                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
+                            />
+                            <TextField 
+                                label="Company" 
+                                value={editCompany} 
+                                onChange={(e) => setEditCompany(e.target.value)} 
+                                size="small" 
+                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
+                            />
+                            <TextField 
+                                label="Phone Number" 
+                                value={editPhone} 
+                                onChange={(e) => setEditPhone(e.target.value)} 
+                                size="small" 
+                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
                             />
                         </Box>
                     ) : (
                         <Box>
                             <Typography variant="h5" fontWeight="bold">{user?.name || "User Name"}</Typography>
-                            <Typography variant="body1" color="text.secondary">{user?.email || "user@example.com"}</Typography>
+                            <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>{user?.email || "user@example.com"}</Typography>
+                            
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+                                {user?.job_title && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                                        <WorkIcon fontSize="small" />
+                                        <Typography variant="body2">{user.job_title}</Typography>
+                                    </Box>
+                                )}
+                                {user?.company && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                                        <BusinessIcon fontSize="small" />
+                                        <Typography variant="body2">{user.company}</Typography>
+                                    </Box>
+                                )}
+                                {user?.phone && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                                        <CallIcon fontSize="small" />
+                                        <Typography variant="body2">{user.phone}</Typography>
+                                    </Box>
+                                )}
+                            </Box>
                         </Box>
                     )}
                 </Box>

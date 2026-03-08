@@ -18,11 +18,15 @@ const { sendNotification } = require('./notificationHelper');
 
 const http = require('http');
 const { Server } = require("socket.io");
-const next = require('next');
-
 const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev });
-const handle = nextApp.getRequestHandler();
+let nextApp;
+let handle;
+
+if (dev) {
+    const next = require('next');
+    nextApp = next({ dev });
+    handle = nextApp.getRequestHandler();
+}
 
 const app = express();
 
@@ -93,6 +97,9 @@ io.on('connection', (socket) => {
     await db.query(`
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS status TEXT;
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT;
     `);
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;`);
     await db.query(`UPDATE tables SET shared_users = '[]'::jsonb WHERE shared_users IS NULL;`);
@@ -214,6 +221,45 @@ app.post('/api/upload', (req, res) => {
       size: req.file.size
     });
   });
+});
+
+// --- User Profile Endpoints ---
+
+// Get complete user profile
+app.get('/api/users/profile', authenticateToken, async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const result = await db.query('SELECT id, name, email, avatar, phone, job_title, company FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('Error fetching profile:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update user profile
+app.put('/api/users/profile', authenticateToken, async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { name, avatar, phone, job_title, company } = req.body;
+  try {
+    const result = await db.query(
+      'UPDATE users SET name = $1, avatar = $2, phone = $3, job_title = $4, company = $5 WHERE id = $6 RETURNING id, name, email, avatar, phone, job_title, company',
+      [name, avatar, phone, job_title, company, req.user.id]
+    );
+    const updatedUser = result.rows[0];
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Port is handled after route registration
@@ -1711,13 +1757,7 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-nextApp.prepare().then(() => {
-    // In Express 5, '*' is not a valid wildcard for path-to-regexp v0.1.7+ style matching used by default.
-    // Use '(.*)' to match everything.
-    app.all(/(.*)/, (req, res) => {
-        return handle(req, res);
-    });
-
+const startServer = () => {
     server.listen(PORT, '0.0.0.0', () => {
         try {
             console.log(`> Ready on http://localhost:${PORT}`);
@@ -1727,7 +1767,18 @@ nextApp.prepare().then(() => {
             console.error('Error starting server/socket:', err);
         }
     });
-});
+};
+
+if (dev && nextApp) {
+    nextApp.prepare().then(() => {
+        app.all(/(.*)/, (req, res) => {
+            return handle(req, res);
+        });
+        startServer();
+    });
+} else {
+    startServer();
+}
 
 // --- Scheduled Message Processor (Cron Job) ---
 setInterval(async () => {

@@ -592,7 +592,7 @@ export default function Sidebar({
               {currentUser?.name || "Loading..."}
             </Typography>
             <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-              {currentUser?.email || "Pro Plan"}
+              {currentUser?.job_title || "Pro Plan"}
             </Typography>
           </Box>
         </Box>
