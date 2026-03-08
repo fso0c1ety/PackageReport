@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // output: 'export', // Removed to allow custom server
-  // trailingSlash: true,
+  output: 'export',
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },
