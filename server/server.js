@@ -997,21 +997,32 @@ app.get('/api/teammates', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const query = `
-      WITH owned_tables AS (
-          SELECT t.id
+      WITH      owned_tables AS (
+          SELECT t.id, t.name as table_name, t.shared_users, w.name as workspace_name
           FROM tables t
           JOIN workspaces w ON t.workspace_id = w.id
           WHERE w.owner_id = $1
       ),
       all_collaborators AS (
           -- Collaborators on my tables
-          SELECT (elem->>'userId') as user_id, 'joined' as status, (elem->>'permission') as permission
+          SELECT 
+            (elem->>'userId') as user_id, 
+            'joined' as status, 
+            ot.id as table_id, 
+            ot.table_name, 
+            ot.workspace_name, 
+            (elem->>'permission') as permission
           FROM owned_tables ot
-          JOIN tables t ON ot.id = t.id
-          CROSS JOIN LATERAL jsonb_array_elements(t.shared_users) AS elem
+          CROSS JOIN LATERAL jsonb_array_elements(ot.shared_users) AS elem
           UNION ALL
           -- Pending invites sent by me
-          SELECT n.recipient_id::text as user_id, 'pending' as status, 'edit' as permission
+          SELECT 
+            n.recipient_id::text as user_id, 
+            'pending' as status, 
+            NULL as table_id, 
+            NULL as table_name, 
+            NULL as workspace_name, 
+            'edit' as permission
           FROM notifications n
           WHERE n.sender_id = $1 AND n.type = 'invite'
       ),
@@ -1019,16 +1030,19 @@ app.get('/api/teammates', authenticateToken, async (req, res) => {
           SELECT 
             user_id, 
             MIN(status) as status,
-            CASE 
-                WHEN 'admin' = ANY(ARRAY_AGG(permission)) THEN 'admin'
-                WHEN 'edit' = ANY(ARRAY_AGG(permission)) THEN 'edit'
-                ELSE 'read'
-            END as permission
+            jsonb_agg(
+              jsonb_build_object(
+                'tableId', table_id,
+                'tableName', table_name,
+                'workspaceName', workspace_name,
+                'permission', permission
+              )
+            ) FILTER (WHERE table_id IS NOT NULL) as access
           FROM all_collaborators
           WHERE user_id != $1::text
           GROUP BY user_id
       )
-      SELECT u.id, u.name, u.email, u.avatar, uc.status, uc.permission
+      SELECT u.id, u.name, u.email, u.avatar, uc.status, uc.access
       FROM users u
       JOIN unique_collaborators uc ON u.id::text = uc.user_id
     `;
@@ -1118,6 +1132,48 @@ app.put('/api/teammates/:teammateId/permission', authenticateToken, async (req, 
       res.json({ success: true });
     } catch (err) {
       console.error('Error updating teammate permission:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Update teammate permission for a specific board
+app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { tableId, teammateId } = req.params;
+    const { permission } = req.body;
+    
+    if (!['read', 'edit', 'admin'].includes(permission)) {
+        return res.status(400).json({ error: 'Invalid permission' });
+    }
+  
+    try {
+      // Verify ownership
+      const tableRes = await db.query(`
+        SELECT t.id, t.shared_users
+        FROM tables t
+        JOIN workspaces w ON t.workspace_id = w.id
+        WHERE t.id = $1 AND w.owner_id = $2
+      `, [tableId, userId]);
+  
+      if (tableRes.rows.length === 0) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      
+      const table = tableRes.rows[0];
+      if (table.shared_users && Array.isArray(table.shared_users)) {
+          const newSharedUsers = table.shared_users.map(u => {
+            if (u.userId === teammateId) {
+                return { ...u, permission };
+            }
+            return u;
+          });
+          
+          await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), tableId]);
+      }
+  
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error updating granular teammate permission:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
 });

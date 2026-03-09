@@ -25,11 +25,10 @@ import {
   Dialog,
   DialogActions,
   DialogTitle,
+  DialogContent,
   Tooltip,
   Stack,
-  Autocomplete,
-  Menu,
-  MenuItem
+  Autocomplete
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
@@ -147,8 +146,9 @@ export default function SettingsPage() {
   const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
-  const [permissionMenuAnchor, setPermissionMenuAnchor] = useState<null | HTMLElement>(null);
-  const [selectedTeammateForMenu, setSelectedTeammateForMenu] = useState<any | null>(null);
+  const [accessDialogOpen, setAccessDialogOpen] = useState(false);
+  const [selectedTeammateForAccess, setSelectedTeammateForAccess] = useState<any | null>(null);
+  const [boardSearchQuery, setBoardSearchQuery] = useState("");
   const { showNotification } = useNotification();
 
   useEffect(() => {
@@ -303,28 +303,32 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdatePermission = async (teammateId: string, newPermission: string) => {
+  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newPermission: string) => {
     try {
-        const res = await authenticatedFetch(getApiUrl(`teammates/${teammateId}/permission`), {
+        const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/teammates/${teammateId}/permission`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ permission: newPermission })
         });
         
         if (res.ok) {
-            showNotification(`Updated permission to ${newPermission}`, "success");
-            // Refresh list
+            showNotification(`Updated access level to ${newPermission}`, "success");
+            // Refresh local state to reflect change in the dialog
+            if (selectedTeammateForAccess) {
+              const updatedAccess = selectedTeammateForAccess.access.map((a: any) => 
+                a.tableId === tableId ? { ...a, permission: newPermission } : a
+              );
+              setSelectedTeammateForAccess({ ...selectedTeammateForAccess, access: updatedAccess });
+            }
+            // Refresh main list
             const teamRes = await authenticatedFetch(getApiUrl('teammates'));
             if (teamRes.ok) setTeammates(await teamRes.json());
         } else {
             showNotification("Failed to update permission", "error");
         }
     } catch (e) {
-        console.error("Update permission error", e);
-        showNotification("Error updating permission", "error");
-    } finally {
-        setPermissionMenuAnchor(null);
-        setSelectedTeammateForMenu(null);
+        console.error("Update granular permission error", e);
+        showNotification("Error updating access", "error");
     }
   };
 
@@ -734,10 +738,10 @@ export default function SettingsPage() {
                     {teammates.map((teammate) => (
                         <Paper 
                             key={teammate.id} 
-                            onClick={(e) => {
+                            onClick={() => {
                                 if (teammate.status === 'joined') {
-                                    setPermissionMenuAnchor(e.currentTarget);
-                                    setSelectedTeammateForMenu(teammate);
+                                    setSelectedTeammateForAccess(teammate);
+                                    setAccessDialogOpen(true);
                                 }
                             }}
                             sx={{ 
@@ -786,8 +790,8 @@ export default function SettingsPage() {
                                             <Typography 
                                                 variant="caption" 
                                                 sx={{ 
-                                                    bgcolor: alpha(theme.palette.primary.main, 0.1), 
-                                                    color: theme.palette.primary.main,
+                                                    bgcolor: alpha(theme.palette.success.main, 0.1), 
+                                                    color: theme.palette.success.main,
                                                     px: 1, 
                                                     py: 0.2, 
                                                     borderRadius: 1,
@@ -795,7 +799,20 @@ export default function SettingsPage() {
                                                     textTransform: 'uppercase'
                                                 }}
                                             >
-                                                {teammate.permission || 'Editor'}
+                                                Active
+                                            </Typography>
+                                            <Typography 
+                                                variant="caption" 
+                                                sx={{ 
+                                                    bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                                                    color: theme.palette.primary.main,
+                                                    px: 1, 
+                                                    py: 0.2, 
+                                                    borderRadius: 1,
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                {teammate.access?.length || 0} boards
                                             </Typography>
                                         </Box>
                                     )}
@@ -1052,36 +1069,101 @@ export default function SettingsPage() {
         </Box>
       </Dialog>
 
-      <Menu
-        anchorEl={permissionMenuAnchor}
-        open={Boolean(permissionMenuAnchor)}
-        onClose={() => setPermissionMenuAnchor(null)}
+      {/* Granular Access Management Dialog */}
+      <Dialog
+        open={accessDialogOpen}
+        onClose={() => {
+            setAccessDialogOpen(false);
+            setBoardSearchQuery("");
+        }}
+        maxWidth="sm"
+        fullWidth
         PaperProps={{
-            sx: { borderRadius: 2, minWidth: 150, mt: 1 }
+            sx: { borderRadius: 4, height: '80vh', display: 'flex', flexDirection: 'column' }
         }}
       >
-        <Typography variant="overline" sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary', fontWeight: 700 }}>
-            Change Access
-        </Typography>
-        <MenuItem 
-            onClick={() => selectedTeammateForMenu && handleUpdatePermission(selectedTeammateForMenu.id, 'read')}
-            selected={selectedTeammateForMenu?.permission === 'read'}
-        >
-            Read Only
-        </MenuItem>
-        <MenuItem 
-            onClick={() => selectedTeammateForMenu && handleUpdatePermission(selectedTeammateForMenu.id, 'edit')}
-            selected={selectedTeammateForMenu?.permission === 'edit' || !selectedTeammateForMenu?.permission}
-        >
-            Editor
-        </MenuItem>
-        <MenuItem 
-            onClick={() => selectedTeammateForMenu && handleUpdatePermission(selectedTeammateForMenu.id, 'admin')}
-            selected={selectedTeammateForMenu?.permission === 'admin'}
-        >
-            Admin Access
-        </MenuItem>
-      </Menu>
+        <DialogTitle sx={{ p: 3, pb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <Avatar 
+                    src={getAvatarUrl(selectedTeammateForAccess?.avatar)} 
+                    sx={{ width: 56, height: 56, border: `2px solid ${theme.palette.divider}` }} 
+                />
+                <Box>
+                    <Typography variant="h6" fontWeight={800}>{selectedTeammateForAccess?.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">{selectedTeammateForAccess?.email}</Typography>
+                </Box>
+            </Box>
+            <Divider sx={{ mt: 2 }} />
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 0, flex: 1, overflowY: 'auto' }}>
+            <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                    Shared Access
+                </Typography>
+                <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Filter workspaces and boards..."
+                    value={boardSearchQuery}
+                    onChange={(e) => setBoardSearchQuery(e.target.value)}
+                    InputProps={{
+                        startAdornment: <SearchIcon sx={{ color: 'text.disabled', mr: 1, fontSize: 18 }} />
+                    }}
+                    sx={{
+                        '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: 'action.hover' }
+                    }}
+                />
+            </Box>
+
+            <List sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {selectedTeammateForAccess?.access?.filter((a: any) => 
+                    a.tableName?.toLowerCase().includes(boardSearchQuery.toLowerCase()) || 
+                    a.workspaceName?.toLowerCase().includes(boardSearchQuery.toLowerCase())
+                ).map((a: any) => (
+                    <Paper 
+                        key={a.tableId} 
+                        variant="outlined" 
+                        sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${theme.palette.divider}` }}
+                    >
+                        <Box>
+                            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', mb: 0.2 }}>
+                                {a.workspaceName}
+                            </Typography>
+                            <Typography variant="subtitle2" fontWeight={700}>{a.tableName}</Typography>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <TextField
+                                select
+                                size="small"
+                                value={a.permission}
+                                onChange={(e) => handleUpdateGranularPermission(selectedTeammateForAccess.id, a.tableId, e.target.value)}
+                                SelectProps={{ native: true }}
+                                sx={{ 
+                                    minWidth: 100,
+                                    '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.8rem', fontWeight: 600 }
+                                }}
+                            >
+                                <option value="read">Read Only</option>
+                                <option value="edit">Editor</option>
+                                <option value="admin">Admin</option>
+                            </TextField>
+                        </Box>
+                    </Paper>
+                ))}
+            </List>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button 
+                fullWidth 
+                variant="outlined" 
+                onClick={() => setAccessDialogOpen(false)}
+                sx={{ borderRadius: 3, py: 1.2, fontWeight: 700, textTransform: 'none' }}
+            >
+                Close
+            </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
