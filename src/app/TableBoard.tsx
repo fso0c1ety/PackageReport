@@ -905,7 +905,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [showColSelector, setShowColSelector] = useState(false);
   const [colSelectorAnchor, setColSelectorAnchor] = useState<null | HTMLElement>(null);
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
-  const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
+  const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner' | 'admin'>('read');
   const [boardTitle, setBoardTitle] = useState("");
 
 
@@ -4147,7 +4147,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Button>
         </Tooltip>
 
-        {userPermission === 'owner' && (
+        {(userPermission === 'owner' || userPermission === 'admin') && (
           <Tooltip title="Settings">
             <IconButton
               onClick={() => window.location.href = '/settings?tab=team'}
@@ -6611,7 +6611,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         People with access to this board
                       </Typography>
                     </Box>
-                    {userPermission === 'owner' && (
+                    {(userPermission === 'owner' || userPermission === 'admin') && (
                       <Button
                         variant="contained"
                         startIcon={<GroupIcon />}

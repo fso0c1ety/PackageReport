@@ -769,8 +769,13 @@ app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
 
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
     const workspace = wsResult.rows[0];
-    if (!workspace || workspace.owner_id !== req.user.id) {
-      return res.status(403).json({ error: 'Only workspace owners can share tables' });
+    const isOwner = workspace && workspace.owner_id === req.user.id;
+    const sharedUsersForCheck = table.shared_users || [];
+    const callerShare = sharedUsersForCheck.find(u => u.userId === String(req.user.id));
+    const isAdmin = callerShare && callerShare.permission === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Only workspace owners and admins can share tables' });
     }
 
     const sharedUsers = table.shared_users || [];
