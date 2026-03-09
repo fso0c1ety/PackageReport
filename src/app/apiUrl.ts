@@ -3,10 +3,6 @@ export const DEFAULT_SERVER_URL = "https://packagereport.onrender.com";
 
 export function getServerUrl() {
   if (typeof window !== 'undefined') {
-    // Check local storage for overrides
-    const stored = localStorage.getItem('server_url');
-    if (stored) return stored;
-
     // Use local backend if running on localhost or local network
     const hostname = window.location.hostname;
     
