@@ -260,28 +260,32 @@ export default function HomeDashboard() {
   const router = useRouter();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [isCreatingTemplate, setIsCreatingTemplate] = useState<string | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<typeof TEMPLATES[0] | null>(null);
+  const [isWorkspacePickerOpen, setIsWorkspacePickerOpen] = useState(false);
+  const [templateTargetWorkspace, setTemplateTargetWorkspace] = useState<string>("");
 
-  const handleCreateFromTemplate = async (template: typeof TEMPLATES[0]) => {
-    if (workspaces.length === 0) {
-        console.error("No workspace available to create table");
-        return;
-    }
-    
-    // Default to the first workspace, or find one named 'Main Workspace'
-    const targetWorkspace = workspaces.find(w => w.name === 'Main Workspace') || workspaces[0];
+  const handleOpenTemplatePicker = (template: typeof TEMPLATES[0]) => {
+    setPendingTemplate(template);
+    setTemplateTargetWorkspace(workspaces[0]?.id || "");
+    setIsWorkspacePickerOpen(true);
+  };
+
+  const handleConfirmTemplateCreate = async () => {
+    if (!pendingTemplate || !templateTargetWorkspace) return;
+    setIsWorkspacePickerOpen(false);
 
     try {
-      setIsCreatingTemplate(template.title);
+      setIsCreatingTemplate(pendingTemplate.title);
 
       const newTablePayload = {
-        name: template.title,
-        workspaceId: targetWorkspace.id,
-        columns: template.columns.map((col, idx) => ({
+        name: pendingTemplate.title,
+        workspaceId: templateTargetWorkspace,
+        columns: pendingTemplate.columns.map((col, idx) => ({
           id: uuidv4(),
           name: col.name,
           type: col.type,
           order: idx,
-          options: col.options || undefined
+          options: (col as any).options || undefined
         }))
       };
 
@@ -301,8 +305,10 @@ export default function HomeDashboard() {
       console.error(err);
     } finally {
       setIsCreatingTemplate(null);
+      setPendingTemplate(null);
     }
   };
+
   const [emailUpdates, setEmailUpdates] = useState<any[]>([]);
   // Start with null to prevent hydration mismatch
   const [lastWorkspace, setLastWorkspace] = useState<any>(null);
@@ -950,7 +956,7 @@ export default function HomeDashboard() {
               {TEMPLATES.slice(0, 3).map((template) => (
                 <Grid size={{ md: 6, lg: 4 }} key={template.title}>
                   <StyledCard
-                    onClick={() => handleCreateFromTemplate(template)}
+                    onClick={() => handleOpenTemplatePicker(template)}
                     sx={{
                       cursor: "pointer",
                       height: "100%",
@@ -1130,7 +1136,7 @@ export default function HomeDashboard() {
                 <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.title}>
                   <StyledCard
                     onClick={() => {
-                        handleCreateFromTemplate(template);
+                        handleOpenTemplatePicker(template);
                         setIsGalleryOpen(false);
                     }}
                     sx={{
@@ -1180,6 +1186,139 @@ export default function HomeDashboard() {
               ))}
             </Grid>
         </DialogContent>
+      </Dialog>
+
+      {/* Workspace Picker for Templates */}
+      <Dialog
+        open={isWorkspacePickerOpen}
+        onClose={() => setIsWorkspacePickerOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            bgcolor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            {pendingTemplate && (
+              <Avatar
+                sx={{
+                  bgcolor: `${pendingTemplate.color}20`,
+                  color: pendingTemplate.color,
+                  width: 44,
+                  height: 44,
+                  fontSize: '1.3rem'
+                }}
+              >
+                {pendingTemplate.icon}
+              </Avatar>
+            )}
+            <Box>
+              <Typography variant="h6" fontWeight={800} sx={{ fontSize: '1.05rem' }}>
+                Create &ldquo;{pendingTemplate?.title}&rdquo;
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Choose a workspace for this board
+              </Typography>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {workspaces.map((ws) => (
+              <Card
+                key={ws.id}
+                onClick={() => setTemplateTargetWorkspace(ws.id)}
+                sx={{
+                  cursor: 'pointer',
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  borderRadius: 3,
+                  border: templateTargetWorkspace === ws.id
+                    ? '2px solid #6366f1'
+                    : `1px solid ${theme.palette.divider}`,
+                  bgcolor: templateTargetWorkspace === ws.id
+                    ? 'rgba(99, 102, 241, 0.08)'
+                    : theme.palette.action.hover,
+                  transition: 'all 0.15s',
+                  boxShadow: 'none',
+                  '&:hover': {
+                    borderColor: '#6366f1',
+                    bgcolor: 'rgba(99, 102, 241, 0.05)'
+                  }
+                }}
+              >
+                <Avatar
+                  sx={{
+                    bgcolor: templateTargetWorkspace === ws.id ? '#6366f1' : '#3a3b5a',
+                    width: 40,
+                    height: 40,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  {ws.name?.[0] || 'W'}
+                </Avatar>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="subtitle2" fontWeight={700} noWrap>
+                    {ws.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {ws.tables?.length || 0} boards
+                  </Typography>
+                </Box>
+                {templateTargetWorkspace === ws.id && (
+                  <Box
+                    sx={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      bgcolor: '#6366f1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: 14,
+                      fontWeight: 700
+                    }}
+                  >
+                    &#10003;
+                  </Box>
+                )}
+              </Card>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
+            onClick={() => setIsWorkspacePickerOpen(false)}
+            sx={{ color: theme.palette.text.secondary, textTransform: 'none', fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmTemplateCreate}
+            disabled={!templateTargetWorkspace || isCreatingTemplate !== null}
+            sx={{
+              bgcolor: '#6366f1',
+              '&:hover': { bgcolor: '#4f46e5' },
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: 2,
+              px: 3
+            }}
+          >
+            {isCreatingTemplate ? <CircularProgress size={18} color="inherit" /> : 'Create Board'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </DashboardContainer>
   );
