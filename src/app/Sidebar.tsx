@@ -40,7 +40,6 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import ShareIcon from "@mui/icons-material/Share";
 import GroupIcon from "@mui/icons-material/Group";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -127,34 +126,9 @@ export default function Sidebar({
   const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [usersToShare, setUsersToShare] = useState<any[]>([]);
-  const [shareSelectedUser, setShareSelectedUser] = useState<any>(null);
-  const [shareSelectedWorkspace, setShareSelectedWorkspace] = useState<any>(null);
-  const [tablesInWorkspace, setTablesInWorkspace] = useState<any[]>([]);
-  const [shareSelectedTable, setShareSelectedTable] = useState<any>(null);
-  const [userSearchInputValue, setUserSearchInputValue] = useState("");
-
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [inviteCodeValue, setInviteCodeValue] = useState("");
-  const [sharePermission, setSharePermission] = useState<'read' | 'edit'>('edit');
-  const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
-  useEffect(() => {
-    if (!shareDialogOpen) return;
-
-    // Simple debounce
-    const timeoutId = setTimeout(() => {
-      const query = userSearchInputValue ? `?q=${encodeURIComponent(userSearchInputValue)}` : '';
-      authenticatedFetch(getApiUrl(`people${query}`))
-        .then(res => res.ok ? res.json() : [])
-        .then(data => setUsersToShare(data || []))
-        .catch(err => console.error("Failed to fetch users", err));
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [userSearchInputValue, shareDialogOpen]);
 
   const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
 
@@ -281,66 +255,6 @@ export default function Sidebar({
     }
   };
 
-  const openShareDialog = async () => {
-    setShareDialogOpen(true);
-    setUserSearchInputValue("");
-    // Initial fetch handled by userSearchInputValue effect
-  };
-
-  const handleShareWorkspaceChange = async (ws: any) => {
-    setShareSelectedWorkspace(ws);
-    setShareSelectedTable(null);
-    setCurrentTableInviteCode(null);
-    if (!ws) {
-      setTablesInWorkspace([]);
-      return;
-    }
-    try {
-      const res = await authenticatedFetch(getApiUrl(`workspaces/${ws.id}/tables`));
-      if (res.ok) {
-        setTablesInWorkspace(await res.json());
-      }
-    } catch (err) { console.error(err); }
-  };
-
-  const fetchInviteCode = async (tableId: string) => {
-    setIsGeneratingCode(true);
-    try {
-      const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/invite-code`), { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentTableInviteCode(data.invite_code);
-      }
-    } catch (err) {
-      console.error("Failed to fetch invite code", err);
-    } finally {
-      setIsGeneratingCode(false);
-    }
-  };
-
-
-  const handleShareSubmit = async () => {
-    if (!shareSelectedTable || !shareSelectedUser) return;
-    try {
-      const res = await authenticatedFetch(getApiUrl(`tables/${shareSelectedTable.id}/share`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: shareSelectedUser.id, permission: sharePermission })
-      });
-      if (res.status === 403) {
-        showNotification("You cant access this you are not the owner", "error");
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to share");
-      showNotification("Successfully shared table!", "success");
-      setShareDialogOpen(false);
-      setShareSelectedUser(null);
-      setShareSelectedWorkspace(null);
-      setShareSelectedTable(null);
-    } catch (err) {
-      showNotification("Error sharing table. Make sure you are the workspace owner.", "error");
-    }
-  };
 
   const handleJoinBoard = async () => {
     if (!inviteCodeValue.trim()) return;
@@ -464,7 +378,7 @@ export default function Sidebar({
             label="Team"
             href="#"
             onClick={() => {
-              setShareDialogOpen(true);
+              window.location.href = '/settings?tab=team';
               if (onClose) onClose();
             }}
           />
@@ -548,22 +462,6 @@ export default function Sidebar({
           </Box>
           {/* Actions */}
           <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={<ShareIcon />}
-              onClick={() => setShareDialogOpen(true)}
-              sx={{
-                bgcolor: theme.palette.primary.main,
-                '&:hover': { bgcolor: theme.palette.primary.dark },
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 600,
-                py: 1
-              }}
-            >
-              Share Boards
-            </Button>
 
             <Button
               fullWidth
@@ -773,281 +671,7 @@ export default function Sidebar({
         </DialogActions>
       </Dialog>
 
-      {/* Share Boards Dialog */}
-      <Dialog
-        open={shareDialogOpen}
-        onClose={() => setShareDialogOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: theme.palette.background.paper,
-            color: theme.palette.text.primary,
-            borderRadius: 3,
-            border: `1px solid ${theme.palette.divider}`,
-            backgroundImage: 'none'
-          }
-        }}
-        BackdropProps={{
-          sx: {
-            bgcolor: alpha(theme.palette.common.black, 0.5),
-            backdropFilter: 'blur(4px)'
-          }
-        }}
-      >
-        <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1, borderBottom: 'none' }}>
-          Share Board
-        </DialogTitle>
-        <DialogContent sx={{ pb: 3, pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-            Select a user and choose which table to share with them. They will be able to access the board and chat.
-          </Typography>
-
-          <FormControl fullWidth>
-            <Autocomplete
-              options={usersToShare}
-              getOptionLabel={(option) => `${option.name} (${option.email})`}
-              value={shareSelectedUser}
-              onChange={(e, newValue) => setShareSelectedUser(newValue)}
-              inputValue={userSearchInputValue}
-              onInputChange={(event, newInputValue) => setUserSearchInputValue(newInputValue)}
-              filterOptions={(x) => x} // Disable local filtering, let backend handle it
-              renderOption={(props, option) => (
-                <li {...props} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {option.avatar ? (
-                    <Box
-                      component="img"
-                      src={getAvatarUrl(option.avatar, option.name)}
-                      alt={option.name}
-                      sx={{ width: 28, height: 28, borderRadius: '50%' }}
-                    />
-                  ) : (
-                    <Box
-                      sx={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        bgcolor: theme.palette.primary.main,
-                        color: theme.palette.text.primary,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {option.name ? option.name[0].toUpperCase() : '?'}
-                    </Box>
-                  )}
-                  <Box>
-                    <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
-                      {option.name}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                      {option.email}
-                    </Typography>
-                  </Box>
-                </li>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Search user by name or email"
-                  variant="outlined"
-                  InputLabelProps={{ sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } } }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      color: theme.palette.text.primary,
-                      bgcolor: theme.palette.action.hover,
-                      borderRadius: 2,
-                      '& fieldset': { borderColor: theme.palette.divider },
-                      '&:hover fieldset': { borderColor: theme.palette.text.secondary },
-                      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
-                    },
-                    '& .MuiSvgIcon-root': { color: theme.palette.text.secondary } // dropdown icon color
-                  }}
-                />
-              )}
-              PaperComponent={({ children }) => (
-                <Box sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary }}>{children}</Box>
-              )}
-            />
-          </FormControl>
-
-          <FormControl fullWidth>
-            <Autocomplete
-              options={workspaces}
-              getOptionLabel={(option) => option.name}
-              value={shareSelectedWorkspace}
-              onChange={(e, newValue) => handleShareWorkspaceChange(newValue)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select Workspace"
-                  variant="outlined"
-                  InputLabelProps={{ sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } } }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      color: theme.palette.text.primary,
-                      bgcolor: theme.palette.action.hover,
-                      borderRadius: 2,
-                      '& fieldset': { borderColor: theme.palette.divider },
-                      '&:hover fieldset': { borderColor: theme.palette.text.secondary },
-                      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
-                    },
-                    '& .MuiSvgIcon-root': { color: theme.palette.text.secondary }
-                  }}
-                />
-              )}
-              PaperComponent={({ children }) => (
-                <Box sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary }}>{children}</Box>
-              )}
-            />
-          </FormControl>
-
-          <FormControl fullWidth>
-            <Autocomplete
-              options={tablesInWorkspace}
-              getOptionLabel={(option) => option.name}
-              value={shareSelectedTable}
-              onChange={(e, newValue) => {
-                setShareSelectedTable(newValue);
-                if (newValue) fetchInviteCode(newValue.id);
-                else setCurrentTableInviteCode(null);
-              }}
-              disabled={!shareSelectedWorkspace || tablesInWorkspace.length === 0}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select Table"
-                  variant="outlined"
-                  InputLabelProps={{ sx: { color: theme.palette.text.secondary, '&.Mui-focused': { color: theme.palette.primary.main } } }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      color: theme.palette.text.primary,
-                      bgcolor: theme.palette.action.hover,
-                      borderRadius: 2,
-                      '& fieldset': { borderColor: theme.palette.divider },
-                      '&:hover fieldset': { borderColor: theme.palette.text.secondary },
-                      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
-                      '&.Mui-disabled': { opacity: 0.6 }
-                    },
-                    '& .MuiSvgIcon-root': { color: theme.palette.text.secondary }
-                  }}
-                />
-              )}
-              PaperComponent={({ children }) => (
-                <Box sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary }}>{children}</Box>
-              )}
-            />
-          </FormControl>
-
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1, display: 'block', fontWeight: 600 }}>
-              PERMISSION
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                size="small"
-                fullWidth
-                onClick={() => setSharePermission('edit')}
-                sx={{
-                  bgcolor: sharePermission === 'edit' ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
-                  color: sharePermission === 'edit' ? theme.palette.primary.main : theme.palette.text.secondary,
-                  border: `1px solid ${sharePermission === 'edit' ? theme.palette.primary.main : theme.palette.divider}`,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                }}
-              >
-                Editable
-              </Button>
-              <Button
-                size="small"
-                fullWidth
-                onClick={() => setSharePermission('read')}
-                sx={{
-                  bgcolor: sharePermission === 'read' ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
-                  color: sharePermission === 'read' ? theme.palette.primary.main : theme.palette.text.secondary,
-                  border: `1px solid ${sharePermission === 'read' ? theme.palette.primary.main : theme.palette.divider}`,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                }}
-              >
-                Read-only
-              </Button>
-            </Box>
-          </Box>
-
-          {shareSelectedTable && (
-            <Box sx={{
-              mt: 1,
-              p: 2,
-              borderRadius: 2,
-              bgcolor: alpha(theme.palette.primary.main, 0.1),
-              border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 1
-            }}>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                INVITE CODE FOR THIS BOARD
-              </Typography>
-              {isGeneratingCode ? (
-                <Typography variant="h6" sx={{ color: theme.palette.text.primary, letterSpacing: 2 }}>Loading...</Typography>
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="h5" sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: 4 }}>
-                    {currentTableInviteCode || "------"}
-                  </Typography>
-                  <Tooltip title="Copy Code">
-                    <IconButton size="small" onClick={() => {
-                      if (currentTableInviteCode) {
-                        navigator.clipboard.writeText(currentTableInviteCode);
-                        alert("Code copied!");
-                      }
-                    }} sx={{ color: theme.palette.primary.main }}>
-                      <ContentCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              )}
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-                Share this code with teammates so they can join this table.
-              </Typography>
-            </Box>
-          )}
-
-
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
-          <Button
-            onClick={() => setShareDialogOpen(false)}
-            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleShareSubmit}
-            disabled={!shareSelectedUser || !shareSelectedTable}
-            variant="contained"
-            sx={{
-              bgcolor: theme.palette.primary.main,
-              '&:hover': { bgcolor: theme.palette.primary.dark },
-              '&.Mui-disabled': { bgcolor: theme.palette.action.disabledBackground, color: theme.palette.text.disabled },
-              boxShadow: 'none',
-              textTransform: 'none',
-              fontWeight: 600
-            }}
-          >
-            Share
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Share Dialog Removed - Centralized in Settings */}
 
       {/* Join Boards Dialog */}
       <Dialog

@@ -24,9 +24,14 @@ import {
   CircularProgress,
   Dialog,
   DialogActions,
-  DialogContent,
-  DialogTitle
+  DialogTitle,
+  Tooltip,
+  Stack,
+  Autocomplete,
+  Menu,
+  MenuItem
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
@@ -43,6 +48,8 @@ import CallIcon from "@mui/icons-material/Call";
 import GroupIcon from "@mui/icons-material/Group";
 import SearchIcon from "@mui/icons-material/Search";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -134,7 +141,14 @@ export default function SettingsPage() {
   const [selectedInviteWs, setSelectedInviteWs] = useState<string>("");
   const [inviteTables, setInviteTables] = useState<any[]>([]);
   const [selectedInviteTable, setSelectedInviteTable] = useState<string>("");
+  const [invitePermission, setInvitePermission] = useState<'edit' | 'read' | 'admin'>('edit');
+  const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
   const [isInviting, setIsInviting] = useState(false);
+  const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [permissionMenuAnchor, setPermissionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedTeammateForMenu, setSelectedTeammateForMenu] = useState<any | null>(null);
   const { showNotification } = useNotification();
 
   useEffect(() => {
@@ -203,10 +217,11 @@ export default function SettingsPage() {
       const res = await authenticatedFetch(getApiUrl('workspaces'));
       if (res.ok) {
         const data = await res.json();
-        setInviteWorkspaces(data);
-        if (data.length > 0) {
-            setSelectedInviteWs(data[0].id);
-            fetchTablesForInvite(data[0].id);
+        const ownedWorkspaces = data.filter((ws: any) => ws.owner_id === user?.id);
+        setInviteWorkspaces(ownedWorkspaces);
+        if (ownedWorkspaces.length > 0) {
+            setSelectedInviteWs(ownedWorkspaces[0].id);
+            fetchTablesForInvite(ownedWorkspaces[0].id);
         }
       }
     } catch (e) {
@@ -228,35 +243,110 @@ export default function SettingsPage() {
     }
   };
 
+  useEffect(() => {
+    if (selectedInviteTable) {
+        const fetchInviteCode = async () => {
+            try {
+                const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}`));
+                if (res.ok) {
+                    const data = await res.json();
+                    setCurrentTableInviteCode(data.invite_code || null);
+                }
+            } catch (e) {
+                console.error("Failed to fetch invite code", e);
+            }
+        };
+        fetchInviteCode();
+    } else {
+        setCurrentTableInviteCode(null);
+    }
+  }, [selectedInviteTable]);
+
+  const fetchPeopleSuggestions = async (query: string) => {
+    if (!query.trim()) {
+      setPeopleSuggestions([]);
+      return;
+    }
+    setLoadingSuggestions(true);
+    try {
+      const res = await authenticatedFetch(getApiUrl(`people?q=${encodeURIComponent(query)}`));
+      if (res.ok) {
+        const data = await res.json();
+        setPeopleSuggestions(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch suggestions", e);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleRemoveTeammate = async (teammateId: string) => {
+    if (!confirm("Are you sure you want to remove this teammate? They will lose access to all boards you own.")) return;
+    
+    try {
+        const res = await authenticatedFetch(getApiUrl(`teammates/${teammateId}`), {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            showNotification("Teammate removed successfully", "success");
+            // Refresh list
+            const teamRes = await authenticatedFetch(getApiUrl('teammates'));
+            if (teamRes.ok) setTeammates(await teamRes.json());
+        } else {
+            showNotification("Failed to remove teammate", "error");
+        }
+    } catch (e) {
+        console.error("Remove error", e);
+        showNotification("Error removing teammate", "error");
+    }
+  };
+
+  const handleUpdatePermission = async (teammateId: string, newPermission: string) => {
+    try {
+        const res = await authenticatedFetch(getApiUrl(`teammates/${teammateId}/permission`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permission: newPermission })
+        });
+        
+        if (res.ok) {
+            showNotification(`Updated permission to ${newPermission}`, "success");
+            // Refresh list
+            const teamRes = await authenticatedFetch(getApiUrl('teammates'));
+            if (teamRes.ok) setTeammates(await teamRes.json());
+        } else {
+            showNotification("Failed to update permission", "error");
+        }
+    } catch (e) {
+        console.error("Update permission error", e);
+        showNotification("Error updating permission", "error");
+    } finally {
+        setPermissionMenuAnchor(null);
+        setSelectedTeammateForMenu(null);
+    }
+  };
+
   const handleInviteTeammate = async () => {
-    if (!inviteEmail.trim() || !selectedInviteTable) {
-        showNotification("Please enter an email and select a board", "error");
+    if (!selectedUser || !selectedInviteTable) {
+        showNotification("Please select a teammate and a board", "error");
         return;
     }
     
     setIsInviting(true);
     try {
-        // First find user by email
-        const userRes = await authenticatedFetch(getApiUrl(`people?q=${encodeURIComponent(inviteEmail.trim())}`));
-        const users = await userRes.json();
-        const targetUser = users.find((u: any) => u.email.toLowerCase() === inviteEmail.trim().toLowerCase());
-        
-        if (!targetUser) {
-            showNotification("User not found. They must be registered first.", "error");
-            setIsInviting(false);
-            return;
-        }
-
         const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}/share`), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: targetUser.id, permission: 'edit' })
+            body: JSON.stringify({ userId: selectedUser.id, permission: invitePermission })
         });
         
         if (res.ok) {
-            showNotification(`Successfully invited ${targetUser.name} to the board!`, "success");
+            showNotification(`Successfully invited ${selectedUser.name} to the board!`, "success");
             setInviteDialogOpen(false);
             setInviteEmail("");
+            setSelectedUser(null);
             // Refresh teammates
             const teamRes = await authenticatedFetch(getApiUrl('teammates'));
             if (teamRes.ok) setTeammates(await teamRes.json());
@@ -644,53 +734,88 @@ export default function SettingsPage() {
                     {teammates.map((teammate) => (
                         <Paper 
                             key={teammate.id} 
+                            onClick={(e) => {
+                                if (teammate.status === 'joined') {
+                                    setPermissionMenuAnchor(e.currentTarget);
+                                    setSelectedTeammateForMenu(teammate);
+                                }
+                            }}
                             sx={{ 
                                 p: 2, 
-                                borderRadius: 3, 
-                                bgcolor: 'action.hover', 
-                                border: '1px solid', 
-                                borderColor: 'divider',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                borderRadius: 3,
+                                border: `1px solid ${theme.palette.divider}`,
                                 transition: 'all 0.2s',
-                                '&:hover': { bgcolor: 'background.paper', transform: 'translateY(-2px)' }
+                                cursor: teammate.status === 'joined' ? 'pointer' : 'default',
+                                '&:hover': teammate.status === 'joined' ? {
+                                    borderColor: theme.palette.primary.main,
+                                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
+                                    transform: 'translateY(-2px)'
+                                } : {}
                             }}
                         >
-                            <Avatar 
-                                src={getAvatarUrl(teammate.avatar, teammate.name)} 
-                                sx={{ width: 56, height: 56, border: `2px solid ${theme.palette.primary.main}` }}
-                            />
-                            <Box sx={{ flex: 1 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{teammate.name}</Typography>
-                                    {teammate.status === 'pending' && (
-                                        <Box sx={{ 
-                                            bgcolor: 'rgba(253, 171, 61, 0.1)', 
-                                            color: '#fdab3d', 
-                                            px: 1, 
-                                            py: 0.2, 
-                                            borderRadius: 1, 
-                                            fontSize: '0.7rem', 
-                                            fontWeight: 700,
-                                            textTransform: 'uppercase',
-                                            border: '1px solid rgba(253, 171, 61, 0.2)'
-                                        }}>
-                                            Pending
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Avatar 
+                                    src={getAvatarUrl(teammate.avatar)} 
+                                    sx={{ width: 48, height: 48, border: teammate.status === 'pending' ? `2px solid #fdab3d` : 'none' }} 
+                                />
+                                <Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                        <Typography variant="subtitle1" fontWeight={700}>{teammate.name}</Typography>
+                                        {teammate.status === 'pending' && (
+                                            <Box sx={{ 
+                                                bgcolor: 'rgba(253, 171, 61, 0.1)', 
+                                                color: '#fdab3d', 
+                                                px: 1, 
+                                                py: 0.2, 
+                                                borderRadius: 1, 
+                                                fontSize: '0.65rem', 
+                                                fontWeight: 700,
+                                                textTransform: 'uppercase',
+                                                border: '1px solid rgba(253, 171, 61, 0.2)'
+                                            }}>
+                                                Pending
+                                            </Box>
+                                        )}
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary">{teammate.email}</Typography>
+                                    {teammate.status === 'joined' && (
+                                        <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                                            <Typography 
+                                                variant="caption" 
+                                                sx={{ 
+                                                    bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                                                    color: theme.palette.primary.main,
+                                                    px: 1, 
+                                                    py: 0.2, 
+                                                    borderRadius: 1,
+                                                    fontWeight: 700,
+                                                    textTransform: 'uppercase'
+                                                }}
+                                            >
+                                                {teammate.permission || 'Editor'}
+                                            </Typography>
                                         </Box>
                                     )}
                                 </Box>
-                                <Typography variant="body2" color="text.secondary">{teammate.email}</Typography>
                             </Box>
-                            <Button 
-                                variant="outlined" 
-                                size="small" 
-                                startIcon={<WorkIcon />}
-                                onClick={() => router.push(lastWorkspaceId ? `/workspace?id=${lastWorkspaceId}` : '/home')}
-                                sx={{ borderRadius: 2, textTransform: 'none' }}
-                            >
-                                View Boards
-                            </Button>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Button 
+                                    variant="outlined" 
+                                    size="small" 
+                                    color="error"
+                                    startIcon={<DeleteIcon />}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveTeammate(teammate.id);
+                                    }}
+                                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                                >
+                                    Remove
+                                </Button>
+                            </Box>
                         </Paper>
                     ))}
                 </List>
@@ -735,17 +860,43 @@ export default function SettingsPage() {
         <Box sx={{ p: 3 }}>
             <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Invite Teammate</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Add a member to one of your existing boards to start collaborating.
+                Centralized teammate management: add members to any of your boards.
             </Typography>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <TextField
-                    label="Email Address"
-                    placeholder="teammate@example.com"
+                <Autocomplete
                     fullWidth
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    size="small"
+                    options={peopleSuggestions}
+                    getOptionLabel={(option: any) => `${option.name} (${option.email})`}
+                    loading={loadingSuggestions}
+                    onInputChange={(event, value) => fetchPeopleSuggestions(value)}
+                    onChange={(event, value) => setSelectedUser(value)}
+                    renderOption={(props, option) => (
+                        <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Avatar src={option.avatar} sx={{ width: 32, height: 32 }} />
+                            <Box>
+                                <Typography variant="body2" fontWeight={600}>{option.name}</Typography>
+                                <Typography variant="caption" color="text.secondary">{option.email}</Typography>
+                            </Box>
+                        </Box>
+                    )}
+                    renderInput={(params) => (
+                        <TextField
+                            {...params}
+                            label="Teammate Name or Email"
+                            placeholder="Type to search..."
+                            size="small"
+                            InputProps={{
+                                ...params.InputProps,
+                                endAdornment: (
+                                    <React.Fragment>
+                                        {loadingSuggestions ? <CircularProgress color="inherit" size={20} /> : null}
+                                        {params.InputProps.endAdornment}
+                                    </React.Fragment>
+                                ),
+                            }}
+                        />
+                    )}
                 />
 
                 <TextField
@@ -783,6 +934,100 @@ export default function SettingsPage() {
                         <option value="">No boards in this workspace</option>
                     )}
                 </TextField>
+
+                {/* Permission Selection */}
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                    Permission Level
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      size="small"
+                      fullWidth
+                      onClick={() => setInvitePermission('edit')}
+                      sx={{
+                        bgcolor: invitePermission === 'edit' ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        color: invitePermission === 'edit' ? theme.palette.primary.main : theme.palette.text.secondary,
+                        border: `1px solid ${invitePermission === 'edit' ? theme.palette.primary.main : theme.palette.divider}`,
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                      }}
+                    >
+                      Editable
+                    </Button>
+                    <Button
+                      size="small"
+                      fullWidth
+                      onClick={() => setInvitePermission('read')}
+                      sx={{
+                        bgcolor: invitePermission === 'read' ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        color: invitePermission === 'read' ? theme.palette.primary.main : theme.palette.text.secondary,
+                        border: `1px solid ${invitePermission === 'read' ? theme.palette.primary.main : theme.palette.divider}`,
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                      }}
+                    >
+                      Read-only
+                    </Button>
+                    <Button
+                      size="small"
+                      fullWidth
+                      onClick={() => setInvitePermission('admin')}
+                      sx={{
+                        bgcolor: invitePermission === 'admin' ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        color: invitePermission === 'admin' ? theme.palette.primary.main : theme.palette.text.secondary,
+                        border: `1px solid ${invitePermission === 'admin' ? theme.palette.primary.main : theme.palette.divider}`,
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                      }}
+                    >
+                      Admin
+                    </Button>
+                  </Box>
+                </Box>
+
+                {/* Invite Code Display */}
+                {selectedInviteTable && (
+                  <Box sx={{
+                    mt: 1,
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                    border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                      INVITE CODE FOR THIS BOARD
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Typography variant="h5" sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: 4 }}>
+                        {currentTableInviteCode || "------"}
+                      </Typography>
+                      <Tooltip title="Copy Code">
+                        <IconButton size="small" onClick={() => {
+                          if (currentTableInviteCode) {
+                            navigator.clipboard.writeText(currentTableInviteCode);
+                            showNotification("Code copied!", "success");
+                          }
+                        }} sx={{ color: theme.palette.primary.main }}>
+                          <ContentCopyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
+                      Share this code with teammates so they can join this board.
+                    </Typography>
+                  </Box>
+                )}
             </Box>
 
             <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
@@ -790,7 +1035,7 @@ export default function SettingsPage() {
                     variant="outlined" 
                     fullWidth 
                     onClick={() => setInviteDialogOpen(false)}
-                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                    sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600 }}
                 >
                     Cancel
                 </Button>
@@ -798,14 +1043,45 @@ export default function SettingsPage() {
                     variant="contained" 
                     fullWidth 
                     onClick={handleInviteTeammate}
-                    disabled={isInviting || !inviteEmail || !selectedInviteTable}
-                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                    disabled={isInviting || !selectedUser || !selectedInviteTable}
+                    sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}
                 >
                     {isInviting ? <CircularProgress size={24} color="inherit" /> : "Send Invite"}
                 </Button>
             </Box>
         </Box>
       </Dialog>
+
+      <Menu
+        anchorEl={permissionMenuAnchor}
+        open={Boolean(permissionMenuAnchor)}
+        onClose={() => setPermissionMenuAnchor(null)}
+        PaperProps={{
+            sx: { borderRadius: 2, minWidth: 150, mt: 1 }
+        }}
+      >
+        <Typography variant="overline" sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Change Access
+        </Typography>
+        <MenuItem 
+            onClick={() => selectedTeammateForMenu && handleUpdatePermission(selectedTeammateForMenu.id, 'read')}
+            selected={selectedTeammateForMenu?.permission === 'read'}
+        >
+            Read Only
+        </MenuItem>
+        <MenuItem 
+            onClick={() => selectedTeammateForMenu && handleUpdatePermission(selectedTeammateForMenu.id, 'edit')}
+            selected={selectedTeammateForMenu?.permission === 'edit' || !selectedTeammateForMenu?.permission}
+        >
+            Editor
+        </MenuItem>
+        <MenuItem 
+            onClick={() => selectedTeammateForMenu && handleUpdatePermission(selectedTeammateForMenu.id, 'admin')}
+            selected={selectedTeammateForMenu?.permission === 'admin'}
+        >
+            Admin Access
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }

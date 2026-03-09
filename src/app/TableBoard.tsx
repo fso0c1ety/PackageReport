@@ -907,9 +907,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
   const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner'>('read');
   const [boardTitle, setBoardTitle] = useState("");
-  const [sharedUsersList, setSharedUsersList] = useState<any[]>([]);
-  const [inviteCode, setInviteCode] = useState<string | null>(null); // State for invite code
-  const [manageAccessOpen, setManageAccessOpen] = useState(false);
 
 
 
@@ -941,10 +938,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }, 2000);
     }
   };
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [newSharedUserEmail, setNewSharedUserEmail] = useState("");
-  const [userSearchOptions, setUserSearchOptions] = useState<any[]>([]);
-  const [selectedUserToInvite, setSelectedUserToInvite] = useState<any | null>(null);
   const { showNotification } = useNotification();
 
   const handleCloseNotification = (_?: React.SyntheticEvent | Event, reason?: string) => {
@@ -1948,151 +1941,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     });
   };
 
-  const openManageAccess = async () => {
-    // Determine title if not already set
-    if (!boardTitle) {
-      try {
-        const tableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
-        if (tableRes.ok) {
-          const data = await tableRes.json();
-          setBoardTitle(data.name);
-        }
-      } catch (e) { console.error("Could not fetch table name", e); }
-    }
-
-    setManageAccessOpen(true);
-
-    // If owner, fetch management data
-    if (userPermission === 'owner') {
-      setLoadingUsers(true);
-      try {
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
-        if (res.ok) {
-          setSharedUsersList(await res.json());
-        }
-
-        const peopleRes = await authenticatedFetch(getApiUrl(`/people`));
-        if (peopleRes.ok) {
-          setUserSearchOptions(await peopleRes.json());
-        }
-
-        const currentTableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
-        if (currentTableRes.ok) {
-          const tData = await currentTableRes.json();
-          setInviteCode(tData.invite_code || null);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingUsers(false);
-      }
-    }
-  };
-
-  const handleLeaveTable = async () => {
-    try {
-      if (!currentUser?.id) return;
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share/${currentUser.id}`), {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        showNotification("You have left the table", "success");
-        // Redirect to dashboard or refresh logic
-        window.location.href = '/dashboard';
-      } else {
-        showNotification("Failed to leave table", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showNotification("Failed to leave table", "error");
-    }
-  };
-
-  const handleCreateInviteCode = async () => {
-    try {
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setInviteCode(data.invite_code);
-        showNotification("Invite link created", "success");
-      }
-    } catch (error) {
-      console.error("Failed to create invite code", error);
-      showNotification("Failed to create invite link", "error");
-    }
-  };
-
-  const handleDeleteInviteCode = async () => {
-    try {
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'DELETE' });
-      if (res.ok) {
-        setInviteCode(null);
-        showNotification("Invite link disabled", "success");
-      }
-    } catch (error) {
-      console.error("Failed to delete invite code", error);
-      showNotification("Failed to disable invite link", "error");
-    }
-  };
-
-  const handleChangePermission = async (userId: string, currentPermission: 'read' | 'edit') => {
-    const newPermission = currentPermission === 'read' ? 'edit' : 'read';
-    // Reuse POST endpoint for update
-    try {
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, permission: newPermission })
-      });
-      if (res.ok) {
-        // Update local state
-        setSharedUsersList(prev => prev.map(u => u.id === userId ? { ...u, permission: newPermission } : u));
-        showNotification(`Permission updated to ${newPermission}`, "success");
-      }
-    } catch (err) {
-      console.error(err);
-      showNotification("Failed to update permission", "error");
-    }
-  };
-
-  const handleRemoveSharedUser = async (userId: string) => {
-    try {
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share/${userId}`), {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        setSharedUsersList(prev => prev.filter(u => u.id !== userId));
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleAddSharedUser = async () => {
-    if (!selectedUserToInvite) return;
-    try {
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedUserToInvite.id, permission: 'edit' })
-      });
-      if (res.ok) {
-        setSelectedUserToInvite(null);
-        showNotification("User added successfully", "success");
-        // Refresh list
-        const updated = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
-        if (updated.ok) {
-          setSharedUsersList(await updated.json());
-        }
-      } else {
-        const err = await res.json();
-        showNotification(err.error || "Failed to invite user", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showNotification("Failed to invite user", "error");
-    }
-  };
+  // --- Settings and Access management centralized in SettingsPage ---
 
   const handleAddStatusLabel = (colId: string) => {
     if (userPermission === 'read') return;
@@ -3612,249 +3461,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         </DialogActions>
       </Dialog>
 
-      {/* Manage Access Dialog */}
-      <Dialog
-        open={manageAccessOpen}
-        onClose={() => setManageAccessOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: theme.palette.background.paper,
-            color: theme.palette.text.primary,
-            borderRadius: 3,
-            border: `1px solid ${theme.palette.divider}`,
-            backgroundImage: 'none'
-          }
-        }}
-        BackdropProps={{
-          sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.5)',
-            backdropFilter: 'blur(4px)'
-          }
-        }}
-      >
-        <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1 }}>Manage Board Access</DialogTitle>
-        <DialogContent sx={{ pb: 3 }}>
-          <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 2 }}>
-            Control who has access to this board.
-          </Typography>
-
-          {userPermission === 'owner' ? (
-            !inviteCode ? (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  p: 4,
-                  border: `1px dashed ${theme.palette.divider}`,
-                  borderRadius: 2,
-                  bgcolor: theme.palette.action.hover
-                }}
-              >
-                <IconButton
-                  onClick={handleCreateInviteCode}
-                  sx={{
-                    width: 64,
-                    height: 64,
-                    bgcolor: theme.palette.primary.main,
-                    color: theme.palette.text.primary,
-                    mb: 2,
-                    '&:hover': { bgcolor: '#5558dd' }
-                  }}
-                >
-                  <AddIcon sx={{ fontSize: 32 }} />
-                </IconButton>
-                <Typography variant="h6" sx={{ color: theme.palette.text.primary, mb: 0.5 }}>Start Sharing</Typography>
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-                  Create an invite link to share this board with others.
-                </Typography>
-              </Box>
-            ) : (
-              <Box sx={{ border: '1px solid #6366f1', borderRadius: 2, p: 2, bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
-                {/* Header: Table Name & Stop Sharing */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
-                      Sharing
-                    </Typography>
-                    <Typography variant="h6" sx={{ color: theme.palette.text.primary, fontWeight: 600 }}>
-                      {boardTitle}
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    size="small"
-                    onClick={handleDeleteInviteCode}
-                    sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main, '&:hover': { borderColor: '#c23046', bgcolor: theme.palette.error.light } }}
-                  >
-                    Stop Sharing
-                  </Button>
-                </Box>
-
-                {/* Connection Code Display */}
-                <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: theme.palette.background.default, p: 1.5, borderRadius: 1.5, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
-                  <Box sx={{ flex: 1, mr: 2 }}>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>INVITE CODE</Typography>
-                    <Typography variant="body1" sx={{ color: theme.palette.text.primary, fontFamily: 'monospace', letterSpacing: 2, fontWeight: 700 }}>
-                      {inviteCode}
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteCode);
-                      showNotification("Code copied!", "success");
-                    }}
-                    sx={{ color: theme.palette.primary.main }}
-                  >
-                    <ContentCopyIcon />
-                  </IconButton>
-                </Box>
-
-                {/* Users List */}
-                <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, mb: 1, fontWeight: 600 }}>Connected Users</Typography>
-                <List sx={{ bgcolor: theme.palette.background.default, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, mb: 3, maxHeight: 200, overflow: 'auto' }}>
-                  {sharedUsersList.length === 0 ? (
-                    <ListItem>
-                      <ListItemText primary="No users connected yet." primaryTypographyProps={{ sx: { color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: '0.875rem' } }} />
-                    </ListItem>
-                  ) : (
-                    sharedUsersList.map((user) => (
-                      <ListItem
-                        key={user.id}
-                        secondaryAction={
-                          <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveSharedUser(user.id)} sx={{ color: theme.palette.error.main }}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        }
-                      >
-                        <ListItemAvatar>
-                          <Avatar 
-                            src={getAvatarUrl(user.avatar, user.name)}
-                            sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}
-                          >
-                            {user.name?.charAt(0).toUpperCase()}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={user.name}
-                          secondary={user.email}
-                          primaryTypographyProps={{ sx: { color: theme.palette.text.primary, fontSize: '0.875rem' } }}
-                          secondaryTypographyProps={{ sx: { color: theme.palette.text.secondary, fontSize: '0.75rem' } }}
-                        />
-                        <Button
-                          size="small"
-                          onClick={() => handleChangePermission(user.id, user.permission || 'read')}
-                          sx={{
-                            mr: 1,
-                            minWidth: 60,
-                            color: user.permission === 'edit' ? '#4caf50' : '#ff9800',
-                            borderColor: user.permission === 'edit' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 152, 0, 0.5)',
-                            border: '1px solid',
-                            fontSize: '0.7rem',
-                            py: 0.25
-                          }}
-                        >
-                          {user.permission === 'edit' ? 'Editor' : 'Viewer'}
-                        </Button>
-                      </ListItem>
-                    ))
-                  )}
-                </List>
-
-                {/* Add User Section */}
-                <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, mb: 1, fontWeight: 600 }}>Add User</Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Autocomplete
-                    fullWidth
-                    size="small"
-                    options={userSearchOptions.filter((u: any) => !sharedUsersList.some(su => su.email === u.email))}
-                    getOptionLabel={(option: any) => option.name || option.email}
-                    value={selectedUserToInvite}
-                    onChange={(event: any, newValue: any | null) => {
-                      setSelectedUserToInvite(newValue);
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        placeholder="Search user..."
-                        InputProps={{
-                          ...params.InputProps,
-                          sx: {
-                            color: theme.palette.text.primary,
-                            bgcolor: theme.palette.background.default,
-                            borderRadius: 1,
-                            fontSize: '0.875rem',
-                            '& fieldset': { borderColor: theme.palette.divider }
-                          }
-                        }}
-                      />
-                    )}
-                    renderOption={(props, option) => {
-                      const { key, ...otherProps } = props;
-                      return (
-                        <li key={key} {...otherProps}>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Avatar 
-                              src={getAvatarUrl(option.avatar, option.name)}
-                              sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}
-                            >
-                              {option.name?.charAt(0).toUpperCase()}
-                            </Avatar>
-                            <Typography variant="body2">{option.name || option.email}</Typography>
-                          </Box>
-                        </li>
-                      );
-                    }}
-                  />
-                  <Button
-                    variant="contained"
-                    onClick={handleAddSharedUser}
-                    disabled={!selectedUserToInvite}
-                    sx={{ bgcolor: theme.palette.primary.main, '&:hover': { bgcolor: '#5558dd' } }}
-                  >
-                    Add
-                  </Button>
-                </Box>
-              </Box>
-            )
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="h6" sx={{ color: theme.palette.text.primary, mb: 1 }}>Shared Board</Typography>
-              <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 4 }}>
-                You are a <strong>{userPermission === 'edit' ? 'Editor' : 'Viewer'}</strong> on this board.
-              </Typography>
-              <Box sx={{ mx: 'auto', p: 3, border: '1px solid rgba(226, 68, 92, 0.3)', borderRadius: 2, bgcolor: 'rgba(226, 68, 92, 0.05)', maxWidth: 400 }}>
-                <Typography variant="subtitle2" sx={{ color: theme.palette.error.main, mb: 1, fontWeight: 600 }}>Leave Board</Typography>
-                <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 2, fontSize: '0.875rem' }}>
-                  Revoke your own access to this board. You will need a new invite to join again.
-                </Typography>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={handleLeaveTable}
-                  startIcon={<LogoutIcon />}
-                  sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main, '&:hover': { borderColor: '#c23046', bgcolor: theme.palette.error.light } }}
-                >
-                  Leave Board
-                </Button>
-              </Box>
-            </Box>
-          )}
-
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button
-            onClick={() => setManageAccessOpen(false)}
-            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Access management centralized in Settings page */}
 
       {/* Board Chat Drawer */}
       <Drawer
@@ -4540,30 +4147,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Button>
         </Tooltip>
 
-        <Button
-          variant="outlined"
-          startIcon={<GroupIcon sx={{ fontSize: 18 }} />}
-          onClick={openManageAccess}
-          sx={{
-            background: 'transparent',
-            backgroundColor: 'transparent',
-            color: theme.palette.text.secondary,
-            borderColor: theme.palette.divider,
-            fontWeight: 500,
-            textTransform: 'none',
-            borderRadius: '8px',
-            px: 2,
-            height: 40,
-            zIndex: 2,
-            '&:hover': {
-              borderColor: theme.palette.primary.main,
-              color: theme.palette.text.primary,
-              bgcolor: 'rgba(79, 81, 192, 0.1)'
-            }
-          }}
-        >
-          Manage Access
-        </Button>
+        {userPermission === 'owner' && (
+          <Tooltip title="Settings">
+            <IconButton
+              onClick={() => window.location.href = '/settings?tab=team'}
+              sx={{
+                color: theme.palette.text.secondary,
+                '&:hover': { color: theme.palette.primary.main, bgcolor: 'rgba(79, 81, 192, 0.1)' }
+              }}
+            >
+              <GroupIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        )}
         <Box sx={{ width: 12, display: { xs: 'none', sm: 'block' } }} />
 
         {/* Filters Container */}
@@ -6215,7 +5811,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {/* Mobile Navigation Toggle (Pill Style) */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, bgcolor: theme.palette.action.hover, borderRadius: 99, p: 0.5, gap: 0.5 }}>
-              {(['details', 'chat', 'team', 'files', 'activity'] as const).map((tab) => (
+              {(['details', 'chat', 'team', 'files', 'activity'] as const).filter(t => t !== 'team' || userPermission === 'owner').map((tab) => (
                 <Button
                   key={tab}
                   onClick={() => setMobileTab(tab)}
@@ -6682,7 +6278,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             }}>
             {/* Desktop Right Panel Tabs */}
             <Box sx={{ p: 0.5, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.paper, display: { xs: 'none', md: 'flex' }, gap: 0.5 }}>
-              {(['chat', 'team', 'files', 'activity'] as const).map((tab) => (
+              {(['chat', 'team', 'files', 'activity'] as const).filter(t => t !== 'team' || userPermission === 'owner').map((tab) => (
                 <Button
                   key={tab}
                   onClick={() => setRightPanelTab(tab)}
@@ -7015,21 +6611,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         Manage who has access to this board
                       </Typography>
                     </Box>
-                    <Button
-                      variant="contained"
-                      startIcon={<GroupIcon />}
-                      onClick={() => setManageAccessOpen(true)}
-                      sx={{
-                        bgcolor: theme.palette.primary.main,
-                        '&:hover': { bgcolor: theme.palette.primary.dark },
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        px: 3
-                      }}
-                    >
-                      Invite Teammate
-                    </Button>
+                    {userPermission === 'owner' && (
+                      <Button
+                        variant="contained"
+                        startIcon={<GroupIcon />}
+                        onClick={() => window.location.href = '/settings?tab=team'}
+                        sx={{
+                          bgcolor: theme.palette.primary.main,
+                          '&:hover': { bgcolor: theme.palette.primary.dark },
+                          borderRadius: 2,
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          px: 3
+                        }}
+                      >
+                        Invite Teammate
+                      </Button>
+                    )}
                   </Box>
 
                   <List sx={{ p: 0 }}>

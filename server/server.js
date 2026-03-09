@@ -760,7 +760,7 @@ app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' });
   }
-  const perm = permission === 'read' ? 'read' : 'edit';
+  const perm = (permission === 'admin') ? 'admin' : (permission === 'read' ? 'read' : 'edit');
 
   try {
     const result = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
@@ -992,46 +992,43 @@ app.post('/api/tables/join', authenticateToken, async (req, res) => {
   }
 });
 
-// GET all collaborators (teammates) for the current user
+// GET all collaborators (teammates) assigned to the current user's owned tables
 app.get('/api/teammates', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const query = `
-      WITH user_tables AS (
-          SELECT t.id, w.owner_id
+      WITH owned_tables AS (
+          SELECT t.id
           FROM tables t
           JOIN workspaces w ON t.workspace_id = w.id
           WHERE w.owner_id = $1
-          UNION
-          SELECT t.id, w.owner_id
-          FROM tables t
-          JOIN workspaces w ON t.workspace_id = w.id
-          WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $1)
       ),
       all_collaborators AS (
-          -- Joined collaborators
-          SELECT (elem->>'userId') as user_id, 'joined' as status
-          FROM user_tables ut
-          JOIN tables t ON ut.id = t.id
+          -- Collaborators on my tables
+          SELECT (elem->>'userId') as user_id, 'joined' as status, (elem->>'permission') as permission
+          FROM owned_tables ot
+          JOIN tables t ON ot.id = t.id
           CROSS JOIN LATERAL jsonb_array_elements(t.shared_users) AS elem
-          WHERE elem->>'userId' != $1
           UNION ALL
-          -- Owners of workspaces where user is a guest
-          SELECT owner_id as user_id, 'joined' as status
-          FROM user_tables
-          WHERE owner_id != $1
-          UNION ALL
-          -- Pending invites sent by user
-          SELECT n.recipient_id::text as user_id, 'pending' as status
+          -- Pending invites sent by me
+          SELECT n.recipient_id::text as user_id, 'pending' as status, 'edit' as permission
           FROM notifications n
           WHERE n.sender_id = $1 AND n.type = 'invite'
       ),
       unique_collaborators AS (
-          SELECT user_id, MIN(status) as status
+          SELECT 
+            user_id, 
+            MIN(status) as status,
+            CASE 
+                WHEN 'admin' = ANY(ARRAY_AGG(permission)) THEN 'admin'
+                WHEN 'edit' = ANY(ARRAY_AGG(permission)) THEN 'edit'
+                ELSE 'read'
+            END as permission
           FROM all_collaborators
+          WHERE user_id != $1::text
           GROUP BY user_id
       )
-      SELECT u.id, u.name, u.email, u.avatar, uc.status
+      SELECT u.id, u.name, u.email, u.avatar, uc.status, uc.permission
       FROM users u
       JOIN unique_collaborators uc ON u.id::text = uc.user_id
     `;
@@ -1047,6 +1044,82 @@ app.get('/api/teammates', authenticateToken, async (req, res) => {
     console.error('Error fetching teammates:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Remove a teammate from all tables owned by the current user
+app.delete('/api/teammates/:teammateId', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const teammateId = req.params.teammateId;
+  
+    try {
+      // 1. Find all tables owned by the current user
+      const ownedTablesRes = await db.query(`
+        SELECT t.id, t.shared_users
+        FROM tables t
+        JOIN workspaces w ON t.workspace_id = w.id
+        WHERE w.owner_id = $1
+      `, [userId]);
+  
+      for (const table of ownedTablesRes.rows) {
+        if (table.shared_users && Array.isArray(table.shared_users)) {
+          const newSharedUsers = table.shared_users.filter(u => u.userId !== teammateId);
+          if (newSharedUsers.length !== table.shared_users.length) {
+            await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
+          }
+        }
+      }
+  
+      // 2. Remove pending invites
+      await db.query('DELETE FROM notifications WHERE sender_id = $1 AND recipient_id = $2 AND type = \'invite\'', [userId, teammateId]);
+  
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error removing teammate:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+// Update teammate permission across all owned tables
+app.put('/api/teammates/:teammateId/permission', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const teammateId = req.params.teammateId;
+    const { permission } = req.body;
+    
+    if (!['read', 'edit', 'admin'].includes(permission)) {
+        return res.status(400).json({ error: 'Invalid permission' });
+    }
+  
+    try {
+      // 1. Find all tables owned by the current user
+      const ownedTablesRes = await db.query(`
+        SELECT t.id, t.shared_users
+        FROM tables t
+        JOIN workspaces w ON t.workspace_id = w.id
+        WHERE w.owner_id = $1
+      `, [userId]);
+  
+      for (const table of ownedTablesRes.rows) {
+        if (table.shared_users && Array.isArray(table.shared_users)) {
+          let modified = false;
+          const newSharedUsers = table.shared_users.map(u => {
+            if (u.userId === teammateId) {
+                modified = true;
+                return { ...u, permission };
+            }
+            return u;
+          });
+          
+          if (modified) {
+            await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
+          }
+        }
+      }
+  
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error updating teammate permission:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 
