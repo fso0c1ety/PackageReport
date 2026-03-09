@@ -992,6 +992,63 @@ app.post('/api/tables/join', authenticateToken, async (req, res) => {
   }
 });
 
+// GET all collaborators (teammates) for the current user
+app.get('/api/teammates', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const query = `
+      WITH user_tables AS (
+          SELECT t.id, w.owner_id
+          FROM tables t
+          JOIN workspaces w ON t.workspace_id = w.id
+          WHERE w.owner_id = $1
+          UNION
+          SELECT t.id, w.owner_id
+          FROM tables t
+          JOIN workspaces w ON t.workspace_id = w.id
+          WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $1)
+      ),
+      all_collaborators AS (
+          -- Joined collaborators
+          SELECT (elem->>'userId') as user_id, 'joined' as status
+          FROM user_tables ut
+          JOIN tables t ON ut.id = t.id
+          CROSS JOIN LATERAL jsonb_array_elements(t.shared_users) AS elem
+          WHERE elem->>'userId' != $1
+          UNION ALL
+          -- Owners of workspaces where user is a guest
+          SELECT owner_id as user_id, 'joined' as status
+          FROM user_tables
+          WHERE owner_id != $1
+          UNION ALL
+          -- Pending invites sent by user
+          SELECT n.recipient_id::text as user_id, 'pending' as status
+          FROM notifications n
+          WHERE n.sender_id = $1 AND n.type = 'invite'
+      ),
+      unique_collaborators AS (
+          SELECT user_id, MIN(status) as status
+          FROM all_collaborators
+          GROUP BY user_id
+      )
+      SELECT u.id, u.name, u.email, u.avatar, uc.status
+      FROM users u
+      JOIN unique_collaborators uc ON u.id::text = uc.user_id
+    `;
+    const result = await db.query(query, [userId]);
+    
+    const teammates = result.rows.map(user => ({
+      ...user,
+      avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`
+    }));
+
+    res.json(teammates);
+  } catch (err) {
+    console.error('Error fetching teammates:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 
@@ -1695,6 +1752,7 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
     // Fetch sender avatar for the socket event
     const userRes = await db.query('SELECT avatar FROM users WHERE id = $1', [newMessage.sender_id]);
     newMessage.sender_avatar = userRes.rows[0]?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(newMessage.sender)}&background=random&color=fff&bold=true`;
+    newMessage.senderAvatar = newMessage.sender_avatar;
 
     io.to(newMessage.table_id).emit('new_board_message', newMessage);
 

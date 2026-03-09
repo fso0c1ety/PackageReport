@@ -483,6 +483,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [isSending, setIsSending] = useState(false);
   const chatFileRef = React.useRef<HTMLInputElement>(null);
   // -----------------------------------
+  
+  /**
+   * Helper to format chat messages consistently across Board Chat and Discussion Chat.
+   * Maps backend snake_case fields (like sender_avatar) to frontend camelCase (senderAvatar).
+   */
+  const formatChatMessage = (msg: any) => {
+    if (!msg) return msg;
+    let formattedTime = msg.time || '';
+    if (!formattedTime && msg.timestamp) {
+      // Handle both numeric timestamp (e.g. from backend) and ISO string (e.g. from handleSendChat)
+      const ts = isNaN(Number(msg.timestamp)) ? msg.timestamp : Number(msg.timestamp);
+      formattedTime = dayjs(ts).format('MMM D, HH:mm');
+    }
+    return {
+      ...msg,
+      time: formattedTime,
+      // Map sender_avatar (PostgreSQL snake_case) to senderAvatar (camelCase)
+      senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
+    };
+  };
 
 
   // Scroll to bottom of Board Chat when messages update or chat opens
@@ -515,11 +535,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           if (Array.isArray(data)) {
             // Transform timestamp to readable time
             // Also map sender_avatar (PostgreSQL snake_case) to senderAvatar (camelCase expected by frontend)
-            const formattedData = data.map((msg: any) => ({
-              ...msg,
-              time: msg.timestamp ? dayjs(Number(msg.timestamp)).format('MMM D, HH:mm') : '',
-              senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
-            }));
+            const formattedData = data.map(formatChatMessage);
 
             // If first load, sync the ref immediately to prevent notification
             if (isFirstLoadRef.current) {
@@ -644,14 +660,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
 
     const tempId = uuidv4();
-    const msg = {
+    const msg = formatChatMessage({
       id: tempId,
       text: newBoardChatMessage, // Send whatever text is in the input (could be empty if just file)
       sender: currentUser?.name || 'User',
       senderAvatar: currentUser?.avatar,
       time: dayjs().format('MMM D, HH:mm'),
       attachment
-    };
+    });
 
     // Optimistic update
     setBoardChatMessages(prev => [...prev, msg]);
@@ -716,7 +732,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data && (data.task || data.id)) {
-            setReviewTask(data.task || data);
+            const task = data.task || data;
+            // Map messages if present
+            if (task.values && task.values.message) {
+              task.values.message = task.values.message.map(formatChatMessage);
+            }
+            setReviewTask(task);
 
             if (targetTab === 'chat' || targetTab === 'files' || targetTab === 'activity') {
               if (isMobile) setMobileTab(targetTab as any);
@@ -728,8 +749,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   }, [tableId, taskId, initialTab, searchParams, isMobile]);
 
-  const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'files' | 'activity'>('details');
-  const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'files' | 'activity'>('chat');
+  const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'team' | 'files' | 'activity'>('details');
+  const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'team' | 'files' | 'activity'>('chat');
 
   // Scroll to bottom of Task Chat (Discussion) when open
   useEffect(() => {
@@ -770,7 +791,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${reviewTask.id}`));
         const updatedRow = await res.json();
         if (updatedRow && updatedRow.values) {
-          const newMessages = updatedRow.values.message || [];
+          const rawMessages = updatedRow.values.message || [];
+          const newMessages = rawMessages.map(formatChatMessage);
           setReviewTask(prev => {
             if (prev && prev.id === reviewTask.id && JSON.stringify(prev.values.message) !== JSON.stringify(newMessages)) {
               return { ...prev, values: { ...prev.values, message: newMessages } };
@@ -797,7 +819,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${chatTaskId}`));
         const updatedRow = await res.json();
         if (updatedRow && updatedRow.values) {
-          const newMessages = updatedRow.values.message || [];
+          const rawMessages = updatedRow.values.message || [];
+          const newMessages = rawMessages.map(formatChatMessage);
           setChatMessages(prev => {
             if (JSON.stringify(prev) !== JSON.stringify(newMessages)) {
               return newMessages;
@@ -1148,6 +1171,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setCurrentUser(user);
     const currentUserId = user ? user.id : null;
 
+    // Sync profile to get latest avatar
+    authenticatedFetch(getApiUrl("/users/profile"))
+      .then(res => res.ok ? res.json() : null)
+      .then(freshUser => {
+        if (freshUser) {
+          setCurrentUser(freshUser);
+          localStorage.setItem("user", JSON.stringify(freshUser));
+        }
+      })
+      .catch(err => console.error("Failed to sync profile:", err));
+
     // Fetch single table info with owner info
     authenticatedFetch(getApiUrl(`/tables/${tableId}`))
       .then((res) => {
@@ -1181,7 +1215,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          setRows(data);
+          // Map messages in all rows
+          const mappedRows = data.map((row: Row) => {
+            if (row.values && row.values.message) {
+              return {
+                ...row,
+                values: {
+                  ...row.values,
+                  message: row.values.message.map(formatChatMessage)
+                }
+              };
+            }
+            return row;
+          });
+          setRows(mappedRows);
         } else {
           setRows([
             {
@@ -1408,8 +1455,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (rowIdx === -1) return;
     let newValue = valueOverride !== undefined ? valueOverride : editValue;
     const col = columns.find(c => c.id === colId);
+
+    // Map messages if we are updating the chat column
+    if (colId === 'message' || (col && col.type === 'Message')) {
+      newValue = Array.isArray(newValue) ? newValue.map(formatChatMessage) : newValue;
+    }
+
     if (col && col.type === "People") {
-      newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ name: p.name, email: p.email })) : [];
+      newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ 
+        name: p.name, 
+        email: p.email,
+        avatar: p.avatar // Ensure avatar is preserved
+      })) : [];
     }
     if (colType === "Date") {
       if (dayjs.isDayjs(newValue)) {
@@ -2172,7 +2229,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         }
       }
 
-      const newMsg = {
+      const newMsg = formatChatMessage({
         id: uuidv4(),
         sender: currentUser?.name || "User",
         senderAvatar: currentUser?.avatar,
@@ -2181,7 +2238,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         attachment: attachment,
         scheduledFor: chatScheduledTime ? new Date(chatScheduledTime).toISOString() : undefined,
         notificationSent: chatScheduledTime ? false : undefined
-      };
+      });
 
       // Construct updated values
       let updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
@@ -6158,7 +6215,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {/* Mobile Navigation Toggle (Pill Style) */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, bgcolor: theme.palette.action.hover, borderRadius: 99, p: 0.5, gap: 0.5 }}>
-              {(['details', 'chat', 'files', 'activity'] as const).map((tab) => (
+              {(['details', 'chat', 'team', 'files', 'activity'] as const).map((tab) => (
                 <Button
                   key={tab}
                   onClick={() => setMobileTab(tab)}
@@ -6625,14 +6682,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             }}>
             {/* Desktop Right Panel Tabs */}
             <Box sx={{ p: 0.5, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.paper, display: { xs: 'none', md: 'flex' }, gap: 0.5 }}>
-              {['chat', 'files', 'activity'].map((tab) => (
+              {(['chat', 'team', 'files', 'activity'] as const).map((tab) => (
                 <Button
                   key={tab}
-                  onClick={() => setRightPanelTab(tab as any)}
+                  onClick={() => setRightPanelTab(tab)}
                   startIcon={
                     tab === 'chat' ? <ChatBubbleOutlineIcon fontSize="small" /> :
-                      tab === 'files' ? <AttachFileIcon fontSize="small" /> :
-                        <HistoryIcon fontSize="small" />
+                      tab === 'team' ? <GroupIcon fontSize="small" /> :
+                        tab === 'files' ? <AttachFileIcon fontSize="small" /> :
+                          <HistoryIcon fontSize="small" />
                   }
                   sx={{
                     flex: 1,
@@ -6944,6 +7002,99 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       </Box>
                     )
                   })()}
+                </Box>
+              )}
+
+              {/* --- TEAM VIEW --- */}
+              {((isMobile && mobileTab === 'team') || (!isMobile && rightPanelTab === 'team')) && (
+                <Box sx={{ p: 4, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Team Members</Typography>
+                      <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                        Manage who has access to this board
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="contained"
+                      startIcon={<GroupIcon />}
+                      onClick={() => setManageAccessOpen(true)}
+                      sx={{
+                        bgcolor: theme.palette.primary.main,
+                        '&:hover': { bgcolor: theme.palette.primary.dark },
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        px: 3
+                      }}
+                    >
+                      Invite Teammate
+                    </Button>
+                  </Box>
+
+                  <List sx={{ p: 0 }}>
+                    {tableMembers.map((member, idx) => (
+                      <ListItem
+                        key={idx}
+                        sx={{
+                          px: 2,
+                          py: 2,
+                          mb: 1.5,
+                          borderRadius: 3,
+                          bgcolor: theme.palette.action.hover,
+                          border: `1px solid ${theme.palette.divider}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2
+                        }}
+                      >
+                        <ListItemAvatar sx={{ minWidth: 0 }}>
+                          <Avatar
+                            src={getAvatarUrl(member.avatar, member.name)}
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              bgcolor: theme.palette.primary.main,
+                              fontSize: 18,
+                              fontWeight: 700
+                            }}
+                          >
+                            {member.name?.[0]}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={
+                            <Typography sx={{ fontWeight: 700, fontSize: 16 }}>
+                              {member.name} {member.email === currentUser?.email && "(You)"}
+                            </Typography>
+                          }
+                          secondary={
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                              {member.email}
+                            </Typography>
+                          }
+                        />
+                        <Chip
+                          label={idx === 0 ? "Owner" : "Member"}
+                          size="small"
+                          sx={{
+                            bgcolor: idx === 0 ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.text.secondary, 0.1),
+                            color: idx === 0 ? theme.palette.primary.main : theme.palette.text.secondary,
+                            fontWeight: 700,
+                            borderRadius: 1.5,
+                            fontSize: 11
+                          }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+
+                  {tableMembers.length === 0 && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, opacity: 0.7 }}>
+                      <GroupIcon sx={{ fontSize: 48, mb: 2, color: theme.palette.text.disabled }} />
+                      <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>No team members found</Typography>
+                    </Box>
+                  )}
                 </Box>
               )}
 

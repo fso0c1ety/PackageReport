@@ -112,6 +112,7 @@ function WorkspaceContent() {
   };
 
   const fetchTables = async () => {
+    if (!workspaceId) return;
     setLoading(true);
     const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
     const data = await res.json();

@@ -16,6 +16,7 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import PaletteIcon from '@mui/icons-material/Palette';
 import SecurityIcon from '@mui/icons-material/Security';
+import GroupIcon from '@mui/icons-material/Group';
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
@@ -79,6 +80,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       }
     };
     fetchProfile();
+    window.addEventListener('profile-updated', fetchProfile);
+    return () => window.removeEventListener('profile-updated', fetchProfile);
   }, []);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -583,6 +586,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
               <SecurityIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
             </ListItemIcon>
             Security
+          </MenuItem>
+          <MenuItem onClick={() => router.push('/settings?tab=team')}>
+            <ListItemIcon>
+              <GroupIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+            </ListItemIcon>
+            Team
           </MenuItem>
           <Divider />
           <MenuItem onClick={handleLogout}>

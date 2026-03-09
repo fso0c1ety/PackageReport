@@ -20,7 +20,12 @@ import {
   Switch,
   Tab,
   Tabs,
-  Paper
+  Paper,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
@@ -35,9 +40,13 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import WorkIcon from "@mui/icons-material/Work";
 import BusinessIcon from "@mui/icons-material/Business";
 import CallIcon from "@mui/icons-material/Call";
+import GroupIcon from "@mui/icons-material/Group";
+import SearchIcon from "@mui/icons-material/Search";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
+import { useNotification } from "../../NotificationContext";
 import { useSearchParams, useRouter } from "next/navigation";
 
 interface TabPanelProps {
@@ -76,7 +85,8 @@ export default function SettingsPage() {
     profile: 0,
     appearance: 1,
     notifications: 2,
-    security: 3
+    security: 3,
+    team: 4
   };
 
   const initialTab = searchParams.get("tab");
@@ -112,6 +122,33 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
+  // Teammates State
+  const [teammates, setTeammates] = useState<any[]>([]);
+  const [loadingTeammates, setLoadingTeammates] = useState(false);
+  const [lastWorkspaceId, setLastWorkspaceId] = useState<string | null>(null);
+  
+  // Invite Dialog State
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteWorkspaces, setInviteWorkspaces] = useState<any[]>([]);
+  const [selectedInviteWs, setSelectedInviteWs] = useState<string>("");
+  const [inviteTables, setInviteTables] = useState<any[]>([]);
+  const [selectedInviteTable, setSelectedInviteTable] = useState<string>("");
+  const [isInviting, setIsInviting] = useState(false);
+  const { showNotification } = useNotification();
+
+  useEffect(() => {
+    if (user?.id) {
+        const stored = localStorage.getItem(`lastWorkspace_${user.id}`);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (parsed.id) setLastWorkspaceId(parsed.id);
+            } catch (e) {}
+        }
+    }
+  }, [user]);
+
   useEffect(() => {
     const fetchProfile = async () => {
         try {
@@ -140,6 +177,100 @@ export default function SettingsPage() {
     
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    if (tabValue === 4) {
+      const fetchTeammates = async () => {
+        setLoadingTeammates(true);
+        try {
+          const res = await authenticatedFetch(getApiUrl('teammates'));
+          if (res.ok) {
+            const data = await res.json();
+            setTeammates(data);
+          }
+        } catch (e) {
+          console.error("Failed to fetch teammates", e);
+        } finally {
+          setLoadingTeammates(false);
+        }
+      };
+      fetchTeammates();
+    }
+  }, [tabValue]);
+
+  const fetchWorkspaces = async () => {
+    try {
+      const res = await authenticatedFetch(getApiUrl('workspaces'));
+      if (res.ok) {
+        const data = await res.json();
+        setInviteWorkspaces(data);
+        if (data.length > 0) {
+            setSelectedInviteWs(data[0].id);
+            fetchTablesForInvite(data[0].id);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch workspaces", e);
+    }
+  };
+
+  const fetchTablesForInvite = async (wsId: string) => {
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${wsId}/tables`));
+      if (res.ok) {
+        const data = await res.json();
+        setInviteTables(data);
+        if (data.length > 0) setSelectedInviteTable(data[0].id);
+        else setSelectedInviteTable("");
+      }
+    } catch (e) {
+      console.error("Failed to fetch tables", e);
+    }
+  };
+
+  const handleInviteTeammate = async () => {
+    if (!inviteEmail.trim() || !selectedInviteTable) {
+        showNotification("Please enter an email and select a board", "error");
+        return;
+    }
+    
+    setIsInviting(true);
+    try {
+        // First find user by email
+        const userRes = await authenticatedFetch(getApiUrl(`people?q=${encodeURIComponent(inviteEmail.trim())}`));
+        const users = await userRes.json();
+        const targetUser = users.find((u: any) => u.email.toLowerCase() === inviteEmail.trim().toLowerCase());
+        
+        if (!targetUser) {
+            showNotification("User not found. They must be registered first.", "error");
+            setIsInviting(false);
+            return;
+        }
+
+        const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}/share`), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: targetUser.id, permission: 'edit' })
+        });
+        
+        if (res.ok) {
+            showNotification(`Successfully invited ${targetUser.name} to the board!`, "success");
+            setInviteDialogOpen(false);
+            setInviteEmail("");
+            // Refresh teammates
+            const teamRes = await authenticatedFetch(getApiUrl('teammates'));
+            if (teamRes.ok) setTeammates(await teamRes.json());
+        } else {
+            const err = await res.json();
+            showNotification(err.error || "Failed to invite teammate", "error");
+        }
+    } catch (e) {
+        console.error("Invite error", e);
+        showNotification("Error inviting teammate", "error");
+    } finally {
+        setIsInviting(false);
+    }
+  };
 
   const handleCreateNewUser = () => {
     // If no user exists, create a default one
@@ -269,6 +400,7 @@ export default function SettingsPage() {
           <Tab icon={<PaletteIcon />} iconPosition="start" label="Appearance" />
           <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
           <Tab icon={<SecurityIcon />} iconPosition="start" label="Security" />
+          <Tab icon={<GroupIcon />} iconPosition="start" label="Team" />
         </Tabs>
 
         {/* PROFILE TAB */}
@@ -481,7 +613,199 @@ export default function SettingsPage() {
             </Box>
         </TabPanel>
 
+        {/* TEAM TAB */}
+        <TabPanel value={tabValue} index={4}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Team Members</Typography>
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                        Manage who has access to your boards
+                    </Typography>
+                </Box>
+                <Button 
+                    variant="contained" 
+                    startIcon={<PersonAddIcon />} 
+                    onClick={() => {
+                        setInviteDialogOpen(true);
+                        fetchWorkspaces();
+                    }}
+                    sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, px: 3 }}
+                >
+                    Invite Teammate
+                </Button>
+            </Box>
+            
+            {loadingTeammates ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                    <CircularProgress size={40} />
+                </Box>
+            ) : teammates.length > 0 ? (
+                <List sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {teammates.map((teammate) => (
+                        <Paper 
+                            key={teammate.id} 
+                            sx={{ 
+                                p: 2, 
+                                borderRadius: 3, 
+                                bgcolor: 'action.hover', 
+                                border: '1px solid', 
+                                borderColor: 'divider',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                transition: 'all 0.2s',
+                                '&:hover': { bgcolor: 'background.paper', transform: 'translateY(-2px)' }
+                            }}
+                        >
+                            <Avatar 
+                                src={getAvatarUrl(teammate.avatar, teammate.name)} 
+                                sx={{ width: 56, height: 56, border: `2px solid ${theme.palette.primary.main}` }}
+                            />
+                            <Box sx={{ flex: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{teammate.name}</Typography>
+                                    {teammate.status === 'pending' && (
+                                        <Box sx={{ 
+                                            bgcolor: 'rgba(253, 171, 61, 0.1)', 
+                                            color: '#fdab3d', 
+                                            px: 1, 
+                                            py: 0.2, 
+                                            borderRadius: 1, 
+                                            fontSize: '0.7rem', 
+                                            fontWeight: 700,
+                                            textTransform: 'uppercase',
+                                            border: '1px solid rgba(253, 171, 61, 0.2)'
+                                        }}>
+                                            Pending
+                                        </Box>
+                                    )}
+                                </Box>
+                                <Typography variant="body2" color="text.secondary">{teammate.email}</Typography>
+                            </Box>
+                            <Button 
+                                variant="outlined" 
+                                size="small" 
+                                startIcon={<WorkIcon />}
+                                onClick={() => router.push(lastWorkspaceId ? `/workspace?id=${lastWorkspaceId}` : '/home')}
+                                sx={{ borderRadius: 2, textTransform: 'none' }}
+                            >
+                                View Boards
+                            </Button>
+                        </Paper>
+                    ))}
+                </List>
+            ) : (
+                <Box sx={{ p: 6, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 4, border: '1px dashed', borderColor: 'divider' }}>
+                    <GroupIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
+                    <Typography variant="h5" fontWeight={700} gutterBottom>Build Your Team</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 4, maxWidth: 450, mx: 'auto' }}>
+                        You haven't added any teammates yet. Start collaborating by inviting members to your boards.
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                        <Button 
+                            variant="contained" 
+                            startIcon={<PersonAddIcon />} 
+                            onClick={() => { setInviteDialogOpen(true); fetchWorkspaces(); }}
+                            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, px: 3 }}
+                        >
+                            Invite First Teammate
+                        </Button>
+                    </Box>
+                </Box>
+            )}
+        </TabPanel>
+
       </Paper>
+
+      {/* Invite Teammate Dialog */}
+      <Dialog 
+        open={inviteDialogOpen} 
+        onClose={() => setInviteDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            bgcolor: 'background.paper',
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundImage: 'none'
+          }
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Invite Teammate</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Add a member to one of your existing boards to start collaborating.
+            </Typography>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                <TextField
+                    label="Email Address"
+                    placeholder="teammate@example.com"
+                    fullWidth
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    size="small"
+                />
+
+                <TextField
+                    select
+                    label="Select Workspace"
+                    fullWidth
+                    value={selectedInviteWs}
+                    onChange={(e) => {
+                        setSelectedInviteWs(e.target.value);
+                        fetchTablesForInvite(e.target.value);
+                    }}
+                    SelectProps={{ native: true }}
+                    size="small"
+                >
+                    {inviteWorkspaces.map((ws) => (
+                        <option key={ws.id} value={ws.id}>{ws.name}</option>
+                    ))}
+                </TextField>
+
+                <TextField
+                    select
+                    label="Select Board"
+                    fullWidth
+                    value={selectedInviteTable}
+                    onChange={(e) => setSelectedInviteTable(e.target.value)}
+                    SelectProps={{ native: true }}
+                    size="small"
+                    disabled={!selectedInviteWs || inviteTables.length === 0}
+                >
+                    {inviteTables.length > 0 ? (
+                        inviteTables.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                        ))
+                    ) : (
+                        <option value="">No boards in this workspace</option>
+                    )}
+                </TextField>
+            </Box>
+
+            <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+                <Button 
+                    variant="outlined" 
+                    fullWidth 
+                    onClick={() => setInviteDialogOpen(false)}
+                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                >
+                    Cancel
+                </Button>
+                <Button 
+                    variant="contained" 
+                    fullWidth 
+                    onClick={handleInviteTeammate}
+                    disabled={isInviting || !inviteEmail || !selectedInviteTable}
+                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                >
+                    {isInviting ? <CircularProgress size={24} color="inherit" /> : "Send Invite"}
+                </Button>
+            </Box>
+        </Box>
+      </Dialog>
     </Box>
   );
 }

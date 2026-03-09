@@ -41,6 +41,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import ShareIcon from "@mui/icons-material/Share";
+import GroupIcon from "@mui/icons-material/Group";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
@@ -457,6 +458,15 @@ export default function Sidebar({
             href="/home"
             isActive={pathname === "/home" || pathname === "/"}
             onClick={onClose}
+          />
+          <SidebarItem
+            icon={<GroupIcon fontSize="small" />}
+            label="Team"
+            href="#"
+            onClick={() => {
+              setShareDialogOpen(true);
+              if (onClose) onClose();
+            }}
           />
           <SidebarItem
             icon={<SettingsIcon fontSize="small" />}
