@@ -5811,7 +5811,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {/* Mobile Navigation Toggle (Pill Style) */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, bgcolor: theme.palette.action.hover, borderRadius: 99, p: 0.5, gap: 0.5 }}>
-              {(['details', 'chat', 'team', 'files', 'activity'] as const).filter(t => t !== 'team' || userPermission === 'owner').map((tab) => (
+              {(['details', 'chat', 'team', 'files', 'activity'] as const).map((tab) => (
                 <Button
                   key={tab}
                   onClick={() => setMobileTab(tab)}
@@ -6278,7 +6278,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             }}>
             {/* Desktop Right Panel Tabs */}
             <Box sx={{ p: 0.5, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.paper, display: { xs: 'none', md: 'flex' }, gap: 0.5 }}>
-              {(['chat', 'team', 'files', 'activity'] as const).filter(t => t !== 'team' || userPermission === 'owner').map((tab) => (
+              {(['chat', 'team', 'files', 'activity'] as const).map((tab) => (
                 <Button
                   key={tab}
                   onClick={() => setRightPanelTab(tab)}
@@ -6608,7 +6608,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     <Box>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Team Members</Typography>
                       <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                        Manage who has access to this board
+                        People with access to this board
                       </Typography>
                     </Box>
                     {userPermission === 'owner' && (
