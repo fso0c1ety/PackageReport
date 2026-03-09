@@ -4539,8 +4539,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         <TableCell
                           padding="checkbox"
                           sx={{
-                            minWidth: 60,
-                            width: 60,
+                            minWidth: 48,
+                            width: 48,
                             position: 'sticky',
                             left: 0,
                             zIndex: 10,
@@ -4560,15 +4560,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   transition: 'background-color 0.2s',
                                   bgcolor: snapshot.isDragging ? `${theme.palette.action.selected} !important` : theme.palette.background.paper,
                                   '&:hover': { bgcolor: `${theme.palette.action.hover} !important` },
-                                  '&:hover .column-actions': { opacity: 1 },
-                                  ...(isMobile && index === 0 ? {
-                                    position: 'sticky',
-                                    left: 60,
-                                    zIndex: 100,
-                                    bgcolor: `${theme.palette.background.paper} !important`,
-                                    boxShadow: '4px 0 8px rgba(0,0,0,0.15)',
-                                    borderRight: `2px solid ${theme.palette.divider}`
-                                  } : {})
+                                  '&:hover .column-actions': { opacity: 1 }
                                 }}
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
