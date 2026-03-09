@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image"; // Added Image import
 import { usePathname, useRouter } from "next/navigation";
-import { authenticatedFetch, getApiUrl } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
 import {
   Box,
   Typography,
@@ -159,15 +159,32 @@ export default function Sidebar({
 
   // Fetch workspaces and user
   useEffect(() => {
-    // Load local user
+    // Load local user immediately for fast render
+    let storedUserStr: string | null = null;
     try {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        setCurrentUser(JSON.parse(userStr));
+      storedUserStr = localStorage.getItem("user");
+      if (storedUserStr) {
+        setCurrentUser(JSON.parse(storedUserStr));
       }
     } catch (e) {
       console.error("Failed to parse user from local storage", e);
     }
+
+    // Fetch fresh profile from API so avatar is always up-to-date
+    authenticatedFetch(getApiUrl("users/profile"))
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setCurrentUser(data);
+          if (storedUserStr) {
+            try {
+              const parsed = JSON.parse(storedUserStr);
+              localStorage.setItem("user", JSON.stringify({ ...parsed, ...data }));
+            } catch (e) {}
+          }
+        }
+      })
+      .catch(() => {}); // Silently fail — localStorage data is a good fallback
 
     authenticatedFetch(getApiUrl("workspaces"))
       .then((res) => {
@@ -575,7 +592,7 @@ export default function Sidebar({
           }}
         >
           <Avatar
-            src={currentUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || "User")}&background=random&color=fff&bold=true`}
+            src={getAvatarUrl(currentUser?.avatar, currentUser?.name)}
             alt={currentUser?.name || "User"}
             sx={{
               width: 32,
@@ -584,9 +601,7 @@ export default function Sidebar({
               fontSize: "0.875rem",
               fontWeight: 600,
             }}
-          >
-            {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
-          </Avatar>
+          />
           <Box sx={{ overflow: "hidden" }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2, color: theme.palette.text.primary }}>
               {currentUser?.name || "Loading..."}
@@ -792,7 +807,7 @@ export default function Sidebar({
                   {option.avatar ? (
                     <Box
                       component="img"
-                      src={option.avatar}
+                      src={getAvatarUrl(option.avatar, option.name)}
                       alt={option.name}
                       sx={{ width: 28, height: 28, borderRadius: '50%' }}
                     />

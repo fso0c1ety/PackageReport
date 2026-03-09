@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
+    const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, avatar: avatarUrl } });
   } catch (err) {
     console.error('Login error:', err);

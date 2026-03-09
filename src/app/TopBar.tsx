@@ -18,7 +18,7 @@ import PaletteIcon from '@mui/icons-material/Palette';
 import SecurityIcon from '@mui/icons-material/Security';
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
-import { authenticatedFetch, getApiUrl } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
 
 interface TopBarProps {
@@ -52,6 +52,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const open = Boolean(anchorEl);
 
   useEffect(() => {
+    // Load from localStorage immediately for fast initial render
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
@@ -60,6 +61,24 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         console.error("Failed to parse user from localStorage", e);
       }
     }
+    // Then fetch from API to get the freshest data (e.g., after avatar changes in Settings)
+    const fetchProfile = async () => {
+      try {
+        const res = await authenticatedFetch(getApiUrl('users/profile'));
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+          // Keep localStorage in sync
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            localStorage.setItem('user', JSON.stringify({ ...parsed, ...data }));
+          }
+        }
+      } catch (e) {
+        // Silently fail — localStorage data is a good-enough fallback
+      }
+    };
+    fetchProfile();
   }, []);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -486,7 +505,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             aria-expanded={open ? 'true' : undefined}
           >
             <Avatar
-              src={user?.avatar}
+              src={getAvatarUrl(user?.avatar, user?.name)}
               sx={{
                 width: 36,
                 height: 36,
@@ -501,9 +520,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                   transform: "scale(1.05)"
                 }
               }}
-            >
-              {getInitials(user?.name)}
-            </Avatar>
+            />
           </IconButton>
         </Tooltip>
         <Menu

@@ -12,7 +12,7 @@ import {
   useTheme
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { authenticatedFetch, getApiUrl } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl } from "../../apiUrl";
 
 interface Workspace {
   id: string;
@@ -163,7 +163,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
               <Tooltip title={`Shared by ${ws.owner_name}`}>
                 <Box
                   component="img"
-                  src={ws.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ws.owner_name || 'User')}&background=random&color=fff&bold=true`}
+                  src={getAvatarUrl(ws.owner_avatar, ws.owner_name)}
                   sx={{
                     width: 20,
                     height: 20,

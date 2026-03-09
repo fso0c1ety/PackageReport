@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { getApiUrl, authenticatedFetch } from "./apiUrl";
+import { getApiUrl, authenticatedFetch, getAvatarUrl } from "./apiUrl";
 import {
   Box,
   Avatar,
@@ -227,9 +227,10 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
               }}
             >
               <ListItemAvatar>
-                <Avatar sx={{ bgcolor: isSelected ? '#0073ea' : '#5a5b7a', width: 32, height: 32, fontSize: 14 }}>
-                  {person.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </Avatar>
+                <Avatar 
+                  src={getAvatarUrl(person.avatar, person.name)}
+                  sx={{ bgcolor: isSelected ? '#0073ea' : '#5a5b7a', width: 32, height: 32, fontSize: 14 }}
+                />
               </ListItemAvatar>
               <ListItemText 
                 primary={person.name} 

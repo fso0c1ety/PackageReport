@@ -1,6 +1,6 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
-import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch } from "./apiUrl";
+import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch, getAvatarUrl } from "./apiUrl";
 import { io, Socket } from "socket.io-client";
 
 import { useTheme } from "@mui/material/styles";
@@ -153,7 +153,7 @@ import FirstPageIcon from '@mui/icons-material/FirstPage';
 import LastPageIcon from '@mui/icons-material/LastPage';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import TableViewIcon from '@mui/icons-material/TableView';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import HistoryIcon from "@mui/icons-material/History";
@@ -279,19 +279,19 @@ const stringToColor = (string: string) => {
 }
 
 // Separate component to prevent table re-renders on every keystroke
-function DateCellEditor({ 
-  initialValue, 
-  onSave 
-}: { 
-  initialValue: any, 
-  onSave: (val: any) => void 
+function DateCellEditor({
+  initialValue,
+  onSave
+}: {
+  initialValue: any,
+  onSave: (val: any) => void
 }) {
   const theme = useTheme();
-  
+
   // Use uncontrolled pattern (defaultValue) instead of controlled state
   // to prevent day.js from forcefully reformatting partial years (e.g., '2' -> '0002') while typing.
   const initialDayjs = React.useMemo(() => initialValue ? dayjs(initialValue) : null, [initialValue]);
-  
+
   // Refs to track state for event handlers and cleanup
   const valueRef = React.useRef(initialDayjs);
   const savedRef = React.useRef(false);
@@ -320,24 +320,24 @@ function DateCellEditor({
       autoFocus: true,
       fullWidth: true,
       variant: "standard" as const,
-      InputProps: { 
-          disableUnderline: true,
-          style: { fontSize: '0.875rem' } 
+      InputProps: {
+        disableUnderline: true,
+        style: { fontSize: '0.875rem' }
       },
-      sx: { 
+      sx: {
+        height: '100%',
+        bgcolor: theme.palette.background.paper,
+        '& .MuiInputBase-root': {
+          padding: '0 8px',
           height: '100%',
-          bgcolor: theme.palette.background.paper,
-          '& .MuiInputBase-root': {
-              padding: '0 8px',
-              height: '100%',
-              alignItems: 'center'
-          },
-          '& .MuiInputBase-input': {
-              padding: 0,
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center'
-          }
+          alignItems: 'center'
+        },
+        '& .MuiInputBase-input': {
+          padding: 0,
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center'
+        }
       },
       onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
@@ -347,7 +347,7 @@ function DateCellEditor({
       }
     },
     popper: {
-       sx: { zIndex: theme.zIndex.tooltip + 10 }
+      sx: { zIndex: theme.zIndex.tooltip + 10 }
     }
   }), [theme]);
 
@@ -385,40 +385,40 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-    // Initialize Socket Connection - depends on tableId
-    useEffect(() => {
-        if (!tableId) return;
+  // Initialize Socket Connection - depends on tableId
+  useEffect(() => {
+    if (!tableId) return;
 
-        console.log('Connecting socket to:', SERVER_URL || window.location.origin);
-        
-        const newSocket = io(SERVER_URL || window.location.origin, {
-            path: '/socket.io',
-            transports: ['websocket', 'polling'],
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000,
-            autoConnect: true,
-        });
+    console.log('Connecting socket to:', SERVER_URL || window.location.origin);
 
-        setSocket(newSocket);
+    const newSocket = io(SERVER_URL || window.location.origin, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      autoConnect: true,
+    });
 
-        newSocket.on('connect', () => {
-            console.log('Connected to socket server');
-            newSocket.emit('join_table', tableId);
-        });
+    setSocket(newSocket);
 
-        newSocket.on('connect_error', (err) => {
-            console.error('Socket connection error:', err);
-             // If websocket fails, force polling on reconnection
-             // @ts-ignore - Transport manipulation is internal but necessary here
-            if (newSocket.io.opts.transports && (newSocket.io.opts.transports as any[]).indexOf('websocket') !== -1) {
-                 console.log('Falling back to polling transport');
-                 newSocket.io.opts.transports = ['polling', 'websocket'];
-            }
-        });
-        
-        // ... (rest of listeners)
+    newSocket.on('connect', () => {
+      console.log('Connected to socket server');
+      newSocket.emit('join_table', tableId);
+    });
 
-        newSocket.on('typing_board', ({ user }) => {
+    newSocket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
+      // If websocket fails, force polling on reconnection
+      // @ts-ignore - Transport manipulation is internal but necessary here
+      if (newSocket.io.opts.transports && (newSocket.io.opts.transports as any[]).indexOf('websocket') !== -1) {
+        console.log('Falling back to polling transport');
+        newSocket.io.opts.transports = ['polling', 'websocket'];
+      }
+    });
+
+    // ... (rest of listeners)
+
+    newSocket.on('typing_board', ({ user }) => {
       setBoardTypingUsers(prev => {
         // Don't show typing indicator for yourself
         // Note: We need access to currentUser ref, but it's a dependency, so we're good.
@@ -436,7 +436,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       setTaskTypingUsers(prev => {
         // Don't show typing indicator for yourself
         if (currentUser && user === currentUser.name) return prev;
-        
+
         const current = prev[taskId] || [];
         if (current.includes(user)) return prev;
         return { ...prev, [taskId]: [...current, user] };
@@ -475,11 +475,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const boardChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskDetailsChatEndRef = React.useRef<HTMLDivElement>(null);
-  
+
   // -- NEW: State for Task Discussions --
   const [chatTab, setChatTab] = useState<'chat' | 'files' | 'activity'>('chat');
   const [chatAttachment, setChatAttachment] = useState<File | null>(null);
-  const [chatScheduledTime, setChatScheduledTime] = useState<string>(""); 
+  const [chatScheduledTime, setChatScheduledTime] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const chatFileRef = React.useRef<HTMLInputElement>(null);
   // -----------------------------------
@@ -489,7 +489,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
     if (isChatOpen) {
       setTimeout(() => {
-          boardChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        boardChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     }
   }, [boardChatMessages, isChatOpen]);
@@ -504,105 +504,106 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setBoardChatMessages([]);
   }, [tableId]);
 
+  // --- Chat message fetch logic, now exposed for manual refetch ---
+  const fetchChatMessages = useCallback(() => {
+    authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          // Transform timestamp to readable time
+          // Also map sender_avatar (PostgreSQL snake_case) to senderAvatar (camelCase expected by frontend)
+          const formattedData = data.map((msg: any) => ({
+            ...msg,
+            time: msg.timestamp ? dayjs(Number(msg.timestamp)).format('MMM D, HH:mm') : '',
+            senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
+          }));
+
+          // If first load, sync the ref immediately to prevent notification
+          if (isFirstLoadRef.current) {
+            prevMessageCountRef.current = formattedData.length;
+            isFirstLoadRef.current = false;
+          }
+
+          setBoardChatMessages(prev => {
+            // Compare content only to avoid unnecessary re-renders
+            if (JSON.stringify(prev) !== JSON.stringify(formattedData)) {
+              return formattedData;
+            }
+            return prev;
+          });
+        }
+      })
+      .catch((err) => console.error("Failed to fetch chat messages", err));
+  }, [tableId]);
+
   // Fetch chat messages with polling
   useEffect(() => {
     let isMounted = true;
-    const fetchChat = () => {
-      authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
-        .then((res) => res.json())
-        .then((data) => {
-          if (!isMounted) return;
-          if (Array.isArray(data)) {
-             // Transform timestamp to readable time
-             const formattedData = data.map((msg: any) => ({
-                 ...msg,
-                 time: msg.timestamp ? dayjs(Number(msg.timestamp)).format('MMM D, HH:mm') : '',
-             }));
-
-             // If first load, sync the ref immediately to prevent notification
-             if (isFirstLoadRef.current) {
-                 prevMessageCountRef.current = formattedData.length;
-                 isFirstLoadRef.current = false;
-             }
-
-            setBoardChatMessages(prev => {
-              // Compare content only to avoid unnecessary re-renders
-              if (JSON.stringify(prev) !== JSON.stringify(formattedData)) {
-                return formattedData;
-              }
-              return prev;
-            });
-          }
-        })
-        .catch((err) => console.error("Failed to fetch chat messages", err));
-    };
-
-    fetchChat(); // Initial fetch
-    const intervalId = setInterval(fetchChat, 4000); // Poll every 4 seconds
-
+    fetchChatMessages(); // Initial fetch
+    const intervalId = setInterval(() => { if (isMounted) fetchChatMessages(); }, 4000); // Poll every 4 seconds
     return () => {
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [tableId]);
+  }, [tableId, fetchChatMessages]);
 
   // Track unread messages when chat is closed
   useEffect(() => {
     const checkAndNotify = async () => {
-        // Request notification permission if not yet requested/granted (Web only)
-        if (!Capacitor.isNativePlatform() && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
+      // Request notification permission if not yet requested/granted (Web only)
+      if (!Capacitor.isNativePlatform() && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
 
-        const newCount = boardChatMessages.length;
+      const newCount = boardChatMessages.length;
 
-        if (!isChatOpen) {
-            if (newCount > prevMessageCountRef.current) {
-                // Read current user from localStorage to avoid hook dependency cycle
-                const userJson = localStorage.getItem("user");
-                const user = userJson ? JSON.parse(userJson) : null;
-                const currentUserName = user ? user.name : 'User';
+      if (!isChatOpen) {
+        if (newCount > prevMessageCountRef.current) {
+          // Read current user from localStorage to avoid hook dependency cycle
+          const userJson = localStorage.getItem("user");
+          const user = userJson ? JSON.parse(userJson) : null;
+          const currentUserName = user ? user.name : 'User';
 
-                const newMessages = boardChatMessages.slice(prevMessageCountRef.current);
-                const externalNewMessages = newMessages.filter(m => m.sender !== currentUserName);
+          const newMessages = boardChatMessages.slice(prevMessageCountRef.current);
+          const externalNewMessages = newMessages.filter(m => m.sender !== currentUserName);
 
-                if (externalNewMessages.length > 0) {
-                    setUnreadCount(prev => prev + externalNewMessages.length);
-                    
-                    const latestMsg = externalNewMessages[externalNewMessages.length - 1];
-                    const title = 'New Board Message';
-                    const body = `${latestMsg.sender}: ${latestMsg.text}`;
+          if (externalNewMessages.length > 0) {
+            setUnreadCount(prev => prev + externalNewMessages.length);
 
-                    // Native check: Notification logic
-                    if (Capacitor.isNativePlatform()) {
-                       // On mobile, send regardless of document.hidden because app might be open but chat closed
-                       try {
-                           await LocalNotifications.schedule({
-                               notifications: [
-                                   {
-                                       title: title,
-                                       body: body,
-                                       id: new Date().getTime() & 0x7FFFFFFF, // Unique ID (safe int)
-                                       schedule: { at: new Date(Date.now() + 100) },
-                                       sound: undefined,
-                                       attachments: undefined,
-                                       actionTypeId: "",
-                                       extra: null
-                                   }
-                               ]
-                           });
-                       } catch (e) {
-                           console.error("Failed to schedule local notification", e);
-                       }
-                    } else if ((document.hidden || !isChatOpen) && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-                        new Notification(title, {
-                            body: body,
-                        });
+            const latestMsg = externalNewMessages[externalNewMessages.length - 1];
+            const title = 'New Board Message';
+            const body = `${latestMsg.sender}: ${latestMsg.text}`;
+
+            // Native check: Notification logic
+            if (Capacitor.isNativePlatform()) {
+              // On mobile, send regardless of document.hidden because app might be open but chat closed
+              try {
+                await LocalNotifications.schedule({
+                  notifications: [
+                    {
+                      title: title,
+                      body: body,
+                      id: new Date().getTime() & 0x7FFFFFFF, // Unique ID (safe int)
+                      schedule: { at: new Date(Date.now() + 100) },
+                      sound: undefined,
+                      attachments: undefined,
+                      actionTypeId: "",
+                      extra: null
                     }
-                }
+                  ]
+                });
+              } catch (e) {
+                console.error("Failed to schedule local notification", e);
+              }
+            } else if ((document.hidden || !isChatOpen) && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification(title, {
+                body: body,
+              });
             }
+          }
         }
-        prevMessageCountRef.current = boardChatMessages.length;
+      }
+      prevMessageCountRef.current = boardChatMessages.length;
     };
     checkAndNotify();
   }, [boardChatMessages, isChatOpen]);
@@ -611,7 +612,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (!newBoardChatMessage.trim() && !pendingBoardFile) return;
 
     let attachment = undefined;
-    
+
     // If there's a file, upload it first
     if (pendingBoardFile) {
       const formData = new FormData();
@@ -627,7 +628,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
         const uploadData = await uploadRes.json();
         const fileUrl = uploadData.url.startsWith('http') ? uploadData.url : (SERVER_URL + uploadData.url);
-        
+
         attachment = {
           name: uploadData.name,
           type: uploadData.type,
@@ -701,28 +702,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
-  
+
   const searchParams = useSearchParams();
-  
+
   useEffect(() => {
     const targetTaskId = taskId || searchParams.get('taskId');
     const targetTab = initialTab || searchParams.get('tab');
 
     if (targetTaskId && tableId) {
-        // Fetch task
-        authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${targetTaskId}`))
-            .then(res => res.ok ? res.json() : null)
-            .then(data => {
-                if (data && (data.task || data.id)) {
-                    setReviewTask(data.task || data);
-                    
-                    if (targetTab === 'chat' || targetTab === 'files' || targetTab === 'activity') {
-                        if (isMobile) setMobileTab(targetTab as any);
-                        else setRightPanelTab(targetTab as any);
-                    }
-                }
-            })
-            .catch(err => console.error("Failed to load task from URL", err));
+      // Fetch task
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${targetTaskId}`))
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && (data.task || data.id)) {
+            setReviewTask(data.task || data);
+
+            if (targetTab === 'chat' || targetTab === 'files' || targetTab === 'activity') {
+              if (isMobile) setMobileTab(targetTab as any);
+              else setRightPanelTab(targetTab as any);
+            }
+          }
+        })
+        .catch(err => console.error("Failed to load task from URL", err));
     }
   }, [tableId, taskId, initialTab, searchParams, isMobile]);
 
@@ -733,7 +734,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
     if (chatTaskId && (mobileTab === 'chat' || rightPanelTab === 'chat' || !!chatAnchor)) {
       setTimeout(() => {
-          taskChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        taskChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     }
   }, [chatMessages, chatTaskId, mobileTab, rightPanelTab, chatAnchor]);
@@ -756,11 +757,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
     // Scroll to bottom when messages change or chat is opened
     if (reviewTask && (mobileTab === 'chat' || rightPanelTab === 'chat')) {
-        setTimeout(() => {
-            taskDetailsChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+      setTimeout(() => {
+        taskDetailsChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
-    
+
     if (!reviewTask || (mobileTab !== 'chat' && rightPanelTab !== 'chat')) return;
 
     const pollTaskChat = async () => {
@@ -818,12 +819,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [emailCols, setEmailCols] = useState<string[]>([]);
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
   const [automationEnabled, setAutomationEnabled] = useState(true);
-  
+
   // New Automation States
   const [automations, setAutomations] = useState<any[]>([]);
   const [isEditingAutomation, setIsEditingAutomation] = useState(false);
   const [currentAutomationId, setCurrentAutomationId] = useState<number | null>(null);
-  
+
   useEffect(() => {
     if (showEmailAutomation && tableId) {
       authenticatedFetch(getApiUrl(`/automation/${tableId}`))
@@ -839,8 +840,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [automationLoading, setAutomationLoading] = useState(false);
   const [tableMembers, setTableMembers] = useState<Person[]>([]);
 
-  // Fetch table members (Owner + Shared Users)
-  useEffect(() => {
+  // --- Table members fetch logic, now exposed for manual refetch ---
+  const fetchTableMembers = useCallback(() => {
     if (tableId) {
       authenticatedFetch(getApiUrl(`/tables/${tableId}/members`))
         .then(res => res.ok ? res.json() : [])
@@ -849,9 +850,35 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   }, [tableId]);
 
-  // People options for Automation (derived from table members)
+  // Fetch table members (Owner + Shared Users)
+  useEffect(() => {
+    fetchTableMembers();
+  }, [fetchTableMembers]);
+
+  // --- Listen for profile/avatar update events and refetch data ---
+  useEffect(() => {
+    const handler = () => {
+      // Always update currentUser from localStorage
+      const userJson = localStorage.getItem("user");
+      const user = userJson ? JSON.parse(userJson) : null;
+      setCurrentUser(user);
+      fetchTableMembers();
+      fetchChatMessages();
+    };
+    window.addEventListener('profile-updated', handler);
+    return () => window.removeEventListener('profile-updated', handler);
+  }, [fetchTableMembers, fetchChatMessages]);
+
+  // Always include the owner in the people list and use avatar logic as in HomeDashboard
   const peopleOptions = React.useMemo(() => {
-    return tableMembers.map(m => ({ name: m.name, email: m.email }));
+    // tableMembers already includes the owner (role: 'owner') and all shared users
+    return tableMembers.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      avatar: m.avatar,
+      role: m.role
+    }));
   }, [tableMembers]);
 
   // --- Sample people list ---
@@ -893,11 +920,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const user = currentUser?.name || 'User';
       // Optimistically add self to typing users if desired, but usually we don't show "You are typing"
       // However, we must ensure we don't filter out others just because we are typing
-      
+
       socket.emit('typing_board', { tableId, user });
-      
+
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      
+
       typingTimeoutRef.current = setTimeout(() => {
         if (socket) socket.emit('stop_typing_board', { tableId, user });
       }, 2000);
@@ -908,9 +935,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (socket) {
       const user = currentUser?.name || 'User';
       socket.emit('typing_task', { tableId, taskId, user });
-      
+
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      
+
       typingTimeoutRef.current = setTimeout(() => {
         if (socket) socket.emit('stop_typing_task', { tableId, taskId, user });
       }, 2000);
@@ -1716,12 +1743,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       // 2. People Filter (Assignee or Creator)
       if (filterPerson.length > 0) {
         // Find IDs for selected names
-        const selectedMemberIds = filterPerson.map(name => 
-            tableMembers.find(m => m.name === name)?.id
+        const selectedMemberIds = filterPerson.map(name =>
+          tableMembers.find(m => m.name === name)?.id
         ).filter(Boolean);
 
         const peopleCols = columns.filter(c => c.type === 'People');
-        
+
         const isAssigned = peopleCols.some(col => {
           const val = row.values[col.id];
           if (Array.isArray(val)) {
@@ -1729,7 +1756,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           }
           return false;
         });
-        
+
         const isCreator = row.created_by && selectedMemberIds.includes(row.created_by);
 
         if (!isAssigned && !isCreator) return false;
@@ -1892,108 +1919,108 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const openManageAccess = async () => {
     // Determine title if not already set
     if (!boardTitle) {
-        try {
-            const tableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
-            if (tableRes.ok) {
-                const data = await tableRes.json();
-                setBoardTitle(data.name);
-            }
-        } catch (e) { console.error("Could not fetch table name", e); }
+      try {
+        const tableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
+        if (tableRes.ok) {
+          const data = await tableRes.json();
+          setBoardTitle(data.name);
+        }
+      } catch (e) { console.error("Could not fetch table name", e); }
     }
-    
+
     setManageAccessOpen(true);
-    
+
     // If owner, fetch management data
     if (userPermission === 'owner') {
-        setLoadingUsers(true);
-        try {
+      setLoadingUsers(true);
+      try {
         const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
         if (res.ok) {
-            setSharedUsersList(await res.json());
+          setSharedUsersList(await res.json());
         }
-        
+
         const peopleRes = await authenticatedFetch(getApiUrl(`/people`));
         if (peopleRes.ok) {
-            setUserSearchOptions(await peopleRes.json());
+          setUserSearchOptions(await peopleRes.json());
         }
 
         const currentTableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`));
-        if(currentTableRes.ok) {
-            const tData = await currentTableRes.json();
-            setInviteCode(tData.invite_code || null);
+        if (currentTableRes.ok) {
+          const tData = await currentTableRes.json();
+          setInviteCode(tData.invite_code || null);
         }
-        } catch (err) {
+      } catch (err) {
         console.error(err);
-        } finally {
+      } finally {
         setLoadingUsers(false);
-        }
+      }
     }
   };
 
   const handleLeaveTable = async () => {
-      try {
-          if (!currentUser?.id) return;
-          const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share/${currentUser.id}`), {
-              method: 'DELETE'
-          });
-          if (res.ok) {
-              showNotification("You have left the table", "success");
-              // Redirect to dashboard or refresh logic
-              window.location.href = '/dashboard';
-          } else {
-              showNotification("Failed to leave table", "error");
-          }
-      } catch (err) {
-          console.error(err);
-          showNotification("Failed to leave table", "error");
+    try {
+      if (!currentUser?.id) return;
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share/${currentUser.id}`), {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        showNotification("You have left the table", "success");
+        // Redirect to dashboard or refresh logic
+        window.location.href = '/dashboard';
+      } else {
+        showNotification("Failed to leave table", "error");
       }
+    } catch (err) {
+      console.error(err);
+      showNotification("Failed to leave table", "error");
+    }
   };
 
   const handleCreateInviteCode = async () => {
     try {
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'POST' });
-        if (res.ok) {
-            const data = await res.json();
-            setInviteCode(data.invite_code);
-            showNotification("Invite link created", "success");
-        }
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setInviteCode(data.invite_code);
+        showNotification("Invite link created", "success");
+      }
     } catch (error) {
-        console.error("Failed to create invite code", error);
-        showNotification("Failed to create invite link", "error");
+      console.error("Failed to create invite code", error);
+      showNotification("Failed to create invite link", "error");
     }
   };
 
   const handleDeleteInviteCode = async () => {
     try {
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'DELETE' });
-        if (res.ok) {
-            setInviteCode(null);
-            showNotification("Invite link disabled", "success");
-        }
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invite-code`), { method: 'DELETE' });
+      if (res.ok) {
+        setInviteCode(null);
+        showNotification("Invite link disabled", "success");
+      }
     } catch (error) {
-        console.error("Failed to delete invite code", error);
-        showNotification("Failed to disable invite link", "error");
+      console.error("Failed to delete invite code", error);
+      showNotification("Failed to disable invite link", "error");
     }
   };
-  
-  const handleChangePermission = async (userId: string, currentPermission: 'read'|'edit') => {
-      const newPermission = currentPermission === 'read' ? 'edit' : 'read';
-      // Reuse POST endpoint for update
-      try {
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, permission: newPermission })
-        });
-        if (res.ok) {
-            // Update local state
-            setSharedUsersList(prev => prev.map(u => u.id === userId ? { ...u, permission: newPermission } : u));
-            showNotification(`Permission updated to ${newPermission}`, "success");
-        }
-      } catch (err) {
-          console.error(err);
-          showNotification("Failed to update permission", "error");
+
+  const handleChangePermission = async (userId: string, currentPermission: 'read' | 'edit') => {
+    const newPermission = currentPermission === 'read' ? 'edit' : 'read';
+    // Reuse POST endpoint for update
+    try {
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/share`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, permission: newPermission })
+      });
+      if (res.ok) {
+        // Update local state
+        setSharedUsersList(prev => prev.map(u => u.id === userId ? { ...u, permission: newPermission } : u));
+        showNotification(`Permission updated to ${newPermission}`, "success");
       }
+    } catch (err) {
+      console.error(err);
+      showNotification("Failed to update permission", "error");
+    }
   };
 
   const handleRemoveSharedUser = async (userId: string) => {
@@ -2023,7 +2050,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         // Refresh list
         const updated = await authenticatedFetch(getApiUrl(`/tables/${tableId}/shared-users`));
         if (updated.ok) {
-            setSharedUsersList(await updated.json());
+          setSharedUsersList(await updated.json());
         }
       } else {
         const err = await res.json();
@@ -2134,7 +2161,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setChatScheduledTime("");
     if (chatFileRef.current) chatFileRef.current.value = "";
   };
-  
+
   const handleSendChat = async (targetIdOverride?: string) => {
     // Determine if we can send (text OR attachment must exist)
     const targetId = targetIdOverride || chatTaskId || (reviewTask ? reviewTask.id : null);
@@ -2146,74 +2173,74 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     let attachment = null;
     const row = rows.find(r => r.id === targetId);
     if (!row) {
-        setIsSending(false);
-        return;
+      setIsSending(false);
+      return;
     }
 
     try {
-        // 1. Upload File if present
-        if (chatAttachment) {
-          const formData = new FormData();
-          formData.append('file', chatAttachment);
-          
-          const res = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
-          if (res.ok) {
-            const data = await res.json();
-            attachment = {
-                name: data.name || chatAttachment.name,
-                url: data.url,
-                type: chatAttachment.type,
-                size: chatAttachment.size,
-                originalName: data.originalName,
-                uploadedAt: new Date().toISOString()
-            };
-          }
+      // 1. Upload File if present
+      if (chatAttachment) {
+        const formData = new FormData();
+        formData.append('file', chatAttachment);
+
+        const res = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          attachment = {
+            name: data.name || chatAttachment.name,
+            url: data.url,
+            type: chatAttachment.type,
+            size: chatAttachment.size,
+            originalName: data.originalName,
+            uploadedAt: new Date().toISOString()
+          };
         }
+      }
 
-        const newMsg = {
-          id: uuidv4(),
-          sender: currentUser?.name || "User",
-          senderAvatar: currentUser?.avatar,
-          text: chatInput,
-          timestamp: new Date().toISOString(),
-          attachment: attachment,
-          scheduledFor: chatScheduledTime ? new Date(chatScheduledTime).toISOString() : undefined,
-          notificationSent: chatScheduledTime ? false : undefined
-        };
+      const newMsg = {
+        id: uuidv4(),
+        sender: currentUser?.name || "User",
+        senderAvatar: currentUser?.avatar,
+        text: chatInput,
+        timestamp: new Date().toISOString(),
+        attachment: attachment,
+        scheduledFor: chatScheduledTime ? new Date(chatScheduledTime).toISOString() : undefined,
+        notificationSent: chatScheduledTime ? false : undefined
+      };
 
-        // Construct updated values
-        let updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
+      // Construct updated values
+      let updatedValues = { ...row.values, message: [...(row.values.message || []), newMsg] };
 
-        // If we added a file, ALSO save to the first "File" column
-        if (attachment) {
-             const fileCol = columns.find(c => c.type === 'Files');
-             if (fileCol) {
-                 const existingFiles = Array.isArray(row.values[fileCol.id]) ? row.values[fileCol.id] : [];
-                 updatedValues[fileCol.id] = [...existingFiles, attachment];
-             }
+      // If we added a file, ALSO save to the first "File" column
+      if (attachment) {
+        const fileCol = columns.find(c => c.type === 'Files');
+        if (fileCol) {
+          const existingFiles = Array.isArray(row.values[fileCol.id]) ? row.values[fileCol.id] : [];
+          updatedValues[fileCol.id] = [...existingFiles, attachment];
         }
+      }
 
-        // Update Backend
-        await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: row.id, values: updatedValues }),
-        });
+      // Update Backend
+      await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id, values: updatedValues }),
+      });
 
-        // Update Local State
-        setChatMessages(prev => [...prev, newMsg]);
-        setRows(prev => prev.map(r => r.id === row.id ? { ...r, values: updatedValues } : r));
-        
-        // If reviewing, update that state too
-        if (reviewTask && reviewTask.id === row.id) {
-            setReviewTask(prev => prev ? ({ ...prev, values: updatedValues }) : null);
-        }
+      // Update Local State
+      setChatMessages(prev => [...prev, newMsg]);
+      setRows(prev => prev.map(r => r.id === row.id ? { ...r, values: updatedValues } : r));
 
-        // Reset inputs
-        setChatInput("");
-        setChatAttachment(null);
-        setChatScheduledTime("");
-        if (chatFileRef.current) chatFileRef.current.value = "";
+      // If reviewing, update that state too
+      if (reviewTask && reviewTask.id === row.id) {
+        setReviewTask(prev => prev ? ({ ...prev, values: updatedValues }) : null);
+      }
+
+      // Reset inputs
+      setChatInput("");
+      setChatAttachment(null);
+      setChatScheduledTime("");
+      if (chatFileRef.current) chatFileRef.current.value = "";
 
     } catch (e) {
       console.error("Failed to send chat or upload file", e);
@@ -2312,29 +2339,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
                   <Box
                     onClick={() => {
-                        handleCellSave(row.id, col.id, col.type, "");
-                        setStatusAnchor(null);
-                        setEditingCell(null);
+                      handleCellSave(row.id, col.id, col.type, "");
+                      setStatusAnchor(null);
+                      setEditingCell(null);
                     }}
                     sx={{
-                        color: theme.palette.text.secondary,
-                        fontStyle: 'italic',
-                        borderRadius: '4px',
-                        py: 0.75,
-                        px: 1.5,
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                        transition: 'all 0.1s',
-                        bgcolor: !value ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
-                        '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary },
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
+                      color: theme.palette.text.secondary,
+                      fontStyle: 'italic',
+                      borderRadius: '4px',
+                      py: 0.75,
+                      px: 1.5,
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      transition: 'all 0.1s',
+                      bgcolor: !value ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                      '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary },
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
                     }}
-                   >
-                     <Box component="span">(Blank)</Box>
-                     {!value && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
-                   </Box>
+                  >
+                    <Box component="span">(Blank)</Box>
+                    {!value && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
+                  </Box>
                   {options.map((opt) => (
                     <Box
                       key={opt.value}
@@ -2365,22 +2392,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     </Box>
                   ))}
                   {options.length === 0 && <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', px: 1 }}>No options</Typography>}
-                   <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, mt: 0.5, pt: 0.5 }}>
-                        <Button
-                          size="small"
-                          startIcon={<EditIcon sx={{ fontSize: 14 }} />}
-                           onClick={() => setEditingLabelsColId(effectiveCol.id)}
-                          sx={{
-                            color: theme.palette.text.secondary,
-                            width: '100%',
-                            justifyContent: 'flex-start',
-                            textTransform: 'none',
-                            fontSize: '0.8rem',
-                            '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }
-                          }}
-                        >
-                          Edit Options
-                        </Button>
+                  <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, mt: 0.5, pt: 0.5 }}>
+                    <Button
+                      size="small"
+                      startIcon={<EditIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => setEditingLabelsColId(effectiveCol.id)}
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        width: '100%',
+                        justifyContent: 'flex-start',
+                        textTransform: 'none',
+                        fontSize: '0.8rem',
+                        '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }
+                      }}
+                    >
+                      Edit Options
+                    </Button>
                   </Box>
                 </Box>
               ) : (
@@ -2394,7 +2421,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       <Box component="span" sx={{ fontSize: 18 }}>×</Box>
                     </IconButton>
                   </Box>
-                  
+
                   <Box sx={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {options.map((opt, idx) => (
                       <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -2406,21 +2433,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           onChange={(e) => handleEditStatusLabel(col.id, idx, e.target.value)}
                           sx={{
                             flex: 1,
-                            input: { 
-                              color: theme.palette.text.primary, 
-                              py: 0.5, px: 1, 
-                              fontSize: '0.85rem' 
+                            input: {
+                              color: theme.palette.text.primary,
+                              py: 0.5, px: 1,
+                              fontSize: '0.85rem'
                             },
                             '& .MuiOutlinedInput-root': {
-                                bgcolor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#ffffff',
-                                borderRadius: 1,
-                                '& fieldset': { borderColor: theme.palette.divider },
-                                '&:hover fieldset': { borderColor: theme.palette.text.primary },
-                                '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
+                              bgcolor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#ffffff',
+                              borderRadius: 1,
+                              '& fieldset': { borderColor: theme.palette.divider },
+                              '&:hover fieldset': { borderColor: theme.palette.text.primary },
+                              '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
                             }
                           }}
                         />
-                         {/* We can re-use handleEditStatusLabel/Save even if it was named "Status" */}
+                        {/* We can re-use handleEditStatusLabel/Save even if it was named "Status" */}
                       </Box>
                     ))}
                   </Box>
@@ -2718,8 +2745,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       // Calculate displayed people vs overflow
       const maxDisplay = isMobile ? 2 : 3;
-      const displayPeople = people.slice(0, maxDisplay);
-      const overflow = people.length - maxDisplay;
+      // Map people in the row to the latest member info (for avatar)
+      const peopleWithAvatars = people.map((p: any) => {
+        // Try to match by id, then email, then name
+        const match = tableMembers.find(m => (p.id && m.id === p.id) || (p.email && m.email === p.email) || (p.name && m.name === p.name));
+        return match ? { ...p, avatar: match.avatar, id: match.id, role: match.role } : p;
+      });
+      const displayPeople = peopleWithAvatars.slice(0, maxDisplay);
+      const overflow = peopleWithAvatars.length - maxDisplay;
 
       return (
         <>
@@ -2758,19 +2791,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5 }}>
                 {displayPeople.map((p, i) => (
-                  <Tooltip key={p.email || i} title={p.name}>
+                  <Tooltip key={p.id || p.email || i} title={p.name}>
                     <Avatar
+                      src={getAvatarUrl(p.avatar, p.name)}
+                      alt={p.name}
                       sx={{
                         width: isMobile ? 24 : 28,
                         height: isMobile ? 24 : 28,
                         fontSize: isMobile ? 10 : 12,
-                        bgcolor: '#0073ea',
+                        bgcolor: p.role === 'owner' ? '#6366f1' : '#0073ea',
                         border: `2px solid ${theme.palette.background.default}`,
                         ml: i > 0 ? -1 : 0,
                         zIndex: 10 - i
                       }}
                     >
-                      {p.name ? p.name.charAt(0).toUpperCase() : '?'}
+                      {!p.avatar && (p.name ? p.name.charAt(0).toUpperCase() : '?')}
                     </Avatar>
                   </Tooltip>
                 ))}
@@ -2857,8 +2892,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       p: 1
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}>
-                          {p.name ? p.name.charAt(0).toUpperCase() : '?'}
+                        <Avatar
+                          src={getAvatarUrl(p.avatar, p.name)}
+                          sx={{ width: 24, height: 24, fontSize: 12, bgcolor: '#0073ea' }}
+                        >
+                          {!p.avatar && (p.name ? p.name.charAt(0).toUpperCase() : '?')}
                         </Avatar>
                         <Box>
                           <Typography variant="body2" sx={{ fontWeight: 500 }}>{p.name}</Typography>
@@ -3129,10 +3167,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             setEditValue(newInputValue);
           }}
           onChange={(event, newValue) => {
-             if (newValue) {
-               setEditValue(newValue);
-               handleCellSave(row.id, col.id, col.type, newValue);
-             }
+            if (newValue) {
+              setEditValue(newValue);
+              handleCellSave(row.id, col.id, col.type, newValue);
+            }
           }}
           renderInput={(params) => (
             <TextField
@@ -3149,9 +3187,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               InputProps={{
                 ...params.InputProps,
                 style: { color: theme.palette.text.primary, padding: 0 },
-                sx: { 
-                    '& .MuiOutlinedInput-root': { padding: '0 8px !important' },
-                    '& .MuiInputBase-input': { padding: '8px 0 !important' } 
+                sx: {
+                  '& .MuiOutlinedInput-root': { padding: '0 8px !important' },
+                  '& .MuiInputBase-input': { padding: '8px 0 !important' }
                 }
               }}
               sx={{
@@ -3162,17 +3200,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           slotProps={{
             paper: {
               sx: {
-                  bgcolor: theme.palette.background.default,
-                  color: theme.palette.text.primary,
-                  borderRadius: 2,
-                  border: `1px solid ${theme.palette.divider}`,
-                  mt: 1,
-                  '& .MuiMenuItem-root': {
-                    '&:hover': { bgcolor: theme.palette.action.hover },
-                    '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                bgcolor: theme.palette.background.default,
+                color: theme.palette.text.primary,
+                borderRadius: 2,
+                border: `1px solid ${theme.palette.divider}`,
+                mt: 1,
+                '& .MuiMenuItem-root': {
+                  '&:hover': { bgcolor: theme.palette.action.hover },
+                  '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                 }
+              }
             }
-          }}}
+          }}
           sx={{ width: '100%' }}
         />
       );
@@ -3577,198 +3616,208 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Typography>
 
           {userPermission === 'owner' ? (
-             !inviteCode ? (
-            <Box 
-                sx={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    p: 4, 
-                    border: `1px dashed ${theme.palette.divider}`, 
-                    borderRadius: 2,
-                    bgcolor: theme.palette.action.hover
+            !inviteCode ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 4,
+                  border: `1px dashed ${theme.palette.divider}`,
+                  borderRadius: 2,
+                  bgcolor: theme.palette.action.hover
                 }}
-            >
-                <IconButton 
-                    onClick={handleCreateInviteCode}
-                    sx={{ 
-                        width: 64, 
-                        height: 64, 
-                        bgcolor: theme.palette.primary.main, 
-                        color: theme.palette.text.primary, 
-                        mb: 2,
-                        '&:hover': { bgcolor: '#5558dd' }
-                    }}
+              >
+                <IconButton
+                  onClick={handleCreateInviteCode}
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    bgcolor: theme.palette.primary.main,
+                    color: theme.palette.text.primary,
+                    mb: 2,
+                    '&:hover': { bgcolor: '#5558dd' }
+                  }}
                 >
-                    <AddIcon sx={{ fontSize: 32 }} />
+                  <AddIcon sx={{ fontSize: 32 }} />
                 </IconButton>
                 <Typography variant="h6" sx={{ color: theme.palette.text.primary, mb: 0.5 }}>Start Sharing</Typography>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-                    Create an invite link to share this board with others.
+                  Create an invite link to share this board with others.
                 </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ border: '1px solid #6366f1', borderRadius: 2, p: 2, bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
+              </Box>
+            ) : (
+              <Box sx={{ border: '1px solid #6366f1', borderRadius: 2, p: 2, bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
                 {/* Header: Table Name & Stop Sharing */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Box>
-                        <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
-                            Sharing
-                        </Typography>
-                        <Typography variant="h6" sx={{ color: theme.palette.text.primary, fontWeight: 600 }}>
-                            {boardTitle}
-                        </Typography>
-                    </Box>
-                    <Button 
-                        variant="outlined" 
-                        color="error" 
-                        size="small" 
-                        onClick={handleDeleteInviteCode}
-                        sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main, '&:hover': { borderColor: '#c23046', bgcolor: theme.palette.error.light } }}
-                    >
-                        Stop Sharing
-                    </Button>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
+                      Sharing
+                    </Typography>
+                    <Typography variant="h6" sx={{ color: theme.palette.text.primary, fontWeight: 600 }}>
+                      {boardTitle}
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={handleDeleteInviteCode}
+                    sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main, '&:hover': { borderColor: '#c23046', bgcolor: theme.palette.error.light } }}
+                  >
+                    Stop Sharing
+                  </Button>
                 </Box>
 
                 {/* Connection Code Display */}
                 <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: theme.palette.background.default, p: 1.5, borderRadius: 1.5, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
-                    <Box sx={{ flex: 1, mr: 2 }}>
-                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>INVITE CODE</Typography>
-                        <Typography variant="body1" sx={{ color: theme.palette.text.primary, fontFamily: 'monospace', letterSpacing: 2, fontWeight: 700 }}>
-                            {inviteCode}
-                        </Typography>
-                    </Box>
-                    <IconButton 
-                        onClick={() => {
-                            navigator.clipboard.writeText(inviteCode);
-                            showNotification("Code copied!", "success");
-                        }}
-                        sx={{ color: theme.palette.primary.main }}
-                    >
-                        <ContentCopyIcon />
-                    </IconButton>
+                  <Box sx={{ flex: 1, mr: 2 }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>INVITE CODE</Typography>
+                    <Typography variant="body1" sx={{ color: theme.palette.text.primary, fontFamily: 'monospace', letterSpacing: 2, fontWeight: 700 }}>
+                      {inviteCode}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    onClick={() => {
+                      navigator.clipboard.writeText(inviteCode);
+                      showNotification("Code copied!", "success");
+                    }}
+                    sx={{ color: theme.palette.primary.main }}
+                  >
+                    <ContentCopyIcon />
+                  </IconButton>
                 </Box>
-                
+
                 {/* Users List */}
                 <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, mb: 1, fontWeight: 600 }}>Connected Users</Typography>
                 <List sx={{ bgcolor: theme.palette.background.default, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, mb: 3, maxHeight: 200, overflow: 'auto' }}>
-                    {sharedUsersList.length === 0 ? (
-                        <ListItem>
-                            <ListItemText primary="No users connected yet." primaryTypographyProps={{ sx: { color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: '0.875rem' } }} />
-                        </ListItem>
-                    ) : (
-                        sharedUsersList.map((user) => (
-                            <ListItem
-                                key={user.id}
-                                secondaryAction={
-                                    <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveSharedUser(user.id)} sx={{ color: theme.palette.error.main }}>
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                }
-                            >
-                                <ListItemAvatar>
-                                    <Avatar sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}>{user.name?.charAt(0).toUpperCase()}</Avatar>
-                                </ListItemAvatar>
-                                <ListItemText
-                                    primary={user.name}
-                                    secondary={user.email}
-                                    primaryTypographyProps={{ sx: { color: theme.palette.text.primary, fontSize: '0.875rem' } }}
-                                    secondaryTypographyProps={{ sx: { color: theme.palette.text.secondary, fontSize: '0.75rem' } }}
-                                />
-                                <Button
-                                    size="small"
-                                    onClick={() => handleChangePermission(user.id, user.permission || 'read')}
-                                    sx={{ 
-                                        mr: 1, 
-                                        minWidth: 60, 
-                                        color: user.permission === 'edit' ? '#4caf50' : '#ff9800',
-                                        borderColor: user.permission === 'edit' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 152, 0, 0.5)',
-                                        border: '1px solid',
-                                        fontSize: '0.7rem',
-                                        py: 0.25
-                                    }}
-                                >
-                                    {user.permission === 'edit' ? 'Editor' : 'Viewer'}
-                                </Button>
-                            </ListItem>
-                        ))
-                    )}
+                  {sharedUsersList.length === 0 ? (
+                    <ListItem>
+                      <ListItemText primary="No users connected yet." primaryTypographyProps={{ sx: { color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: '0.875rem' } }} />
+                    </ListItem>
+                  ) : (
+                    sharedUsersList.map((user) => (
+                      <ListItem
+                        key={user.id}
+                        secondaryAction={
+                          <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveSharedUser(user.id)} sx={{ color: theme.palette.error.main }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        }
+                      >
+                        <ListItemAvatar>
+                          <Avatar 
+                            src={getAvatarUrl(user.avatar, user.name)}
+                            sx={{ bgcolor: '#0073ea', width: 32, height: 32, fontSize: 14 }}
+                          >
+                            {user.name?.charAt(0).toUpperCase()}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={user.name}
+                          secondary={user.email}
+                          primaryTypographyProps={{ sx: { color: theme.palette.text.primary, fontSize: '0.875rem' } }}
+                          secondaryTypographyProps={{ sx: { color: theme.palette.text.secondary, fontSize: '0.75rem' } }}
+                        />
+                        <Button
+                          size="small"
+                          onClick={() => handleChangePermission(user.id, user.permission || 'read')}
+                          sx={{
+                            mr: 1,
+                            minWidth: 60,
+                            color: user.permission === 'edit' ? '#4caf50' : '#ff9800',
+                            borderColor: user.permission === 'edit' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 152, 0, 0.5)',
+                            border: '1px solid',
+                            fontSize: '0.7rem',
+                            py: 0.25
+                          }}
+                        >
+                          {user.permission === 'edit' ? 'Editor' : 'Viewer'}
+                        </Button>
+                      </ListItem>
+                    ))
+                  )}
                 </List>
 
                 {/* Add User Section */}
                 <Typography variant="subtitle2" sx={{ color: theme.palette.text.secondary, mb: 1, fontWeight: 600 }}>Add User</Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Autocomplete
-                        fullWidth
-                        size="small"
-                        options={userSearchOptions.filter((u: any) => !sharedUsersList.some(su => su.email === u.email))}
-                        getOptionLabel={(option: any) => option.name || option.email}
-                        value={selectedUserToInvite}
-                        onChange={(event: any, newValue: any | null) => {
-                            setSelectedUserToInvite(newValue);
+                  <Autocomplete
+                    fullWidth
+                    size="small"
+                    options={userSearchOptions.filter((u: any) => !sharedUsersList.some(su => su.email === u.email))}
+                    getOptionLabel={(option: any) => option.name || option.email}
+                    value={selectedUserToInvite}
+                    onChange={(event: any, newValue: any | null) => {
+                      setSelectedUserToInvite(newValue);
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="Search user..."
+                        InputProps={{
+                          ...params.InputProps,
+                          sx: {
+                            color: theme.palette.text.primary,
+                            bgcolor: theme.palette.background.default,
+                            borderRadius: 1,
+                            fontSize: '0.875rem',
+                            '& fieldset': { borderColor: theme.palette.divider }
+                          }
                         }}
-                        renderInput={(params) => (
-                            <TextField 
-                                {...params} 
-                                placeholder="Search user..." 
-                                InputProps={{
-                                    ...params.InputProps,
-                                    sx: {
-                                        color: theme.palette.text.primary,
-                                        bgcolor: theme.palette.background.default,
-                                        borderRadius: 1,
-                                        fontSize: '0.875rem',
-                                        '& fieldset': { borderColor: theme.palette.divider }
-                                    }
-                                }}
-                            />
-                        )}
-                        renderOption={(props, option) => {
-                            const { key, ...otherProps } = props;
-                            return (
-                                <li key={key} {...otherProps}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Avatar sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}>{option.name?.charAt(0).toUpperCase()}</Avatar>
-                                        <Typography variant="body2">{option.name || option.email}</Typography>
-                                    </Box>
-                                </li>
-                            );
-                        }}
-                    />
-                    <Button
-                        variant="contained"
-                        onClick={handleAddSharedUser}
-                        disabled={!selectedUserToInvite}
-                        sx={{ bgcolor: theme.palette.primary.main, '&:hover': { bgcolor: '#5558dd' } }}
-                    >
-                        Add
-                    </Button>
+                      />
+                    )}
+                    renderOption={(props, option) => {
+                      const { key, ...otherProps } = props;
+                      return (
+                        <li key={key} {...otherProps}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Avatar 
+                              src={getAvatarUrl(option.avatar, option.name)}
+                              sx={{ width: 20, height: 20, mr: 1, fontSize: 10 }}
+                            >
+                              {option.name?.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Typography variant="body2">{option.name || option.email}</Typography>
+                          </Box>
+                        </li>
+                      );
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={handleAddSharedUser}
+                    disabled={!selectedUserToInvite}
+                    sx={{ bgcolor: theme.palette.primary.main, '&:hover': { bgcolor: '#5558dd' } }}
+                  >
+                    Add
+                  </Button>
                 </Box>
-            </Box>
-          )
+              </Box>
+            )
           ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                    <Typography variant="h6" sx={{ color: theme.palette.text.primary, mb: 1 }}>Shared Board</Typography>
-                    <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 4 }}>
-                        You are a <strong>{userPermission === 'edit' ? 'Editor' : 'Viewer'}</strong> on this board.
-                    </Typography>
-                    <Box sx={{ mx: 'auto', p: 3, border: '1px solid rgba(226, 68, 92, 0.3)', borderRadius: 2, bgcolor: 'rgba(226, 68, 92, 0.05)', maxWidth: 400 }}>
-                        <Typography variant="subtitle2" sx={{ color: theme.palette.error.main, mb: 1, fontWeight: 600 }}>Leave Board</Typography>
-                        <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 2, fontSize: '0.875rem' }}>
-                            Revoke your own access to this board. You will need a new invite to join again.
-                        </Typography>
-                        <Button
-                            variant="outlined" 
-                            color="error" 
-                            onClick={handleLeaveTable}
-                            startIcon={<LogoutIcon />}
-                            sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main, '&:hover': { borderColor: '#c23046', bgcolor: theme.palette.error.light } }}
-                        >
-                            Leave Board
-                        </Button>
-                    </Box>
-                </Box>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="h6" sx={{ color: theme.palette.text.primary, mb: 1 }}>Shared Board</Typography>
+              <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 4 }}>
+                You are a <strong>{userPermission === 'edit' ? 'Editor' : 'Viewer'}</strong> on this board.
+              </Typography>
+              <Box sx={{ mx: 'auto', p: 3, border: '1px solid rgba(226, 68, 92, 0.3)', borderRadius: 2, bgcolor: 'rgba(226, 68, 92, 0.05)', maxWidth: 400 }}>
+                <Typography variant="subtitle2" sx={{ color: theme.palette.error.main, mb: 1, fontWeight: 600 }}>Leave Board</Typography>
+                <Typography variant="body2" sx={{ color: theme.palette.text.primary, mb: 2, fontSize: '0.875rem' }}>
+                  Revoke your own access to this board. You will need a new invite to join again.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleLeaveTable}
+                  startIcon={<LogoutIcon />}
+                  sx={{ borderColor: theme.palette.error.main, color: theme.palette.error.main, '&:hover': { borderColor: '#c23046', bgcolor: theme.palette.error.light } }}
+                >
+                  Leave Board
+                </Button>
+              </Box>
+            </Box>
           )}
 
         </DialogContent>
@@ -3816,10 +3865,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             backdropFilter: 'blur(12px)'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ 
-                bgcolor: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', 
+              <Avatar sx={{
+                bgcolor: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
                 background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                color: theme.palette.text.primary, 
+                color: theme.palette.text.primary,
                 width: 40, height: 40,
                 boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
               }}>
@@ -3833,10 +3882,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             <IconButton
               onClick={() => setIsChatOpen(false)}
               size="small"
-              sx={{ 
-                color: theme.palette.text.secondary, 
+              sx={{
+                color: theme.palette.text.secondary,
                 transition: 'all 0.2s',
-                '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)', transform: 'rotate(90deg)' } 
+                '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)', transform: 'rotate(90deg)' }
               }}
             >
               <Box component="span" sx={{ fontSize: 24, lineHeight: 1 }}>×</Box>
@@ -3857,7 +3906,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             {boardChatMessages.map((msg, idx) => {
               const isMe = msg.sender === 'You' || (currentUser && msg.sender === currentUser.name);
               const isSequence = idx > 0 && boardChatMessages[idx - 1].sender === msg.sender;
-              
+
               return (
                 <Box key={msg.id} sx={{
                   alignSelf: isMe ? 'flex-end' : 'flex-start',
@@ -3873,19 +3922,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       <Typography variant="caption" sx={{ color: '#565875', fontSize: '0.7rem' }}>{msg.time}</Typography>
                     </Box>
                   )}
-                  
+
                   <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexDirection: isMe ? 'row-reverse' : 'row' }}>
                     <Avatar
-                      src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender)}&background=random&color=fff&bold=true`}
-                      sx={{ 
-                        width: 32, height: 32, 
+                      src={getAvatarUrl(msg.senderAvatar, msg.sender)}
+                      sx={{
+                        width: 32, height: 32,
                         border: `1px solid ${theme.palette.divider}`,
-                        opacity: isSequence ? 0 : 1 
+                        opacity: isSequence ? 0 : 1
                       }}
                     >
                       {!msg.senderAvatar && (msg.sender?.charAt(0) || 'U')}
                     </Avatar>
-                    
+
                     <Box sx={{
                       bgcolor: isMe ? '#6366f1' : (theme.palette.mode === 'dark' ? '#26273b' : theme.palette.grey[100]),
                       background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : (theme.palette.mode === 'dark' ? '#26273b' : theme.palette.grey[100]),
@@ -3915,9 +3964,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, bgcolor: 'rgba(0,0,0,0.2)' }}>
-                            <Box sx={{ 
-                              p: 1, 
-                              bgcolor: 'rgba(255,255,255,0.15)', 
+                            <Box sx={{
+                              p: 1,
+                              bgcolor: 'rgba(255,255,255,0.15)',
                               borderRadius: 1.5,
                               color: theme.palette.text.primary,
                               display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -3925,10 +3974,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               <InsertDriveFileIcon sx={{ fontSize: 20 }} />
                             </Box>
                             <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Typography variant="body2" sx={{ 
-                                fontWeight: 600, 
-                                fontSize: '0.85rem', 
-                                whiteSpace: 'normal', 
+                              <Typography variant="body2" sx={{
+                                fontWeight: 600,
+                                fontSize: '0.85rem',
+                                whiteSpace: 'normal',
                                 wordBreak: 'break-all',
                                 color: theme.palette.text.primary,
                                 lineHeight: 1.2
@@ -3942,10 +3991,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           </Box>
                         </Box>
                       )}
-                      
+
                       {msg.text && (
-                        <Typography variant="body2" sx={{ 
-                          lineHeight: 1.6, 
+                        <Typography variant="body2" sx={{
+                          lineHeight: 1.6,
                           fontSize: '0.935rem',
                           wordWrap: 'break-word',
                           overflowWrap: 'anywhere', // Ensures long words/URLs break to avoid scroll
@@ -3956,22 +4005,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           {msg.text}
                         </Typography>
                       )}
-                      
-                      <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'flex-end', 
-                          gap: 0.5, 
-                          mt: 0.5,
-                          mb: -0.5, // Pull closer to bottom
-                          opacity: 0.7
+
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: 0.5,
+                        mt: 0.5,
+                        mb: -0.5, // Pull closer to bottom
+                        opacity: 0.7
                       }}>
-                          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isMe ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)' }}>
-                              {msg.time}
-                          </Typography>
-                          {isMe && (
-                              <Box component="span" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>✓</Box>
-                          )}
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isMe ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)' }}>
+                          {msg.time}
+                        </Typography>
+                        {isMe && (
+                          <Box component="span" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>✓</Box>
+                        )}
                       </Box>
                     </Box>
                   </Box>
@@ -3980,22 +4029,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             })}
             <div ref={boardChatEndRef} />
           </Box>
-          
+
           {/* Input Area */}
-          <Box sx={{ 
-            p: 2, 
+          <Box sx={{
+            p: 2,
             pt: 1.5,
-            borderTop: `1px solid ${theme.palette.divider}`, 
+            borderTop: `1px solid ${theme.palette.divider}`,
             bgcolor: theme.palette.mode === 'dark' ? 'rgba(21, 22, 33, 0.98)' : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(20px)',
             boxShadow: '0 -4px 20px rgba(0,0,0,0.2)'
           }}>
             {/* Pending File Preview */}
             {pendingBoardFile && (
-              <Box sx={{ 
-                mb: 2, 
-                p: 1.5, 
-                bgcolor: theme.palette.action.selected, 
+              <Box sx={{
+                mb: 2,
+                p: 1.5,
+                bgcolor: theme.palette.action.selected,
                 border: '1px dashed rgba(99, 102, 241, 0.4)',
                 borderRadius: 2,
                 display: 'flex',
@@ -4009,9 +4058,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   </Box>
                   <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
                     <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block' }}>Ready to send</Typography>
-                    <Typography variant="body2" sx={{ 
-                      color: theme.palette.text.primary, 
-                      fontSize: '0.85rem', 
+                    <Typography variant="body2" sx={{
+                      color: theme.palette.text.primary,
+                      fontSize: '0.85rem',
                       fontWeight: 500,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -4022,8 +4071,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>{Math.round(pendingBoardFile.size / 1024)} KB</Typography>
                   </Box>
                 </Box>
-                <IconButton 
-                  size="small" 
+                <IconButton
+                  size="small"
                   onClick={() => setPendingBoardFile(null)}
                   sx={{ color: theme.palette.text.secondary, '&:hover': { color: '#ef4444', bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
                 >
@@ -4035,23 +4084,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             {boardTypingUsers.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, ml: 1 }}>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
-                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite' }} />
-                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite 0.2s' }} />
-                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite 0.4s' }} />
+                  <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite' }} />
+                  <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite 0.2s' }} />
+                  <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#818cf8', animation: 'typing 1s infinite 0.4s' }} />
                 </Box>
                 <Typography variant="caption" sx={{ color: '#818cf8', fontStyle: 'italic', fontWeight: 500 }}>
                   {boardTypingUsers.join(', ')} {boardTypingUsers.length === 1 ? 'is' : 'are'} typing...
                 </Typography>
               </Box>
             )}
-            
+
             <input
               type="file"
               hidden
               ref={fileInputRef}
               onChange={handleBoardFileUpload}
             />
-            
+
             <Box sx={{
               display: 'flex',
               gap: 1.5,
@@ -4061,7 +4110,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               border: `1px solid ${theme.palette.divider}`,
               alignItems: 'flex-end',
               transition: 'all 0.2s',
-              '&:focus-within, &:hover': { 
+              '&:focus-within, &:hover': {
                 borderColor: 'rgba(99, 102, 241, 0.5)',
                 bgcolor: theme.palette.action.hover,
                 boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
@@ -4069,18 +4118,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             }}>
               <IconButton
                 size="small"
-                sx={{ 
-                  color: theme.palette.text.secondary, 
-                  mb: 0.5, 
+                sx={{
+                  color: theme.palette.text.secondary,
+                  mb: 0.5,
                   width: 32, height: 32,
                   transition: 'all 0.2s',
-                  '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)' } 
+                  '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)' }
                 }}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <AttachFileIcon fontSize="small" />
               </IconButton>
-              
+
               <TextField
                 fullWidth
                 variant="standard"
@@ -4108,11 +4157,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   }
                 }}
               />
-              
-              <IconButton 
+
+              <IconButton
                 onClick={handleSendBoardChat}
                 disabled={!newBoardChatMessage.trim() && !pendingBoardFile}
-                sx={{ 
+                sx={{
                   bgcolor: (newBoardChatMessage.trim() || pendingBoardFile) ? '#6366f1' : 'transparent',
                   background: (newBoardChatMessage.trim() || pendingBoardFile) ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
                   color: (newBoardChatMessage.trim() || pendingBoardFile) ? '#fff' : '#475569',
@@ -4120,7 +4169,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   mb: 0.25,
                   transition: 'all 0.2s',
                   boxShadow: (newBoardChatMessage.trim() || pendingBoardFile) ? '0 2px 8px rgba(99, 102, 241, 0.4)' : 'none',
-                  '&:hover': { 
+                  '&:hover': {
                     transform: (newBoardChatMessage.trim() || pendingBoardFile) ? 'scale(1.05)' : 'none',
                     boxShadow: (newBoardChatMessage.trim() || pendingBoardFile) ? '0 4px 12px rgba(99, 102, 241, 0.5)' : 'none'
                   },
@@ -4171,9 +4220,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           bgcolor: 'rgba(255,255,255,0.02)'
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ 
-              p: 1, 
-              bgcolor: theme.palette.action.selected, 
+            <Box sx={{
+              p: 1,
+              bgcolor: theme.palette.action.selected,
               borderRadius: 1.5,
               color: '#818cf8',
               display: 'flex'
@@ -4188,11 +4237,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               download={previewFile?.name}
               target="_blank"
               startIcon={<Box component="span" sx={{ fontSize: 18 }}>⬇</Box>}
-              sx={{ 
-                color: theme.palette.text.secondary, 
-                borderColor: 'rgba(255,255,255,0.1)', 
-                '&:hover': { 
-                  color: theme.palette.text.primary, 
+              sx={{
+                color: theme.palette.text.secondary,
+                borderColor: 'rgba(255,255,255,0.1)',
+                '&:hover': {
+                  color: theme.palette.text.primary,
                   borderColor: '#fff',
                   bgcolor: theme.palette.action.hover
                 },
@@ -4204,12 +4253,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             >
               Download
             </Button>
-            <IconButton 
-              onClick={() => setPreviewFile(null)} 
-              sx={{ 
-                color: theme.palette.text.secondary, 
+            <IconButton
+              onClick={() => setPreviewFile(null)}
+              sx={{
+                color: theme.palette.text.secondary,
                 transition: 'all 0.2s',
-                '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)', transform: 'rotate(90deg)' } 
+                '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)', transform: 'rotate(90deg)' }
               }}
             >
               <Box component="span" sx={{ fontSize: 24, lineHeight: 1 }}>×</Box>
@@ -4435,36 +4484,36 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Button>
         )}
 
-          {/* Automations Button */}
-          <Tooltip title="Configure Automations">
-            <Button
-              variant="outlined"
-              startIcon={<BoltIcon sx={{ fontSize: 18 }} />}
-              onClick={() => {
-                setShowEmailAutomation(true);
-                setMobileTab('details'); // Ensure not in a weird state
-              }}
-              sx={{
-                background: 'transparent',
-                backgroundColor: 'transparent',
-                color: theme.palette.text.secondary,
-                borderColor: theme.palette.divider,
-                fontWeight: 500,
-                textTransform: 'none',
-                borderRadius: '8px',
-                px: 2,
-                height: 40,
-                zIndex: 2,
-                '&:hover': {
-                  borderColor: theme.palette.primary.main,
-                  color: theme.palette.text.primary,
-                  bgcolor: 'rgba(79, 81, 192, 0.1)'
-                }
-              }}
-            >
-              Automations
-            </Button>
-          </Tooltip>
+        {/* Automations Button */}
+        <Tooltip title="Configure Automations">
+          <Button
+            variant="outlined"
+            startIcon={<BoltIcon sx={{ fontSize: 18 }} />}
+            onClick={() => {
+              setShowEmailAutomation(true);
+              setMobileTab('details'); // Ensure not in a weird state
+            }}
+            sx={{
+              background: 'transparent',
+              backgroundColor: 'transparent',
+              color: theme.palette.text.secondary,
+              borderColor: theme.palette.divider,
+              fontWeight: 500,
+              textTransform: 'none',
+              borderRadius: '8px',
+              px: 2,
+              height: 40,
+              zIndex: 2,
+              '&:hover': {
+                borderColor: theme.palette.primary.main,
+                color: theme.palette.text.primary,
+                bgcolor: 'rgba(79, 81, 192, 0.1)'
+              }
+            }}
+          >
+            Automations
+          </Button>
+        </Tooltip>
 
         <Button
           variant="outlined"
@@ -4691,10 +4740,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 }
               }}
             >
-              <Box sx={{ 
-                p: { xs: 2, sm: 3 }, 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+              <Box sx={{
+                p: { xs: 2, sm: 3 },
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 borderBottom: `1px solid ${theme.palette.divider}`,
                 bgcolor: theme.palette.background.paper
@@ -4833,7 +4882,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       {
         workspaceView === 'table' ? (
           <DragDropContext onDragEnd={onDragEnd}>
-            <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto' }}>
+            <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto', position: 'relative' }}>
               <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
                 <TableHead>
                   <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
@@ -4891,13 +4940,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   bgcolor: snapshot.isDragging ? `${theme.palette.action.selected} !important` : theme.palette.background.paper,
                                   '&:hover': { bgcolor: `${theme.palette.action.hover} !important` },
                                   '&:hover .column-actions': { opacity: 1 },
-                                  ...(isMobile && index === 0 && {
+                                  ...(isMobile && index === 0 ? {
                                     position: 'sticky',
-                                    left: 60, // Width of the checkbox/control header cell
-                                    zIndex: 10,
+                                    left: 60,
+                                    zIndex: 100,
                                     bgcolor: `${theme.palette.background.paper} !important`,
-                                    borderRight: `1px solid ${theme.palette.divider}`
-                                  })
+                                    boxShadow: '4px 0 8px rgba(0,0,0,0.15)',
+                                    borderRight: `2px solid ${theme.palette.divider}`
+                                  } : {})
                                 }}
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -4999,312 +5049,322 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   {(provided) => {
                     // Find first status column for row coloring
                     const firstStatusCol = [...columns].sort((a, b) => a.order - b.order).find(c => c.type === 'Status');
-                    
+
                     return (
-                    <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                      {filteredRows.map((row, index) => {
-                        // Calculate background color based on status
-                        let rowBg = theme.palette.background.default;
-                        let rowHoverBg = theme.palette.action.hover;
-                        
-                        if (firstStatusCol) {
-                           const val = row.values[firstStatusCol.id];
-                           // Status options usually have { value, color }
-                           const opt = firstStatusCol.options?.find((o: any) => o.value === val);
-                           if (opt && opt.color && opt.color.startsWith('#')) {
-                               // Add ~12% opacity (hex 1F) for background
-                               rowBg = opt.color + '1F';
-                               // Add ~20% opacity (hex 33) for hover
-                               rowHoverBg = opt.color + '33';
-                           }
-                        }
+                      <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                        {filteredRows.map((row, index) => {
+                          // Calculate background color based on status
+                          let rowBg = theme.palette.background.default;
+                          let rowHoverBg = theme.palette.action.hover;
 
-                        return (
-                        <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
-                          {(provided, snapshot) => (
-                            <TableRow
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              sx={{
-                                bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
-                                '&:hover': { bgcolor: rowHoverBg },
-                                transition: 'background-color 0.2s',
-                                borderRadius: 4, 
-                                ...provided.draggableProps.style
-                              }}
-                            >
-                              {/* Row Drag Handle, Menu, and Message Icon */}
+                          if (firstStatusCol) {
+                            const val = row.values[firstStatusCol.id];
+                            // Status options usually have { value, color }
+                            const opt = firstStatusCol.options?.find((o: any) => o.value === val);
+                            if (opt && opt.color && opt.color.startsWith('#')) {
+                              // Add ~12% opacity (hex 1F) for background
+                              rowBg = opt.color + '1F';
+                              // Add ~20% opacity (hex 33) for hover
+                              rowHoverBg = opt.color + '33';
+                            }
+                          }
 
-                              <TableCell sx={{
-                                width: 60,
-                                minWidth: 60,
-                                p: 0,
-                                borderBottom: 'none',
-                                borderTopLeftRadius: 12,
-                                borderBottomLeftRadius: 12,
-                                borderLeft: row.created_by ? `6px solid ${stringToColor(row.created_by)}` : undefined,
-                                position: 'relative', // Establish containing block for avatar
-                                ...(isMobile && {
-                                  position: 'sticky',
-                                  left: 0,
-                                  zIndex: 11, // Higher than first data col (zIndex 10)
-                                  bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
-                                  borderRight: `1px solid ${theme.palette.divider}`,
-                                  'tr:hover &': { bgcolor: rowHoverBg }
-                                })
-                              }}>
-                                {/* Creator Avatar on Highlighted Task */}
-                                {row.created_by && (() => {
-                                  const creator = tableMembers.find(m => m.id === row.created_by);
-                                  if (!creator) return null;
-                                  return (
-                                    <Tooltip title={`Created by ${creator.name}`}>
-                                      <Avatar 
-                                        src={creator.avatar} 
-                                        sx={{ 
-                                          width: 16, 
-                                          height: 16, 
-                                          position: 'absolute', 
-                                          top: 2, 
-                                          left: 8, 
-                                          fontSize: '0.5rem',
-                                          bgcolor: stringToColor(row.created_by),
-                                          border: `1px solid ${theme.palette.background.default}`,
-                                          zIndex: 2
-                                        }}
-                                      >
-                                        {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
-                                      </Avatar>
-                                    </Tooltip>
-                                  );
-                                })()}
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
-                                  <div {...provided.dragHandleProps} style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center', 
-                                      cursor: 'grab', 
-                                      width: 24, 
-                                      height: 24,
-                                      marginRight: 8
-                                  }}>
-                                    <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13, fontWeight: 600 }}>
-                                      {index + 1}
-                                    </Typography>
-                                  </div>
-                                  <TaskRowMenu
-                                    row={row}
-                                    onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
-                                    onMoveUp={() => handleMoveRow(row.id, 'up')}
-                                    onMoveDown={() => handleMoveRow(row.id, 'down')}
-                                    onMoveTop={() => handleMoveRow(row.id, 'top')}
-                                    onMoveBottom={() => handleMoveRow(row.id, 'bottom')}
-                                    onExportPdf={() => handleExportPdf(row)}
-                                    onExportExcel={() => handleExportExcel(row)}
-                                    onDelete={async () => {
-                                      if (confirm('Are you sure you want to delete this task?')) {
-                                        // Optimistic update
-                                        setRows(prev => prev.filter(r => r.id !== row.id));
-                                        // Backend call
-                                        await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
-                                          method: "DELETE",
-                                        });
+                          return (
+                            <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
+                              {(provided, snapshot) => (
+                                <TableRow
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  style={{
+                                    ...provided.draggableProps.style,
+                                    transform: snapshot.isDragging ? provided.draggableProps.style?.transform : 'none'
+                                  }}
+                                  sx={{
+                                    bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
+                                    '&:hover': { bgcolor: rowHoverBg },
+                                    transition: 'background-color 0.2s',
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {/* Row Drag Handle, Menu, and Message Icon */}
+
+                                  <TableCell sx={{
+                                    width: 60,
+                                    minWidth: 60,
+                                    p: 0,
+                                    borderBottom: 'none',
+                                    borderTopLeftRadius: 12,
+                                    borderBottomLeftRadius: 12,
+                                    borderLeft: row.created_by ? `6px solid ${stringToColor(row.created_by)}` : undefined,
+                                    position: 'relative', // Establish containing block for avatar
+                                    ...(isMobile ? {
+                                      position: 'sticky',
+                                      left: 0,
+                                      zIndex: 105, // Highest z-index for the leftmost control column
+                                      bgcolor: theme.palette.background.paper,
+                                      backgroundImage: snapshot.isDragging ? 'none' : `linear-gradient(${rowBg}, ${rowBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`,
+                                      borderRight: `1px solid ${theme.palette.divider}`,
+                                      'tr:hover &': {
+                                        backgroundImage: `linear-gradient(${rowHoverBg}, ${rowHoverBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`
                                       }
-                                    }}
-                                  />
-                                  {/* Message Icon for Chat */}
-                                  <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
-                                    <ChatBubbleOutlineIcon sx={{ fontSize: 20 }} />
-                                  </IconButton>
-                                  {chatPopoverKey === `${row.id}-message` && chatAnchor && (
-                                    <Popover
-                                      open={!!chatAnchor}
-                                      anchorEl={chatAnchor}
-                                      onClose={handleCloseChat}
-                                      anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                                      transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                                      PaperProps={{
-                                        sx: { p: 0, minWidth: 380, maxWidth: 420, bgcolor: theme.palette.background.paper, borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: `1px solid ${theme.palette.divider}` }
-                                      }}
-                                    >
-                                      <Box sx={{ display: 'flex', flexDirection: 'column', height: 500 }}>
-                                        {/* Header with Tabs */}
-                                        <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.default }}>
-                                          <Box sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Typography variant="subtitle1" sx={{ color: theme.palette.text.primary, fontWeight: 600 }}>Discussion</Typography>
-                                            <IconButton size="small" onClick={handleCloseChat} sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }}>
-                                              <span style={{ fontSize: 18 }}>✕</span>
-                                            </IconButton>
-                                          </Box>
-                                          <Tabs 
-                                            value={chatTab} 
-                                            onChange={(_, v) => setChatTab(v)} 
-                                            variant="fullWidth"
-                                            sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, py: 1, fontSize: 13, textTransform: 'none', color: theme.palette.text.secondary }, '& .Mui-selected': { color: theme.palette.primary.main }, '& .MuiTabs-indicator': { bgcolor: theme.palette.primary.main } }}
+                                    } : {
+                                      position: 'relative',
+                                      zIndex: 1
+                                    })
+                                  }}>
+                                    {/* Creator Avatar on Highlighted Task */}
+                                    {row.created_by && (() => {
+                                      const creator = tableMembers.find(m => m.id === row.created_by);
+                                      if (!creator) return null;
+                                      return (
+                                        <Tooltip title={`Created by ${creator.name}`}>
+                                          <Avatar
+                                            src={getAvatarUrl(creator.avatar, creator.name)}
+                                            sx={{
+                                              width: 16,
+                                              height: 16,
+                                              position: 'absolute',
+                                              top: 2,
+                                              left: 8,
+                                              fontSize: '0.5rem',
+                                              bgcolor: stringToColor(row.created_by),
+                                              border: `1px solid ${theme.palette.background.default}`,
+                                              zIndex: 2
+                                            }}
                                           >
-                                            <Tab value="chat" label="Chat" icon={<ChatBubbleOutlineIcon sx={{fontSize: 16, mb:0, mr: 0.5}}/>} iconPosition="start" />
-                                            <Tab value="files" label="Files" icon={<DescriptionIcon sx={{fontSize: 16, mb:0, mr: 0.5}}/>} iconPosition="start"/>
-                                            <Tab value="activity" label="Activity" icon={<HistoryIcon sx={{fontSize: 16, mb:0, mr: 0.5}}/>} iconPosition="start"/>
-                                          </Tabs>
-                                        </Box>
-
-                                        {/* Content Body */}
-                                        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                          
-                                          {/* --- CHAT TAB --- */}
-                                          {chatTab === 'chat' && (
-                                            <>
-                                              <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 2, sm: 2.5 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2.5, bgcolor: theme.palette.mode === 'dark' ? '#1a1b25' : '#f8f9fa' }}>
-                                                {chatMessages.length === 0 ? (
-                                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
-                                                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: theme.palette.action.selected, mb: 2 }}>
-                                                        <ChatBubbleOutlineIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
-                                                    </Box>
-                                                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>No messages yet</Typography>
-                                                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Start the conversation!</Typography>
-                                                  </Box>
-                                                ) : (
-                                                  chatMessages.map(msg => {
-                                                     const isMe = currentUser && msg.sender === currentUser.name;
-                                                     return (
-                                                    <Box key={msg.id} sx={{ 
-                                                        alignSelf: isMe ? 'flex-end' : 'flex-start', 
-                                                        maxWidth: { xs: '92%', sm: '80%' }, 
-                                                        display: 'flex', 
-                                                        flexDirection: isMe ? 'row-reverse' : 'row',
-                                                        gap: 1.5,
-                                                        mb: 0.5
-                                                    }}>
-                                                      {!isMe && (
-                                                        <Avatar
-                                                            src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                                                            sx={{ 
-                                                                width: 32, height: 32, fontSize: 13, 
-                                                                bgcolor: theme.palette.primary.main, fontWeight: 600, mt: 0,
-                                                                boxShadow: '0 2px 5px rgba(0,0,0,0.2)' 
-                                                            }}
-                                                        >
-                                                            {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
-                                                        </Avatar>
-                                                      )}
-                                                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
-                                                          {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary, fontSize: 12 }}>{msg.sender}</Typography>}
-                                                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }}>
-                                                            {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
-                                                          </Typography>
-                                                        </Box>
-                                                        
-                                                        <Box sx={{
-                                                          bgcolor: isMe ? '#6366f1' : theme.palette.mode === 'dark' ? '#2a2b3d' : '#e2e8f0',
-                                                          background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : theme.palette.mode === 'dark' ? '#2a2b3d' : '#e2e8f0',
-                                                          color: isMe ? '#fff' : theme.palette.text.primary,
-                                                          p: 1.5,
-                                                          px: 2,
-                                                          borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                                                          boxShadow: isMe ? '0 4px 12px rgba(99, 102, 241, 0.25)' : '0 2px 4px rgba(0,0,0,0.1)',
-                                                          border: isMe ? 'none' : `1px solid ${theme.palette.divider}`,
-                                                          maxWidth: '100%',
-                                                          position: 'relative'
-                                                        }}>
-                                                            {msg.attachment && (
-                                                                <Box component="a" href={msg.attachment.url} target="_blank" 
-                                                                     onClick={(e) => e.stopPropagation()}
-                                                                     sx={{ 
-                                                                         display: 'flex', alignItems: 'center', gap: 1.5, 
-                                                                         bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)', 
-                                                                         p: 1, px: 1.5, mb: msg.text ? 1 : 0, borderRadius: 2, textDecoration: 'none',
-                                                                         color: isMe ? '#fff' : '#e2e8f0',
-                                                                         width: '100%',
-                                                                         transition: 'all 0.2s',
-                                                                         border: `1px solid ${theme.palette.divider}`,
-                                                                         '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
-                                                                     }}
-                                                                >
-                                                                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 0.75, borderRadius: 1.5, display: 'flex' }}>
-                                                                        <InsertDriveFileIcon sx={{ fontSize: 18, color: theme.palette.text.primary }} />
-                                                                    </Box>
-                                                                    <Box sx={{minWidth: 0, flex: 1}}>
-                                                                        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
-                                                                        <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
-                                                                    </Box>
-                                                                </Box>
-                                                            )}
-                                                          {msg.text && <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem', fontWeight: 400, letterSpacing: '0.01em' }}>{msg.text}</Typography>}
-                                                        </Box>
-                                                        
-                                                        {msg.scheduledFor && (
-                                                            <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
-                                                        )}
-                                                      </Box>
-                                                    </Box>
-                                                  )})
-                                                )}
-                                                <div id="chat-bottom" ref={taskChatEndRef} />
+                                            {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
+                                          </Avatar>
+                                        </Tooltip>
+                                      );
+                                    })()}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', pl: 1, gap: 1 }}>
+                                      <div {...provided.dragHandleProps} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'grab',
+                                        width: 24,
+                                        height: 24,
+                                        marginRight: 8
+                                      }}>
+                                        <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13, fontWeight: 600 }}>
+                                          {index + 1}
+                                        </Typography>
+                                      </div>
+                                      <TaskRowMenu
+                                        row={row}
+                                        onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
+                                        onMoveUp={() => handleMoveRow(row.id, 'up')}
+                                        onMoveDown={() => handleMoveRow(row.id, 'down')}
+                                        onMoveTop={() => handleMoveRow(row.id, 'top')}
+                                        onMoveBottom={() => handleMoveRow(row.id, 'bottom')}
+                                        onExportPdf={() => handleExportPdf(row)}
+                                        onExportExcel={() => handleExportExcel(row)}
+                                        onDelete={async () => {
+                                          if (confirm('Are you sure you want to delete this task?')) {
+                                            // Optimistic update
+                                            setRows(prev => prev.filter(r => r.id !== row.id));
+                                            // Backend call
+                                            await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
+                                              method: "DELETE",
+                                            });
+                                          }
+                                        }}
+                                      />
+                                      {/* Message Icon for Chat */}
+                                      <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
+                                        <ChatBubbleOutlineIcon sx={{ fontSize: 20 }} />
+                                      </IconButton>
+                                      {chatPopoverKey === `${row.id}-message` && chatAnchor && (
+                                        <Popover
+                                          open={!!chatAnchor}
+                                          anchorEl={chatAnchor}
+                                          onClose={handleCloseChat}
+                                          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                                          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                                          PaperProps={{
+                                            sx: { p: 0, minWidth: 380, maxWidth: 420, bgcolor: theme.palette.background.paper, borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: `1px solid ${theme.palette.divider}` }
+                                          }}
+                                        >
+                                          <Box sx={{ display: 'flex', flexDirection: 'column', height: 500 }}>
+                                            {/* Header with Tabs */}
+                                            <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.default }}>
+                                              <Box sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography variant="subtitle1" sx={{ color: theme.palette.text.primary, fontWeight: 600 }}>Discussion</Typography>
+                                                <IconButton size="small" onClick={handleCloseChat} sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }}>
+                                                  <span style={{ fontSize: 18 }}>✕</span>
+                                                </IconButton>
                                               </Box>
+                                              <Tabs
+                                                value={chatTab}
+                                                onChange={(_, v) => setChatTab(v)}
+                                                variant="fullWidth"
+                                                sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, py: 1, fontSize: 13, textTransform: 'none', color: theme.palette.text.secondary }, '& .Mui-selected': { color: theme.palette.primary.main }, '& .MuiTabs-indicator': { bgcolor: theme.palette.primary.main } }}
+                                              >
+                                                <Tab value="chat" label="Chat" icon={<ChatBubbleOutlineIcon sx={{ fontSize: 16, mb: 0, mr: 0.5 }} />} iconPosition="start" />
+                                                <Tab value="files" label="Files" icon={<DescriptionIcon sx={{ fontSize: 16, mb: 0, mr: 0.5 }} />} iconPosition="start" />
+                                                <Tab value="activity" label="Activity" icon={<HistoryIcon sx={{ fontSize: 16, mb: 0, mr: 0.5 }} />} iconPosition="start" />
+                                              </Tabs>
+                                            </Box>
 
-                                              {/* Input Area */}
-                                              <Box sx={{ px: 2, py: 2, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.paper }}>
-                                                {chatTaskId && taskTypingUsers[chatTaskId]?.length > 0 && (
-                                                  <Typography variant="caption" sx={{ color: '#818cf8', mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, fontWeight: 500, fontSize: '0.75rem' }}>
-                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#818cf8', display: 'inline-block' }}></span>
-                                                    {taskTypingUsers[chatTaskId].join(', ')} is typing...
-                                                  </Typography>
-                                                )}
-                                                
-                                                {/* Attachments / Schedule preview */}
-                                                {(chatAttachment || chatScheduledTime) && (
-                                                    <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', px: 0.5 }}>
+                                            {/* Content Body */}
+                                            <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+                                              {/* --- CHAT TAB --- */}
+                                              {chatTab === 'chat' && (
+                                                <>
+                                                  <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 2, sm: 2.5 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2.5, bgcolor: theme.palette.mode === 'dark' ? '#1a1b25' : '#f8f9fa' }}>
+                                                    {chatMessages.length === 0 ? (
+                                                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
+                                                        <Box sx={{ p: 2, borderRadius: '50%', bgcolor: theme.palette.action.selected, mb: 2 }}>
+                                                          <ChatBubbleOutlineIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+                                                        </Box>
+                                                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>No messages yet</Typography>
+                                                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Start the conversation!</Typography>
+                                                      </Box>
+                                                    ) : (
+                                                      chatMessages.map(msg => {
+                                                        const isMe = currentUser && msg.sender === currentUser.name;
+                                                        return (
+                                                          <Box key={msg.id} sx={{
+                                                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                                                            maxWidth: { xs: '92%', sm: '80%' },
+                                                            display: 'flex',
+                                                            flexDirection: isMe ? 'row-reverse' : 'row',
+                                                            gap: 1.5,
+                                                            mb: 0.5
+                                                          }}>
+                                                            {!isMe && (
+                                                              <Avatar
+                                                                src={getAvatarUrl(msg.senderAvatar, msg.sender)}
+                                                                sx={{
+                                                                  width: 32, height: 32, fontSize: 13,
+                                                                  bgcolor: theme.palette.primary.main, fontWeight: 600, mt: 0,
+                                                                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                                                }}
+                                                              >
+                                                                {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
+                                                              </Avatar>
+                                                            )}
+                                                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                                                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
+                                                                {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary, fontSize: 12 }}>{msg.sender}</Typography>}
+                                                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }}>
+                                                                  {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                                </Typography>
+                                                              </Box>
+
+                                                              <Box sx={{
+                                                                bgcolor: isMe ? '#6366f1' : theme.palette.mode === 'dark' ? '#2a2b3d' : '#e2e8f0',
+                                                                background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : theme.palette.mode === 'dark' ? '#2a2b3d' : '#e2e8f0',
+                                                                color: isMe ? '#fff' : theme.palette.text.primary,
+                                                                p: 1.5,
+                                                                px: 2,
+                                                                borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                                                                boxShadow: isMe ? '0 4px 12px rgba(99, 102, 241, 0.25)' : '0 2px 4px rgba(0,0,0,0.1)',
+                                                                border: isMe ? 'none' : `1px solid ${theme.palette.divider}`,
+                                                                maxWidth: '100%',
+                                                                position: 'relative'
+                                                              }}>
+                                                                {msg.attachment && (
+                                                                  <Box component="a" href={msg.attachment.url} target="_blank"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    sx={{
+                                                                      display: 'flex', alignItems: 'center', gap: 1.5,
+                                                                      bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)',
+                                                                      p: 1, px: 1.5, mb: msg.text ? 1 : 0, borderRadius: 2, textDecoration: 'none',
+                                                                      color: isMe ? '#fff' : '#e2e8f0',
+                                                                      width: '100%',
+                                                                      transition: 'all 0.2s',
+                                                                      border: `1px solid ${theme.palette.divider}`,
+                                                                      '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
+                                                                    }}
+                                                                  >
+                                                                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 0.75, borderRadius: 1.5, display: 'flex' }}>
+                                                                      <InsertDriveFileIcon sx={{ fontSize: 18, color: theme.palette.text.primary }} />
+                                                                    </Box>
+                                                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                                                      <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size / 1024).toFixed(0) + ' KB' : 'File')}</Typography>
+                                                                    </Box>
+                                                                  </Box>
+                                                                )}
+                                                                {msg.text && <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem', fontWeight: 400, letterSpacing: '0.01em' }}>{msg.text}</Typography>}
+                                                              </Box>
+
+                                                              {msg.scheduledFor && (
+                                                                <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
+                                                              )}
+                                                            </Box>
+                                                          </Box>
+                                                        )
+                                                      })
+                                                    )}
+                                                    <div id="chat-bottom" ref={taskChatEndRef} />
+                                                  </Box>
+
+                                                  {/* Input Area */}
+                                                  <Box sx={{ px: 2, py: 2, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.paper }}>
+                                                    {chatTaskId && taskTypingUsers[chatTaskId]?.length > 0 && (
+                                                      <Typography variant="caption" sx={{ color: '#818cf8', mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, fontWeight: 500, fontSize: '0.75rem' }}>
+                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#818cf8', display: 'inline-block' }}></span>
+                                                        {taskTypingUsers[chatTaskId].join(', ')} is typing...
+                                                      </Typography>
+                                                    )}
+
+                                                    {/* Attachments / Schedule preview */}
+                                                    {(chatAttachment || chatScheduledTime) && (
+                                                      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', px: 0.5 }}>
                                                         {chatAttachment && (
-                                                            <Chip 
-                                                                size="small" 
-                                                                icon={<InsertDriveFileIcon style={{fontSize: 14}}/>} 
-                                                                label={chatAttachment.name} 
-                                                                onDelete={() => { setChatAttachment(null); if(chatFileRef.current) chatFileRef.current.value = ""; }}
-                                                                sx={{ bgcolor: '#312e81', color: theme.palette.text.primary, border: '1px solid rgba(99, 102, 241, 0.3)', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
-                                                            />
+                                                          <Chip
+                                                            size="small"
+                                                            icon={<InsertDriveFileIcon style={{ fontSize: 14 }} />}
+                                                            label={chatAttachment.name}
+                                                            onDelete={() => { setChatAttachment(null); if (chatFileRef.current) chatFileRef.current.value = ""; }}
+                                                            sx={{ bgcolor: '#312e81', color: theme.palette.text.primary, border: '1px solid rgba(99, 102, 241, 0.3)', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
+                                                          />
                                                         )}
                                                         {chatScheduledTime && (
-                                                            <Chip 
-                                                                size="small" 
-                                                                icon={<AccessTimeIcon style={{fontSize: 14}}/>} 
-                                                                label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`} 
-                                                                onDelete={() => setChatScheduledTime("")}
-                                                                sx={{ bgcolor: 'rgba(253, 171, 61, 0.15)', color: '#fdba74', border: '1px solid rgba(253, 171, 61, 0.3)', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
-                                                            />
+                                                          <Chip
+                                                            size="small"
+                                                            icon={<AccessTimeIcon style={{ fontSize: 14 }} />}
+                                                            label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`}
+                                                            onDelete={() => setChatScheduledTime("")}
+                                                            sx={{ bgcolor: 'rgba(253, 171, 61, 0.15)', color: '#fdba74', border: '1px solid rgba(253, 171, 61, 0.3)', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
+                                                          />
                                                         )}
-                                                    </Box>
-                                                )}
+                                                      </Box>
+                                                    )}
 
-                                                <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                  <input
-                                                    type="file"
-                                                    ref={chatFileRef}
-                                                    style={{ display: 'none' }}
-                                                    onChange={(e) => {
-                                                        if (e.target.files && e.target.files[0]) {
+                                                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                      <input
+                                                        type="file"
+                                                        ref={chatFileRef}
+                                                        style={{ display: 'none' }}
+                                                        onChange={(e) => {
+                                                          if (e.target.files && e.target.files[0]) {
                                                             setChatAttachment(e.target.files[0]);
-                                                        }
-                                                    }}
-                                                  />
-                                                  <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#64748b', transition: 'color 0.2s', '&:hover': { color: theme.palette.text.secondary, bgcolor: theme.palette.action.hover } }}>
-                                                      <AttachFileIcon fontSize="small" />
-                                                  </IconButton>
+                                                          }
+                                                        }}
+                                                      />
+                                                      <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#64748b', transition: 'color 0.2s', '&:hover': { color: theme.palette.text.secondary, bgcolor: theme.palette.action.hover } }}>
+                                                        <AttachFileIcon fontSize="small" />
+                                                      </IconButton>
 
-                                                  <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#64748b', transition: 'color 0.2s', '&:hover': { color: theme.palette.text.secondary, bgcolor: theme.palette.action.hover } }}
-                                                      onClick={(e) => {
+                                                      <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#64748b', transition: 'color 0.2s', '&:hover': { color: theme.palette.text.secondary, bgcolor: theme.palette.action.hover } }}
+                                                        onClick={(e) => {
                                                           const input = document.getElementById('chat-schedule-input');
-                                                          if(input) (input as HTMLInputElement).showPicker();
-                                                      }}
-                                                  >
-                                                      <AccessTimeIcon fontSize="small" />
-                                                      <input 
+                                                          if (input) (input as HTMLInputElement).showPicker();
+                                                        }}
+                                                      >
+                                                        <AccessTimeIcon fontSize="small" />
+                                                        <input
                                                           id="chat-schedule-input"
-                                                          type="datetime-local" 
+                                                          type="datetime-local"
                                                           style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
                                                           onChange={(e) => setChatScheduledTime(e.target.value)}
-                                                      />
-                                                  </IconButton>
+                                                        />
+                                                      </IconButton>
 
                                                       <input
                                                         value={chatInput}
@@ -5326,157 +5386,162 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                           transition: 'all 0.2s'
                                                         }}
                                                         onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-                                                        onBlur={(e) => e.target.style.borderColor =  theme.palette.mode === 'dark' ? '#2d2e3d' : '#e2e8f0'}
+                                                        onBlur={(e) => e.target.style.borderColor = theme.palette.mode === 'dark' ? '#2d2e3d' : '#e2e8f0'}
                                                       />
-                                                  <IconButton
-                                                    onClick={() => handleSendChat()}
-                                                    disabled={isSending || (!chatInput.trim() && !chatAttachment)}
-                                                    size="small"
-                                                    sx={{
-                                                      color: (chatInput.trim() || chatAttachment) ? '#fff' : '#475569',
-                                                      bgcolor: (chatInput.trim() || chatAttachment) ? '#6366f1' : 'rgba(255,255,255,0.05)',
-                                                      transition: 'all 0.2s',
-                                                      '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? '#4f46e5' : 'rgba(255,255,255,0.05)', transform: (chatInput.trim() || chatAttachment) ? 'scale(1.05)' : 'none' },
-                                                      width: 32, height: 32
-                                                    }}
-                                                  >
-                                                    {isSending ? <CircularProgress size={16} sx={{ color: theme.palette.text.primary }} /> : <SendIcon sx={{ fontSize: 16 }} />}
-                                                  </IconButton>
-                                                </Box>
-                                              </Box>
-                                            </>
-                                          )}
+                                                      <IconButton
+                                                        onClick={() => handleSendChat()}
+                                                        disabled={isSending || (!chatInput.trim() && !chatAttachment)}
+                                                        size="small"
+                                                        sx={{
+                                                          color: (chatInput.trim() || chatAttachment) ? '#fff' : '#475569',
+                                                          bgcolor: (chatInput.trim() || chatAttachment) ? '#6366f1' : 'rgba(255,255,255,0.05)',
+                                                          transition: 'all 0.2s',
+                                                          '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? '#4f46e5' : 'rgba(255,255,255,0.05)', transform: (chatInput.trim() || chatAttachment) ? 'scale(1.05)' : 'none' },
+                                                          width: 32, height: 32
+                                                        }}
+                                                      >
+                                                        {isSending ? <CircularProgress size={16} sx={{ color: theme.palette.text.primary }} /> : <SendIcon sx={{ fontSize: 16 }} />}
+                                                      </IconButton>
+                                                    </Box>
+                                                  </Box>
+                                                </>
+                                              )}
 
-                                          {/* --- FILES TAB --- */}
-                                          {chatTab === 'files' && (
-                                              <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+                                              {/* --- FILES TAB --- */}
+                                              {chatTab === 'files' && (
+                                                <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
                                                   {(() => {
-                                                     const fileCols = columns.filter(c => c.type === 'Files');
-                                                     let allFiles: any[] = [];
-                                                     
-                                                     // 1. Files from Columns
-                                                     fileCols.forEach(c => {
-                                                         const val = row.values[c.id];
-                                                         if(Array.isArray(val)) allFiles = [...allFiles, ...val];
-                                                     });
+                                                    const fileCols = columns.filter(c => c.type === 'Files');
+                                                    let allFiles: any[] = [];
 
-                                                     // 2. Files from Chat Messages
-                                                     if (row.values.message && Array.isArray(row.values.message)) {
-                                                         row.values.message.forEach((msg: any) => {
-                                                             if (msg.attachment) {
-                                                                 allFiles.push({
-                                                                     ...msg.attachment,
-                                                                     uploadedAt: msg.timestamp || new Date().toISOString()
-                                                                 });
-                                                             }
-                                                         });
-                                                     }
-                                                     
-                                                     // 3. Deduplicate by URL
-                                                     const uniqueFiles = Array.from(new Map(allFiles.map((item) => [item.url, item])).values());
-                                                     
-                                                     if(uniqueFiles.length === 0) return (
-                                                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.5 }}>
-                                                            <InsertDriveFileIcon sx={{ fontSize: 48, color: theme.palette.text.secondary, mb: 1 }} />
-                                                            <Typography sx={{ color: theme.palette.text.secondary }}>No files attached</Typography>
-                                                         </Box>
-                                                     );
-                                          
-                                                     return uniqueFiles.map((f, i) => (
-                                                       <Box key={i} sx={{ display:'flex', alignItems:'center', gap:1.5, p:1.5, mb:1.5, bgcolor: theme.palette.action.hover, borderRadius:2, border: '1px solid #35365a' }}>
-                                                          <Box sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', p: 1, borderRadius: 1 }}>
-                                                            <InsertDriveFileIcon sx={{color:'#6366f1'}} />
-                                                          </Box>
-                                                          <Box sx={{flex:1, minWidth:0}}>
-                                                             <Typography sx={{color: theme.palette.text.primary, fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'block'}} title={f.name}>{f.name || f.originalName || 'File'}</Typography>
-                                                             <Typography sx={{color: theme.palette.text.secondary, fontSize:11}}>{f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString() : 'Unknown date'}</Typography>
-                                                          </Box>
-                                                          <IconButton size="small" href={f.url} target="_blank" sx={{color: theme.palette.text.secondary, '&:hover':{color: theme.palette.text.primary}}}>
-                                                             <Box component="span" sx={{ fontSize: 18 }}>⬇</Box>
-                                                          </IconButton>
-                                                       </Box>
-                                                     ));
+                                                    // 1. Files from Columns
+                                                    fileCols.forEach(c => {
+                                                      const val = row.values[c.id];
+                                                      if (Array.isArray(val)) allFiles = [...allFiles, ...val];
+                                                    });
+
+                                                    // 2. Files from Chat Messages
+                                                    if (row.values.message && Array.isArray(row.values.message)) {
+                                                      row.values.message.forEach((msg: any) => {
+                                                        if (msg.attachment) {
+                                                          allFiles.push({
+                                                            ...msg.attachment,
+                                                            uploadedAt: msg.timestamp || new Date().toISOString()
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+
+                                                    // 3. Deduplicate by URL
+                                                    const uniqueFiles = Array.from(new Map(allFiles.map((item) => [item.url, item])).values());
+
+                                                    if (uniqueFiles.length === 0) return (
+                                                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.5 }}>
+                                                        <InsertDriveFileIcon sx={{ fontSize: 48, color: theme.palette.text.secondary, mb: 1 }} />
+                                                        <Typography sx={{ color: theme.palette.text.secondary }}>No files attached</Typography>
+                                                      </Box>
+                                                    );
+
+                                                    return uniqueFiles.map((f, i) => (
+                                                      <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, mb: 1.5, bgcolor: theme.palette.action.hover, borderRadius: 2, border: '1px solid #35365a' }}>
+                                                        <Box sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', p: 1, borderRadius: 1 }}>
+                                                          <InsertDriveFileIcon sx={{ color: '#6366f1' }} />
+                                                        </Box>
+                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                          <Typography sx={{ color: theme.palette.text.primary, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }} title={f.name}>{f.name || f.originalName || 'File'}</Typography>
+                                                          <Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>{f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString() : 'Unknown date'}</Typography>
+                                                        </Box>
+                                                        <IconButton size="small" href={f.url} target="_blank" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }}>
+                                                          <Box component="span" sx={{ fontSize: 18 }}>⬇</Box>
+                                                        </IconButton>
+                                                      </Box>
+                                                    ));
                                                   })()}
-                                              </Box>
-                                          )}
+                                                </Box>
+                                              )}
 
-                                          {/* --- ACTIVITY TAB --- */}
-                                          {chatTab === 'activity' && (
-                                               <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+                                              {/* --- ACTIVITY TAB --- */}
+                                              {chatTab === 'activity' && (
+                                                <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
                                                   {row.activity && row.activity.length > 0 ? (
-                                                     [...row.activity].reverse().map((act, i) => (
-                                                       <Box key={i} sx={{ mb: 2, display: 'flex', gap: 1.5, position: 'relative' }}>
-                                                         <Box sx={{ position: 'absolute', left: 16, top: 24, bottom: -16, width: 1, bgcolor: '#35365a', display: i === row.activity!.length - 1 ? 'none' : 'block' }} />
-                                                         <Avatar src={act.userAvatar} sx={{ width: 32, height: 32, fontSize: 12, bgcolor: '#3d3e5a', border: `2px solid ${theme.palette.background.paper}`, zIndex: 1 }}>{act.user?.[0]}</Avatar>
-                                                         <Box sx={{ flex: 1 }}>
-                                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
-                                                               <Typography sx={{color: theme.palette.text.primary, fontSize:13, fontWeight:600}}>{act.user}</Typography>
-                                                               <Typography sx={{color: theme.palette.text.secondary, fontSize:11}}>{new Date(act.time).toLocaleString()}</Typography>
-                                                            </Box>
-                                                            <Typography sx={{color:'#b0b5c9', fontSize:13, bgcolor: theme.palette.background.default, p: 1, borderRadius: 2 }}>{act.text}</Typography>
-                                                         </Box>
-                                                       </Box>
-                                                     ))
+                                                    [...row.activity].reverse().map((act, i) => (
+                                                      <Box key={i} sx={{ mb: 2, display: 'flex', gap: 1.5, position: 'relative' }}>
+                                                        <Box sx={{ position: 'absolute', left: 16, top: 24, bottom: -16, width: 1, bgcolor: '#35365a', display: i === row.activity!.length - 1 ? 'none' : 'block' }} />
+                                                        <Avatar src={getAvatarUrl(act.userAvatar, act.user)} sx={{ width: 32, height: 32, fontSize: 12, bgcolor: '#3d3e5a', border: `2px solid ${theme.palette.background.paper}`, zIndex: 1 }}>{act.user?.[0]}</Avatar>
+                                                        <Box sx={{ flex: 1 }}>
+                                                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+                                                            <Typography sx={{ color: theme.palette.text.primary, fontSize: 13, fontWeight: 600 }}>{act.user}</Typography>
+                                                            <Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>{new Date(act.time).toLocaleString()}</Typography>
+                                                          </Box>
+                                                          <Typography sx={{ color: '#b0b5c9', fontSize: 13, bgcolor: theme.palette.background.default, p: 1, borderRadius: 2 }}>{act.text}</Typography>
+                                                        </Box>
+                                                      </Box>
+                                                    ))
                                                   ) : (
                                                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.5 }}>
-                                                        <HistoryIcon sx={{ fontSize: 48, color: theme.palette.text.secondary, mb: 1 }} />
-                                                        <Typography sx={{ color: theme.palette.text.secondary }}>No activity yet</Typography>
+                                                      <HistoryIcon sx={{ fontSize: 48, color: theme.palette.text.secondary, mb: 1 }} />
+                                                      <Typography sx={{ color: theme.palette.text.secondary }}>No activity yet</Typography>
                                                     </Box>
                                                   )}
-                                               </Box>
-                                          )}
+                                                </Box>
+                                              )}
 
-                                        </Box>
+                                            </Box>
+                                          </Box>
+                                        </Popover>
+                                      )}
+                                    </Box>
+                                  </TableCell>
+
+                                  {/* Render Cells */}
+                                  {columns.map((col, idx) => (
+                                    <TableCell
+                                      key={col.id}
+                                      align="left"
+                                      sx={{
+                                        borderBottom: '1px solid #2e2f45',
+                                        p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
+                                        color: theme.palette.text.primary,
+                                        fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
+                                        minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
+                                        maxWidth: isMobile ? 240 : 300,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        ...(isMobile && idx === 0 ? {
+                                          position: 'sticky',
+                                          left: 60, // Width of the drag handle column
+                                          zIndex: 100,
+                                          bgcolor: theme.palette.background.paper,
+                                          backgroundImage: snapshot.isDragging ? 'none' : `linear-gradient(${rowBg}, ${rowBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`,
+                                          borderRight: `2px solid ${theme.palette.divider}`,
+                                          boxShadow: '4px 0 8px rgba(0,0,0,0.15)',
+                                          'tr:hover &': {
+                                            backgroundImage: `linear-gradient(${rowHoverBg}, ${rowHoverBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`
+                                          }
+                                        } : {
+                                          position: 'relative',
+                                          zIndex: 1
+                                        })
+                                      }}
+                                    >
+                                      <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+                                        {renderCell(row, col)}
                                       </Box>
-                                    </Popover>
-                                  )}
-                                </Box>
-                              </TableCell>
+                                    </TableCell>
+                                  ))}
 
-                              {/* Render Cells */}
-                              {columns.map((col, idx) => (
-                                <TableCell
-                                  key={col.id}
-                                  align="left"
-                                  sx={{
-                                    borderBottom: '1px solid #2e2f45',
-                                    p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
-                                    color: theme.palette.text.primary,
-                                    fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
-                                    minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
-                                    maxWidth: isMobile ? 240 : 300,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    ...(isMobile && idx === 0 ? {
-                                      position: 'sticky',
-                                      left: 60, // Width of the drag handle column
-                                      zIndex: 10,
-                                      bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
-                                      borderRight: `1px solid ${theme.palette.divider}`,
-                                      boxShadow: '2px 0 5px rgba(0,0,0,0.1)',
-                                      'tr:hover &': { bgcolor: rowHoverBg }
-                                    } : {
-                                      position: 'relative',
-                                      zIndex: 1
-                                    })
-                                  }}
-                                >
-                                  <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
-                                    {renderCell(row, col)}
-                                  </Box>
-                                </TableCell>
-                              ))}
-
-                              {/* Empty cell for the Add Column column alignment */}
-                              <TableCell sx={{ borderBottom: 'none', borderTopRightRadius: 12, borderBottomRightRadius: 12 }} />
-                            </TableRow>
-                          )}
-                        </Draggable>
-                      )})}
-                      {provided.placeholder}
-                    </TableBody>
-                  )}}
+                                  {/* Empty cell for the Add Column column alignment */}
+                                  <TableCell sx={{ borderBottom: 'none', borderTopRightRadius: 12, borderBottomRightRadius: 12 }} />
+                                </TableRow>
+                              )}
+                            </Draggable>
+                          )
+                        })}
+                        {provided.placeholder}
+                      </TableBody>
+                    )
+                  }}
                 </Droppable>
               </Table >
             </TableContainer >
@@ -5596,29 +5661,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         >
                           {/* Creator Avatar Badge */}
                           {task.created_by && (() => {
-                             const creator = tableMembers.find(m => m.id === task.created_by);
-                             if (!creator) return null;
-                             return (
-                               <Tooltip title={`Created by ${creator.name}`}>
-                                 <Avatar 
-                                   src={creator.avatar} 
-                                   sx={{ 
-                                     width: 18, 
-                                     height: 18, 
-                                     position: 'absolute', 
-                                     top: 6, 
-                                     right: 6, 
-                                     fontSize: '0.6rem',
-                                     fontWeight: 'bold',
-                                     bgcolor: stringToColor(task.created_by),
-                                     border: `2px solid ${theme.palette.background.default}`,
-                                     zIndex: 2
-                                   }}
-                                 >
-                                   {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
-                                 </Avatar>
-                               </Tooltip>
-                             );
+                            const creator = tableMembers.find(m => m.id === task.created_by);
+                            if (!creator) return null;
+                            return (
+                              <Tooltip title={`Created by ${creator.name}`}>
+                                <Avatar
+                                  src={getAvatarUrl(creator.avatar, creator.name)}
+                                  sx={{
+                                    width: 18,
+                                    height: 18,
+                                    position: 'absolute',
+                                    top: 6,
+                                    right: 6,
+                                    fontSize: '0.6rem',
+                                    fontWeight: 'bold',
+                                    bgcolor: stringToColor(task.created_by),
+                                    border: `2px solid ${theme.palette.background.default}`,
+                                    zIndex: 2
+                                  }}
+                                >
+                                  {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
+                                </Avatar>
+                              </Tooltip>
+                            );
                           })()}
 
                           {/* Primary Text (Use first column) */}
@@ -5638,7 +5703,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     {rawVal.slice(0, 3).map((p: any, i) => (
                                       <Tooltip key={i} title={p.name || p.email}>
                                         <Avatar
-                                          src={p.avatar}
+                                          src={getAvatarUrl(p.avatar, p.name)}
                                           sx={{ width: 22, height: 22, border: `2px solid ${theme.palette.background.default}`, fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
                                         >
                                           {p.name?.[0] || p.email?.[0] || '?'}
@@ -6184,56 +6249,57 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           options={Array.from(new Set(rows.map(r => r.values[col.id]).filter(v => v && typeof v === 'string' && v.trim() !== ''))) as string[]}
                           value={reviewTask.values[col.id] || ''}
                           onInputChange={(e, val) => {
-                             setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
                           }}
                           onChange={(e, val) => {
-                             if (val) {
-                                setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
-                                handleCellSave(reviewTask.id, col.id, col.type, val);
-                             }
+                            if (val) {
+                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                              handleCellSave(reviewTask.id, col.id, col.type, val);
+                            }
                           }}
                           renderInput={(params) => (
                             <TextField
-                                {...params}
-                                fullWidth
-                                variant="standard"
-                                placeholder="Empty"
-                                onBlur={(e) => {
-                                    handleCellSave(reviewTask.id, col.id, col.type, e.target.value);
-                                }}
-                                InputProps={{ 
-                                    ...params.InputProps, 
-                                    disableUnderline: true,
-                                    sx: {
-                                        color: theme.palette.text.primary,
-                                        fontSize: 14,
-                                        fontWeight: 500,
-                                        bgcolor: theme.palette.action.hover,
-                                        borderRadius: 2,
-                                        px: 1.5,
-                                        py: 0.75,
-                                        border: '1px solid transparent',
-                                        transition: 'all 0.2s',
-                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', border: `1px solid ${theme.palette.divider}` },
-                                        '&.Mui-focused': { bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid #6366f1', boxShadow: '0 0 0 2px rgba(99, 102, 241, 0.2)' },
-                                    }
-                                }}
+                              {...params}
+                              fullWidth
+                              variant="standard"
+                              placeholder="Empty"
+                              onBlur={(e) => {
+                                handleCellSave(reviewTask.id, col.id, col.type, e.target.value);
+                              }}
+                              InputProps={{
+                                ...params.InputProps,
+                                disableUnderline: true,
+                                sx: {
+                                  color: theme.palette.text.primary,
+                                  fontSize: 14,
+                                  fontWeight: 500,
+                                  bgcolor: theme.palette.action.hover,
+                                  borderRadius: 2,
+                                  px: 1.5,
+                                  py: 0.75,
+                                  border: '1px solid transparent',
+                                  transition: 'all 0.2s',
+                                  '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', border: `1px solid ${theme.palette.divider}` },
+                                  '&.Mui-focused': { bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid #6366f1', boxShadow: '0 0 0 2px rgba(99, 102, 241, 0.2)' },
+                                }
+                              }}
                             />
                           )}
-                        slotProps={{
-                          paper: {
-                            sx: {
+                          slotProps={{
+                            paper: {
+                              sx: {
                                 bgcolor: theme.palette.background.paper,
                                 color: theme.palette.text.primary,
                                 border: `1px solid ${theme.palette.divider}`,
                                 borderRadius: 2,
                                 mt: 1,
                                 '& .MuiMenuItem-root': {
-                                    '&:hover': { bgcolor: theme.palette.action.hover },
-                                    '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                                  '&:hover': { bgcolor: theme.palette.action.hover },
+                                  '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                                 }
+                              }
                             }
-                          }}}
+                          }}
                         />
                       )}
 
@@ -6245,27 +6311,27 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           disableUnderline
                           displayEmpty
                           value={reviewTask.values[col.id] || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
-                          handleCellSave(reviewTask.id, col.id, col.type, val);
-                        }}
-                        renderValue={(selected) => {
-                           if (!selected || selected === "") return <Typography sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: 13 }}>Select option</Typography>;
-                           
-                           const options = col.options || (col.id === 'priority' || col.type === 'Priority' ? [{ value: 'High', color: theme.palette.error.main }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : []);
-                           const selectedOpt = options.find((opt: any) => opt.value === selected);
-                           
-                           return (
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                            handleCellSave(reviewTask.id, col.id, col.type, val);
+                          }}
+                          renderValue={(selected) => {
+                            if (!selected || selected === "") return <Typography sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: 13 }}>Select option</Typography>;
+
+                            const options = col.options || (col.id === 'priority' || col.type === 'Priority' ? [{ value: 'High', color: theme.palette.error.main }, { value: 'Medium', color: '#fdab3d' }, { value: 'Low', color: '#00c875' }] : []);
+                            const selectedOpt = options.find((opt: any) => opt.value === selected);
+
+                            return (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', width: '100%', minWidth: 0, paddingRight: 4 }}>
-                                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: selectedOpt?.color || theme.palette.text.secondary }} />
-                                 <Typography sx={{ color: theme.palette.text.primary, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selected}</Typography>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: selectedOpt?.color || theme.palette.text.secondary }} />
+                                <Typography sx={{ color: theme.palette.text.primary, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selected}</Typography>
                               </Box>
-                           );
-                        }}
-                        sx={{ bgcolor: theme.palette.background.paper, borderRadius: 1.5, px: 2, py: 1, border: `1px solid ${theme.palette.divider}` }}
-                        MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, borderRadius: 2 } } }}
-                      >
+                            );
+                          }}
+                          sx={{ bgcolor: theme.palette.background.paper, borderRadius: 1.5, px: 2, py: 1, border: `1px solid ${theme.palette.divider}` }}
+                          MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, borderRadius: 2 } } }}
+                        >
 
 
                           <MenuItem value="" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', fontSize: 13 }}>Select option</MenuItem>
@@ -6328,12 +6394,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             tableId={tableId}
                             onChange={(newPeople: Person[]) => {
                               if (reviewTask) {
-                                  const updatedReviewTask = { 
-                                      ...reviewTask, 
-                                      values: { ...reviewTask.values, [col.id]: newPeople } 
-                                  };
-                                  setReviewTask(updatedReviewTask);
-                                  handleCellSave(reviewTask.id, col.id, col.type, newPeople);
+                                const updatedReviewTask = {
+                                  ...reviewTask,
+                                  values: { ...reviewTask.values, [col.id]: newPeople }
+                                };
+                                setReviewTask(updatedReviewTask);
+                                handleCellSave(reviewTask.id, col.id, col.type, newPeople);
                               }
                             }}
                           />
@@ -6439,7 +6505,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 })}
 
                 <Box sx={{ mt: 2, pt: 3, borderTop: `1px solid ${theme.palette.divider}` }}>
-                  
+
                 </Box>
               </Box>
             )}
@@ -6650,35 +6716,35 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       (reviewTask.values.message || []).map((msg: any) => {
                         const isMe = currentUser && msg.sender === currentUser.name;
                         return (
-                        <Box key={msg.id} sx={{ 
-                            alignSelf: isMe ? 'flex-end' : 'flex-start', 
-                            maxWidth: { xs: '90%', sm: '80%' }, 
-                            display: 'flex', 
+                          <Box key={msg.id} sx={{
+                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                            maxWidth: { xs: '90%', sm: '80%' },
+                            display: 'flex',
                             flexDirection: isMe ? 'row-reverse' : 'row',
                             gap: 1.5,
                             mb: 1
-                        }}>
-                          {!isMe && (
-                            <Avatar
-                              src={msg.senderAvatar ? (msg.senderAvatar.startsWith('http') ? msg.senderAvatar : `${SERVER_URL}${msg.senderAvatar}`) : undefined}
-                              sx={{ 
-                                  width: 32, height: 32, fontSize: 13, 
+                          }}>
+                            {!isMe && (
+                              <Avatar
+                                src={getAvatarUrl(msg.senderAvatar, msg.sender)}
+                                sx={{
+                                  width: 32, height: 32, fontSize: 13,
                                   bgcolor: theme.palette.primary.main, fontWeight: 600, mt: 0,
-                                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)' 
-                              }}
-                            >
-                              {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
-                            </Avatar>
-                          )}
-                          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
+                                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                }}
+                              >
+                                {!msg.senderAvatar && (msg.sender?.[0] || 'U')}
+                              </Avatar>
+                            )}
+                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexDirection: isMe ? 'row-reverse' : 'row', px: 0.5 }}>
                                 {!isMe && <Typography variant="caption" sx={{ fontWeight: 600, color: '#cbd5e1', fontSize: 12 }}>{msg.sender}</Typography>}
                                 <Typography variant="caption" sx={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>
-                                    {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
+                                  {msg.timestamp ? new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </Typography>
-                            </Box>
+                              </Box>
 
-                            <Box sx={{
+                              <Box sx={{
                                 bgcolor: isMe ? '#6366f1' : '#2a2b3d',
                                 background: isMe ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#2a2b3d',
                                 color: isMe ? '#fff' : '#e2e8f0',
@@ -6689,39 +6755,40 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 border: isMe ? 'none' : `1px solid ${theme.palette.divider}`,
                                 maxWidth: '100%',
                                 position: 'relative'
-                            }}>
+                              }}>
                                 {msg.attachment && (
-                                    <Box component="a" href={msg.attachment.url} target="_blank" 
-                                            onClick={(e) => e.stopPropagation()}
-                                            sx={{ 
-                                                display: 'flex', alignItems: 'center', gap: 1.5, 
-                                                bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)', 
-                                                p: 1, px: 1.5, mb: msg.text ? 1 : 0, borderRadius: 2, textDecoration: 'none',
-                                                color: isMe ? '#fff' : '#e2e8f0',
-                                                width: '100%',
-                                                transition: 'all 0.2s',
-                                                border: `1px solid ${theme.palette.divider}`,
-                                                '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
-                                            }}
-                                    >
-                                        <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 0.75, borderRadius: 1.5, display: 'flex' }}>
-                                            <InsertDriveFileIcon sx={{ fontSize: 18, color: theme.palette.text.primary }} />
-                                        </Box>
-                                        <Box sx={{minWidth: 0, flex: 1}}>
-                                            <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
-                                            <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size/1024).toFixed(0) + ' KB' : 'File')}</Typography>
-                                        </Box>
+                                  <Box component="a" href={msg.attachment.url} target="_blank"
+                                    onClick={(e) => e.stopPropagation()}
+                                    sx={{
+                                      display: 'flex', alignItems: 'center', gap: 1.5,
+                                      bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)',
+                                      p: 1, px: 1.5, mb: msg.text ? 1 : 0, borderRadius: 2, textDecoration: 'none',
+                                      color: isMe ? '#fff' : '#e2e8f0',
+                                      width: '100%',
+                                      transition: 'all 0.2s',
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
+                                    }}
+                                  >
+                                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 0.75, borderRadius: 1.5, display: 'flex' }}>
+                                      <InsertDriveFileIcon sx={{ fontSize: 18, color: theme.palette.text.primary }} />
                                     </Box>
+                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                      <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size / 1024).toFixed(0) + ' KB' : 'File')}</Typography>
+                                    </Box>
+                                  </Box>
                                 )}
-                              {msg.text && <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem', fontWeight: 400, letterSpacing: '0.01em' }}>{msg.text}</Typography>}
-                            </Box>
+                                {msg.text && <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem', fontWeight: 400, letterSpacing: '0.01em' }}>{msg.text}</Typography>}
+                              </Box>
 
-                            {msg.scheduledFor && (
+                              {msg.scheduledFor && (
                                 <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
-                            )}
+                              )}
+                            </Box>
                           </Box>
-                        </Box>
-                      )})
+                        )
+                      })
                     )}
                     <div ref={taskDetailsChatEndRef} />
                   </Box>
@@ -6732,29 +6799,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         {taskTypingUsers[reviewTask.id].join(', ')} is typing...
                       </Typography>
                     )}
-                    
+
                     {/* Attachments / Schedule preview (Copied from Popover) */}
                     {(chatAttachment || chatScheduledTime) && (
-                        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', px: 0.5 }}>
-                            {chatAttachment && (
-                                <Chip 
-                                    size="small" 
-                                    icon={<InsertDriveFileIcon style={{fontSize: 14}}/>} 
-                                    label={chatAttachment.name} 
-                                    onDelete={() => { setChatAttachment(null); if(chatFileRef.current) chatFileRef.current.value = ""; }}
-                                    sx={{ bgcolor: '#312e81', color: theme.palette.text.primary, border: '1px solid rgba(99, 102, 241, 0.3)', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
-                                />
-                            )}
-                            {chatScheduledTime && (
-                                <Chip 
-                                    size="small" 
-                                    icon={<AccessTimeIcon style={{fontSize: 14}}/>} 
-                                    label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`} 
-                                    onDelete={() => setChatScheduledTime("")}
-                                    sx={{ bgcolor: 'rgba(253, 171, 61, 0.15)', color: '#fdba74', border: '1px solid rgba(253, 171, 61, 0.3)', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
-                                />
-                            )}
-                        </Box>
+                      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', px: 0.5 }}>
+                        {chatAttachment && (
+                          <Chip
+                            size="small"
+                            icon={<InsertDriveFileIcon style={{ fontSize: 14 }} />}
+                            label={chatAttachment.name}
+                            onDelete={() => { setChatAttachment(null); if (chatFileRef.current) chatFileRef.current.value = ""; }}
+                            sx={{ bgcolor: '#312e81', color: theme.palette.text.primary, border: '1px solid rgba(99, 102, 241, 0.3)', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }}
+                          />
+                        )}
+                        {chatScheduledTime && (
+                          <Chip
+                            size="small"
+                            icon={<AccessTimeIcon style={{ fontSize: 14 }} />}
+                            label={`Send at: ${new Date(chatScheduledTime).toLocaleString()}`}
+                            onDelete={() => setChatScheduledTime("")}
+                            sx={{ bgcolor: 'rgba(253, 171, 61, 0.15)', color: '#fdba74', border: '1px solid rgba(253, 171, 61, 0.3)', '& .MuiChip-deleteIcon': { color: '#fdba74' } }}
+                          />
+                        )}
+                      </Box>
                     )}
 
                     <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -6763,28 +6830,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         ref={chatFileRef}
                         style={{ display: 'none' }}
                         onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                                setChatAttachment(e.target.files[0]);
-                            }
+                          if (e.target.files && e.target.files[0]) {
+                            setChatAttachment(e.target.files[0]);
+                          }
                         }}
                       />
                       <IconButton size="small" onClick={() => chatFileRef.current?.click()} sx={{ color: '#64748b', transition: 'color 0.2s', '&:hover': { color: theme.palette.text.secondary, bgcolor: theme.palette.action.hover } }}>
-                          <AttachFileIcon fontSize="small" />
+                        <AttachFileIcon fontSize="small" />
                       </IconButton>
 
                       <IconButton size="small" sx={{ color: chatScheduledTime ? '#fdab3d' : '#64748b', transition: 'color 0.2s', '&:hover': { color: theme.palette.text.secondary, bgcolor: theme.palette.action.hover } }}
-                          onClick={(e) => {
-                              const input = document.getElementById('chat-schedule-input-details');
-                              if(input) (input as HTMLInputElement).showPicker();
-                          }}
+                        onClick={(e) => {
+                          const input = document.getElementById('chat-schedule-input-details');
+                          if (input) (input as HTMLInputElement).showPicker();
+                        }}
                       >
-                          <AccessTimeIcon fontSize="small" />
-                          <input 
-                              id="chat-schedule-input-details"
-                              type="datetime-local" 
-                              style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
-                              onChange={(e) => setChatScheduledTime(e.target.value)}
-                          />
+                        <AccessTimeIcon fontSize="small" />
+                        <input
+                          id="chat-schedule-input-details"
+                          type="datetime-local"
+                          style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
+                          onChange={(e) => setChatScheduledTime(e.target.value)}
+                        />
                       </IconButton>
 
                       <input
@@ -6800,7 +6867,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }
                         }}
                         style={{
-                          flex: 1, 
+                          flex: 1,
                           backgroundColor: '#13141f',
                           border: '1px solid #2d2e3d',
                           borderRadius: '20px',
@@ -6815,22 +6882,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       />
                       <IconButton
                         onClick={async () => {
-                           if ((chatInput.trim() || chatAttachment) && reviewTask) {
-                                handleSendChat(reviewTask.id);
-                           }
+                          if ((chatInput.trim() || chatAttachment) && reviewTask) {
+                            handleSendChat(reviewTask.id);
+                          }
                         }}
                         disabled={isSending || (!chatInput.trim() && !chatAttachment)}
                         size="medium"
                         sx={{
                           color: (chatInput.trim() || chatAttachment) ? '#fff' : theme.palette.text.secondary,
                           width: 32,
-                            height: 32,
+                          height: 32,
                           bgcolor: (chatInput.trim() || chatAttachment) ? '#6366f1' : 'transparent',
                           '&:hover': { bgcolor: (chatInput.trim() || chatAttachment) ? '#4f46e5' : 'rgba(255,255,255,0.05)' },
                           ml: 1
                         }}
                       >
-                         {isSending ? <CircularProgress size={16} sx={{ color: theme.palette.text.primary }} /> : <SendIcon sx={{ fontSize: 16 }} />}
+                        {isSending ? <CircularProgress size={16} sx={{ color: theme.palette.text.primary }} /> : <SendIcon sx={{ fontSize: 16 }} />}
                       </IconButton>
                     </Box>
                   </Box>
@@ -6854,15 +6921,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                       // Add files from Chat Messages
                       if (reviewTask.values.message && Array.isArray(reviewTask.values.message)) {
-                          reviewTask.values.message.forEach((msg: any) => {
-                              if (msg.attachment) {
-                                  taskFiles.push({
-                                      file: { ...msg.attachment, uploadedAt: msg.timestamp },
-                                      colId: 'chat',
-                                      colName: 'Chat Attachment'
-                                  });
-                              }
-                          });
+                        reviewTask.values.message.forEach((msg: any) => {
+                          if (msg.attachment) {
+                            taskFiles.push({
+                              file: { ...msg.attachment, uploadedAt: msg.timestamp },
+                              colId: 'chat',
+                              colName: 'Chat Attachment'
+                            });
+                          }
+                        });
                       }
 
                       // Deduplicate by file URL to avoid showing same file from both Column and Chat
@@ -6940,7 +7007,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           <Typography variant="body2" sx={{ color: '#E5E7EB', mb: 0.5, fontSize: 13 }}>{log.text}</Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75, ml: 0.5 }}>
                             <Avatar
-                              src={log.userAvatar ? (log.userAvatar.startsWith('http') ? log.userAvatar : `${SERVER_URL}${log.userAvatar}`) : undefined}
+                              src={getAvatarUrl(log.userAvatar, log.user)}
                               sx={{ width: 24, height: 24, fontSize: 12, bgcolor: theme.palette.primary.main, fontWeight: 600 }}
                             >
                               {!log.userAvatar && (log.user?.[0] || 'U')}
@@ -6999,29 +7066,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         title="PDF Preview"
                       />
                     ) : (fileDialog.file.type?.startsWith('video/') || /\.(mp4|webm|ogg)$/i.test(fileDialog.file.name)) ? (
-                        <video 
-                            controls 
-                            src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
-                            style={{ maxWidth: '100%', maxHeight: '100%' }}
-                        />
+                      <video
+                        controls
+                        src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                        style={{ maxWidth: '100%', maxHeight: '100%' }}
+                      />
                     ) : (fileDialog.file.type?.startsWith('audio/') || /\.(mp3|wav|ogg)$/i.test(fileDialog.file.name)) ? (
-                        <audio 
-                            controls 
-                            src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
-                        />
+                      <audio
+                        controls
+                        src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                      />
                     ) : (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, p: 5 }}>
                         <InsertDriveFileIcon sx={{ fontSize: 80, color: '#0073ea', opacity: 0.8 }} />
                         <Typography sx={{ color: theme.palette.text.secondary, textAlign: 'center', mb: 2 }}>Preview not available for this file type</Typography>
                         <Button
-                            variant="outlined"
-                            component="a"
-                            href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{ color: theme.palette.text.primary, borderColor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+                          variant="outlined"
+                          component="a"
+                          href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ color: theme.palette.text.primary, borderColor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
                         >
-                            Open in New Tab
+                          Open in New Tab
                         </Button>
                       </Box>
                     )}
@@ -7086,7 +7153,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               {fileDialog.file?.comments?.map((comment: any) => (
                 <Box key={comment.id} sx={{ display: 'flex', gap: 1.5 }}>
                   <Avatar
-                    src={comment.userAvatar ? (comment.userAvatar.startsWith('http') ? comment.userAvatar : `${SERVER_URL}${comment.userAvatar}`) : undefined}
+                    src={getAvatarUrl(comment.userAvatar, comment.user)}
                     sx={{ width: 32, height: 32, fontSize: 13, bgcolor: theme.palette.primary.main, fontWeight: 600 }}
                   >
                     {!comment.userAvatar && (comment.user ? comment.user.charAt(0).toUpperCase() : 'U')}
@@ -7160,13 +7227,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         {/* Footer Actions */}
         <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 2, bgcolor: theme.palette.background.paper, borderTop: `1px solid ${theme.palette.divider}` }}>
           {fileDialog.colId !== 'chat' ? (
-          <Button
-            onClick={handleFileDelete}
-            sx={{ color: '#EF4444', fontWeight: 600, px: 2, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
-            startIcon={<DeleteIcon fontSize="small" />}
-          >
-            Delete File
-          </Button>
+            <Button
+              onClick={handleFileDelete}
+              sx={{ color: '#EF4444', fontWeight: 600, px: 2, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+              startIcon={<DeleteIcon fontSize="small" />}
+            >
+              Delete File
+            </Button>
           ) : <div />}
 
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -7211,27 +7278,27 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             <Box sx={{ p: 1, bgcolor: theme.palette.action.selected, borderRadius: 2, color: '#818CF8' }}><BoltIcon /></Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>Automations</Typography>
           </Box>
-          
+
           {!isEditingAutomation && (
             <IconButton onClick={() => {
-                // Reset form for new automation
-                setAutomationEnabled(true);
-                setEmailTriggerCol("");
-                setEmailCols([]);
-                setEmailRecipients([]);
-                setActionType("email");
-                setApplyToAll(true);
-                setSelectedTaskIds([]);
-                setCurrentAutomationId(null);
-                setIsEditingAutomation(true);
-            }} 
-            sx={{ 
-                bgcolor: '#818CF8', 
-                color: theme.palette.text.primary, 
+              // Reset form for new automation
+              setAutomationEnabled(true);
+              setEmailTriggerCol("");
+              setEmailCols([]);
+              setEmailRecipients([]);
+              setActionType("email");
+              setApplyToAll(true);
+              setSelectedTaskIds([]);
+              setCurrentAutomationId(null);
+              setIsEditingAutomation(true);
+            }}
+              sx={{
+                bgcolor: '#818CF8',
+                color: theme.palette.text.primary,
                 '&:hover': { bgcolor: '#6366F1' },
-                width: 40, height: 40 
-            }}>
-                <AddIcon />
+                width: 40, height: 40
+              }}>
+              <AddIcon />
             </IconButton>
           )}
 
@@ -7243,264 +7310,264 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               {/* List of Automations */}
               {automations.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 8, color: theme.palette.text.secondary }}>
-                   <BoltIcon sx={{ fontSize: 48, opacity: 0.2, mb: 2 }} />
-                   <Typography>No automations configured yet.</Typography>
-                   <Button 
-                     variant="text" 
-                     startIcon={<AddIcon />} 
-                     onClick={() => {
-                        setAutomationEnabled(true);
-                        setEmailTriggerCol("");
-                        setEmailCols([]);
-                        setEmailRecipients([]);
-                        setActionType("email");
-                        setApplyToAll(true);
-                        setSelectedTaskIds([]);
-                        setCurrentAutomationId(null);
-                        setIsEditingAutomation(true);
-                     }}
-                     sx={{ mt: 2, color: '#818CF8' }}
-                   >
-                     Create your first automation
-                   </Button>
+                  <BoltIcon sx={{ fontSize: 48, opacity: 0.2, mb: 2 }} />
+                  <Typography>No automations configured yet.</Typography>
+                  <Button
+                    variant="text"
+                    startIcon={<AddIcon />}
+                    onClick={() => {
+                      setAutomationEnabled(true);
+                      setEmailTriggerCol("");
+                      setEmailCols([]);
+                      setEmailRecipients([]);
+                      setActionType("email");
+                      setApplyToAll(true);
+                      setSelectedTaskIds([]);
+                      setCurrentAutomationId(null);
+                      setIsEditingAutomation(true);
+                    }}
+                    sx={{ mt: 2, color: '#818CF8' }}
+                  >
+                    Create your first automation
+                  </Button>
                 </Box>
               ) : (
                 <Stack spacing={2}>
-                    {automations.map((auto: any) => (
-                        <Paper key={auto.id} sx={{ p: 2, bgcolor: theme.palette.action.hover, border: `1px solid ${theme.palette.divider}`, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Switch checked={auto.enabled} size="small" onChange={async (e) => {
-                                const newEnabled = e.target.checked;
-                                // Update locally first for responsiveness
-                                setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: newEnabled } : a));
-                                // API call
-                                await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ 
-                                        id: auto.id, 
-                                        enabled: newEnabled,
-                                        triggerCol: auto.triggerCol,
-                                        cols: auto.cols,
-                                        recipients: auto.recipients,
-                                        actionType: auto.actionType,
-                                        taskIds: auto.taskIds 
-                                    })
-                                });
-                            }} />
-                            <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                                    When {columns.find(c => c.id === auto.triggerCol)?.name || 'Unknown Column'} changes
-                                </Typography>
-                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                                    {auto.actionType === 'notification' ? 'Send Notification' : auto.actionType === 'both' ? 'Send Email & Notification' : 'Send Email'} 
-                                    {auto.taskIds && auto.taskIds.length > 0 ? ` (${auto.taskIds.length} tasks)` : ' (All Tasks)'}
-                                </Typography>
-                            </Box>
-                            <IconButton onClick={() => {
-                                setAutomationEnabled(auto.enabled);
-                                setEmailTriggerCol(auto.triggerCol);
-                                setEmailCols(auto.cols || []);
-                                setEmailRecipients(auto.recipients || []);
-                                setActionType(auto.actionType || 'email');
-                                setApplyToAll(!auto.taskIds || auto.taskIds.length === 0);
-                                setSelectedTaskIds(auto.taskIds || []);
-                                setCurrentAutomationId(auto.id);
-                                setIsEditingAutomation(true);
-                            }} size="small" sx={{ color: theme.palette.text.secondary }}><EditIcon fontSize="small" /></IconButton>
-                            <IconButton onClick={async () => {
-                                if (confirm('Delete automation?')) {
-                                    await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'DELETE' });
-                                    // Refresh list
-                                    const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
-                                    if (res.ok) setAutomations(await res.json());
-                                }
-                            }} size="small" sx={{ color: '#EF4444' }}><DeleteIcon fontSize="small" /></IconButton>
-                        </Paper>
-                    ))}
+                  {automations.map((auto: any) => (
+                    <Paper key={auto.id} sx={{ p: 2, bgcolor: theme.palette.action.hover, border: `1px solid ${theme.palette.divider}`, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Switch checked={auto.enabled} size="small" onChange={async (e) => {
+                        const newEnabled = e.target.checked;
+                        // Update locally first for responsiveness
+                        setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: newEnabled } : a));
+                        // API call
+                        await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            id: auto.id,
+                            enabled: newEnabled,
+                            triggerCol: auto.triggerCol,
+                            cols: auto.cols,
+                            recipients: auto.recipients,
+                            actionType: auto.actionType,
+                            taskIds: auto.taskIds
+                          })
+                        });
+                      }} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                          When {columns.find(c => c.id === auto.triggerCol)?.name || 'Unknown Column'} changes
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          {auto.actionType === 'notification' ? 'Send Notification' : auto.actionType === 'both' ? 'Send Email & Notification' : 'Send Email'}
+                          {auto.taskIds && auto.taskIds.length > 0 ? ` (${auto.taskIds.length} tasks)` : ' (All Tasks)'}
+                        </Typography>
+                      </Box>
+                      <IconButton onClick={() => {
+                        setAutomationEnabled(auto.enabled);
+                        setEmailTriggerCol(auto.triggerCol);
+                        setEmailCols(auto.cols || []);
+                        setEmailRecipients(auto.recipients || []);
+                        setActionType(auto.actionType || 'email');
+                        setApplyToAll(!auto.taskIds || auto.taskIds.length === 0);
+                        setSelectedTaskIds(auto.taskIds || []);
+                        setCurrentAutomationId(auto.id);
+                        setIsEditingAutomation(true);
+                      }} size="small" sx={{ color: theme.palette.text.secondary }}><EditIcon fontSize="small" /></IconButton>
+                      <IconButton onClick={async () => {
+                        if (confirm('Delete automation?')) {
+                          await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'DELETE' });
+                          // Refresh list
+                          const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
+                          if (res.ok) setAutomations(await res.json());
+                        }
+                      }} size="small" sx={{ color: '#EF4444' }}><DeleteIcon fontSize="small" /></IconButton>
+                    </Paper>
+                  ))}
                 </Stack>
               )}
             </Box>
           ) : (
             <Box sx={{ p: 4, maxWidth: 600, mx: 'auto' }}>
-                {/* 
+              {/* 
                    Removed the "Enable Automation" switch from here as per user request.
                    It is now controlled via the list view.
                    We default automationEnabled to true when creating, but preserve it when editing (though we won't show the switch).
                 */}
 
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel id="auto-trigger-col" sx={{ color: theme.palette.text.secondary }}>Trigger Column</InputLabel>
-                  <Select
-                    labelId="auto-trigger-col"
-                    value={emailTriggerCol || ''}
-                    label="Trigger Column"
-                    onChange={e => setEmailTriggerCol(e.target.value)}
-                    sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                    MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                  >
-                    {columns.map(col => (
-                      <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="auto-trigger-col" sx={{ color: theme.palette.text.secondary }}>Trigger Column</InputLabel>
+                <Select
+                  labelId="auto-trigger-col"
+                  value={emailTriggerCol || ''}
+                  label="Trigger Column"
+                  onChange={e => setEmailTriggerCol(e.target.value)}
+                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
+                >
+                  {columns.map(col => (
+                    <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel id="auto-action-type" sx={{ color: theme.palette.text.secondary }}>Action</InputLabel>
-                    <Select
-                        labelId="auto-action-type"
-                        value={actionType}
-                        label="Action"
-                        onChange={e => setActionType(e.target.value as any)}
-                        sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                        MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                    >
-                        <MenuItem value="notification">Notification Only</MenuItem>
-                        <MenuItem value="email">Email Only</MenuItem>
-                        <MenuItem value="both">Email & Notification</MenuItem>
-                    </Select>
-                </FormControl>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="auto-action-type" sx={{ color: theme.palette.text.secondary }}>Action</InputLabel>
+                <Select
+                  labelId="auto-action-type"
+                  value={actionType}
+                  label="Action"
+                  onChange={e => setActionType(e.target.value as any)}
+                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
+                >
+                  <MenuItem value="notification">Notification Only</MenuItem>
+                  <MenuItem value="email">Email Only</MenuItem>
+                  <MenuItem value="both">Email & Notification</MenuItem>
+                </Select>
+              </FormControl>
 
-                <Box sx={{ mb: 3 }}>
-                    <Typography gutterBottom sx={{ color: theme.palette.text.secondary, fontSize: 13 }}>Apply to</Typography>
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <Button 
-                            variant={applyToAll ? "contained" : "outlined"} 
-                            onClick={() => { setApplyToAll(true); setSelectedTaskIds([]); }}
-                            fullWidth
-                            sx={{ 
-                                bgcolor: applyToAll ? '#818CF8' : 'transparent', 
-                                borderColor: applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
-                                color: applyToAll ? '#fff' : '#9CA3AF',
-                                '&:hover': { bgcolor: applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
-                            }}
-                        >
-                            All Tasks
-                        </Button>
-                        <Button 
-                            variant={!applyToAll ? "contained" : "outlined"} 
-                            onClick={() => setApplyToAll(false)}
-                            fullWidth
-                            sx={{ 
-                                bgcolor: !applyToAll ? '#818CF8' : 'transparent', 
-                                borderColor: !applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
-                                color: !applyToAll ? '#fff' : '#9CA3AF',
-                                '&:hover': { bgcolor: !applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
-                            }}
-                        >
-                            Select Tasks
-                        </Button>
-                    </Box>
-                    
-                    {!applyToAll && (
-                        <FormControl fullWidth sx={{ mb: 1 }}>
-                            <InputLabel id="select-tasks-label" sx={{ color: theme.palette.text.secondary }}>Tasks</InputLabel>
-                            <Select
-                                labelId="select-tasks-label"
-                                multiple
-                                value={selectedTaskIds}
-                                onChange={(e) => setSelectedTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                                renderValue={(selected) => `${selected.length} tasks selected`}
-                                sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                                MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, maxHeight: 300 } } }}
-                            >
-                                {rows.map((row) => {
-                                    // Try to find a meaningful name for the task
-                                    const textCol = columns.find(c => c.type === 'Text');
-                                    let taskName = (textCol && row.values[textCol.id]) ? String(row.values[textCol.id]) : `Task ${row.id.substring(0, 8)}...`;
-                                    // Prepend the index/row number to the name for selection if it's the raw list being mapped
-                                    // But wait, the map currently is:
-                                    const rowIndex = rows.findIndex(r => r.id === row.id) + 1;
-                                    taskName = `Row ${rowIndex}: ${taskName}`;
-
-                                    return (
-                                        <MenuItem key={row.id} value={row.id}>
-                                            <Checkbox checked={selectedTaskIds.indexOf(row.id) > -1} sx={{ color: '#818CF8' }} />
-                                            <ListItemText primary={taskName} secondary={row.id} secondaryTypographyProps={{ sx: { color: 'rgba(255,255,255,0.5)', fontSize: 10 } }} />
-                                        </MenuItem>
-                                    );
-                                })}
-                            </Select>
-                        </FormControl>
-                    )}
-                </Box>
-
-                {/* Options always visible regardless of action type */}
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel id="email-cols-label" sx={{ color: theme.palette.text.secondary }}>Include Columns</InputLabel>
-                    <Select
-                        labelId="email-cols-label"
-                        multiple
-                        value={emailCols}
-                        onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                        renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
-                        sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                        MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                    >
-                        {columns.map((col) => (
-                        <MenuItem key={col.id} value={col.id}>
-                            <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
-                            <ListItemText primary={col.name} />
-                        </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel id="email-recipients-label" sx={{ color: theme.palette.text.secondary }}>Recipients</InputLabel>
-                    <Select
-                        labelId="email-recipients-label"
-                        multiple
-                        value={emailRecipients}
-                        onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                        renderValue={(selected) => selected.map((email: string) => {
-                            const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
-                            return person ? person.name : email;
-                        }).join(', ')}
-                        sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                        MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                    >
-                        {peopleOptions.map((person: { name: string; email: string }) => (
-                        <MenuItem key={person.email} value={person.email}>
-                            <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
-                            <ListItemText primary={person.name} />
-                        </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-                <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
-                  <Button variant="text" onClick={() => setIsEditingAutomation(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
-                  <Box sx={{ flex: 1 }} />
+              <Box sx={{ mb: 3 }}>
+                <Typography gutterBottom sx={{ color: theme.palette.text.secondary, fontSize: 13 }}>Apply to</Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                   <Button
-                    variant="contained"
-                    onClick={async () => {
-                      const body = {
-                        id: currentAutomationId,
-                        enabled: automationEnabled,
-                        triggerCol: emailTriggerCol,
-                        cols: emailCols,
-                        recipients: emailRecipients,
-                        actionType: actionType,
-                        taskIds: applyToAll ? [] : selectedTaskIds
-                      };
-                      
-                      await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                      });
-                      
-                      // Refresh list
-                      const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
-                      if (res.ok) setAutomations(await res.json());
-                      
-                      setIsEditingAutomation(false);
+                    variant={applyToAll ? "contained" : "outlined"}
+                    onClick={() => { setApplyToAll(true); setSelectedTaskIds([]); }}
+                    fullWidth
+                    sx={{
+                      bgcolor: applyToAll ? '#818CF8' : 'transparent',
+                      borderColor: applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
+                      color: applyToAll ? '#fff' : '#9CA3AF',
+                      '&:hover': { bgcolor: applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
                     }}
-                    sx={{ bgcolor: '#818CF8', '&:hover': { bgcolor: '#6366F1' } }}
                   >
-                    Save Changes
+                    All Tasks
+                  </Button>
+                  <Button
+                    variant={!applyToAll ? "contained" : "outlined"}
+                    onClick={() => setApplyToAll(false)}
+                    fullWidth
+                    sx={{
+                      bgcolor: !applyToAll ? '#818CF8' : 'transparent',
+                      borderColor: !applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
+                      color: !applyToAll ? '#fff' : '#9CA3AF',
+                      '&:hover': { bgcolor: !applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
+                    }}
+                  >
+                    Select Tasks
                   </Button>
                 </Box>
+
+                {!applyToAll && (
+                  <FormControl fullWidth sx={{ mb: 1 }}>
+                    <InputLabel id="select-tasks-label" sx={{ color: theme.palette.text.secondary }}>Tasks</InputLabel>
+                    <Select
+                      labelId="select-tasks-label"
+                      multiple
+                      value={selectedTaskIds}
+                      onChange={(e) => setSelectedTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                      renderValue={(selected) => `${selected.length} tasks selected`}
+                      sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
+                      MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, maxHeight: 300 } } }}
+                    >
+                      {rows.map((row) => {
+                        // Try to find a meaningful name for the task
+                        const textCol = columns.find(c => c.type === 'Text');
+                        let taskName = (textCol && row.values[textCol.id]) ? String(row.values[textCol.id]) : `Task ${row.id.substring(0, 8)}...`;
+                        // Prepend the index/row number to the name for selection if it's the raw list being mapped
+                        // But wait, the map currently is:
+                        const rowIndex = rows.findIndex(r => r.id === row.id) + 1;
+                        taskName = `Row ${rowIndex}: ${taskName}`;
+
+                        return (
+                          <MenuItem key={row.id} value={row.id}>
+                            <Checkbox checked={selectedTaskIds.indexOf(row.id) > -1} sx={{ color: '#818CF8' }} />
+                            <ListItemText primary={taskName} secondary={row.id} secondaryTypographyProps={{ sx: { color: 'rgba(255,255,255,0.5)', fontSize: 10 } }} />
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                )}
+              </Box>
+
+              {/* Options always visible regardless of action type */}
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="email-cols-label" sx={{ color: theme.palette.text.secondary }}>Include Columns</InputLabel>
+                <Select
+                  labelId="email-cols-label"
+                  multiple
+                  value={emailCols}
+                  onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                  renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
+                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
+                >
+                  {columns.map((col) => (
+                    <MenuItem key={col.id} value={col.id}>
+                      <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
+                      <ListItemText primary={col.name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="email-recipients-label" sx={{ color: theme.palette.text.secondary }}>Recipients</InputLabel>
+                <Select
+                  labelId="email-recipients-label"
+                  multiple
+                  value={emailRecipients}
+                  onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                  renderValue={(selected) => selected.map((email: string) => {
+                    const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
+                    return person ? person.name : email;
+                  }).join(', ')}
+                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
+                >
+                  {peopleOptions.map((person: { name: string; email: string }) => (
+                    <MenuItem key={person.email} value={person.email}>
+                      <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
+                      <ListItemText primary={person.name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
+                <Button variant="text" onClick={() => setIsEditingAutomation(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
+                <Box sx={{ flex: 1 }} />
+                <Button
+                  variant="contained"
+                  onClick={async () => {
+                    const body = {
+                      id: currentAutomationId,
+                      enabled: automationEnabled,
+                      triggerCol: emailTriggerCol,
+                      cols: emailCols,
+                      recipients: emailRecipients,
+                      actionType: actionType,
+                      taskIds: applyToAll ? [] : selectedTaskIds
+                    };
+
+                    await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body)
+                    });
+
+                    // Refresh list
+                    const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
+                    if (res.ok) setAutomations(await res.json());
+
+                    setIsEditingAutomation(false);
+                  }}
+                  sx={{ bgcolor: '#818CF8', '&:hover': { bgcolor: '#6366F1' } }}
+                >
+                  Save Changes
+                </Button>
+              </Box>
             </Box>
           )}
         </DialogContent>

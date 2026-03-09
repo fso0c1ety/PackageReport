@@ -1,5 +1,5 @@
 "use client";
-import { getApiUrl, authenticatedFetch } from "../../apiUrl";
+import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
 import React, { useEffect, useState } from "react";
 import {
   Box,
@@ -612,7 +612,7 @@ export default function DashboardPage() {
                               <MuiTooltip key={i} title={p.name || p.email}>
                                 <Avatar
                                   alt={p.name}
-                                  src={p.photo_url || ""} // Assuming we might have photos later
+                                  src={getAvatarUrl(p.avatar || p.photo_url, p.name)}
                                   sx={{ width: 24, height: 24, fontSize: 10, bgcolor: CHART_COLORS[i % CHART_COLORS.length] }}
                                 >
                                   {(p.name || p.email || "?")[0].toUpperCase()}

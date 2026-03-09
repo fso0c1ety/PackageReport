@@ -100,6 +100,7 @@ io.on('connection', (socket) => {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT;
+      ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS sender_id TEXT;
     `);
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;`);
     await db.query(`UPDATE tables SET shared_users = '[]'::jsonb WHERE shared_users IS NULL;`);
@@ -249,15 +250,21 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const { name, avatar, phone, job_title, company } = req.body;
+  console.log('[PROFILE UPDATE] Incoming:', { userId: req.user.id, name, avatar, phone, job_title, company });
   try {
     const result = await db.query(
       'UPDATE users SET name = $1, avatar = $2, phone = $3, job_title = $4, company = $5 WHERE id = $6 RETURNING id, name, email, avatar, phone, job_title, company',
       [name, avatar, phone, job_title, company, req.user.id]
     );
+    if (result.rows.length === 0) {
+      console.error('[PROFILE UPDATE] No user updated for id:', req.user.id);
+      return res.status(404).json({ error: 'User not found or not updated' });
+    }
     const updatedUser = result.rows[0];
+    console.log('[PROFILE UPDATE] Updated user:', updatedUser);
     res.json(updatedUser);
   } catch (err) {
-    console.error('Error updating profile:', err);
+    console.error('[PROFILE UPDATE] Error updating profile:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -821,13 +828,13 @@ app.get('/api/tables/:tableId/members', authenticateToken, async (req, res) => {
     const sharedUsers = table.shared_users ? table.shared_users.map(u => u.userId) : [];
     const memberIds = [...new Set([ownerId, ...sharedUsers])];
     
-    const usersRes = await db.query('SELECT id, name, email FROM users WHERE id = ANY($1)', [memberIds]);
+    const usersRes = await db.query('SELECT id, name, email, avatar FROM users WHERE id = ANY($1)', [memberIds]);
     
     const members = usersRes.rows.map(user => ({
       id: user.id,
       name: user.name,
       email: user.email,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
+      avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
       role: user.id === ownerId ? 'owner' : 'member'
     }));
     
@@ -1526,7 +1533,13 @@ app.post('/api/test-notification', authenticateToken, async (req, res) => {
 // Using a table in PostgreSQL for chats
 app.get('/api/tables/:tableId/chat', async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM table_chats WHERE table_id = $1 ORDER BY timestamp ASC', [req.params.tableId]);
+    const result = await db.query(`
+      SELECT tc.*, u.avatar as sender_avatar 
+      FROM table_chats tc 
+      LEFT JOIN users u ON tc.sender_id = u.id 
+      WHERE tc.table_id = $1 
+      ORDER BY tc.timestamp ASC
+    `, [req.params.tableId]);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching chat messages:', err);
@@ -1667,16 +1680,23 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
     const newMessage = {
       id: uuidv4(),
       table_id: req.params.tableId,
-      sender: req.body.sender || req.user.name, // Fallback to auth user name if not provided
+      sender: req.body.sender || req.user.name,
+      sender_id: req.user.id,
       text: req.body.text,
       timestamp: req.body.timestamp || Date.now(),
-      attachment: req.body.attachment || null // Add attachment support
+      attachment: req.body.attachment || null
     };
 
     await db.query(
-      'INSERT INTO table_chats (id, table_id, sender, text, timestamp, attachment) VALUES ($1, $2, $3, $4, $5, $6)',
-      [newMessage.id, newMessage.table_id, newMessage.sender, newMessage.text, newMessage.timestamp, newMessage.attachment]
+      'INSERT INTO table_chats (id, table_id, sender, text, timestamp, attachment, sender_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [newMessage.id, newMessage.table_id, newMessage.sender, newMessage.text, newMessage.timestamp, newMessage.attachment, newMessage.sender_id]
     );
+
+    // Fetch sender avatar for the socket event
+    const userRes = await db.query('SELECT avatar FROM users WHERE id = $1', [newMessage.sender_id]);
+    newMessage.sender_avatar = userRes.rows[0]?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(newMessage.sender)}&background=random&color=fff&bold=true`;
+
+    io.to(newMessage.table_id).emit('new_board_message', newMessage);
 
     // Send push notification to other users
     // 1. Get the table name and workspace/shared users

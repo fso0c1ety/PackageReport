@@ -25,7 +25,6 @@ export function getServerUrl() {
 export function getApiUrl(path: string) {
   // Use Express backend (LAN IP for mobile/desktop)
   const base = getServerUrl();
-  console.log('[API] Using server URL:', base); // Debugging log
 
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
@@ -36,8 +35,36 @@ export function getApiUrl(path: string) {
     cleanBase = cleanBase.slice(0, -4);
   }
 
-  // Combine
+// Combine
   return `${cleanBase}/api${cleanPath}`;
+}
+
+/**
+ * Resolves an avatar URL consistently across the application.
+ * Handles: null/undefined, absolute URLs, Base64 data URLs, and relative local paths.
+ */
+export function getAvatarUrl(avatar: string | null | undefined, name: string = "User") {
+  if (!avatar) {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
+  }
+
+  // Handle absolute URLs (http:// or https://)
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+
+  // Handle Base64 data URLs (data:image/...)
+  if (avatar.startsWith('data:')) {
+    return avatar;
+  }
+
+  // Handle relative local paths (e.g., /uploads/...)
+  // We use the base server URL, NOT the /api prefix
+  const base = getServerUrl();
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const cleanPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
+  
+  return `${cleanBase}${cleanPath}`;
 }
 
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {

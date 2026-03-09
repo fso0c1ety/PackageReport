@@ -36,7 +36,7 @@ import WorkIcon from "@mui/icons-material/Work";
 import BusinessIcon from "@mui/icons-material/Business";
 import CallIcon from "@mui/icons-material/Call";
 
-import { getApiUrl, authenticatedFetch } from "../../apiUrl";
+import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -185,7 +185,10 @@ export default function SettingsPage() {
       setIsEditing(false);
       setProfileSaved(true);
       setProfileError("");
-
+      // Notify other components to refresh user data (e.g., TableBoard)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('profile-updated'));
+      }
       setTimeout(() => setProfileSaved(false), 3000);
     } catch (e: any) {
       console.error(e);
@@ -201,14 +204,33 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAvatarSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const res = await authenticatedFetch(getApiUrl('upload'), {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          // data.url is a relative path like /uploads/filename.jpg
+          setEditAvatar(data.url);
+          // Optionally notify immediately after avatar upload (before save)
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('profile-updated'));
+          }
+        } else {
+          setProfileError("Failed to upload image");
+        }
+      } catch (err) {
+        console.error("Upload failed", err);
+        setProfileError("Error uploading image");
+      }
     }
   };
 
@@ -254,7 +276,7 @@ export default function SettingsPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
                 <Box sx={{ position: 'relative', mr: 3 }}>
                   <Avatar
-                    src={isEditing ? editAvatar : user?.avatar}
+                    src={getAvatarUrl(isEditing ? editAvatar : user?.avatar, user?.name)}
                     sx={{ width: 100, height: 100, fontSize: 40 }}
                   >
                     {user?.name?.[0]?.toUpperCase() || 'U'}

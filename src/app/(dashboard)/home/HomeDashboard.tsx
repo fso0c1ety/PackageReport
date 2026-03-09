@@ -29,7 +29,7 @@ import {
 import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { authenticatedFetch, getApiUrl } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl } from "../../apiUrl";
 import { v4 as uuidv4 } from "uuid";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
@@ -753,19 +753,17 @@ export default function HomeDashboard() {
                       >
                          {/* Owner */}
                          <Avatar
-                            src={ws.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ws.owner_name || ws.name || 'User')}&background=random&color=fff&bold=true`}
+                            src={getAvatarUrl(ws.owner_avatar, ws.owner_name || ws.name)}
                             alt={ws.owner_name}
                             title={`Owner: ${ws.owner_name}`}
                             sx={{ bgcolor: '#6366f1' }}
-                         >
-                            {ws.owner_name ? ws.owner_name[0] : (ws.name ? ws.name[0] : 'U')}
-                         </Avatar>
+                         />
 
                          {/* Members */}
                          {ws.members && ws.members.map((m: any) => (
                              <Avatar
                                 key={m.id}
-                                src={m.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name || 'User')}&background=random&color=fff&bold=true`}
+                                src={getAvatarUrl(m.avatar, m.name)}
                                 alt={m.name}
                                 title={m.name}
                                 sx={{ bgcolor: '#4f46e5' }}
