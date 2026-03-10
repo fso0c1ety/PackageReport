@@ -2,19 +2,7 @@
 export const DEFAULT_SERVER_URL = "https://packagereport.onrender.com";
 
 export function getServerUrl() {
-  if (typeof window !== 'undefined') {
-    // Use local backend if running on localhost or local network
-    const hostname = window.location.hostname;
-    
-    // If on localhost, prefer 127.0.0.1 explicitly to avoid IPv6 issues
-    if (hostname === 'localhost') {
-        return 'http://127.0.0.1:4000';
-    }
-
-    if (hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
-        return `http://${hostname}:4000`;
-    }
-  }
+  // Always use the Render backend, regardless of environment
   return DEFAULT_SERVER_URL;
 }
 
