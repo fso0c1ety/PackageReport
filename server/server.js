@@ -269,6 +269,48 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
   }
 });
 
+// --- Nexus Brain (AI) Endpoint ---
+app.post('/api/nexus/chat', authenticateToken, async (req, res) => {
+    const { messages, systemPrompt, input } = req.body;
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+        console.error('[Nexus Brain] API Key missing in environment');
+        return res.status(500).json({ error: 'AI Service configuration missing' });
+    }
+
+    try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json", 
+                "Authorization": `Bearer ${apiKey}` 
+            },
+            body: JSON.stringify({
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    ...messages,
+                    { role: "user", content: input }
+                ],
+                response_format: { type: "json_object" }
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('[OpenAI Error]', errorData);
+            throw new Error(errorData.error?.message || 'OpenAI Request Failed');
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        console.error('[Nexus Brain Error]', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Port is handled after route registration
 const PORT = process.env.PORT || 4000;
 

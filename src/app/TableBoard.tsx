@@ -1005,13 +1005,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setAiChatInput("");
     setIsAiThinking(true);
 
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-
     setTimeout(async () => {
       let responseText = "";
       try {
-        if (!apiKey) throw new Error("API Key missing");
-
         const systemPrompt = `
           You are the "Nexus Brain", the intelligent core of this project management app.
           Capabilities:
@@ -1055,19 +1051,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           content: m.text
         }));
 
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        const res = await authenticatedFetch(getApiUrl('/nexus/chat'), {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "gpt-4o",
-            messages: [
-              { role: "system", content: systemPrompt }, 
-              ...history,
-              { role: "user", content: input }
-            ],
-            response_format: { type: "json_object" }
+             input,
+             systemPrompt,
+             messages: history
           })
         });
+
+        if (!res.ok) {
+           const errData = await res.json();
+           throw new Error(errData.error || "Failed to reach Nexus Brain");
+        }
 
         const data = await res.json();
         const aiResult = JSON.parse(data.choices[0].message.content);
@@ -1086,7 +1083,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         console.error("Nexus Brain Error:", err);
         setAiMessages(prev => [...prev, { 
           role: 'assistant', 
-          text: "I'm having trouble syncing. Please check your connection or request.", 
+          text: "I'm having trouble syncing with the Nexus Brain. Please check your connection or try again shortly.", 
           timestamp: new Date().toISOString() 
         }]);
       } finally {
