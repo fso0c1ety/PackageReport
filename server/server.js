@@ -152,22 +152,22 @@ app.use('/api', peopleRoute);
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
 // Serve uploaded files statically - First try middleware, then fallback or specific handling
-app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Explicitly handle file serving to debug or catch encoding issues
 app.get('/uploads/:filename', (req, res) => {
-    const filename = req.params.filename;
-    // Decode filename just in case it's still encoded
-    const decodedFilename = decodeURIComponent(filename);
-    const filepath = path.join(__dirname, 'data/uploads', decodedFilename);
-    const filepathEncoded = path.join(__dirname, 'data/uploads', filename);
+  const filename = req.params.filename;
+  // Decode filename just in case it's still encoded
+  const decodedFilename = decodeURIComponent(filename);
+  const filepath = path.join(__dirname, 'uploads', decodedFilename);
+  const filepathEncoded = path.join(__dirname, 'uploads', filename);
 
-    if (fs.existsSync(filepath)) {
-        res.sendFile(filepath);
-    } else if (fs.existsSync(filepathEncoded)) {
-        res.sendFile(filepathEncoded);
-    } else {
-        res.status(404).json({ error: 'File not found' });
-    }
+  if (fs.existsSync(filepath)) {
+    res.sendFile(filepath);
+  } else if (fs.existsSync(filepathEncoded)) {
+    res.sendFile(filepathEncoded);
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
 });
 
 // Serve frontend static export if it exists
@@ -186,7 +186,7 @@ if (fs.existsSync(outDir)) {
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'data/uploads');
+    const uploadDir = path.join(__dirname, 'uploads');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

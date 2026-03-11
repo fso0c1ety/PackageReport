@@ -499,110 +499,117 @@ export default function SettingsPage() {
 
         {/* PROFILE TAB */}
         <TabPanel value={tabValue} index={0}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-                <Box sx={{ position: 'relative', mr: 3 }}>
-                  <Avatar
-                    src={getAvatarUrl(isEditing ? editAvatar : user?.avatar, user?.name)}
-                    sx={{ width: 100, height: 100, fontSize: 40 }}
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'stretch', sm: 'center' },
+                mb: 4,
+                gap: { xs: 3, sm: 0 }
+              }}
+            >
+              <Box sx={{ position: 'relative', mb: { xs: 2, sm: 0 }, mr: { xs: 0, sm: 3 }, display: 'flex', justifyContent: 'center' }}>
+                <Avatar
+                  src={getAvatarUrl(isEditing ? editAvatar : user?.avatar, user?.name)}
+                  sx={{ width: 100, height: 100, fontSize: 40, mx: { xs: 'auto', sm: 0 } }}
+                >
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </Avatar>
+                {isEditing && (
+                  <IconButton
+                    component="label"
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      right: { xs: 'calc(50% - 20px)', sm: 0 },
+                      bgcolor: 'background.paper',
+                      boxShadow: 2,
+                      '&:hover': { bgcolor: 'grey.100' }
+                    }}
                   >
-                    {user?.name?.[0]?.toUpperCase() || 'U'}
-                  </Avatar>
-                  {isEditing && (
-                    <IconButton
-                      component="label"
-                      sx={{
-                        position: 'absolute',
-                        bottom: 0,
-                        right: 0,
-                        bgcolor: 'background.paper',
-                        boxShadow: 2,
-                        '&:hover': { bgcolor: 'grey.100' }
-                      }}
-                    >
-                        <input hidden accept="image/*" type="file" onChange={handleAvatarSelect} />
-                        <PhotoCamera fontSize="small" color="primary" />
-                    </IconButton>
-                  )}
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                    {isEditing ? (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, maxWidth: 600 }}>
-                            <TextField 
-                                label="Full Name" 
-                                value={editName} 
-                                onChange={(e) => setEditName(e.target.value)} 
-                                size="small" 
-                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
-                            />
-                            <TextField 
-                                label="Email" 
-                                value={editEmail} 
-                                size="small" 
-                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
-                                disabled
-                            />
-                            <TextField 
-                                label="Job Title" 
-                                value={editJobTitle} 
-                                onChange={(e) => setEditJobTitle(e.target.value)} 
-                                size="small" 
-                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
-                            />
-                            <TextField 
-                                label="Company" 
-                                value={editCompany} 
-                                onChange={(e) => setEditCompany(e.target.value)} 
-                                size="small" 
-                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
-                            />
-                            <TextField 
-                                label="Phone Number" 
-                                value={editPhone} 
-                                onChange={(e) => setEditPhone(e.target.value)} 
-                                size="small" 
-                                sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
-                            />
+                    <input hidden accept="image/*" type="file" onChange={handleAvatarSelect} />
+                    <PhotoCamera fontSize="small" color="primary" />
+                  </IconButton>
+                )}
+              </Box>
+              <Box sx={{ flexGrow: 1, width: '100%' }}>
+                {isEditing ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600, mx: { xs: 'auto', sm: 0 } }}>
+                    <TextField
+                      label="Full Name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                    <TextField
+                      label="Email"
+                      value={editEmail}
+                      size="small"
+                      sx={{ width: '100%' }}
+                      disabled
+                    />
+                    <TextField
+                      label="Job Title"
+                      value={editJobTitle}
+                      onChange={(e) => setEditJobTitle(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                    <TextField
+                      label="Company"
+                      value={editCompany}
+                      onChange={(e) => setEditCompany(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                    <TextField
+                      label="Phone Number"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
+                    <Typography variant="h5" fontWeight="bold">{user?.name || "User Name"}</Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>{user?.email || "user@example.com"}</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 2, mt: 1, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                      {user?.job_title && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                          <WorkIcon fontSize="small" />
+                          <Typography variant="body2">{user.job_title}</Typography>
                         </Box>
-                    ) : (
-                        <Box>
-                            <Typography variant="h5" fontWeight="bold">{user?.name || "User Name"}</Typography>
-                            <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>{user?.email || "user@example.com"}</Typography>
-                            
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
-                                {user?.job_title && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                                        <WorkIcon fontSize="small" />
-                                        <Typography variant="body2">{user.job_title}</Typography>
-                                    </Box>
-                                )}
-                                {user?.company && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                                        <BusinessIcon fontSize="small" />
-                                        <Typography variant="body2">{user.company}</Typography>
-                                    </Box>
-                                )}
-                                {user?.phone && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                                        <CallIcon fontSize="small" />
-                                        <Typography variant="body2">{user.phone}</Typography>
-                                    </Box>
-                                )}
-                            </Box>
+                      )}
+                      {user?.company && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                          <BusinessIcon fontSize="small" />
+                          <Typography variant="body2">{user.company}</Typography>
                         </Box>
-                    )}
-                </Box>
-                <Box>
-                    {isEditing ? (
-                        <Box>
-                             <IconButton onClick={handleSaveProfile} color="primary"><SaveIcon /></IconButton>
-                             <IconButton onClick={() => { setIsEditing(false); setProfileError(""); }} color="error"><CloseIcon /></IconButton>
+                      )}
+                      {user?.phone && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                          <CallIcon fontSize="small" />
+                          <Typography variant="body2">{user.phone}</Typography>
                         </Box>
-                    ) : (
-                        <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)}>
-                            Edit
-                        </Button>
-                    )}
-                </Box>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+              <Box sx={{ mt: { xs: 2, sm: 0 }, display: 'flex', justifyContent: { xs: 'center', sm: 'flex-end' } }}>
+                {isEditing ? (
+                  <Box>
+                    <IconButton onClick={handleSaveProfile} color="primary"><SaveIcon /></IconButton>
+                    <IconButton onClick={() => { setIsEditing(false); setProfileError(""); }} color="error"><CloseIcon /></IconButton>
+                  </Box>
+                ) : (
+                  <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)}>
+                    Edit
+                  </Button>
+                )}
+              </Box>
             </Box>
 
             {profileError && <Alert severity="error" sx={{ mb: 2 }}>{profileError}</Alert>}
@@ -709,24 +716,40 @@ export default function SettingsPage() {
 
         {/* TEAM TAB */}
         <TabPanel value={tabValue} index={4}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Team Members</Typography>
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                        Manage who has access to your boards
-                    </Typography>
-                </Box>
-                <Button 
-                    variant="contained" 
-                    startIcon={<PersonAddIcon />} 
-                    onClick={() => {
-                        setInviteDialogOpen(true);
-                        fetchWorkspaces();
-                    }}
-                    sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, px: 3 }}
-                >
-                    Invite Teammate
-                </Button>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                mb: 3,
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: { xs: 2, sm: 0 },
+                textAlign: { xs: 'center', sm: 'left' }
+              }}
+            >
+              <Box sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Team Members</Typography>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  Manage who has access to your boards
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<PersonAddIcon />}
+                onClick={() => {
+                  setInviteDialogOpen(true);
+                  fetchWorkspaces();
+                }}
+                sx={{
+                  borderRadius: 3,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  px: 3,
+                  width: { xs: '100%', sm: 'auto' }
+                }}
+              >
+                Invite Teammate
+              </Button>
             </Box>
             
             {loadingTeammates ? (
@@ -736,104 +759,108 @@ export default function SettingsPage() {
             ) : teammates.length > 0 ? (
                 <List sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {teammates.map((teammate) => (
-                        <Paper 
-                            key={teammate.id} 
-                            onClick={() => {
-                                if (teammate.status === 'joined') {
-                                    setSelectedTeammateForAccess(teammate);
-                                    setAccessDialogOpen(true);
-                                }
-                            }}
-                            sx={{ 
-                                p: 2, 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between',
-                                borderRadius: 3,
-                                border: `1px solid ${theme.palette.divider}`,
-                                transition: 'all 0.2s',
-                                cursor: teammate.status === 'joined' ? 'pointer' : 'default',
-                                '&:hover': teammate.status === 'joined' ? {
-                                    borderColor: theme.palette.primary.main,
-                                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
-                                    transform: 'translateY(-2px)'
-                                } : {}
-                            }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Avatar 
-                                    src={getAvatarUrl(teammate.avatar)} 
-                                    sx={{ width: 48, height: 48, border: teammate.status === 'pending' ? `2px solid #fdab3d` : 'none' }} 
-                                />
-                                <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                        <Typography variant="subtitle1" fontWeight={700}>{teammate.name}</Typography>
-                                        {teammate.status === 'pending' && (
-                                            <Box sx={{ 
-                                                bgcolor: 'rgba(253, 171, 61, 0.1)', 
-                                                color: '#fdab3d', 
-                                                px: 1, 
-                                                py: 0.2, 
-                                                borderRadius: 1, 
-                                                fontSize: '0.65rem', 
-                                                fontWeight: 700,
-                                                textTransform: 'uppercase',
-                                                border: '1px solid rgba(253, 171, 61, 0.2)'
-                                            }}>
-                                                Pending
-                                            </Box>
-                                        )}
-                                    </Box>
-                                    <Typography variant="body2" color="text.secondary">{teammate.email}</Typography>
-                                    {teammate.status === 'joined' && (
-                                        <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
-                                            <Typography 
-                                                variant="caption" 
-                                                sx={{ 
-                                                    bgcolor: alpha(theme.palette.success.main, 0.1), 
-                                                    color: theme.palette.success.main,
-                                                    px: 1, 
-                                                    py: 0.2, 
-                                                    borderRadius: 1,
-                                                    fontWeight: 700,
-                                                    textTransform: 'uppercase'
-                                                }}
-                                            >
-                                                Active
-                                            </Typography>
-                                            <Typography 
-                                                variant="caption" 
-                                                sx={{ 
-                                                    bgcolor: alpha(theme.palette.primary.main, 0.1), 
-                                                    color: theme.palette.primary.main,
-                                                    px: 1, 
-                                                    py: 0.2, 
-                                                    borderRadius: 1,
-                                                    fontWeight: 600
-                                                }}
-                                            >
-                                                {teammate.access?.length || 0} boards
-                                            </Typography>
-                                        </Box>
-                                    )}
+                      <Paper
+                        key={teammate.id}
+                        onClick={() => {
+                          if (teammate.status === 'joined') {
+                            setSelectedTeammateForAccess(teammate);
+                            setAccessDialogOpen(true);
+                          }
+                        }}
+                        sx={{
+                          p: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderRadius: 3,
+                          border: `1px solid ${theme.palette.divider}`,
+                          transition: 'all 0.2s',
+                          cursor: teammate.status === 'joined' ? 'pointer' : 'default',
+                          flexDirection: { xs: 'column', sm: 'row' },
+                          gap: { xs: 2, sm: 0 },
+                          '&:hover': teammate.status === 'joined' ? {
+                            borderColor: theme.palette.primary.main,
+                            boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
+                            transform: 'translateY(-2px)'
+                          } : {}
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
+                          <Avatar
+                            src={getAvatarUrl(teammate.avatar)}
+                            sx={{ width: 48, height: 48, border: teammate.status === 'pending' ? `2px solid #fdab3d` : 'none', mx: { xs: 'auto', sm: 0 } }}
+                          />
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
+                              <Typography variant="subtitle1" fontWeight={700}>{teammate.name}</Typography>
+                              {teammate.status === 'pending' && (
+                                <Box sx={{
+                                  bgcolor: 'rgba(253, 171, 61, 0.1)',
+                                  color: '#fdab3d',
+                                  px: 1,
+                                  py: 0.2,
+                                  borderRadius: 1,
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  border: '1px solid rgba(253, 171, 61, 0.2)',
+                                  mt: { xs: 1, sm: 0 }
+                                }}>
+                                  Pending
                                 </Box>
+                              )}
                             </Box>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button 
-                                    variant="outlined" 
-                                    size="small" 
-                                    color="error"
-                                    startIcon={<DeleteIcon />}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveTeammate(teammate.id);
-                                    }}
-                                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                            <Typography variant="body2" color="text.secondary">{teammate.email}</Typography>
+                            {teammate.status === 'joined' && (
+                              <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    bgcolor: alpha(theme.palette.success.main, 0.1),
+                                    color: theme.palette.success.main,
+                                    px: 1,
+                                    py: 0.2,
+                                    borderRadius: 1,
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    mb: { xs: 1, sm: 0 }
+                                  }}
                                 >
-                                    Remove
-                                </Button>
-                            </Box>
-                        </Paper>
+                                  Active
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    color: theme.palette.primary.main,
+                                    px: 1,
+                                    py: 0.2,
+                                    borderRadius: 1,
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {teammate.access?.length || 0} boards
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'center', sm: 'flex-end' }, mt: { xs: 2, sm: 0 } }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="error"
+                            startIcon={<DeleteIcon />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveTeammate(teammate.id);
+                            }}
+                            sx={{ borderRadius: 2, textTransform: 'none', width: { xs: '100%', sm: 'auto' } }}
+                          >
+                            Remove
+                          </Button>
+                        </Box>
+                      </Paper>
                     ))}
                 </List>
             ) : (

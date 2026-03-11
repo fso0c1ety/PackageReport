@@ -240,6 +240,16 @@ import GroupIcon from "@mui/icons-material/Group";
 import ColumnTypeSelector from "./ColumnTypeSelector";
 import { Column, Row, ColumnType, ColumnOption } from "../types";
 import { useNotification } from "./NotificationContext";
+import { motion, AnimatePresence } from "framer-motion";
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import PsychologyIcon from '@mui/icons-material/Psychology';
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import SettingsIcon from '@mui/icons-material/Settings';
+import CloseIcon from '@mui/icons-material/Close';
 
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];
@@ -475,6 +485,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const boardChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskChatEndRef = React.useRef<HTMLDivElement>(null);
   const taskDetailsChatEndRef = React.useRef<HTMLDivElement>(null);
+  const globalAiChatEndRef = React.useRef<HTMLDivElement>(null);
+  const automationAiChatEndRef = React.useRef<HTMLDivElement>(null);
 
   // -- NEW: State for Task Discussions --
   const [chatTab, setChatTab] = useState<'chat' | 'files' | 'activity'>('chat');
@@ -503,17 +515,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
     };
   };
-
-
-  // Scroll to bottom of Board Chat when messages update or chat opens
-  useEffect(() => {
-    if (isChatOpen) {
-      setTimeout(() => {
-        boardChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [boardChatMessages, isChatOpen]);
-
 
 
   // Reset state when Table ID changes
@@ -848,18 +849,251 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [automations, setAutomations] = useState<any[]>([]);
   const [isEditingAutomation, setIsEditingAutomation] = useState(false);
   const [currentAutomationId, setCurrentAutomationId] = useState<number | null>(null);
-
+  const [automationLogs, setAutomationLogs] = useState<any[]>([]);
   useEffect(() => {
     if (showEmailAutomation && tableId) {
       authenticatedFetch(getApiUrl(`/automation/${tableId}`))
         .then(res => res.ok ? res.json() : [])
-        .then(setAutomations)
+        .then(data => setAutomations(Array.isArray(data) ? data : []))
+        .catch(console.error);
+
+      // Fetch Automation Activity Logs
+      authenticatedFetch(getApiUrl(`/email-updates`))
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          const filtered = Array.isArray(data) ? data.filter((log: any) => log.tableId === tableId) : [];
+          setAutomationLogs(filtered);
+        })
         .catch(console.error);
     }
   }, [showEmailAutomation, tableId]);
   const [actionType, setActionType] = useState<'email' | 'notification' | 'both'>('email');
   const [applyToAll, setApplyToAll] = useState(true);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  
+  // AI Automation States
+  const [automationTab, setAutomationTab] = useState<'list' | 'ai' | 'analytics'>('list');
+  const [aiChatInput, setAiChatInput] = useState("");
+  const [aiMessages, setAiMessages] = useState<any[]>([]);
+
+  // Load persistent AI chat history for this board
+  useEffect(() => {
+    if (tableId) {
+      const saved = localStorage.getItem(`ai_chat_${tableId}`);
+      if (saved) {
+        setAiMessages(JSON.parse(saved));
+      } else {
+        setAiMessages([
+          { role: 'assistant', text: "Hello! I'm your Nexus Brain. I can help you manage this board, send emails, or set up automations. What's on your mind?", timestamp: new Date().toISOString() }
+        ]);
+      }
+    }
+  }, [tableId]);
+
+  // Persist AI chat history on change
+  useEffect(() => {
+    if (tableId && aiMessages.length > 0) {
+      localStorage.setItem(`ai_chat_${tableId}`, JSON.stringify(aiMessages));
+    }
+  }, [aiMessages, tableId]);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [isGlobalAiOpen, setIsGlobalAiOpen] = useState(false);
+
+  // --- Auto-scroll logical blocks (Moved here to ensure all states are initialized) ---
+
+  // Scroll to bottom of Board Chat
+  useEffect(() => {
+    if (isChatOpen) {
+      setTimeout(() => {
+        boardChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [boardChatMessages, isChatOpen]);
+
+  // Scroll to bottom of AI Chat (Global Assistant)
+  useEffect(() => {
+    if (isGlobalAiOpen) {
+      setTimeout(() => {
+        globalAiChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 300);
+    }
+  }, [aiMessages, isGlobalAiOpen, isAiThinking]);
+
+  // Scroll to bottom of AI Chat (Automation Center Tab)
+  useEffect(() => {
+    if (automationTab === 'ai') {
+      setTimeout(() => {
+        automationAiChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 300);
+    }
+  }, [aiMessages, automationTab, isAiThinking]);
+
+  // Scroll to bottom of Task Popover Chat
+  useEffect(() => {
+    if (chatAnchor) {
+      setTimeout(() => {
+        taskChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [chatMessages, !!chatAnchor]);
+
+  const executeAiAction = async (action: string, params: any, messageIndex: number) => {
+    try {
+      if (action === "add_task") {
+        await handleAddTask();
+      } else if (action === "update_status" && params?.taskId && params?.colId) {
+        const colType = columns.find(c => c.id === params.colId)?.type || 'Text';
+        await handleCellSave(params.taskId, params.colId, colType, params.value);
+      } else if (action === "send_email" && params?.to) {
+        await authenticatedFetch(getApiUrl('/send-email'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: params.to,
+            subject: params.subject || `Update from ${boardTitle}`,
+            text: params.text || ""
+          })
+        });
+      } else if (action === "update_column_options" && params?.colId && params?.options) {
+        const newCols = columns.map(c => c.id === params.colId ? { ...c, options: params.options } : c);
+        setColumns(newCols);
+        await authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ columns: newCols }),
+        });
+      } else if (action === "add_column") {
+        await handleAddColumn(params?.type || 'Text', params?.name || 'New Column');
+      } else if (action === "delete_task" && params?.taskId) {
+         setRows(prev => prev.filter(r => r.id !== params.taskId));
+         await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${params.taskId}`), { method: 'DELETE' });
+      } else if (action === "rename_board") {
+        setBoardTitle(params?.name);
+        authenticatedFetch(getApiUrl(`/tables/${tableId}`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: params?.name })
+        });
+      } else if (action === "create_workspace" && params?.workspaceName) {
+         const res = await authenticatedFetch(getApiUrl('/workspaces'), {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ name: params.workspaceName })
+         });
+         if (res.ok) {
+           showNotification(`Workspace "${params.workspaceName}" has been successfully initialized.`, 'success');
+           // Refresh workspaces list if needed
+         }
+      }
+      
+      // Update message to remove pending buttons and show completion
+      setAiMessages(prev => prev.map((msg, i) => 
+        i === messageIndex ? { ...msg, pendingAction: undefined, status: 'executed' } : msg
+      ));
+      
+      if (action !== "create_workspace") showNotification('Action executed successfully', 'success');
+    } catch (err) {
+      console.error("Action Execution Error:", err);
+      showNotification('Failed to execute action', 'error');
+    }
+  };
+
+  const handleAiChatSubmit = (input: string) => {
+    if (!input.trim()) return;
+    
+    setAiMessages(prev => [...prev, { role: 'user', text: input, timestamp: new Date().toISOString() }]);
+    setAiChatInput("");
+    setIsAiThinking(true);
+
+    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+
+    setTimeout(async () => {
+      let responseText = "";
+      try {
+        if (!apiKey) throw new Error("API Key missing");
+
+        const systemPrompt = `
+          You are the "Nexus Brain", the intelligent core of this project management app.
+          Capabilities:
+          1. add_task: Add a new row.
+          2. update_status: Update a cell value.
+          3. add_column: Create a new column.
+          4. update_column_options: Add/modify labels in Status/Dropdown columns.
+          5. rename_board: Change board title.
+          6. delete_task: Remove a row.
+          7. send_email: Send an email to a team member.
+          8. create_workspace: Create a completely new workspace.
+
+          Board Schema: ${JSON.stringify(columns.map(c => ({ id: c.id, name: c.name, type: c.type })))}
+          Team Members: ${JSON.stringify(tableMembers.map(m => ({ name: m.name, email: m.email })))}
+          Current User: ${currentUser?.name || "User"}
+          Current Tasks: ${JSON.stringify(rows.map((r, i) => ({ index: i + 1, id: r.id, name: String(r.values[columns[0]?.id] || "Unnamed") })))}
+
+          Rules:
+          - If you are going to take an action, set the "action" field. The user will be asked to confirm before it executes.
+          - If you are NOT sure what the user wants, do NOT take an action. Instead, ask for clarification.
+          - If the user's request is ambiguous, ask something like "Did you mean you want to add a new task called 'X', or update an existing one?"
+          - Signature Rule: Always end emails with "Best Regards, ${currentUser?.name || "User"}" and use professional greetings.
+
+          Return JSON:
+          { 
+            "thought": "brief explanation", 
+            "action": "add_task" | "update_status" | "add_column" | "update_column_options" | "rename_board" | "delete_task" | "send_email" | "create_workspace" | "none",
+            "params": { 
+              "taskId": "...", "colId": "...", "value": "...", "type": "...", "name": "...", 
+              "options": [...],
+              "to": "email@example.com", "subject": "...", "text": "...",
+              "workspaceName": "..."
+            },
+            "response": "friendly message suggesting the action or asking for clarification"
+          }
+        `;
+
+        // Construct conversation history (last 10 messages)
+        const history = aiMessages.slice(-10).map(m => ({
+          role: m.role,
+          content: m.text
+        }));
+
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: systemPrompt }, 
+              ...history,
+              { role: "user", content: input }
+            ],
+            response_format: { type: "json_object" }
+          })
+        });
+
+        const data = await res.json();
+        const aiResult = JSON.parse(data.choices[0].message.content);
+        responseText = aiResult.response;
+
+        const { action: aiAction, params } = aiResult;
+
+        setAiMessages(prev => [...prev, { 
+          role: 'assistant', 
+          text: responseText, 
+          timestamp: new Date().toISOString(),
+          pendingAction: aiAction !== "none" ? { action: aiAction, params } : undefined
+        }]);
+
+      } catch (err) {
+        console.error("Nexus Brain Error:", err);
+        setAiMessages(prev => [...prev, { 
+          role: 'assistant', 
+          text: "I'm having trouble syncing. Please check your connection or request.", 
+          timestamp: new Date().toISOString() 
+        }]);
+      } finally {
+        setIsAiThinking(false);
+      }
+    }, 100);
+  };
 
   const [automationLoading, setAutomationLoading] = useState(false);
   const [tableMembers, setTableMembers] = useState<Person[]>([]);
@@ -990,6 +1224,38 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ columns: newColumns }),
     }).catch(err => console.error("Failed to persist column order", err));
+  };
+
+  const handleColumnResizeDown = (e: React.MouseEvent, colId: string, currentWidth: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startWidth = currentWidth || 160;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = Math.max(80, startWidth + (moveEvent.clientX - startX));
+      setColumns((prevCols) =>
+        prevCols.map((c) => (c.id === colId ? { ...c, width: newWidth } : c))
+      );
+    };
+
+    const onMouseUp = async (upEvent: MouseEvent) => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+
+      setColumns(currentCols => {
+        authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ columns: currentCols }),
+        }).catch(err => console.error("Failed to persist column width", err));
+        return currentCols;
+      });
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   };
 
   const handleMoveRow = (rowId: string, direction: 'up' | 'down' | 'top' | 'bottom') => {
@@ -4861,8 +5127,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             fontSize: '0.8125rem',
                             textTransform: 'none',
                             letterSpacing: '0.01em',
-                            py: 1.75,
-                            px: 2,
+                            py: 1,
+                            px: 1.5,
                             bgcolor: theme.palette.background.paper,
                             position: 'relative',
                             '&::after': {
@@ -4895,24 +5161,32 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               <TableCell
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                {...provided.dragHandleProps}
                                 sx={{
-                                  minWidth: 160,
+                                  minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
+                                  maxWidth: isMobile ? (col.width ? col.width * 0.8 : 240) : (col.width || 160),
+                                  width: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
                                   transition: 'background-color 0.2s',
                                   bgcolor: snapshot.isDragging ? `${theme.palette.action.selected} !important` : theme.palette.background.paper,
                                   '&:hover': { bgcolor: `${theme.palette.action.hover} !important` },
-                                  '&:hover .column-actions': { opacity: 1 }
+                                  '&:hover .column-actions': { opacity: 1 },
+                                  position: 'relative',
+                                  p: 0,
                                 }}
                               >
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Box 
+                                  {...provided.dragHandleProps}
+                                  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '100%', py: 1, px: 1.5, overflow: 'hidden', gap: 1 }}
+                                >
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, overflow: 'hidden' }}>
                                     <Box sx={{
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      width: 28,
-                                      height: 28,
-                                      borderRadius: '8px',
+                                      width: 24,
+                                      height: 24,
+                                      minWidth: 24,
+                                      flexShrink: 0,
+                                      borderRadius: '6px',
                                       bgcolor: col.type === 'Status' ? 'rgba(0, 200, 117, 0.15)' :
                                         col.type === 'People' ? 'rgba(162, 93, 220, 0.15)' :
                                           col.type === 'Date' ? 'rgba(226, 68, 92, 0.15)' :
@@ -4939,7 +5213,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                         fontWeight: 600,
                                         color: theme.palette.text.primary,
                                         fontSize: '0.875rem',
-                                        whiteSpace: 'nowrap'
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
                                       }}
                                     >
                                       {col.name}
@@ -4963,6 +5239,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     </IconButton>
                                   )}
                                 </Box>
+                                {userPermission !== 'read' && (
+                                  <Box
+                                    onMouseDown={(e) => handleColumnResizeDown(e, col.id, col.width || 160)}
+                                    sx={{
+                                      position: 'absolute',
+                                      right: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: '6px',
+                                      cursor: 'col-resize',
+                                      zIndex: 10,
+                                      '&:hover': {
+                                        bgcolor: theme.palette.primary.main,
+                                      }
+                                    }}
+                                  />
+                                )}
                               </TableCell>
                             )}
                           </Draggable>
@@ -5457,8 +5750,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                         p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
                                         color: theme.palette.text.primary,
                                         fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
-                                        minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 150),
-                                        maxWidth: isMobile ? 240 : 300,
+                                        minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
+                                        maxWidth: isMobile ? (col.width ? col.width * 0.8 : 240) : (col.width || 160),
+                                        width: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap',
@@ -7298,7 +7592,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 startIcon={<InsertDriveFileIcon />}
                 sx={{
                   bgcolor: '#4F46E5',
-                  color: theme.palette.text.primary,
+                  color: "#fff",
                   borderRadius: 2,
                   textTransform: 'none',
                   fontWeight: 600,
@@ -7314,314 +7608,1205 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         </DialogActions>
       </Dialog>
 
-
-      {/* Automations Dialog */}
+      {/* Automations Dialog Redesign */}
       <Dialog
         open={showEmailAutomation}
         onClose={() => setShowEmailAutomation(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
-        PaperProps={{ sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, borderRadius: 4, maxHeight: '90vh' } }}
+        fullScreen={isMobile}
+        PaperProps={{
+          sx: {
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(18, 18, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(20px)',
+            color: theme.palette.text.primary,
+            borderRadius: isMobile ? 0 : 5,
+            height: isMobile ? '100%' : '85vh',
+            maxHeight: isMobile ? '100%' : '800px',
+            overflow: 'hidden',
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: theme.palette.mode === 'dark' ? '0 40px 100px rgba(0,0,0,0.8)' : '0 40px 100px rgba(0,0,0,0.1)',
+            backgroundImage: theme.palette.mode === 'dark' 
+              ? 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.02) 1px, transparent 0)'
+              : 'radial-gradient(circle at 2px 2px, rgba(0,0,0,0.01) 1px, transparent 0)',
+            backgroundSize: '24px 24px',
+          }
+        }}
       >
-        <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}`, p: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1, bgcolor: theme.palette.action.selected, borderRadius: 2, color: '#818CF8' }}><BoltIcon /></Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Automations</Typography>
-          </Box>
-
-          {!isEditingAutomation && (
-            <IconButton onClick={() => {
-              // Reset form for new automation
-              setAutomationEnabled(true);
-              setEmailTriggerCol("");
-              setEmailCols([]);
-              setEmailRecipients([]);
-              setActionType("email");
-              setApplyToAll(true);
-              setSelectedTaskIds([]);
-              setCurrentAutomationId(null);
-              setIsEditingAutomation(true);
-            }}
-              sx={{
-                bgcolor: '#818CF8',
-                color: theme.palette.text.primary,
-                '&:hover': { bgcolor: '#6366F1' },
-                width: 40, height: 40
+        <Box sx={{ display: 'flex', flexWrap: isMobile ? 'wrap' : 'nowrap', height: '100%', flexDirection: isMobile ? 'column' : 'row' }}>
+          {/* Sidebar Navigation */}
+          <Box sx={{
+            width: isMobile ? '100%' : 280,
+            borderRight: isMobile ? 'none' : `1px solid ${theme.palette.divider}`,
+            borderBottom: isMobile ? `1px solid ${theme.palette.divider}` : 'none',
+            display: 'flex',
+            flexDirection: isMobile ? 'row' : 'column',
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
+            p: 2,
+            overflowX: isMobile ? 'auto' : 'visible'
+          }}>
+            <Box sx={{ p: isMobile ? 1 : 2, display: 'flex', alignItems: 'center', gap: 1.5, mb: isMobile ? 0 : 4 }}>
+              <Box sx={{ 
+                p: 1, 
+                borderRadius: 2, 
+                bgcolor: 'primary.main', 
+                display: 'flex',
+                boxShadow: `0 8px 16px ${theme.palette.primary.main}44`
               }}>
-              <AddIcon />
-            </IconButton>
-          )}
-
-          <IconButton onClick={() => setShowEmailAutomation(false)} sx={{ color: theme.palette.text.secondary }}><span style={{ fontSize: 24, lineHeight: 1 }}>×</span></IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          {!isEditingAutomation ? (
-            <Box sx={{ p: 3 }}>
-              {/* List of Automations */}
-              {automations.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 8, color: theme.palette.text.secondary }}>
-                  <BoltIcon sx={{ fontSize: 48, opacity: 0.2, mb: 2 }} />
-                  <Typography>No automations configured yet.</Typography>
-                  <Button
-                    variant="text"
-                    startIcon={<AddIcon />}
-                    onClick={() => {
-                      setAutomationEnabled(true);
-                      setEmailTriggerCol("");
-                      setEmailCols([]);
-                      setEmailRecipients([]);
-                      setActionType("email");
-                      setApplyToAll(true);
-                      setSelectedTaskIds([]);
-                      setCurrentAutomationId(null);
-                      setIsEditingAutomation(true);
-                    }}
-                    sx={{ mt: 2, color: '#818CF8' }}
-                  >
-                    Create your first automation
-                  </Button>
-                </Box>
-              ) : (
-                <Stack spacing={2}>
-                  {automations.map((auto: any) => (
-                    <Paper key={auto.id} sx={{ p: 2, bgcolor: theme.palette.action.hover, border: `1px solid ${theme.palette.divider}`, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Switch checked={auto.enabled} size="small" onChange={async (e) => {
-                        const newEnabled = e.target.checked;
-                        // Update locally first for responsiveness
-                        setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: newEnabled } : a));
-                        // API call
-                        await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            id: auto.id,
-                            enabled: newEnabled,
-                            triggerCol: auto.triggerCol,
-                            cols: auto.cols,
-                            recipients: auto.recipients,
-                            actionType: auto.actionType,
-                            taskIds: auto.taskIds
-                          })
-                        });
-                      }} />
-                      <Box sx={{ flex: 1 }}>
-                        <Typography sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                          When {columns.find(c => c.id === auto.triggerCol)?.name || 'Unknown Column'} changes
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                          {auto.actionType === 'notification' ? 'Send Notification' : auto.actionType === 'both' ? 'Send Email & Notification' : 'Send Email'}
-                          {auto.taskIds && auto.taskIds.length > 0 ? ` (${auto.taskIds.length} tasks)` : ' (All Tasks)'}
-                        </Typography>
-                      </Box>
-                      <IconButton onClick={() => {
-                        setAutomationEnabled(auto.enabled);
-                        setEmailTriggerCol(auto.triggerCol);
-                        setEmailCols(auto.cols || []);
-                        setEmailRecipients(auto.recipients || []);
-                        setActionType(auto.actionType || 'email');
-                        setApplyToAll(!auto.taskIds || auto.taskIds.length === 0);
-                        setSelectedTaskIds(auto.taskIds || []);
-                        setCurrentAutomationId(auto.id);
-                        setIsEditingAutomation(true);
-                      }} size="small" sx={{ color: theme.palette.text.secondary }}><EditIcon fontSize="small" /></IconButton>
-                      <IconButton onClick={async () => {
-                        if (confirm('Delete automation?')) {
-                          await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'DELETE' });
-                          // Refresh list
-                          const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
-                          if (res.ok) setAutomations(await res.json());
-                        }
-                      }} size="small" sx={{ color: '#EF4444' }}><DeleteIcon fontSize="small" /></IconButton>
-                    </Paper>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          ) : (
-            <Box sx={{ p: 4, maxWidth: 600, mx: 'auto' }}>
-              {/* 
-                   Removed the "Enable Automation" switch from here as per user request.
-                   It is now controlled via the list view.
-                   We default automationEnabled to true when creating, but preserve it when editing (though we won't show the switch).
-                */}
-
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="auto-trigger-col" sx={{ color: theme.palette.text.secondary }}>Trigger Column</InputLabel>
-                <Select
-                  labelId="auto-trigger-col"
-                  value={emailTriggerCol || ''}
-                  label="Trigger Column"
-                  onChange={e => setEmailTriggerCol(e.target.value)}
-                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                >
-                  {columns.map(col => (
-                    <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="auto-action-type" sx={{ color: theme.palette.text.secondary }}>Action</InputLabel>
-                <Select
-                  labelId="auto-action-type"
-                  value={actionType}
-                  label="Action"
-                  onChange={e => setActionType(e.target.value as any)}
-                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                >
-                  <MenuItem value="notification">Notification Only</MenuItem>
-                  <MenuItem value="email">Email Only</MenuItem>
-                  <MenuItem value="both">Email & Notification</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Box sx={{ mb: 3 }}>
-                <Typography gutterBottom sx={{ color: theme.palette.text.secondary, fontSize: 13 }}>Apply to</Typography>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                  <Button
-                    variant={applyToAll ? "contained" : "outlined"}
-                    onClick={() => { setApplyToAll(true); setSelectedTaskIds([]); }}
-                    fullWidth
-                    sx={{
-                      bgcolor: applyToAll ? '#818CF8' : 'transparent',
-                      borderColor: applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
-                      color: applyToAll ? '#fff' : '#9CA3AF',
-                      '&:hover': { bgcolor: applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
-                    }}
-                  >
-                    All Tasks
-                  </Button>
-                  <Button
-                    variant={!applyToAll ? "contained" : "outlined"}
-                    onClick={() => setApplyToAll(false)}
-                    fullWidth
-                    sx={{
-                      bgcolor: !applyToAll ? '#818CF8' : 'transparent',
-                      borderColor: !applyToAll ? '#818CF8' : 'rgba(255,255,255,0.1)',
-                      color: !applyToAll ? '#fff' : '#9CA3AF',
-                      '&:hover': { bgcolor: !applyToAll ? '#6366F1' : 'rgba(255,255,255,0.05)' }
-                    }}
-                  >
-                    Select Tasks
-                  </Button>
-                </Box>
-
-                {!applyToAll && (
-                  <FormControl fullWidth sx={{ mb: 1 }}>
-                    <InputLabel id="select-tasks-label" sx={{ color: theme.palette.text.secondary }}>Tasks</InputLabel>
-                    <Select
-                      labelId="select-tasks-label"
-                      multiple
-                      value={selectedTaskIds}
-                      onChange={(e) => setSelectedTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                      renderValue={(selected) => `${selected.length} tasks selected`}
-                      sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                      MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, maxHeight: 300 } } }}
-                    >
-                      {rows.map((row) => {
-                        // Try to find a meaningful name for the task
-                        const textCol = columns.find(c => c.type === 'Text');
-                        let taskName = (textCol && row.values[textCol.id]) ? String(row.values[textCol.id]) : `Task ${row.id.substring(0, 8)}...`;
-                        // Prepend the index/row number to the name for selection if it's the raw list being mapped
-                        // But wait, the map currently is:
-                        const rowIndex = rows.findIndex(r => r.id === row.id) + 1;
-                        taskName = `Row ${rowIndex}: ${taskName}`;
-
-                        return (
-                          <MenuItem key={row.id} value={row.id}>
-                            <Checkbox checked={selectedTaskIds.indexOf(row.id) > -1} sx={{ color: '#818CF8' }} />
-                            <ListItemText primary={taskName} secondary={row.id} secondaryTypographyProps={{ sx: { color: 'rgba(255,255,255,0.5)', fontSize: 10 } }} />
-                          </MenuItem>
-                        );
-                      })}
-                    </Select>
-                  </FormControl>
-                )}
+                <RocketLaunchIcon sx={{ fontSize: 24, color: '#fff' }} />
               </Box>
+              {!isMobile && <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5, color: theme.palette.text.primary }}>Nexus Center</Typography>}
+            </Box>
 
-              {/* Options always visible regardless of action type */}
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="email-cols-label" sx={{ color: theme.palette.text.secondary }}>Include Columns</InputLabel>
-                <Select
-                  labelId="email-cols-label"
-                  multiple
-                  value={emailCols}
-                  onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                  renderValue={(selected) => columns.filter((col) => selected.includes(col.id)).map((col) => col.name).join(', ')}
-                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                >
-                  {columns.map((col) => (
-                    <MenuItem key={col.id} value={col.id}>
-                      <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: '#818CF8' }} />
-                      <ListItemText primary={col.name} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="email-recipients-label" sx={{ color: theme.palette.text.secondary }}>Recipients</InputLabel>
-                <Select
-                  labelId="email-recipients-label"
-                  multiple
-                  value={emailRecipients}
-                  onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                  renderValue={(selected) => selected.map((email: string) => {
-                    const person = peopleOptions.find((p: { name: string; email: string }) => p.email === email);
-                    return person ? person.name : email;
-                  }).join(', ')}
-                  sx={{ color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, color: theme.palette.text.primary } } }}
-                >
-                  {peopleOptions.map((person: { name: string; email: string }) => (
-                    <MenuItem key={person.email} value={person.email}>
-                      <Checkbox checked={emailRecipients.indexOf(person.email) > -1} sx={{ color: '#818CF8' }} />
-                      <ListItemText primary={person.name} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
-                <Button variant="text" onClick={() => setIsEditingAutomation(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
-                <Box sx={{ flex: 1 }} />
-                <Button
-                  variant="contained"
-                  onClick={async () => {
-                    const body = {
-                      id: currentAutomationId,
-                      enabled: automationEnabled,
-                      triggerCol: emailTriggerCol,
-                      cols: emailCols,
-                      recipients: emailRecipients,
-                      actionType: actionType,
-                      taskIds: applyToAll ? [] : selectedTaskIds
-                    };
-
-                    await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(body)
-                    });
-
-                    // Refresh list
-                    const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`));
-                    if (res.ok) setAutomations(await res.json());
-
+            <List sx={{ 
+              flex: 1, 
+              display: isMobile ? 'flex' : 'block',
+              p: 0,
+              gap: 1
+            }}>
+              {[
+                { id: 'list', label: 'Flows', icon: <BoltIcon /> },
+                { id: 'ai', label: 'Assistant', icon: <AutoAwesomeIcon />, badge: 'NEW' },
+                { id: 'analytics', label: 'Insights', icon: <TimelineIcon /> },
+              ].map((item) => (
+                <ListItem
+                  key={item.id}
+                  component="div"
+                  onClick={() => {
+                    setAutomationTab(item.id as any);
                     setIsEditingAutomation(false);
                   }}
-                  sx={{ bgcolor: '#818CF8', '&:hover': { bgcolor: '#6366F1' } }}
+                  sx={{
+                    mb: isMobile ? 0 : 1,
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    position: 'relative',
+                    px: isMobile ? 2 : 2,
+                    bgcolor: automationTab === item.id ? `${theme.palette.primary.main}15` : 'transparent',
+                    color: automationTab === item.id ? theme.palette.primary.main : theme.palette.text.secondary,
+                    whiteSpace: 'nowrap',
+                    '&:hover': {
+                      bgcolor: theme.palette.action.hover,
+                      color: theme.palette.text.primary
+                    }
+                  }}
                 >
-                  Save Changes
-                </Button>
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: isMobile ? 32 : 40 }}>{item.icon}</ListItemIcon>
+                  <ListItemText 
+                    primary={<Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{item.label}</Typography>} 
+                    sx={{ display: isMobile && automationTab !== item.id ? 'none' : 'block' }}
+                  />
+                  {!isMobile && item.badge && (
+                    <Chip
+                      label={item.badge}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: '0.6rem',
+                        fontWeight: 900,
+                        bgcolor: theme.palette.primary.main,
+                        color: '#fff',
+                        ml: 1
+                      }}
+                    />
+                  )}
+                  {!isMobile && automationTab === item.id && (
+                    <Box
+                      component={motion.div}
+                      layoutId="automation-indicator"
+                      sx={{
+                        position: 'absolute',
+                        left: -16,
+                        width: 4,
+                        height: '60%',
+                        backgroundColor: theme.palette.primary.main,
+                        borderRadius: 4,
+                        boxShadow: `0 0 10px ${theme.palette.primary.main}`
+                      }}
+                    />
+                  )}
+                </ListItem>
+              ))}
+            </List>
+
+            {!isMobile && (
+              <Box sx={{ 
+                p: 2.5, 
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', 
+                borderRadius: 4, 
+                mb: 1,
+                border: `1px solid ${theme.palette.divider}`
+              }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 800, display: 'block', mb: 1, letterSpacing: '0.05em' }}>WORKSPACE STATUS</Typography>
+                <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, mb: 0.5 }}>Active Clusters</Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>Efficiency: 98.4%</Typography>
+              </Box>
+            )}
+          </Box>
+
+          {/* Main Content Area */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ p: isMobile ? 3 : 4, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.text.primary, letterSpacing: '-0.02em' }}>
+                  {automationTab === 'list' && (isEditingAutomation ? (currentAutomationId ? 'Refine Logic' : 'New Flow') : 'Automations')}
+                  {automationTab === 'ai' && 'AI Lab'}
+                  {automationTab === 'analytics' && 'Intelligence Hub'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 0.5, fontWeight: 500 }}>
+                  {automationTab === 'list' && 'Orchestrate critical workflows with precision'}
+                  {automationTab === 'ai' && 'Prototype automations via neural processing'}
+                  {automationTab === 'analytics' && 'Operational metrics for automated sequences'}
+                </Typography>
+              </Box>
+              <IconButton 
+                onClick={() => setShowEmailAutomation(false)} 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } 
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+
+            <Box sx={{ 
+              flex: 1, 
+              overflowY: automationTab === 'ai' ? 'hidden' : 'auto', 
+              p: automationTab === 'analytics' ? 0 : 4, 
+              pt: automationTab === 'analytics' ? 0 : 2, 
+              display: 'flex', 
+              flexDirection: 'column' 
+            }}>
+              <AnimatePresence mode="wait">
+                {automationTab === 'list' && (
+                  <motion.div
+                    key="list-tab"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {!isEditingAutomation ? (
+                      <Box>
+                        <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
+                          <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => {
+                              setIsEditingAutomation(true);
+                              setCurrentAutomationId(null);
+                              setEmailTriggerCol("");
+                              setEmailCols([]);
+                              setEmailRecipients([]);
+                              setActionType("email");
+                              setApplyToAll(true);
+                              setSelectedTaskIds([]);
+                            }}
+                            sx={{
+                              bgcolor: theme.palette.primary.main,
+                              color: '#fff',
+                              px: 3,
+                              py: isMobile ? 1.5 : 1,
+                              borderRadius: 2.5,
+                              fontWeight: 800,
+                              textTransform: 'none',
+                              flex: isMobile ? 1 : 'none',
+                              boxShadow: `0 8px 20px ${theme.palette.primary.main}44`,
+                              '&:hover': { bgcolor: theme.palette.primary.dark }
+                            }}
+                          >
+                            Add Logic Flow
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            startIcon={<AutoAwesomeIcon />}
+                            onClick={() => setAutomationTab('ai')}
+                            sx={{
+                              borderColor: theme.palette.divider,
+                              color: theme.palette.text.primary,
+                              borderRadius: 2.5,
+                              px: 3,
+                              py: isMobile ? 1.5 : 1,
+                              fontWeight: 700,
+                              textTransform: 'none',
+                              flex: isMobile ? 1 : 'none',
+                              '&:hover': { borderColor: theme.palette.primary.main, bgcolor: `${theme.palette.primary.main}08` }
+                            }}
+                          >
+                            Draft with AI
+                          </Button>
+                        </Box>
+
+                          <Stack spacing={2}>
+                            {!Array.isArray(automations) || automations.length === 0 ? (
+                              <Box sx={{ 
+                                textAlign: 'center', 
+                                py: 12, 
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', 
+                                borderRadius: 6, 
+                                border: `2px dashed ${theme.palette.divider}` 
+                              }}>
+                                <BoltIcon sx={{ fontSize: 64, color: theme.palette.text.disabled, mb: 2, opacity: 0.3 }} />
+                                <Typography variant="h6" sx={{ color: theme.palette.text.secondary, fontWeight: 700 }}>No flows active</Typography>
+                                <Typography variant="body2" sx={{ color: theme.palette.text.disabled, mt: 1 }}>Your automated ecosystem is ready for its first logic flow.</Typography>
+                              </Box>
+                            ) : (
+                              automations.map((auto: any) => (
+                                <Paper
+                                  key={auto.id}
+                                  elevation={0}
+                                  sx={{
+                                    p: isMobile ? 2 : 2.5,
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    borderRadius: 4,
+                                    display: 'flex',
+                                    flexDirection: isMobile ? 'column' : 'row',
+                                    alignItems: isMobile ? 'flex-start' : 'center',
+                                    gap: isMobile ? 1.5 : 2.5,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                                      borderColor: theme.palette.primary.main,
+                                      transform: 'translateY(-2px)'
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: 3,
+                                    bgcolor: auto.enabled ? `${theme.palette.primary.main}15` : theme.palette.action.disabledBackground,
+                                    color: auto.enabled ? theme.palette.primary.main : theme.palette.text.disabled,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s'
+                                  }}>
+                                    <BoltIcon />
+                                  </Box>
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: theme.palette.text.primary }}>
+                                      When <Box component="span" sx={{ color: theme.palette.primary.main }}>{columns.find(c => c.id === auto.triggerCol)?.name || 'Column'}</Box> updates
+                                    </Typography>
+                                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                                      <Chip
+                                        label={auto.actionType === 'both' ? 'Hybrid Action' : auto.actionType === 'notification' ? 'Internal Notification' : 'External Email'}
+                                        size="small"
+                                        sx={{ bgcolor: theme.palette.action.hover, color: theme.palette.text.secondary, height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1.5 }}
+                                      />
+                                      {(!auto.taskIds || auto.taskIds.length === 0) ? (
+                                        <Chip
+                                          label="All Tasks"
+                                          size="small"
+                                          sx={{ bgcolor: `${theme.palette.primary.main}15`, color: theme.palette.primary.main, height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1.5 }}
+                                        />
+                                      ) : (
+                                        <Chip
+                                          label={`${auto.taskIds.length} tasks`}
+                                          size="small"
+                                          sx={{ bgcolor: `${theme.palette.primary.main}15`, color: theme.palette.primary.main, height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1.5 }}
+                                        />
+                                      )}
+                                    </Stack>
+                                  </Box>
+                                  <Box sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 1.5, 
+                                    width: isMobile ? '100%' : 'auto', 
+                                    justifyContent: isMobile ? 'space-between' : 'flex-end',
+                                    pt: isMobile ? 1.5 : 0,
+                                    borderTop: isMobile ? `1px solid ${theme.palette.divider}` : 'none'
+                                  }}>
+                                    <Switch
+                                      checked={auto.enabled}
+                                      onChange={async (e) => {
+                                        const newEnabled = e.target.checked;
+                                        setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: newEnabled } : a));
+                                        await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ ...auto, enabled: newEnabled })
+                                        });
+                                      }}
+                                      sx={{
+                                        '& .MuiSwitch-switchBase.Mui-checked': { color: theme.palette.primary.main },
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: theme.palette.primary.main }
+                                      }}
+                                    />
+                                    <IconButton
+                                      onClick={() => {
+                                        setCurrentAutomationId(auto.id);
+                                        setEmailTriggerCol(auto.triggerCol);
+                                        setEmailCols(auto.cols || []);
+                                        setEmailRecipients(auto.recipients || []);
+                                        setActionType(auto.actionType || 'email');
+                                        setApplyToAll(!auto.taskIds || auto.taskIds.length === 0);
+                                        setSelectedTaskIds(auto.taskIds || []);
+                                        setIsEditingAutomation(true);
+                                      }}
+                                      sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.primary.main, bgcolor: `${theme.palette.primary.main}10` } }}
+                                    >
+                                      <SettingsIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton
+                                      onClick={async () => {
+                                        if (confirm('Permanently delete this flow?')) {
+                                          await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'DELETE' });
+                                          setAutomations(prev => prev.filter(a => a.id !== auto.id));
+                                        }
+                                      }}
+                                      sx={{ color: 'rgba(239, 68, 68, 0.4)', '&:hover': { color: '#EF4444' } }}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                </Paper>
+                              ))
+                            )}
+                          </Stack>
+                        </Box>
+                      ) : (
+                        <Box sx={{ maxWidth: isMobile ? '100%' : 640 }}>
+                        <Typography variant="overline" sx={{ color: theme.palette.primary.main, fontWeight: 900, mb: 1, display: 'block', letterSpacing: '0.1em' }}>SEQUENCE DESIGNER</Typography>
+                        
+                        <Stack spacing={4}>
+                          <Box>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>1. Assign Trigger Attribute</Typography>
+                            <FormControl fullWidth sx={{ mb: 2 }}>
+                              <Select
+                                value={emailTriggerCol}
+                                onChange={e => {
+                                  setEmailTriggerCol(e.target.value);
+                                }}
+                                displayEmpty
+                                sx={{
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                  color: theme.palette.text.primary,
+                                  borderRadius: 3,
+                                  '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.light },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main }
+                                }}
+                                MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, backgroundImage: 'none', border: `1px solid ${theme.palette.divider}` } } }}
+                              >
+                                <MenuItem value="" disabled>Select board column...</MenuItem>
+                                {columns.map(col => (
+                                  <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Box>
+
+                          <Box>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>2. Action Strategy</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 2, mb: 4 }}>
+                              {[
+                                { id: 'email', label: 'External Email', icon: <SendIcon /> },
+                                { id: 'notification', label: 'Push Alert', icon: <BoltIcon /> },
+                                { id: 'both', label: 'Hybrid Protocol', icon: <RocketLaunchIcon /> },
+                              ].map((opt) => (
+                                <Box
+                                  key={opt.id}
+                                  onClick={() => setActionType(opt.id as any)}
+                                  sx={{
+                                    p: 2.5,
+                                    borderRadius: 4,
+                                    border: '1px solid',
+                                    borderColor: actionType === opt.id ? theme.palette.primary.main : theme.palette.divider,
+                                    bgcolor: actionType === opt.id ? `${theme.palette.primary.main}10` : 'transparent',
+                                    cursor: 'pointer',
+                                    textAlign: 'center',
+                                    transition: 'all 0.2s',
+                                    boxShadow: actionType === opt.id ? `0 8px 16px ${theme.palette.primary.main}15` : 'none',
+                                    '&:hover': { borderColor: theme.palette.primary.main, bgcolor: `${theme.palette.primary.main}05` }
+                                  }}
+                                >
+                                  <Box sx={{ color: actionType === opt.id ? theme.palette.primary.main : theme.palette.text.disabled, mb: 1 }}>{opt.icon}</Box>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: actionType === opt.id ? theme.palette.text.primary : theme.palette.text.secondary }}>{opt.label}</Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Box>
+
+                          <Box>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>3. Information Payload</Typography>
+                            <FormControl fullWidth sx={{ mb: 2 }}>
+                              <Select
+                                multiple
+                                value={emailCols}
+                                onChange={(e) => setEmailCols(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                renderValue={(selected) => <Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>{selected.length} attributes included</Typography>}
+                                displayEmpty
+                                sx={{
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                  color: theme.palette.text.primary,
+                                  borderRadius: 3,
+                                  '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider }
+                                }}
+                              >
+                                {columns.map(col => (
+                                  <MenuItem key={col.id} value={col.id}>
+                                    <Checkbox checked={emailCols.indexOf(col.id) > -1} sx={{ color: theme.palette.primary.main }} />
+                                    <ListItemText primary={col.name} sx={{ '& .MuiListItemText-primary': { fontWeight: 600 } }} />
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Box>
+
+                          <Box>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>4. Deployment Targets</Typography>
+                            <FormControl fullWidth sx={{ mb: 2 }}>
+                              <Select
+                                multiple
+                                value={emailRecipients}
+                                onChange={(e) => setEmailRecipients(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                renderValue={(selected) => <Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>{selected.length} nodes prioritized</Typography>}
+                                displayEmpty
+                                sx={{
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                  color: theme.palette.text.primary,
+                                  borderRadius: 3,
+                                  '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider }
+                                }}
+                              >
+                                {peopleOptions.map(p => (
+                                  <MenuItem key={p.email} value={p.email}>
+                                    <Checkbox checked={emailRecipients.indexOf(p.email) > -1} sx={{ color: theme.palette.primary.main }} />
+                                    <ListItemText primary={p.name} secondary={p.email} primaryTypographyProps={{ fontWeight: 600 }} />
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Box>
+
+                          <Box>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>5. Operational Scope</Typography>
+                            <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 2, mb: 2 }}>
+                              <Button
+                                variant={applyToAll ? "contained" : "outlined"}
+                                onClick={() => setApplyToAll(true)}
+                                sx={{ 
+                                  flex: 1, 
+                                  borderRadius: 2, 
+                                  textTransform: 'none', 
+                                  fontWeight: 700,
+                                  bgcolor: applyToAll ? theme.palette.primary.main : 'transparent',
+                                  color: applyToAll ? '#fff' : theme.palette.text.secondary
+                                }}
+                              >
+                                All Tasks
+                              </Button>
+                              <Button
+                                variant={!applyToAll ? "contained" : "outlined"}
+                                onClick={() => setApplyToAll(false)}
+                                sx={{ 
+                                  flex: 1, 
+                                  borderRadius: 2, 
+                                  textTransform: 'none', 
+                                  fontWeight: 700,
+                                  bgcolor: !applyToAll ? theme.palette.primary.main : 'transparent',
+                                  color: !applyToAll ? '#fff' : theme.palette.text.secondary
+                                }}
+                              >
+                                Specific Tasks
+                              </Button>
+                            </Box>
+
+                            {!applyToAll && (
+                              <FormControl fullWidth>
+                                <Select
+                                  multiple
+                                  value={selectedTaskIds}
+                                  onChange={(e) => setSelectedTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                  renderValue={(selected) => <Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>{selected.length} tasks targeted</Typography>}
+                                  displayEmpty
+                                  sx={{
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                    color: theme.palette.text.primary,
+                                    borderRadius: 3,
+                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider }
+                                  }}
+                                >
+                                  {rows.map(row => {
+                                    const titleColId = columns[0]?.id;
+                                    const title = row.values[titleColId] || row.id;
+                                    return (
+                                      <MenuItem key={row.id} value={row.id}>
+                                        <Checkbox checked={selectedTaskIds.indexOf(row.id) > -1} sx={{ color: theme.palette.primary.main }} />
+                                        <ListItemText primary={String(title)} sx={{ '& .MuiListItemText-primary': { fontWeight: 600 } }} />
+                                      </MenuItem>
+                                    );
+                                  })}
+                                </Select>
+                              </FormControl>
+                            )}
+                          </Box>
+
+                          <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: isMobile ? 'column-reverse' : 'row', 
+                            gap: 2, 
+                            pt: 4, 
+                            borderTop: `1px solid ${theme.palette.divider}` 
+                          }}>
+                            <Button
+                              variant="text"
+                              fullWidth={isMobile}
+                              onClick={() => setIsEditingAutomation(false)}
+                              sx={{ color: theme.palette.text.secondary, textTransform: 'none', fontWeight: 700, '&:hover': { color: theme.palette.error.main } }}
+                            >
+                              Cancel Design
+                            </Button>
+                            <Box sx={{ flex: 1, display: isMobile ? 'none' : 'block' }} />
+                            <Button
+                              variant="contained"
+                              fullWidth={isMobile}
+                              onClick={async () => {
+                                const body = {
+                                  id: currentAutomationId,
+                                  enabled: true,
+                                  triggerCol: emailTriggerCol,
+                                  cols: emailCols,
+                                  recipients: emailRecipients,
+                                  actionType: actionType,
+                                  taskIds: applyToAll ? [] : selectedTaskIds
+                                };
+                                const res = await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(body)
+                                });
+                                if (res.ok) {
+                                  const updated = await res.json();
+                                  setAutomations(Array.isArray(updated) ? updated : prev => [...prev]);
+                                  setIsEditingAutomation(false);
+                                  showNotification('Flow deployed successfully', 'success');
+                                }
+                              }}
+                              sx={{
+                                bgcolor: theme.palette.primary.main,
+                                color: '#fff',
+                                borderRadius: 2.5,
+                                px: 5,
+                                fontWeight: 900,
+                                textTransform: 'none',
+                                boxShadow: `0 8px 16px ${theme.palette.primary.main}44`,
+                                '&:hover': { bgcolor: theme.palette.primary.dark }
+                              }}
+                            >
+                              Deploy Sequence
+                            </Button>
+                          </Box>
+                        </Stack>
+                      </Box>
+                    )}
+                  </motion.div>
+                )}
+
+                {automationTab === 'ai' && (
+                  <motion.div
+                    key="ai-tab"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.02 }}
+                    style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}
+                  >
+                    <Box sx={{ flex: 1, overflowY: 'auto', p: 1, mb: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                      {aiMessages.map((msg, idx) => (
+                        <Box
+                          key={idx}
+                          sx={{
+                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                            maxWidth: '85%',
+                            display: 'flex',
+                            gap: 1.5,
+                            flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                            mb: 1
+                          }}
+                        >
+                          <Avatar sx={{
+                            width: 36,
+                            height: 36,
+                            bgcolor: msg.role === 'assistant' ? theme.palette.primary.main : theme.palette.action.selected,
+                            color: msg.role === 'assistant' ? '#fff' : theme.palette.text.primary,
+                            fontSize: 14,
+                            fontWeight: 900,
+                            boxShadow: msg.role === 'assistant' ? `0 4px 12px ${theme.palette.primary.main}44` : 'none'
+                          }}>
+                            {msg.role === 'assistant' ? <AutoAwesomeIcon sx={{ fontSize: 20 }} /> : (currentUser?.name?.[0] || 'U')}
+                          </Avatar>
+                          <Box sx={{
+                            p: 2,
+                            px: 2.5,
+                            borderRadius: msg.role === 'user' ? '20px 4px 20px 20px' : '4px 20px 20px 20px',
+                            bgcolor: msg.role === 'user' ? theme.palette.primary.main : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+                            color: msg.role === 'user' ? '#fff' : theme.palette.text.primary,
+                            border: `1px solid ${theme.palette.divider}`,
+                            boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(0,0,0,0.2)' : '0 4px 12px rgba(0,0,0,0.05)'
+                          }}>
+                            <Typography sx={{ fontSize: '0.925rem', lineHeight: 1.6, fontWeight: 450 }}>{msg.text}</Typography>
+                            
+                            {msg.pendingAction && (
+                              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                                <Button 
+                                  size="small" 
+                                  variant="contained" 
+                                  onClick={() => executeAiAction(msg.pendingAction.action, msg.pendingAction.params, idx)}
+                                  sx={{ bgcolor: theme.palette.primary.main, color: '#fff', textTransform: 'none', fontWeight : 800, borderRadius: 2 }}
+                                >
+                                  Accept Action
+                                </Button>
+                                <Button 
+                                  size="small" 
+                                  variant="outlined" 
+                                  onClick={() => setAiMessages(prev => prev.map((m, i) => i === idx ? { ...m, pendingAction: undefined } : m))}
+                                  sx={{ borderColor: theme.palette.divider, color: theme.palette.text.secondary, textTransform: 'none', fontWeight : 700, borderRadius: 2 }}
+                                >
+                                  Reject
+                                </Button>
+                              </Box>
+                            )}
+
+                            {msg.status === 'executed' && (
+                              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, color: '#10B981' }}>
+                                <CheckCircleIcon sx={{ fontSize: 16 }} />
+                                <Typography variant="caption" sx={{ fontWeight: 800 }}>Executed</Typography>
+                              </Box>
+                            )}
+
+                            {msg.action && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => {
+                                  setAutomationTab('list');
+                                  setIsEditingAutomation(true);
+                                  setCurrentAutomationId(null);
+                                  setEmailTriggerCol(msg.action.trigger);
+                                  setActionType(msg.action.type);
+                                  showNotification('Draft configuration applied from AI assistant', 'info');
+                                }}
+                                sx={{ 
+                                  mt: 2, 
+                                  borderRadius: 2, 
+                                  fontSize: '0.75rem', 
+                                  textTransform: 'none',
+                                  fontWeight: 800,
+                                  borderColor: msg.role === 'user' ? 'rgba(255,255,255,0.4)' : theme.palette.primary.main, 
+                                  color: msg.role === 'user' ? '#fff' : theme.palette.primary.main,
+                                  '&:hover': { borderColor: theme.palette.primary.dark, bgcolor: `${theme.palette.primary.main}10` }
+                                }}
+                              >
+                                Review & Deploy Draft
+                              </Button>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                      {isAiThinking && (
+                        <Box sx={{ display: 'flex', gap: 1.5, p: 1 }}>
+                          <Avatar sx={{ width: 36, height: 36, bgcolor: theme.palette.primary.main }}><AutoAwesomeIcon sx={{ fontSize: 20 }} /></Avatar>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, p: 2, bgcolor: theme.palette.action.hover, borderRadius: '4px 20px 20px 20px', border: `1px solid ${theme.palette.divider}` }}>
+                            {[0, 0.2, 0.4].map((delay) => (
+                              <motion.div 
+                                key={delay}
+                                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 1, 0.3] }} 
+                                transition={{ repeat: Infinity, duration: 1, delay }} 
+                                style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: theme.palette.primary.main }} 
+                              />
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                      <div ref={automationAiChatEndRef} />
+                    </Box>
+
+                    <Box sx={{
+                      p: 1.5,
+                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      borderRadius: 4,
+                      border: `1px solid ${theme.palette.divider}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      transition: 'all 0.2s',
+                      '&:focus-within': { borderColor: theme.palette.primary.main, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }
+                    }}>
+                      <TextField
+                        fullWidth
+                        variant="standard"
+                        placeholder="e.g. 'Notify the team when status changes to Done'"
+                        value={aiChatInput}
+                        onChange={(e) => setAiChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleAiChatSubmit(aiChatInput);
+                          }
+                        }}
+                        InputProps={{
+                          disableUnderline: true,
+                          sx: { color: theme.palette.text.primary, fontWeight: 500, px: 1 }
+                        }}
+                      />
+                      <IconButton
+                        disabled={!aiChatInput.trim() || isAiThinking}
+                        sx={{
+                          bgcolor: aiChatInput.trim() ? theme.palette.primary.main : theme.palette.action.disabledBackground,
+                          color: '#fff',
+                          '&:hover': { bgcolor: theme.palette.primary.dark },
+                          '&.Mui-disabled': { color: theme.palette.text.disabled }
+                        }}
+                        onClick={() => handleAiChatSubmit(aiChatInput)}
+                      >
+                        <SendIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </motion.div>
+                )}
+
+                {automationTab === 'analytics' && (
+                  <motion.div
+                    key="analytics-tab"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.02 }}
+                  >
+                    <Box sx={{ p: 1 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 3, mb: 4 }}>
+                        {[
+                          { 
+                            label: 'Total Executions', 
+                            value: automationLogs.length.toLocaleString(), 
+                            trend: 'Real-time', 
+                            color: theme.palette.primary.main 
+                          },
+                          { 
+                            label: 'Success Rate', 
+                            value: automationLogs.length > 0 
+                              ? `${Math.round((automationLogs.filter(l => l.status === 'sent').length / automationLogs.length) * 100)}%`
+                              : '100%', 
+                            trend: 'Optimal', 
+                            color: '#10B981' 
+                          },
+                          { 
+                            label: 'Efficiency Gain', 
+                            value: `${(automationLogs.length * 0.25).toFixed(1)}h`, 
+                            trend: 'Saved', 
+                            color: '#F59E0B' 
+                          },
+                        ].map((stat, i) => (
+                          <Paper key={i} elevation={0} sx={{ p: 3, bgcolor: theme.palette.action.hover, borderRadius: 5, border: `1px solid ${theme.palette.divider}`, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.02)', borderColor: theme.palette.primary.light } }}>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 800, mb: 1, display: 'block', letterSpacing: '0.05em' }}>{stat.label.toUpperCase()}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
+                              <Typography variant="h4" sx={{ fontWeight: 900, color: theme.palette.text.primary, letterSpacing: '-0.02em' }}>{stat.value}</Typography>
+                              <Typography variant="caption" sx={{ color: stat.color, fontWeight: 900, px: 1, py: 0.2, bgcolor: `${stat.color}15`, borderRadius: 1 }}>{stat.trend}</Typography>
+                            </Box>
+                          </Paper>
+                        ))}
+                      </Box>
+
+                      <Paper elevation={0} sx={{ p: 4, bgcolor: theme.palette.background.paper, borderRadius: 6, border: `1px solid ${theme.palette.divider}` }}>
+                        <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, display: 'flex', alignItems: 'center', gap: 1.5, color: theme.palette.text.primary }}>
+                          <HistoryIcon sx={{ color: theme.palette.primary.main }} /> Real-time Feed
+                        </Typography>
+                        <Stack spacing={2.5}>
+                          {automationLogs.length === 0 ? (
+                            <Box sx={{ textAlign: 'center', py: 4 }}>
+                              <Typography variant="body2" sx={{ color: theme.palette.text.disabled }}>No recent activity detected.</Typography>
+                            </Box>
+                          ) : (
+                            automationLogs.map((log, i) => (
+                              <Box key={i} sx={{ 
+                                p: 2.5, 
+                                display: 'flex', 
+                                gap: 2.5, 
+                                alignItems: 'center', 
+                                bgcolor: theme.palette.action.hover, 
+                                borderRadius: 4,
+                                border: `1px solid ${theme.palette.divider}`,
+                                transition: 'all 0.2s',
+                                '&:hover': { bgcolor: theme.palette.action.selected }
+                              }}>
+                                <Box sx={{ 
+                                  width: 10, 
+                                  height: 10, 
+                                  borderRadius: '50%', 
+                                  bgcolor: log.status === 'error' ? '#EF4444' : log.status === 'pending' ? '#F59E0B' : '#10B981',
+                                  boxShadow: `0 0 10px ${log.status === 'error' ? '#EF444488' : log.status === 'pending' ? '#F59E0B88' : '#10B98188'}`
+                                }} />
+                                <Box sx={{ flex: 1 }}>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 800, color: theme.palette.text.primary }}>{log.subject}</Typography>
+                                    <Typography variant="caption" sx={{ color: theme.palette.text.disabled, fontWeight: 600 }}>{dayjs(log.timestamp).fromNow()}</Typography>
+                                  </Box>
+                                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', fontWeight: 500 }}>
+                                    {log.status === 'error' ? `Error: ${log.errorMessage || 'Unknown execution failure'}` : `Dispatched to ${Array.isArray(log.recipients) ? log.recipients.join(', ') : log.recipients}`}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            ))
+                          )}
+                        </Stack>
+                      </Paper>
+                    </Box>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Box>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/* Global AI Assistant Floating Button & Popover */}
+      <Box sx={{ position: 'fixed', bottom: { xs: 20, sm: 32 }, right: { xs: 20, sm: 32 }, zIndex: 3000 }}>
+        <AnimatePresence>
+          {isGlobalAiOpen && (
+            <Box
+              component={motion.div}
+              initial={{ opacity: 0, y: 100, scale: 0.9, borderRadius: 40 }}
+              animate={{ opacity: 1, y: 0, scale: 1, borderRadius: isMobile ? 0 : 24 }}
+              exit={{ opacity: 0, y: 100, scale: 0.9, transition: { duration: 0.2 } }}
+              sx={{
+                position: 'absolute',
+                bottom: { xs: -20, sm: 80 },
+                right: { xs: -20, sm: 0 },
+                width: { xs: '100vw', sm: 420 },
+                height: { xs: '85vh', sm: 600 },
+                maxHeight: 'calc(100vh - 40px)',
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(10, 10, 15, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(25px) saturate(180%)',
+                borderRadius: { xs: '24px 24px 0 0', sm: 6 },
+                border: `1px solid ${theme.palette.divider}`,
+                boxShadow: theme.palette.mode === 'dark' ? '0 40px 100px rgba(0,0,0,0.8)' : '0 40px 100px rgba(0,0,0,0.15)',
+                display: 'grid',
+                gridTemplateRows: 'auto 1fr auto',
+                overflow: 'hidden',
+                zIndex: 3001,
+                // Mesh Background Effect
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: '-50%',
+                  left: '-50%',
+                  width: '200%',
+                  height: '200%',
+                  backgroundImage: `
+                    radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                    radial-gradient(circle at 80% 70%, rgba(129, 140, 248, 0.08) 0%, transparent 40%)
+                  `,
+                  animation: 'meshMove 20s linear infinite',
+                  pointerEvents: 'none',
+                  zIndex: -1
+                },
+                '@keyframes meshMove': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
+              }}
+            >
+              {/* Chat Header */}
+              <Box 
+                sx={{ 
+                  p: 2.5, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2, 
+                  borderBottom: `1px solid ${theme.palette.divider}`, 
+                  background: theme.palette.mode === 'dark' 
+                    ? 'linear-gradient(to right, rgba(99, 102, 241, 0.15), rgba(129, 140, 248, 0.05))'
+                    : 'linear-gradient(to right, rgba(99, 102, 241, 0.05), rgba(129, 140, 248, 0.02))',
+                  position: 'relative'
+                }}
+              >
+                <Box sx={{ position: 'relative' }}>
+                  <Avatar 
+                    sx={{ 
+                      bgcolor: '#6366F1', 
+                      width: 42, 
+                      height: 42, 
+                      boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)',
+                      background: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)'
+                    }}
+                  >
+                    <AutoAwesomeIcon sx={{ fontSize: 24 }} />
+                  </Avatar>
+                  <Box 
+                    sx={{ 
+                      position: 'absolute', 
+                      bottom: 0, 
+                      right: 0, 
+                      width: 12, 
+                      height: 12, 
+                      bgcolor: '#10B981', 
+                      borderRadius: '50%', 
+                      border: `2px solid ${theme.palette.background.paper}`,
+                      boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)'
+                    }} 
+                  />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 900, color: theme.palette.mode === 'dark' ? '#fff' : '#1e1b4b', fontSize: '1.05rem', letterSpacing: '-0.02em' }}>Nexus Brain</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>Intelligence Engine</Typography>
+                </Box>
+                <IconButton 
+                  onClick={() => setIsGlobalAiOpen(false)} 
+                  sx={{ 
+                    color: theme.palette.text.secondary, 
+                    '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover },
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+
+              {/* Chat Messages */}
+              <Box 
+                sx={{ 
+                  overflowY: 'auto', 
+                  p: 3, 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: 3, 
+                  minHeight: 0,
+                  scrollbarWidth: 'thin',
+                  '&::-webkit-scrollbar': { width: '4px' },
+                  '&::-webkit-scrollbar-thumb': { backgroundColor: theme.palette.divider, borderRadius: '10px' }
+                }}
+              >
+                {aiMessages.map((msg, idx) => (
+                  <Box
+                    key={idx}
+                    component={motion.div}
+                    initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    sx={{
+                      alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                      maxWidth: '88%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0.5
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        p: 2,
+                        px: 2.5,
+                        borderRadius: msg.role === 'user' ? '22px 22px 4px 22px' : '22px 22px 22px 4px',
+                        background: msg.role === 'user' 
+                          ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' 
+                          : theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                        backdropFilter: msg.role === 'assistant' ? 'blur(10px)' : 'none',
+                        border: `1px solid ${theme.palette.divider}`,
+                        boxShadow: msg.role === 'user' ? '0 10px 20px rgba(99, 102, 241, 0.2)' : '0 4px 15px rgba(0,0,0,0.05)',
+                      }}
+                    >
+                      <Typography sx={{ fontSize: '0.925rem', color: msg.role === 'user' ? '#fff' : theme.palette.text.primary, lineHeight: 1.6, fontWeight: 450 }}>{msg.text}</Typography>
+                      
+                      {msg.pendingAction && (
+                        <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
+                          <Button 
+                            fullWidth
+                            size="small" 
+                            variant="contained" 
+                            onClick={() => executeAiAction(msg.pendingAction.action, msg.pendingAction.params, idx)}
+                            sx={{ bgcolor: '#fff', color: '#6366f1', textTransform: 'none', fontWeight : 800, borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' } }}
+                          >
+                            Accept
+                          </Button>
+                          <Button 
+                            fullWidth
+                            size="small" 
+                            variant="outlined" 
+                            onClick={() => setAiMessages(prev => prev.map((m, i) => i === idx ? { ...m, pendingAction: undefined } : m))}
+                            sx={{ borderColor: 'rgba(255,255,255,0.4)', color: '#fff', textTransform: 'none', fontWeight : 700, borderRadius: 1.5 }}
+                          >
+                            Reject
+                          </Button>
+                        </Box>
+                      )}
+
+                      {msg.status === 'executed' && (
+                        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, color: msg.role === 'user' ? '#fff' : '#10B981', opacity: 0.9 }}>
+                          <CheckCircleIcon sx={{ fontSize: 14 }} />
+                          <Typography variant="caption" sx={{ fontWeight: 800 }}>Action Complete</Typography>
+                        </Box>
+                      )}
+
+                      {msg.action && (
+                        <Button
+                          size="small"
+                          fullWidth
+                          variant="outlined"
+                          onClick={() => {
+                            setAutomationTab('list');
+                            setShowEmailAutomation(true);
+                            setEmailTriggerCol(msg.action.trigger);
+                            setActionType(msg.action.type);
+                            setIsGlobalAiOpen(false);
+                          }}
+                          sx={{ 
+                            mt: 2, 
+                            color: msg.role === 'user' ? '#fff' : theme.palette.primary.main, 
+                            borderColor: msg.role === 'user' ? 'rgba(255,255,255,0.3)' : theme.palette.primary.main,
+                            textTransform: 'none', 
+                            fontWeight: 700, 
+                            borderRadius: 2,
+                            '&:hover': { bgcolor: theme.palette.action.hover, borderColor: theme.palette.primary.dark }
+                          }}
+                        >
+                          Launch Workflow Builder
+                        </Button>
+                      )}
+                    </Box>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', px: 1, fontSize: '0.7rem' }}>
+                      {msg.role === 'user' ? 'Delivered' : 'Nexus Engine'}
+                    </Typography>
+                  </Box>
+                ))}
+                {isAiThinking && (
+                   <Box sx={{ display: 'flex', gap: 1.5, p: 1 }}>
+                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, p: 2, bgcolor: theme.palette.action.hover, borderRadius: '20px', border: `1px solid ${theme.palette.divider}` }}>
+                       {[0, 0.2, 0.4].map((delay) => (
+                         <motion.div 
+                           key={delay}
+                           animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }} 
+                           transition={{ repeat: Infinity, duration: 1.2, delay }} 
+                           style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: theme.palette.primary.main, boxShadow: `0 0 10px ${theme.palette.primary.main}` }} 
+                         />
+                       ))}
+                     </Box>
+                   </Box>
+                )}
+                <div ref={globalAiChatEndRef} />
+              </Box>
+
+              {/* Chat Input & Quick Actions */}
+              <Box sx={{ p: 2.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(20, 20, 25, 0.4)' : 'rgba(240, 240, 255, 0.4)', borderTop: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
+                {aiMessages.length < 3 && (
+                  <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
+                    {["Add a task", "Send an email", "Change status"].map((suggestion) => (
+                      <Chip 
+                        key={suggestion}
+                        label={suggestion} 
+                        onClick={() => {
+                          setAiChatInput(suggestion);
+                          handleAiChatSubmit(suggestion);
+                        }}
+                        sx={{ 
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)', 
+                          color: theme.palette.primary.main, 
+                          border: `1px solid ${theme.palette.primary.light}33`,
+                          fontWeight: 600,
+                          '&:hover': { bgcolor: theme.palette.primary.main, color: '#fff', cursor: 'pointer' }
+                        }} 
+                      />
+                    ))}
+                  </Stack>
+                )}
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', 
+                    borderRadius: 4, 
+                    px: 2, 
+                    py: 0.5,
+                    border: `1px solid ${theme.palette.divider}`,
+                    transition: 'all 0.2s',
+                    '&:focus-within': { borderColor: theme.palette.primary.main, boxShadow: `0 0 0 2px ${theme.palette.primary.main}22` }
+                  }}
+                >
+                  <TextField
+                    fullWidth
+                    variant="standard"
+                    placeholder="Ask the brain anything..."
+                    value={aiChatInput}
+                    onChange={(e) => setAiChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAiChatSubmit(aiChatInput)}
+                    autoComplete="off"
+                    InputProps={{
+                      disableUnderline: true,
+                      sx: { color: theme.palette.text.primary, fontSize: '0.95rem', py: 1 },
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            onClick={() => handleAiChatSubmit(aiChatInput)} 
+                            disabled={!aiChatInput.trim()} 
+                            sx={{ 
+                              background: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)',
+                              color: '#fff',
+                              width: 34,
+                              height: 34,
+                              '&.Mui-disabled': { background: theme.palette.action.disabledBackground, color: theme.palette.action.disabled }
+                            }}
+                          >
+                            <SendIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                </Box>
               </Box>
             </Box>
           )}
-        </DialogContent>
-      </Dialog>
-    </Box >
+        </AnimatePresence>
+
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.9 }}>
+          <Box
+            onClick={() => setIsGlobalAiOpen(!isGlobalAiOpen)}
+            sx={{
+              width: { xs: 56, sm: 68 },
+              height: { xs: 56, sm: 68 },
+              borderRadius: '24px',
+              background: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 12px 40px rgba(99, 102, 241, 0.5), inset 0 2px 0 rgba(255,255,255,0.2)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            <AutoAwesomeIcon sx={{ color: '#fff', fontSize: { xs: 26, sm: 32 }, zIndex: 1 }} />
+            {/* Pulsing Outer Ring */}
+            <Box
+              component={motion.div}
+              animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
+              transition={{ repeat: Infinity, duration: 2.5 }}
+              sx={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                borderRadius: 'inherit',
+                border: '3px solid #818CF8',
+                zIndex: 0
+              }}
+            />
+            {/* Shimmer Effect */}
+            <Box
+              component={motion.div}
+              animate={{ x: [-100, 200] }}
+              transition={{ repeat: Infinity, duration: 3 }}
+              sx={{
+                position: 'absolute',
+                width: 40,
+                height: '200%',
+                background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent)',
+                transform: 'rotate(25deg)',
+                zIndex: 0
+              }}
+            />
+          </Box>
+        </motion.div>
+      </Box>
+    </Box>
   );
 }
