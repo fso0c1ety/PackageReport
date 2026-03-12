@@ -23,9 +23,9 @@ let nextApp;
 let handle;
 
 if (dev) {
-    const next = require('next');
-    nextApp = next({ dev });
-    handle = nextApp.getRequestHandler();
+  const next = require('next');
+  nextApp = next({ dev });
+  handle = nextApp.getRequestHandler();
 }
 
 const app = express();
@@ -59,7 +59,7 @@ io.on('connection', (socket) => {
     socket.join(tableId);
     console.log(`[Socket] Client ${socket.id} joined table: ${tableId}`);
   });
-  
+
   // Board Chat Typing
   socket.on('typing_board', ({ tableId, user }) => {
     socket.to(tableId).emit('typing_board', { user });
@@ -71,19 +71,19 @@ io.on('connection', (socket) => {
 
   // Task Chat (Discussion) Typing
   socket.on('typing_task', ({ tableId, taskId, user }) => {
-     socket.to(tableId).emit('typing_task', { taskId, user });
+    socket.to(tableId).emit('typing_task', { taskId, user });
   });
 
   socket.on('stop_typing_task', ({ tableId, taskId, user }) => {
     socket.to(tableId).emit('stop_typing_task', { taskId, user });
   });
-  
+
   socket.on('join_task', (taskId) => {
-      socket.join(taskId);
+    socket.join(taskId);
   });
-  
+
   socket.on('leave_task', (taskId) => {
-      socket.leave(taskId);
+    socket.leave(taskId);
   });
 
   socket.on('disconnect', () => {
@@ -117,6 +117,31 @@ io.on('connection', (socket) => {
     `);
 
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;`);
+
+    // Friends table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS friends (
+        id UUID PRIMARY KEY,
+        user_id TEXT REFERENCES users(id),
+        friend_id TEXT REFERENCES users(id),
+        status TEXT DEFAULT 'pending', -- 'pending', 'accepted'
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, friend_id)
+      );
+    `);
+
+    // Direct Messages table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id UUID PRIMARY KEY,
+        sender_id TEXT REFERENCES users(id),
+        recipient_id TEXT REFERENCES users(id),
+        text TEXT,
+        timestamp BIGINT,
+        read BOOLEAN DEFAULT false
+      );
+    `);
+
     console.log('[DB] Schema checked/updated.');
   } catch (err) {
     console.error('[DB] Schema migration error:', err);
@@ -133,10 +158,10 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Log all incoming requests for debugging
 app.use((req, res, next) => {
   if (req.method === 'POST') {
-      const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip} body: ${(bodyStr || '{}').substring(0, 100)}`);
+    const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip} body: ${(bodyStr || '{}').substring(0, 100)}`);
   } else {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
   }
   next();
 });
@@ -146,11 +171,15 @@ const authRoute = require('./routes/auth');
 const peopleRoute = require('./routes/people');
 const automationRoute = require('./routes/automation');
 const emailerRoute = require('./routes/emailer');
+const friendsRoute = require('./routes/friends');
+const chatsRoute = require('./routes/chats');
 // const tableTasksRoute = require('./routes/tableTasks');
 app.use('/api', authRoute);
 app.use('/api', peopleRoute);
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
+app.use('/api', friendsRoute);
+app.use('/api', chatsRoute);
 // Serve uploaded files statically - First try middleware, then fallback or specific handling
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Explicitly handle file serving to debug or catch encoding issues
@@ -208,7 +237,7 @@ app.post('/api/upload', (req, res) => {
       console.error('[Upload Error]', err);
       return res.status(500).json({ error: err.message });
     }
-    
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -271,44 +300,44 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
 
 // --- Nexus Brain (AI) Endpoint ---
 app.post('/api/nexus/chat', authenticateToken, async (req, res) => {
-    const { messages, systemPrompt, input } = req.body;
-    const apiKey = process.env.OPENAI_API_KEY;
+  const { messages, systemPrompt, input } = req.body;
+  const apiKey = process.env.OPENAI_API_KEY;
 
-    if (!apiKey) {
-        console.error('[Nexus Brain] API Key missing in environment');
-        return res.status(500).json({ error: 'AI Service configuration missing' });
+  if (!apiKey) {
+    console.error('[Nexus Brain] API Key missing in environment');
+    return res.status(500).json({ error: 'AI Service configuration missing' });
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages,
+          { role: "user", content: input }
+        ],
+        response_format: { type: "json_object" }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[OpenAI Error]', errorData);
+      throw new Error(errorData.error?.message || 'OpenAI Request Failed');
     }
 
-    try {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: { 
-                "Content-Type": "application/json", 
-                "Authorization": `Bearer ${apiKey}` 
-            },
-            body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    ...messages,
-                    { role: "user", content: input }
-                ],
-                response_format: { type: "json_object" }
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('[OpenAI Error]', errorData);
-            throw new Error(errorData.error?.message || 'OpenAI Request Failed');
-        }
-
-        const data = await response.json();
-        res.json(data);
-    } catch (err) {
-        console.error('[Nexus Brain Error]', err);
-        res.status(500).json({ error: err.message });
-    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('[Nexus Brain Error]', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Port is handled after route registration
@@ -494,12 +523,12 @@ app.delete('/api/workspaces/:workspaceId/leave', authenticateToken, async (req, 
         // Filter out the user from shared_users
         // Handle both string IDs and object user structures
         const newSharedUsers = table.shared_users.filter(u => {
-            const uId = typeof u === 'string' ? u : u.userId;
-            return uId !== userId;
+          const uId = typeof u === 'string' ? u : u.userId;
+          return uId !== userId;
         });
-        
+
         if (newSharedUsers.length !== table.shared_users.length) {
-            await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
+          await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
         }
       }
     }
@@ -839,14 +868,14 @@ app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
       const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [userId]);
       const token = userRes.rows[0]?.fcm_token;
       if (token) {
-         await sendPushNotification(
-            [token],
-            'Table Invite',
-            `${req.user.name} requests you to share this table: ${table.name}`,
-            { type: 'invite', notificationId: notifId, tableId: table.id }
-         );
+        await sendPushNotification(
+          [token],
+          'Table Invite',
+          `${req.user.name} requests you to share this table: ${table.name}`,
+          { type: 'invite', notificationId: notifId, tableId: table.id }
+        );
       }
-      
+
       return res.json({ success: true, message: 'Invite sent to user' });
     }
   } catch (err) {
@@ -865,18 +894,18 @@ app.get('/api/tables/:tableId/members', authenticateToken, async (req, res) => {
       WHERE t.id = $1 AND (w.owner_id = $2 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $2))
     `;
     const accessRes = await db.query(accessQuery, [req.params.tableId, req.user.id]);
-    
+
     if (accessRes.rows.length === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     const table = accessRes.rows[0];
     const ownerId = table.owner_id;
     const sharedUsers = table.shared_users ? table.shared_users.map(u => u.userId) : [];
     const memberIds = [...new Set([ownerId, ...sharedUsers])];
-    
+
     const usersRes = await db.query('SELECT id, name, email, avatar FROM users WHERE id = ANY($1)', [memberIds]);
-    
+
     const members = usersRes.rows.map(user => ({
       id: user.id,
       name: user.name,
@@ -884,13 +913,13 @@ app.get('/api/tables/:tableId/members', authenticateToken, async (req, res) => {
       avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`,
       role: user.id === ownerId ? 'owner' : 'member'
     }));
-    
+
     members.sort((a, b) => {
-        if (a.role === 'owner') return -1;
-        if (b.role === 'owner') return 1;
-        return a.name.localeCompare(b.name);
+      if (a.role === 'owner') return -1;
+      if (b.role === 'owner') return 1;
+      return a.name.localeCompare(b.name);
     });
-    
+
     res.json(members);
   } catch (err) {
     console.error('Error fetching table members:', err);
@@ -938,7 +967,7 @@ app.delete('/api/tables/:tableId/share/:userId', authenticateToken, async (req, 
 
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
     const workspace = wsResult.rows[0];
-    
+
     // Authorization: Allow workspace owner OR the user removing themselves
     if ((!workspace || workspace.owner_id !== req.user.id) && req.user.id !== req.params.userId) {
       return res.status(403).json({ error: 'Only owners or the user themselves can remove shared access' });
@@ -989,7 +1018,7 @@ app.delete('/api/tables/:tableId/invite-code', authenticateToken, async (req, re
     const result = await db.query('SELECT * FROM tables WHERE id = $1', [tableId]);
     const table = result.rows[0];
     if (!table) return res.status(404).json({ error: 'Table not found' });
-    
+
     // Check workspace owner
     const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
     const workspace = wsResult.rows[0];
@@ -1094,7 +1123,7 @@ app.get('/api/teammates', authenticateToken, async (req, res) => {
       JOIN unique_collaborators uc ON u.id::text = uc.user_id
     `;
     const result = await db.query(query, [userId]);
-    
+
     const teammates = result.rows.map(user => ({
       ...user,
       avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`
@@ -1109,120 +1138,120 @@ app.get('/api/teammates', authenticateToken, async (req, res) => {
 
 // Remove a teammate from all tables owned by the current user
 app.delete('/api/teammates/:teammateId', authenticateToken, async (req, res) => {
-    const userId = req.user.id;
-    const teammateId = req.params.teammateId;
-  
-    try {
-      // 1. Find all tables owned by the current user
-      const ownedTablesRes = await db.query(`
+  const userId = req.user.id;
+  const teammateId = req.params.teammateId;
+
+  try {
+    // 1. Find all tables owned by the current user
+    const ownedTablesRes = await db.query(`
         SELECT t.id, t.shared_users
         FROM tables t
         JOIN workspaces w ON t.workspace_id = w.id
         WHERE w.owner_id = $1
       `, [userId]);
-  
-      for (const table of ownedTablesRes.rows) {
-        if (table.shared_users && Array.isArray(table.shared_users)) {
-          const newSharedUsers = table.shared_users.filter(u => u.userId !== teammateId);
-          if (newSharedUsers.length !== table.shared_users.length) {
-            await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
-          }
+
+    for (const table of ownedTablesRes.rows) {
+      if (table.shared_users && Array.isArray(table.shared_users)) {
+        const newSharedUsers = table.shared_users.filter(u => u.userId !== teammateId);
+        if (newSharedUsers.length !== table.shared_users.length) {
+          await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
         }
       }
-  
-      // 2. Remove pending invites
-      await db.query('DELETE FROM notifications WHERE sender_id = $1 AND recipient_id = $2 AND type = \'invite\'', [userId, teammateId]);
-  
-      res.json({ success: true });
-    } catch (err) {
-      console.error('Error removing teammate:', err);
-      res.status(500).json({ error: 'Internal server error' });
     }
-  });
+
+    // 2. Remove pending invites
+    await db.query('DELETE FROM notifications WHERE sender_id = $1 AND recipient_id = $2 AND type = \'invite\'', [userId, teammateId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing teammate:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Update teammate permission across all owned tables
 app.put('/api/teammates/:teammateId/permission', authenticateToken, async (req, res) => {
-    const userId = req.user.id;
-    const teammateId = req.params.teammateId;
-    const { permission } = req.body;
-    
-    if (!['read', 'edit', 'admin'].includes(permission)) {
-        return res.status(400).json({ error: 'Invalid permission' });
-    }
-  
-    try {
-      // 1. Find all tables owned by the current user
-      const ownedTablesRes = await db.query(`
+  const userId = req.user.id;
+  const teammateId = req.params.teammateId;
+  const { permission } = req.body;
+
+  if (!['read', 'edit', 'admin'].includes(permission)) {
+    return res.status(400).json({ error: 'Invalid permission' });
+  }
+
+  try {
+    // 1. Find all tables owned by the current user
+    const ownedTablesRes = await db.query(`
         SELECT t.id, t.shared_users
         FROM tables t
         JOIN workspaces w ON t.workspace_id = w.id
         WHERE w.owner_id = $1
       `, [userId]);
-  
-      for (const table of ownedTablesRes.rows) {
-        if (table.shared_users && Array.isArray(table.shared_users)) {
-          let modified = false;
-          const newSharedUsers = table.shared_users.map(u => {
-            if (u.userId === teammateId) {
-                modified = true;
-                return { ...u, permission };
-            }
-            return u;
-          });
-          
-          if (modified) {
-            await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
+
+    for (const table of ownedTablesRes.rows) {
+      if (table.shared_users && Array.isArray(table.shared_users)) {
+        let modified = false;
+        const newSharedUsers = table.shared_users.map(u => {
+          if (u.userId === teammateId) {
+            modified = true;
+            return { ...u, permission };
           }
+          return u;
+        });
+
+        if (modified) {
+          await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), table.id]);
         }
       }
-  
-      res.json({ success: true });
-    } catch (err) {
-      console.error('Error updating teammate permission:', err);
-      res.status(500).json({ error: 'Internal server error' });
     }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating teammate permission:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Update teammate permission for a specific board
 app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateToken, async (req, res) => {
-    const userId = req.user.id;
-    const { tableId, teammateId } = req.params;
-    const { permission } = req.body;
-    
-    if (!['read', 'edit', 'admin'].includes(permission)) {
-        return res.status(400).json({ error: 'Invalid permission' });
-    }
-  
-    try {
-      // Verify ownership
-      const tableRes = await db.query(`
+  const userId = req.user.id;
+  const { tableId, teammateId } = req.params;
+  const { permission } = req.body;
+
+  if (!['read', 'edit', 'admin'].includes(permission)) {
+    return res.status(400).json({ error: 'Invalid permission' });
+  }
+
+  try {
+    // Verify ownership
+    const tableRes = await db.query(`
         SELECT t.id, t.shared_users
         FROM tables t
         JOIN workspaces w ON t.workspace_id = w.id
         WHERE t.id = $1 AND w.owner_id = $2
       `, [tableId, userId]);
-  
-      if (tableRes.rows.length === 0) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-      
-      const table = tableRes.rows[0];
-      if (table.shared_users && Array.isArray(table.shared_users)) {
-          const newSharedUsers = table.shared_users.map(u => {
-            if (u.userId === teammateId) {
-                return { ...u, permission };
-            }
-            return u;
-          });
-          
-          await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), tableId]);
-      }
-  
-      res.json({ success: true });
-    } catch (err) {
-      console.error('Error updating granular teammate permission:', err);
-      res.status(500).json({ error: 'Internal server error' });
+
+    if (tableRes.rows.length === 0) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
+
+    const table = tableRes.rows[0];
+    if (table.shared_users && Array.isArray(table.shared_users)) {
+      const newSharedUsers = table.shared_users.map(u => {
+        if (u.userId === teammateId) {
+          return { ...u, permission };
+        }
+        return u;
+      });
+
+      await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(newSharedUsers), tableId]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating granular teammate permission:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 
@@ -1261,13 +1290,13 @@ app.get('/api/tables/:tableId/tasks/:taskId', async (req, res) => {
 
 app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
   try {
-    const newTask = { 
-        id: uuidv4(), 
-        table_id: req.params.tableId, 
-        values: req.body.values || {},
-        created_by: req.user.id
+    const newTask = {
+      id: uuidv4(),
+      table_id: req.params.tableId,
+      values: req.body.values || {},
+      created_by: req.user.id
     };
-    
+
     await db.query(
       'INSERT INTO rows (id, table_id, values, created_by) VALUES ($1, $2, $3, $4)',
       [newTask.id, newTask.table_id, JSON.stringify(newTask.values), newTask.created_by]
@@ -1324,75 +1353,75 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
 
     // Detect Task Chat (Discussion)
     if (newValues.message && Array.isArray(newValues.message)) {
-        const oldLen = (oldValues.message && Array.isArray(oldValues.message)) ? oldValues.message.length : 0;
-        if (newValues.message.length > oldLen) {
-            const lastMsg = newValues.message[newValues.message.length - 1];
-            
-            // Check Schedule
-            const isScheduled = lastMsg.scheduledFor && new Date(lastMsg.scheduledFor) > new Date();
-            // Mark validation
-            lastMsg.notificationSent = !isScheduled;
+      const oldLen = (oldValues.message && Array.isArray(oldValues.message)) ? oldValues.message.length : 0;
+      if (newValues.message.length > oldLen) {
+        const lastMsg = newValues.message[newValues.message.length - 1];
 
-            if (isScheduled) {
-                console.log(`[Task] Message scheduled for ${lastMsg.scheduledFor}`);
-            } else {
-                // Find task name
-                let taskName = 'Task';
-                if (table.columns && Array.isArray(table.columns)) {
-                    const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
-                    if (taskCol && newValues[taskCol.id]) {
-                        taskName = newValues[taskCol.id];
-                    }
-                } else if (newValues['task']) {
-                    taskName = newValues['task'];
-                }
-                
-                const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
-                
-                // Format: "{Users Name} commented on the {Tasks name}: (The message)"
-                await sendNotification(
-                    'New Discussion', 
-                    `${userName} commented on the ${taskName}: ${lastMsg.text}`,
-                    'task_chat',
-                    { taskId: id },
-                    table,
-                    req.user ? req.user.id : null
-                );
+        // Check Schedule
+        const isScheduled = lastMsg.scheduledFor && new Date(lastMsg.scheduledFor) > new Date();
+        // Mark validation
+        lastMsg.notificationSent = !isScheduled;
+
+        if (isScheduled) {
+          console.log(`[Task] Message scheduled for ${lastMsg.scheduledFor}`);
+        } else {
+          // Find task name
+          let taskName = 'Task';
+          if (table.columns && Array.isArray(table.columns)) {
+            const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
+            if (taskCol && newValues[taskCol.id]) {
+              taskName = newValues[taskCol.id];
             }
+          } else if (newValues['task']) {
+            taskName = newValues['task'];
+          }
+
+          const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
+
+          // Format: "{Users Name} commented on the {Tasks name}: (The message)"
+          await sendNotification(
+            'New Discussion',
+            `${userName} commented on the ${taskName}: ${lastMsg.text}`,
+            'task_chat',
+            { taskId: id },
+            table,
+            req.user ? req.user.id : null
+          );
         }
+      }
     }
 
     // Detect File Comments
     const columns = table.columns || [];
     if (Array.isArray(columns)) {
-        for (const col of columns) {
-            if (col.type === 'Files' || col.type === 'File') { // Handle both types
-                const oldFiles = oldValues && oldValues[col.id] && Array.isArray(oldValues[col.id]) ? oldValues[col.id] : [];
-                const newFiles = newValues && newValues[col.id] && Array.isArray(newValues[col.id]) ? newValues[col.id] : [];
-                
-                for (const nFile of newFiles) {
-                    const oFile = oldFiles.find(o => o.url === nFile.url); // Match by URL
-                    if (oFile && nFile.comments && Array.isArray(nFile.comments)) {
-                        const oldCommentsLen = (oFile.comments && Array.isArray(oFile.comments)) ? oFile.comments.length : 0;
-                        if (nFile.comments.length > oldCommentsLen) {
-                            const lastComment = nFile.comments[nFile.comments.length - 1];
-                            const userName = lastComment.user || (req.user ? req.user.name : 'User');
-                            const fileName = nFile.name || 'File';
-                            
-                            // Format: "{Users Name} commented on the {file name}: (The Comment)"
-                            await sendNotification(
-                                'New File Comment',
-                                `${userName} commented on the ${fileName}: ${lastComment.text}`,
-                                'file_comment',
-                                { taskId: id },
-                                table,
-                                req.user ? req.user.id : null
-                            );
-                        }
-                    }
-                }
+      for (const col of columns) {
+        if (col.type === 'Files' || col.type === 'File') { // Handle both types
+          const oldFiles = oldValues && oldValues[col.id] && Array.isArray(oldValues[col.id]) ? oldValues[col.id] : [];
+          const newFiles = newValues && newValues[col.id] && Array.isArray(newValues[col.id]) ? newValues[col.id] : [];
+
+          for (const nFile of newFiles) {
+            const oFile = oldFiles.find(o => o.url === nFile.url); // Match by URL
+            if (oFile && nFile.comments && Array.isArray(nFile.comments)) {
+              const oldCommentsLen = (oFile.comments && Array.isArray(oFile.comments)) ? oFile.comments.length : 0;
+              if (nFile.comments.length > oldCommentsLen) {
+                const lastComment = nFile.comments[nFile.comments.length - 1];
+                const userName = lastComment.user || (req.user ? req.user.name : 'User');
+                const fileName = nFile.name || 'File';
+
+                // Format: "{Users Name} commented on the {file name}: (The Comment)"
+                await sendNotification(
+                  'New File Comment',
+                  `${userName} commented on the ${fileName}: ${lastComment.text}`,
+                  'file_comment',
+                  { taskId: id },
+                  table,
+                  req.user ? req.user.id : null
+                );
+              }
             }
+          }
         }
+      }
     }
     // --- End Notification Logic ---
 
@@ -1438,7 +1467,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
            OR jsonb_array_length(task_ids) = 0 
            OR task_ids @> jsonb_build_array($2::text)
          )
-       ORDER BY id ASC`, 
+       ORDER BY id ASC`,
       [req.params.tableId, id]
     );
 
@@ -1474,7 +1503,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                   <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">${val || '-'}</td>
                 </tr>
               `;
-              
+
               // Build Text Summary (for Notifications)
               textSummaryLines.push(`${col.name}: ${val || '-'}`);
             }
@@ -1517,7 +1546,7 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
           const actionType = automation.action_type || 'email';
 
           if (recipients.length > 0) {
-            
+
             console.log(`[AUTOMATION] Triggering '${actionType}' for recipients:`, recipients);
 
             // Create activity log entry (Pending) - Logs for ALL types now
@@ -1551,75 +1580,75 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
 
                 // 2. NOTIFICATION LOGIC
                 if (actionType === 'notification' || actionType === 'both') {
-                     try {
-                         console.log('[AUTOMATION] Sending notification...');
-                         
-                         // Fetch users with their FCM tokens
-                         const userRes = await db.query('SELECT id, email, fcm_token FROM users WHERE email = ANY($1)', [recipients]);
-                         const matchedUsers = userRes.rows;
-                         
-                         if (matchedUsers.length === 0) {
-                            console.warn('[AUTOMATION] No matching users found via email for notification.');
-                         }
-        
-                         const fcmTokens = [];
-        
-                         for (const u of matchedUsers) {
-                             // Add to internal notifications table (shows in top bar)
-                             await db.query(`
+                  try {
+                    console.log('[AUTOMATION] Sending notification...');
+
+                    // Fetch users with their FCM tokens
+                    const userRes = await db.query('SELECT id, email, fcm_token FROM users WHERE email = ANY($1)', [recipients]);
+                    const matchedUsers = userRes.rows;
+
+                    if (matchedUsers.length === 0) {
+                      console.warn('[AUTOMATION] No matching users found via email for notification.');
+                    }
+
+                    const fcmTokens = [];
+
+                    for (const u of matchedUsers) {
+                      // Add to internal notifications table (shows in top bar)
+                      await db.query(`
                                  INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
                                  VALUES ($1, $2, $3, $4, $5, NOW())
                              `, [uuidv4(), u.id, 'automation', {
-                                 subject: subject,
-                                 body: textSummary, // Pass details for UI if needed
-                                 tableName: table.name,
-                                 tableId: table.id,
-                                 taskId: id,
-                                 logId: logId
-                             }, false]);
-        
-                             // Collect FCM token for push notification
-                             if (u.fcm_token) {
-                               fcmTokens.push(u.fcm_token);
-                             }
-                         }
-        
-                         // Send Push Notifications via Firebase
-                         if (fcmTokens.length > 0) {
-                           const pushTitle = subject;
-                           const pushBody = textSummary || "Task updated.";
-                           const pushData = {
-                             type: 'automation',
-                             tableId: table.id.toString(),
-                             workspaceId: table.workspace_id,
-                             taskId: id.toString()
-                           };
-                           await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
-                           console.log('[AUTOMATION] Sent push notifications with details to', fcmTokens.length, 'devices.');
-                         }
-                     } catch (pushErr) {
-                         successNotif = false;
-                         console.error('[AUTOMATION] Failed to send notifications:', pushErr);
-                         errorMessages.push(`Notification: ${pushErr.message || pushErr}`);
-                     }
+                        subject: subject,
+                        body: textSummary, // Pass details for UI if needed
+                        tableName: table.name,
+                        tableId: table.id,
+                        taskId: id,
+                        logId: logId
+                      }, false]);
+
+                      // Collect FCM token for push notification
+                      if (u.fcm_token) {
+                        fcmTokens.push(u.fcm_token);
+                      }
+                    }
+
+                    // Send Push Notifications via Firebase
+                    if (fcmTokens.length > 0) {
+                      const pushTitle = subject;
+                      const pushBody = textSummary || "Task updated.";
+                      const pushData = {
+                        type: 'automation',
+                        tableId: table.id.toString(),
+                        workspaceId: table.workspace_id,
+                        taskId: id.toString()
+                      };
+                      await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
+                      console.log('[AUTOMATION] Sent push notifications with details to', fcmTokens.length, 'devices.');
+                    }
+                  } catch (pushErr) {
+                    successNotif = false;
+                    console.error('[AUTOMATION] Failed to send notifications:', pushErr);
+                    errorMessages.push(`Notification: ${pushErr.message || pushErr}`);
+                  }
                 }
 
                 // Update activity log status
                 let finalStatus = 'sent';
                 if (!successEmail || !successNotif) {
-                  finalStatus = 'error'; 
+                  finalStatus = 'error';
                 } else if (errorMessages.length > 0) {
-                   // e.g. partial failure
-                   finalStatus = 'error';
+                  // e.g. partial failure
+                  finalStatus = 'error';
                 }
-                
+
                 const finalErrorMsg = errorMessages.length > 0 ? errorMessages.join('; ') : null;
-                
+
                 await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', [finalStatus, finalErrorMsg, logId]);
-                
+
               } catch (critErr) {
-                 console.error('[AUTOMATION] Critical error in async execution:', critErr);
-                 await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', 'Critical execution failure', logId]);
+                console.error('[AUTOMATION] Critical error in async execution:', critErr);
+                await db.query('UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3', ['error', 'Critical execution failure', logId]);
               }
             })();
           }
@@ -1745,21 +1774,21 @@ app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
 
 // --- Test Notification Endpoint ---
 app.post('/api/test-notification', authenticateToken, async (req, res) => {
-    try {
-        const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [req.user.id]);
-        if (userRes.rows.length === 0 || !userRes.rows[0].fcm_token) {
-            return res.status(400).json({ error: 'No FCM token found for user' });
-        }
-        
-        const token = userRes.rows[0].fcm_token;
-        console.log(`Sending test notification to user ${req.user.id} with token ${token.substring(0, 10)}...`);
-        
-        await sendPushNotification([token], 'Test Notification', 'This is a test from SmartManage!');
-        res.json({ success: true, message: 'Notification sent' });
-    } catch (err) {
-        console.error('Error sending test notification:', err);
-        res.status(500).json({ error: 'Internal server error' });
+  try {
+    const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [req.user.id]);
+    if (userRes.rows.length === 0 || !userRes.rows[0].fcm_token) {
+      return res.status(400).json({ error: 'No FCM token found for user' });
     }
+
+    const token = userRes.rows[0].fcm_token;
+    console.log(`Sending test notification to user ${req.user.id} with token ${token.substring(0, 10)}...`);
+
+    await sendPushNotification([token], 'Test Notification', 'This is a test from SmartManage!');
+    res.json({ success: true, message: 'Notification sent' });
+  } catch (err) {
+    console.error('Error sending test notification:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // --- Table Chat Endpoints ---
@@ -1793,27 +1822,27 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
       ORDER BY read ASC, created_at DESC 
       LIMIT 50
     `, [req.user.id]);
-    
+
     // Enrich with workspaceId
     const notifications = await Promise.all(result.rows.map(async (n) => {
-        const data = n.data || {};
-        
-        // If workspaceId is missing but tableId is present, try to fetch workspaceId
-        if (!data.workspaceId && data.tableId) {
-            try {
-                // Check if tableId is a valid UUID before querying
-                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId)) {
-                    const tableRes = await db.query('SELECT workspace_id FROM tables WHERE id = $1', [data.tableId]);
-                    if (tableRes.rows.length > 0) {
-                        data.workspaceId = tableRes.rows[0].workspace_id;
-                    }
-                }
-            } catch (ignore) {
-                // Ignore query errors, just return data as is
+      const data = n.data || {};
+
+      // If workspaceId is missing but tableId is present, try to fetch workspaceId
+      if (!data.workspaceId && data.tableId) {
+        try {
+          // Check if tableId is a valid UUID before querying
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId)) {
+            const tableRes = await db.query('SELECT workspace_id FROM tables WHERE id = $1', [data.tableId]);
+            if (tableRes.rows.length > 0) {
+              data.workspaceId = tableRes.rows[0].workspace_id;
             }
+          }
+        } catch (ignore) {
+          // Ignore query errors, just return data as is
         }
-        
-        return { ...n, data };
+      }
+
+      return { ...n, data };
     }));
 
     res.json(notifications);
@@ -1839,12 +1868,12 @@ app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) =>
   try {
     const notifResult = await db.query('SELECT * FROM notifications WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
     const notification = notifResult.rows[0];
-    
+
     if (!notification) return res.status(404).json({ error: 'Notification not found' });
     if (notification.type !== 'invite') return res.status(400).json({ error: 'Not an invite' });
 
     const { tableId, permission } = notification.data || {};
-    
+
     if (!tableId) return res.status(400).json({ error: 'Invalid invite data' });
 
     // Add user to table
@@ -1854,7 +1883,7 @@ app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) =>
     if (table) {
       let sharedUsers = table.shared_users;
       if (!Array.isArray(sharedUsers)) sharedUsers = [];
-      
+
       // Check if already shared
       if (!sharedUsers.some(u => u.userId === req.user.id)) {
         sharedUsers.push({ userId: req.user.id, permission: permission || 'edit' });
@@ -1885,27 +1914,27 @@ app.post('/api/notifications/:id/decline', authenticateToken, async (req, res) =
 
 // Helper for invite notifications
 const createInviteNotification = async (recipientId, senderId, tableId, tableName, permission) => {
-    const notifDisplayId = uuidv4();
-    await db.query(
-        'INSERT INTO notifications (id, recipient_id, sender_id, type, data) VALUES ($1, $2, $3, $4, $5)',
-        [notifDisplayId, recipientId, senderId, 'invite', JSON.stringify({ tableId, tableName, permission })]
+  const notifDisplayId = uuidv4();
+  await db.query(
+    'INSERT INTO notifications (id, recipient_id, sender_id, type, data) VALUES ($1, $2, $3, $4, $5)',
+    [notifDisplayId, recipientId, senderId, 'invite', JSON.stringify({ tableId, tableName, permission })]
+  );
+
+  // Also send Push Notification
+  const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [recipientId]);
+  const token = userRes.rows[0]?.fcm_token;
+  if (token) {
+    // Fetch sender name
+    const senderRes = await db.query('SELECT name FROM users WHERE id = $1', [senderId]);
+    const senderName = senderRes.rows[0]?.name || 'Someone';
+
+    await sendPushNotification(
+      [token],
+      'Table Invite',
+      `${senderName} requests you to share this table: ${tableName}`,
+      { type: 'invite', notificationId: notifDisplayId }
     );
-    
-    // Also send Push Notification
-    const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [recipientId]);
-    const token = userRes.rows[0]?.fcm_token;
-    if (token) {
-        // Fetch sender name
-        const senderRes = await db.query('SELECT name FROM users WHERE id = $1', [senderId]);
-        const senderName = senderRes.rows[0]?.name || 'Someone';
-        
-        await sendPushNotification(
-            [token],
-            'Table Invite',
-            `${senderName} requests you to share this table: ${tableName}`,
-            { type: 'invite', notificationId: notifDisplayId }
-        );
-    }
+  }
 };
 
 app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
@@ -1938,12 +1967,12 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
     if (tableRes.rows.length > 0) {
       const table = tableRes.rows[0];
       const tableName = table.name;
-      
+
       // 2. Determine recipients
       // Start with workspace owner
       const workspaceRes = await db.query('SELECT owner_id FROM workspaces WHERE id = $1', [table.workspace_id]);
       let recipientIds = new Set();
-      
+
       if (workspaceRes.rows.length > 0) {
         recipientIds.add(workspaceRes.rows[0].owner_id);
       }
@@ -1958,40 +1987,40 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
 
       // Remove sender (so you don't receive notifications for your own messages)
       recipientIds.delete(req.user.id);
-      
+
       // console.log(`[Chat Notification] Sender: ${req.user.id}, Potential Recipients: ${Array.from(recipientIds).join(', ')}`);
 
       if (recipientIds.size > 0) {
         const recipientsArray = Array.from(recipientIds);
-        
+
         // 1. Send Push Notifications
         const tokensRes = await db.query('SELECT id, fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
-        
+
         const tokens = tokensRes.rows.map(r => r.fcm_token);
         console.log(`[Chat Notification] Found ${tokens.length} tokens for users: ${tokensRes.rows.map(r => r.id).join(', ')}`);
 
         if (tokens.length > 0) {
           await sendPushNotification(tokens, `New message in ${tableName}`, `${newMessage.sender}: ${newMessage.text}`, {
-              type: 'chat_message',
-              tableId: newMessage.table_id,
-              workspaceId: table.workspace_id,
-              senderId: req.user.id
+            type: 'chat_message',
+            tableId: newMessage.table_id,
+            workspaceId: table.workspace_id,
+            senderId: req.user.id
           });
         }
-        
+
         // 2. Save In-App Notifications
         for (const recipientId of recipientsArray) {
-            await db.query(`
+          await db.query(`
                 INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
                 VALUES ($1, $2, $3, $4, $5, NOW())
             `, [uuidv4(), recipientId, 'chat_message', {
-                subject: `New message in ${tableName}`,
-                body: `${newMessage.sender}: ${newMessage.text}`,
-                tableName: tableName,
-                tableId: table.id,
-                workspaceId: table.workspace_id,
-                senderId: req.user.id
-            }, false]);
+            subject: `New message in ${tableName}`,
+            body: `${newMessage.sender}: ${newMessage.text}`,
+            tableName: tableName,
+            tableId: table.id,
+            workspaceId: table.workspace_id,
+            senderId: req.user.id
+          }, false]);
         }
       }
     }
@@ -2011,87 +2040,107 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+<<<<<<< Updated upstream
 const startServer = () => {
-    server.listen(PORT, '0.0.0.0', () => {
-        try {
-            console.log(`> Ready on http://localhost:${PORT}`);
-            console.log(`Express server running on http://0.0.0.0:${PORT}`);
-            console.log(`Socket.IO listening on port ${PORT}`);
-        } catch (err) {
-            console.error('Error starting server/socket:', err);
-        }
-    });
+  server.listen(PORT, '0.0.0.0', () => {
+    try {
+      console.log(`> Ready on http://localhost:${PORT}`);
+      console.log(`Express server running on http://0.0.0.0:${PORT}`);
+      console.log(`Socket.IO listening on port ${PORT}`);
+    } catch (err) {
+      console.error('Error starting server/socket:', err);
+    }
+  });
 };
 
 if (dev && nextApp) {
-    nextApp.prepare().then(() => {
-        app.all(/(.*)/, (req, res) => {
-            return handle(req, res);
-        });
-        startServer();
+  nextApp.prepare().then(() => {
+    app.all(/(.*)/, (req, res) => {
+      return handle(req, res);
     });
-} else {
     startServer();
+  });
+} else {
+  startServer();
 }
+=======
+nextApp.prepare().then(() => {
+  // In Express 5, '*' is not a valid wildcard for path-to-regexp v0.1.7+ style matching used by default.
+  // Use '(.*)' to match everything.
+  app.all(/(.*)/, (req, res) => {
+    return handle(req, res);
+  });
+
+  server.listen(PORT, '0.0.0.0', () => {
+    try {
+      console.log(`> Ready on http://localhost:${PORT}`);
+      console.log(`Express server running on http://0.0.0.0:${PORT}`);
+      console.log(`Socket.IO listening on port ${PORT}`);
+    } catch (err) {
+      console.error('Error starting server/socket:', err);
+    }
+  });
+});
+>>>>>>> Stashed changes
 
 // --- Scheduled Message Processor (Cron Job) ---
 setInterval(async () => {
-    try {
-        // Find rows with scheduled messages that haven't been sent
-        // Using a broad text search for efficiency, then filtering in JS
-        const result = await db.query(`
+  try {
+    // Find rows with scheduled messages that haven't been sent
+    // Using a broad text search for efficiency, then filtering in JS
+    const result = await db.query(`
             SELECT r.id, r.table_id, r.values
             FROM rows r
             WHERE r.values::text LIKE '%"scheduledFor"%' 
-        `); 
+        `);
 
-        for (const row of result.rows) {
-            let changed = false;
-            const messages = row.values.message;
-            if (!Array.isArray(messages)) continue;
+    for (const row of result.rows) {
+      let changed = false;
+      const messages = row.values.message;
+      if (!Array.isArray(messages)) continue;
 
-            const tableRes = await db.query('SELECT * FROM tables WHERE id = $1', [row.table_id]);
-            const table = tableRes.rows[0];
-            if (!table) continue;
+      const tableRes = await db.query('SELECT * FROM tables WHERE id = $1', [row.table_id]);
+      const table = tableRes.rows[0];
+      if (!table) continue;
 
-            for (const msg of messages) {
-                if (msg.scheduledFor && !msg.notificationSent) {
-                    if (new Date(msg.scheduledFor) <= new Date()) {
-                        
-                        let taskName = 'Task';
-                        if (table.columns && Array.isArray(table.columns)) {
-                            const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
-                            if (taskCol && row.values[taskCol.id]) {
-                                taskName = row.values[taskCol.id];
-                            }
-                        } else if (row.values['task']) {
-                            taskName = row.values['task'];
-                        }
+      for (const msg of messages) {
+        if (msg.scheduledFor && !msg.notificationSent) {
+          if (new Date(msg.scheduledFor) <= new Date()) {
 
-                        const userName = msg.sender || 'System';
-                        
-                        // Send Notification via imported helper
-                        await sendNotification(
-                            'New Discussion',
-                            `${userName} commented on the ${taskName}: ${msg.text}`,
-                            'task_chat',
-                            { taskId: row.id },
-                            table,
-                            null
-                        );
-                        
-                        msg.notificationSent = true;
-                        changed = true;
-                    }
-                }
+            let taskName = 'Task';
+            if (table.columns && Array.isArray(table.columns)) {
+              const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
+              if (taskCol && row.values[taskCol.id]) {
+                taskName = row.values[taskCol.id];
+              }
+            } else if (row.values['task']) {
+              taskName = row.values['task'];
             }
 
-            if (changed) {
-                await db.query('UPDATE rows SET values = $1 WHERE id = $2', [JSON.stringify(row.values), row.id]);
-                console.log(`[Scheduler] Processed scheduled messages for Task ${row.id}`);
-            }
+            const userName = msg.sender || 'System';
+
+            // Send Notification via imported helper
+            await sendNotification(
+              'New Discussion',
+              `${userName} commented on the ${taskName}: ${msg.text}`,
+              'task_chat',
+              { taskId: row.id },
+              table,
+              null
+            );
+
+            msg.notificationSent = true;
+            changed = true;
+          }
         }
-    } catch (e) {
-        console.error('Error processing scheduled messages:', e);
+      }
+
+      if (changed) {
+        await db.query('UPDATE rows SET values = $1 WHERE id = $2', [JSON.stringify(row.values), row.id]);
+        console.log(`[Scheduler] Processed scheduled messages for Task ${row.id}`);
+      }
     }
+  } catch (e) {
+    console.error('Error processing scheduled messages:', e);
+  }
 }, 60000); // Check every minute
