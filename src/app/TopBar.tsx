@@ -625,7 +625,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </Menu>
 
         <Tooltip title="Messages">
-          <StyledIconButton size="small">
+          <StyledIconButton size="small" onClick={() => router.push('/chat')}>
             <MailOutlineIcon fontSize="small" />
           </StyledIconButton>
         </Tooltip>
