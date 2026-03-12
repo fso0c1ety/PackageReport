@@ -10,7 +10,7 @@ import { authenticatedFetch, getApiUrl } from "../apiUrl";
 import dayjs from "dayjs";
 import AppShell from "../AppShell";
 
-export default function ChatPage() {
+function ChatContent() {
     const theme = useTheme();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -263,5 +263,17 @@ export default function ChatPage() {
                 </Box>
             </Box>
         </AppShell>
+    );
+}
+
+export default function ChatPage() {
+    return (
+        <React.Suspense fallback={
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <CircularProgress />
+            </Box>
+        }>
+            <ChatContent />
+        </React.Suspense>
     );
 }
