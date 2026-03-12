@@ -492,9 +492,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             />
           )}
           renderOption={(props, option: any) => {
-            const { key, ...optionProps } = props;
+            const { key: _key, ...optionProps } = props;
             return (
-              <li key={key} {...optionProps} style={{ borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}` }}>
+              <li key={option.id} {...optionProps} style={{ borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2, py: 1, px: 1 }}>
                   <Avatar
                     src={option.avatar}
