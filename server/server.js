@@ -9,6 +9,15 @@ const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
 const cors = require('cors');
 const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'djs1bhpzb',
+  api_key: process.env.CLOUDINARY_API_KEY || '484662638992697',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'SOs-S_kOQoGi9Y8Tm76Msd0IUBA'
+});
 const db = require('./db');
 const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
@@ -212,25 +221,18 @@ if (fs.existsSync(outDir)) {
   });
 }
 
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    // Sanitize filename: replace spaces with underscores, remove special chars to prevent serving issues
-    const sanitizedName = file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-    cb(null, uniqueSuffix + '-' + sanitizedName);
+// Configure Multer with Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'packagereport_uploads',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'svg'],
+    resource_type: 'auto'
   }
 });
 const upload = multer({ storage: storage });
 
-// File Upload Endpoint with improved error handling
+// File Upload Endpoint — stores files on Cloudinary
 app.post('/api/upload', (req, res) => {
   upload.single('file')(req, res, function (err) {
     if (err) {
@@ -242,8 +244,8 @@ app.post('/api/upload', (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Return the URL to access the file
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Cloudinary returns the permanent CDN URL in req.file.path
+    const fileUrl = req.file.path;
     res.json({
       url: fileUrl,
       name: req.file.originalname,
