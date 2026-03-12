@@ -2040,7 +2040,6 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-<<<<<<< Updated upstream
 const startServer = () => {
   server.listen(PORT, '0.0.0.0', () => {
     try {
@@ -2063,25 +2062,6 @@ if (dev && nextApp) {
 } else {
   startServer();
 }
-=======
-nextApp.prepare().then(() => {
-  // In Express 5, '*' is not a valid wildcard for path-to-regexp v0.1.7+ style matching used by default.
-  // Use '(.*)' to match everything.
-  app.all(/(.*)/, (req, res) => {
-    return handle(req, res);
-  });
-
-  server.listen(PORT, '0.0.0.0', () => {
-    try {
-      console.log(`> Ready on http://localhost:${PORT}`);
-      console.log(`Express server running on http://0.0.0.0:${PORT}`);
-      console.log(`Socket.IO listening on port ${PORT}`);
-    } catch (err) {
-      console.error('Error starting server/socket:', err);
-    }
-  });
-});
->>>>>>> Stashed changes
 
 // --- Scheduled Message Processor (Cron Job) ---
 setInterval(async () => {
