@@ -499,6 +499,8 @@ export default function HomeDashboard() {
         </Box>
       </Box>
 
+      {/* --- Chat Section --- */}
+
       <Grid container spacing={3}>
         {/* Main Content Column */}
         <Grid size={{ xs: 12, lg: 8 }}>

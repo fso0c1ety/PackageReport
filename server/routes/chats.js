@@ -12,15 +12,16 @@ router.get('/chats', authenticateToken, async (req, res) => {
             `WITH last_messages AS (
                 SELECT 
                     CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as other_user_id,
+                    sender_id,
+                    recipient_id,
                     text,
                     timestamp,
-                    sender_id,
                     unread,
                     ROW_NUMBER() OVER(PARTITION BY CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END ORDER BY timestamp DESC) as rn
                 FROM direct_messages
                 WHERE sender_id = $1 OR recipient_id = $1
             )
-            SELECT u.id, u.name, u.email, u.avatar, lm.text as last_message, lm.timestamp, lm.sender_id as last_sender_id, lm.unread as last_unread
+            SELECT u.id, u.name, u.email, u.avatar, lm.text as last_message, lm.timestamp, lm.sender_id, lm.recipient_id, lm.unread
             FROM last_messages lm
             JOIN users u ON u.id = lm.other_user_id
             WHERE lm.rn = 1

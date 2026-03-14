@@ -24,9 +24,11 @@ import { styled, alpha } from "@mui/material/styles";
 import EmailIcon from '@mui/icons-material/Email';
 import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
 import CloseIcon from '@mui/icons-material/Close';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
+import ChatSection from "./(dashboard)/home/ChatSection";
+import Popover from "@mui/material/Popover";
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -50,7 +52,7 @@ type Notification = {
   created_at: string;
 };
 
-const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
+export default function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter();
   const theme = useTheme();
   const { toggleTheme, mode } = useThemeContext();
@@ -330,6 +332,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   // User Preview Dialog State
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewUser, setPreviewUser] = useState<any>(null);
+  const pathname = usePathname();
+
+  // Automatically close the modal when the route changes
+  useEffect(() => {
+    setPreviewDialogOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -404,6 +412,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     }
   };
 
+
+  const [chatAnchor, setChatAnchor] = useState<null | HTMLElement>(null);
+  const [chatSelectedUser, setChatSelectedUser] = useState<any>(null);
 
   return (
     <Box
@@ -625,7 +636,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </Menu>
 
         <Tooltip title="Messages">
-          <StyledIconButton size="small" onClick={() => router.push('/chat')}>
+          <StyledIconButton
+            size="small"
+            onClick={e => {
+              setChatAnchor(e.currentTarget);
+              setChatSelectedUser(null);
+            }}
+          >
             <MailOutlineIcon fontSize="small" />
           </StyledIconButton>
         </Tooltip>
@@ -788,35 +805,38 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           }
         }}
       >
-        <Box sx={{
-          position: 'relative',
-          height: 120,
-          background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
-        }}>
-          <IconButton
-            size="small"
-            onClick={() => setPreviewDialogOpen(false)}
-            sx={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              color: '#fff',
-              bgcolor: alpha('#000', 0.2),
-              '&:hover': { bgcolor: alpha('#000', 0.3) }
-            }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </Box>
+        <IconButton
+          size="small"
+          onClick={() => setPreviewDialogOpen(false)}
+          sx={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            color: '#fff',
+            bgcolor: alpha('#000', 0.2),
+            '&:hover': { bgcolor: alpha('#000', 0.3) }
+          }}
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
         <DialogContent sx={{ pt: 0, pb: 4 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: -7 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Avatar
               src={previewUser?.avatar}
               sx={{
                 width: 120,
                 height: 120,
                 border: `6px solid ${theme.palette.background.paper}`,
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                '& img': {
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: '50%',
+                  display: 'block',
+                },
               }}
             />
             <Typography variant="h5" sx={{ mt: 2, fontWeight: 800, color: theme.palette.text.primary }}>
@@ -849,7 +869,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                 startIcon={<ChatBubbleOutlineIcon />}
                 onClick={() => {
                   setPreviewDialogOpen(false);
-                  router.push(`/chat?userId=${previewUser.id}`);
+                  setChatSelectedUser(previewUser);
+                  setChatAnchor(document.body); // Open chat popover
                 }}
                 sx={{
                   borderRadius: 3,
@@ -881,7 +902,46 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           </Box>
         </DialogContent>
       </Dialog>
+      <Popover
+        open={!!chatAnchor}
+        anchorEl={chatAnchor}
+        onClose={() => {
+          setChatAnchor(null);
+          setChatSelectedUser(null);
+        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{
+          sx: {
+            p: 0,
+            minWidth: 380,
+            maxWidth: 420,
+            bgcolor: theme => theme.palette.background.paper,
+            borderRadius: 4,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            border: theme => `1px solid ${theme.palette.divider}`,
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: 500 }}>
+          {/* Header */}
+          <Box sx={{ borderBottom: theme => `1px solid ${theme.palette.divider}`, bgcolor: theme => theme.palette.background.default }}>
+            <Box sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" sx={{ color: theme => theme.palette.text.primary, fontWeight: 600 }}>Messages</Typography>
+              <IconButton size="small" onClick={() => {
+                setChatAnchor(null);
+                setChatSelectedUser(null);
+              }} sx={{ color: theme => theme.palette.text.secondary, '&:hover': { color: theme => theme.palette.text.primary } }}>
+                <span style={{ fontSize: 18 }}>✕</span>
+              </IconButton>
+            </Box>
+          </Box>
+          {/* ChatSection content */}
+          <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <ChatSection selectedUser={chatSelectedUser} />
+          </Box>
+        </Box>
+      </Popover>
     </Box>
   );
 };
-export default TopBar;
