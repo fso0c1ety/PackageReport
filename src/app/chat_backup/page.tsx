@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
 import {
   Box,
   Typography,
