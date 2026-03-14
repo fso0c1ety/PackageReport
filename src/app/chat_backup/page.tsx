@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Box,
@@ -15,7 +15,14 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../apiUrl";
 
-export default function UserChatPage() {
+  return (
+    <Suspense fallback={<Box p={4}><Typography>Loading chat...</Typography></Box>}>
+      <InnerUserChatPage />
+    </Suspense>
+  );
+}
+
+function InnerUserChatPage() {
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
   const [messages, setMessages] = useState([]);
