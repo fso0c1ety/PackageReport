@@ -13,8 +13,8 @@ import {
   Button
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../apiUrl";
 
+export default function UserChatPage() {
   return (
     <Suspense fallback={<Box p={4}><Typography>Loading chat...</Typography></Box>}>
       <InnerUserChatPage />
