@@ -38,6 +38,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SearchIcon from "@mui/icons-material/Search";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonIcon from "@mui/icons-material/Person";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import GroupIcon from "@mui/icons-material/Group";
@@ -371,6 +372,13 @@ export default function Sidebar({
             label="Home"
             href="/home"
             isActive={pathname === "/home" || pathname === "/"}
+            onClick={onClose}
+          />
+          <SidebarItem
+            icon={<ChatBubbleOutlineIcon fontSize="small" />}
+            label="Chat"
+            href="/chat"
+            isActive={pathname.startsWith("/chat")}
             onClick={onClose}
           />
           <SidebarItem

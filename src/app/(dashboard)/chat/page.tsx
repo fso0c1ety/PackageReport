@@ -177,7 +177,7 @@ function ChatContent() {
         const msg = {
             id: Date.now().toString(),
             text: newMessage,
-            sender_id: currentUser.id,
+            sender_id: currentUser?.id,
             recipient_id: otherUserId,
             timestamp: Date.now()
         };
@@ -265,7 +265,7 @@ function ChatContent() {
                                 conversations.map((conv) => (
                                     <ListItem
                                         key={conv.id}
-                                        onClick={() => router.push(`/chat/?userId=${conv.id}`)}
+                                        onClick={() => router.push(`/chat?userId=${conv.id}`)}
                                         sx={{
                                             px: 2, py: 1.5,
                                             cursor: 'pointer',

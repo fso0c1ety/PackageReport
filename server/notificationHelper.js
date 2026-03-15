@@ -56,4 +56,29 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
     }
 }
 
-module.exports = { sendNotification };
+async function sendDirectNotification(recipientId, title, body, type, data) {
+    try {
+        // 1. Send Push Notification if token exists
+        const tokenRes = await db.query('SELECT fcm_token FROM users WHERE id = $1 AND fcm_token IS NOT NULL', [recipientId]);
+        if (tokenRes.rows.length > 0) {
+            await sendPushNotification([tokenRes.rows[0].fcm_token], title, body, {
+                type: type || 'generic',
+                ...data
+            });
+        }
+
+        // 2. Save In-App Notification
+        await db.query(`
+            INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+        `, [uuidv4(), recipientId, type || 'generic', {
+            subject: title,
+            body: body,
+            ...data
+        }, false]);
+    } catch (e) {
+        console.error('[Notification] Failed to send direct notification:', e);
+    }
+}
+
+module.exports = { sendNotification, sendDirectNotification };

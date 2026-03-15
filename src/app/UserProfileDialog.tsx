@@ -56,7 +56,7 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
 
   const handleMessage = () => {
     onClose();
-    router.push(`/chat/?userId=${user.id}`);
+    router.push(`/chat?userId=${user.id}`);
   };
 
   return (
