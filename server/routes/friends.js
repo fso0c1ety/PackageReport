@@ -15,7 +15,7 @@ router.post('/friends/request', authenticateToken, async (req, res) => {
         const id = uuidv4();
         await db.query(
             'INSERT INTO friends (id, user_id, friend_id, status, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, friend_id) DO NOTHING',
-            [id, userId, friendId, 'pending', Date.now()]
+            [id, userId, friendId, 'pending', new Date()]
         );
         res.json({ success: true });
     } catch (err) {

@@ -66,7 +66,7 @@ router.post('/chats/:userId', authenticateToken, async (req, res) => {
             sender_id: myId,
             recipient_id: otherId,
             text: text,
-            timestamp: Date.now(),
+            timestamp: new Date(),
             read: false
         };
 

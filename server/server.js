@@ -112,7 +112,7 @@ io.on('connection', (socket) => {
         user_id TEXT NOT NULL,
         friend_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'pending',
-        created_at BIGINT NOT NULL,
+        created_at TIMESTAMP NOT NULL,
         UNIQUE(user_id, friend_id)
       );
     `);
