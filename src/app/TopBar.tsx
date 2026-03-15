@@ -144,11 +144,16 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   };
 
   const handleSocialRequest = async (requestId: string, action: 'accept' | 'reject', notifId: string) => {
+    const url = getApiUrl(`friends/requests/${requestId}/${action}`);
+    console.log(`[Social] Calling ${action} on ${url}`);
     try {
-        const res = await authenticatedFetch(getApiUrl(`friends/requests/${requestId}/${action}`), { method: 'POST' });
+        const res = await authenticatedFetch(url, { method: 'POST' });
         if (res.ok) {
             setNotifications(prev => prev.filter(n => n.id !== notifId));
             setUnreadCount(prev => Math.max(0, prev - 1));
+        } else {
+            const errData = await res.json();
+            console.error(`[Social] ${action} failed:`, errData);
         }
     } catch (error) {
         console.error(`Failed to ${action} friend request`, error);
