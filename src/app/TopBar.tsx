@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List, useTheme, Divider } from "@mui/material";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List, useTheme, Divider, alpha } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -21,6 +21,7 @@ import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
+import UserProfileDialog from "./UserProfileDialog";
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -49,8 +50,16 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const theme = useTheme();
   const { toggleTheme, mode } = useThemeContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<null | any>(null);
   const open = Boolean(anchorEl);
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [searchAnchorEl, setSearchAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     // Load from localStorage immediately for fast initial render
@@ -207,6 +216,37 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       }
   };
 
+  // User Search effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+    }
+
+    const timer = setTimeout(async () => {
+        setSearching(true);
+        try {
+            const res = await authenticatedFetch(getApiUrl(`people?q=${encodeURIComponent(searchQuery)}`));
+            if (res.ok) {
+                const data = await res.json();
+                setSearchResults(data);
+            }
+        } catch (err) {
+            console.error("Search failed", err);
+        } finally {
+            setSearching(false);
+        }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleUserClick = (targetUser: any) => {
+      setSelectedUser(targetUser);
+      setProfileOpen(true);
+      setSearchQuery(""); // Clear search after select
+      setSearchResults([]);
+  };
 
   const getNotificationIcon = (type: string) => {
       switch (type) {
@@ -368,11 +408,81 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
         <Box sx={{ width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
 
-        <Tooltip title="Search">
-          <StyledIconButton size="small">
-            <SearchIcon fontSize="small" />
-          </StyledIconButton>
-        </Tooltip>
+        {/* SEARCH INPUT */}
+        <Box sx={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              bgcolor: alpha(theme.palette.text.primary, 0.05),
+              borderRadius: "20px",
+              px: 1.5,
+              py: 0.5,
+              border: "1px solid",
+              borderColor: searchQuery ? theme.palette.primary.main : "transparent",
+              transition: "all 0.2s",
+              width: { xs: 40, sm: 180, md: 240 },
+              overflow: "hidden"
+            }}
+          >
+            <SearchIcon sx={{ fontSize: 18, color: theme.palette.text.secondary, mr: 1 }} />
+            <input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: theme.palette.text.primary,
+                fontSize: "0.8rem",
+                width: "100%",
+                outline: "none",
+              }}
+            />
+          </Box>
+
+          {/* Search Results Dropdown */}
+          {searchResults.length > 0 && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: "120%",
+                left: 0,
+                width: "100%",
+                bgcolor: theme.palette.background.paper,
+                boxShadow: theme.shadows[8],
+                borderRadius: 2,
+                border: `1px solid ${theme.palette.divider}`,
+                zIndex: 1000,
+                maxHeight: 300,
+                overflowY: "auto",
+              }}
+            >
+              <List sx={{ p: 0 }}>
+                {searchResults.map((result) => (
+                  <MenuItem
+                    key={result.id}
+                    onClick={() => handleUserClick(result)}
+                    sx={{ gap: 1.5, py: 1 }}
+                  >
+                    <Avatar
+                      src={getAvatarUrl(result.avatar, result.name)}
+                      sx={{ width: 28, height: 28 }}
+                    />
+                    <Box sx={{ overflow: "hidden" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                        {result.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: "block" }} noWrap>
+                        {result.email}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </List>
+            </Box>
+          )}
+        </Box>
 
         <Tooltip title="Notifications">
           <IconButton 
@@ -602,6 +712,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           </MenuItem>
         </Menu>
       </Box>
+
+      <UserProfileDialog
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        user={selectedUser}
+      />
     </Box>
   );
 };

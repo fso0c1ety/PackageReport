@@ -104,6 +104,18 @@ io.on('connection', (socket) => {
     `);
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;`);
     await db.query(`UPDATE tables SET shared_users = '[]'::jsonb WHERE shared_users IS NULL;`);
+    
+    // Friends table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS friends (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        friend_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at BIGINT NOT NULL,
+        UNIQUE(user_id, friend_id)
+      );
+    `);
 
     // Migration for granular permissions: convert ['id1', 'id2'] to [{userId: 'id1', permission: 'edit'}, ...]
     await db.query(`
@@ -146,11 +158,16 @@ const authRoute = require('./routes/auth');
 const peopleRoute = require('./routes/people');
 const automationRoute = require('./routes/automation');
 const emailerRoute = require('./routes/emailer');
+const friendsRoute = require('./routes/friends');
+const chatsRoute = require('./routes/chats');
+
 // const tableTasksRoute = require('./routes/tableTasks');
 app.use('/api', authRoute);
 app.use('/api', peopleRoute);
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
+app.use('/api', friendsRoute);
+app.use('/api', chatsRoute);
 // Serve uploaded files statically - First try middleware, then fallback or specific handling
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Explicitly handle file serving to debug or catch encoding issues
@@ -1881,6 +1898,24 @@ app.post('/api/notifications/:id/decline', authenticateToken, async (req, res) =
     console.error('Error declining invite:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Invite to table endpoint
+app.post('/api/tables/:tableId/invite', authenticateToken, async (req, res) => {
+    const { tableId } = req.params;
+    const { recipientId, permission } = req.body;
+    if (!recipientId) return res.status(400).json({ error: 'Recipient ID is required' });
+
+    try {
+        const tableRes = await db.query('SELECT name FROM tables WHERE id = $1', [tableId]);
+        if (tableRes.rows.length === 0) return res.status(404).json({ error: 'Table not found' });
+        
+        await createInviteNotification(recipientId, req.user.id, tableId, tableRes.rows[0].name, permission || 'edit');
+        res.json({ success: true, message: 'Invite sent' });
+    } catch (err) {
+        console.error('Error sending invite:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Helper for invite notifications
