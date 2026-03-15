@@ -14,10 +14,22 @@ router.post('/friends/request', authenticateToken, async (req, res) => {
 
     try {
         const id = uuidv4();
-        await db.query(
-            'INSERT INTO friends (id, user_id, friend_id, status, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, friend_id) DO NOTHING',
+        // Use a CTE to ensure we get an ID (either new or existing)
+        const result = await db.query(
+            `WITH ins AS (
+                INSERT INTO friends (id, user_id, friend_id, status, created_at)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (user_id, friend_id) DO NOTHING
+                RETURNING id
+            )
+            SELECT id FROM ins
+            UNION ALL
+            SELECT id FROM friends WHERE user_id = $2 AND friend_id = $3
+            LIMIT 1`,
             [id, userId, friendId, 'pending', new Date()]
         );
+
+        const requestId = result.rows[0].id;
 
         // Trigger Notification
         await sendDirectNotification(
@@ -25,10 +37,10 @@ router.post('/friends/request', authenticateToken, async (req, res) => {
             'New Friend Request',
             `${req.user.name} sent you a friend request.`,
             'friend_request',
-            { friendId: userId, requestId: id }
+            { friendId: userId, requestId: requestId }
         );
 
-        res.json({ success: true });
+        res.json({ success: true, requestId: requestId });
     } catch (err) {
         console.error('Error sending friend request:', err);
         res.status(500).json({ error: 'Internal server error' });
@@ -112,16 +124,20 @@ router.delete('/friends/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// POST /api/friends/requests/:id/accept - Accept friend request (alternative path for TopBar)
 router.post('/friends/requests/:id/accept', authenticateToken, async (req, res) => {
+    console.log(`[SOCIAL] Accept hit for RequestID: ${req.params.id} by UserID: ${req.user.id}`);
     try {
         const result = await db.query(
             'UPDATE friends SET status = \'accepted\' WHERE id = $1 AND friend_id = $2 RETURNING *',
             [req.params.id, req.user.id]
         );
-        if (result.rowCount === 0) return res.status(404).json({ error: 'Friend request not found' });
+        if (result.rowCount === 0) {
+            console.warn(`[SOCIAL] Accept failed: No pending request found with ID ${req.params.id} for recipient ${req.user.id}`);
+            return res.status(404).json({ error: 'Friend request not found' });
+        }
         
         const friendship = result.rows[0];
+        console.log(`[SOCIAL] Friend request ${req.params.id} accepted by ${req.user.id}`);
         await sendDirectNotification(
             friendship.user_id,
             'Friend Request Accepted',
@@ -132,22 +148,25 @@ router.post('/friends/requests/:id/accept', authenticateToken, async (req, res) 
 
         res.json({ success: true });
     } catch (err) {
-        console.error('Error accepting friend request:', err);
+        console.error('[SOCIAL] Error accepting friend request:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// POST /api/friends/requests/:id/reject - Reject friend request (alternative path for TopBar)
 router.post('/friends/requests/:id/reject', authenticateToken, async (req, res) => {
+    console.log(`[SOCIAL] Reject hit for RequestID: ${req.params.id} by UserID: ${req.user.id}`);
     try {
         const result = await db.query(
             'DELETE FROM friends WHERE id = $1 AND (user_id = $2 OR friend_id = $2)',
             [req.params.id, req.user.id]
         );
-        if (result.rowCount === 0) return res.status(404).json({ error: 'Connection not found' });
+        if (result.rowCount === 0) {
+            console.warn(`[SOCIAL] Reject failed: No connection found with ID ${req.params.id}`);
+            return res.status(404).json({ error: 'Connection not found' });
+        }
         res.json({ success: true });
     } catch (err) {
-        console.error('Error removing connection:', err);
+        console.error('[SOCIAL] Error removing connection:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
