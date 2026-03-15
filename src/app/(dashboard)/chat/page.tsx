@@ -8,7 +8,6 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 import dayjs from "dayjs";
-import AppShell from "../../AppShell";
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
     constructor(props: any) {
@@ -157,8 +156,7 @@ function ChatContent() {
     };
 
     return (
-        <AppShell>
-            <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: theme.palette.background.default }}>
+        <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: theme.palette.background.default }}>
                 {/* Conversations List */}
                 <Box sx={{
                     width: { xs: otherUserId ? 0 : '100%', sm: 320 },
@@ -301,7 +299,6 @@ function ChatContent() {
                     )}
                 </Box>
             </Box>
-        </AppShell>
     );
 }
 

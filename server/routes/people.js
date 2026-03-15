@@ -50,4 +50,20 @@ router.post('/people', async (req, res) => {
   }
 });
 
+// GET a specific person by ID
+router.get('/people/:id', async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, name, email, avatar FROM users WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = result.rows[0];
+    const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
+    res.json({ ...user, avatar: avatarUrl });
+  } catch (err) {
+    console.error('Error fetching person details:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
