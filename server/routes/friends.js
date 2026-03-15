@@ -24,12 +24,30 @@ router.post('/friends/request', authenticateToken, async (req, res) => {
     }
 });
 
+// GET /api/friends/pending - List incoming pending requests
+router.get('/friends/pending', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await db.query(
+            `SELECT f.id as request_id, u.id as user_id, u.name, u.email, u.avatar, f.created_at
+             FROM friends f
+             JOIN users u ON f.user_id = u.id
+             WHERE f.friend_id = $1 AND f.status = 'pending'`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching pending requests:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // GET /api/friends - List all friends
 router.get('/friends', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {
         const result = await db.query(
-            `SELECT f.*, u.name, u.email, u.avatar 
+            `SELECT f.id as friendship_id, u.id, u.name, u.email, u.avatar 
              FROM friends f
              JOIN users u ON (f.friend_id = u.id AND f.user_id = $1) OR (f.user_id = u.id AND f.friend_id = $1)
              WHERE (f.user_id = $1 OR f.friend_id = $1) AND f.status = 'accepted'`,
@@ -53,6 +71,21 @@ router.put('/friends/:id/accept', authenticateToken, async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('Error accepting friend request:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// DELETE /api/friends/:id - Reject or remove friend
+router.delete('/friends/:id', authenticateToken, async (req, res) => {
+    try {
+        const result = await db.query(
+            'DELETE FROM friends WHERE id = $1 AND (user_id = $2 OR friend_id = $2)',
+            [req.params.id, req.user.id]
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: 'Connection not found' });
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error removing connection:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
