@@ -47,6 +47,7 @@ type Notification = {
     created_at: string;
     sender_name?: string;
     sender_avatar?: string;
+    sender_id?: string;
 };
 
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
@@ -184,8 +185,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       const { type, data } = notif;
       if (!data) return;
 
-      if (type === 'friend_request' || type === 'friend_accepted') {
-          router.push('/chat');
+      if (type === 'friend_request' || type === 'friend_accepted' || type === 'direct_message') {
+          const targetUserId = type === 'direct_message' ? (data.senderId || notif.sender_id) : null;
+          router.push(targetUserId ? `/chat?userId=${targetUserId}` : '/chat');
           return;
       }
 

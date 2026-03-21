@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const authenticateToken = require('../middleware/authenticateToken');
+const { sendPushNotification } = require('../firebase');
 
 // GET /api/chats - Get all distinct conversations for current user
 router.get('/chats', authenticateToken, async (req, res) => {
@@ -74,6 +75,28 @@ router.post('/chats/:userId', authenticateToken, async (req, res) => {
             'INSERT INTO direct_messages (id, sender_id, recipient_id, text, timestamp, read) VALUES ($1, $2, $3, $4, $5, $6)',
             [newMessage.id, newMessage.sender_id, newMessage.recipient_id, newMessage.text, newMessage.timestamp, newMessage.read]
         );
+
+        // 1. Create in-app notification
+        const notifId = uuidv4();
+        await db.query(
+            'INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
+            [notifId, newMessage.recipient_id, newMessage.sender_id, 'direct_message', JSON.stringify({ text: newMessage.text }), false]
+        );
+
+        // 2. Fetch recipient FCM token and sender name
+        const recipientRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [otherId]);
+        const senderRes = await db.query('SELECT name FROM users WHERE id = $1', [myId]);
+        const token = recipientRes.rows[0]?.fcm_token;
+        const senderName = senderRes.rows[0]?.name || 'Someone';
+
+        if (token) {
+            await sendPushNotification(
+                [token],
+                'New Message',
+                `${senderName}: ${newMessage.text}`,
+                { type: 'direct_message', senderId: myId }
+            );
+        }
 
         res.json(newMessage);
     } catch (err) {
