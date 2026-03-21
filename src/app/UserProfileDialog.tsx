@@ -98,7 +98,7 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
           </IconButton>
         </Box>
 
-        <DialogContent sx={{ pt: 0, pb: 4, textAlign: "center", position: "relative" }}>
+        <DialogContent sx={{ pt: 0, pb: 4, textAlign: "center", position: "relative", overflow: "visible" }}>
           <Avatar
             src={getAvatarUrl(user.avatar, user.name)}
             sx={{
