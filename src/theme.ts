@@ -12,7 +12,7 @@ const baseTheme: any = {
     button: { textTransform: 'none', fontWeight: 600 },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 12,
   },
   components: {
     MuiButton: {
@@ -29,13 +29,27 @@ const baseTheme: any = {
     },
     MuiPaper: {
       styleOverrides: {
-        root: {
+        root: ({ theme }: { theme: any }) => ({
           backgroundImage: 'none',
-        },
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)', // For Safari support
+          borderRadius: 16,
+          border: `1px solid ${theme.palette.divider}`,
+          boxShadow: theme.palette.mode === 'dark' ? '0 40px 100px rgba(0,0,0,0.8)' : '0 40px 100px rgba(0,0,0,0.1)',
+        }),
       },
     },
     MuiCssBaseline: {
-      styleOverrides: `
+      styleOverrides: (themeParam: any) => `
+        body {
+          background-image: ${
+            themeParam.palette.mode === 'dark'
+              ? 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.02) 1px, transparent 0)'
+              : 'radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0)'
+          };
+          background-size: 24px 24px;
+        }
+
         /* Scrollbar styles */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -61,14 +75,14 @@ export const lightTheme = createTheme({
       contrastText: '#ffffff',
     },
     background: {
-      default: '#F3F4F6', // Gray 100
-      paper: '#FFFFFF',
+      default: '#F8FAFC', // Slate 50 (Slightly cooler backboard)
+      paper: 'rgba(255, 255, 255, 0.85)', // Glassy white
     },
     text: {
-      primary: '#111827', // Gray 900
-      secondary: '#6B7280', // Gray 500
+      primary: '#0F172A', // Slate 900
+      secondary: '#64748B', // Slate 500
     },
-    divider: '#E5E7EB', // Gray 200
+    divider: 'rgba(0, 0, 0, 0.06)', // Subtle dark line
   },
 });
 
@@ -77,7 +91,7 @@ export const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#6366F1', // Indigo 500 (Brighter for dark mode)
+      main: '#6366F1', // Indigo 500
       light: '#818CF8',
       dark: '#4F46E5',
       contrastText: '#ffffff',
@@ -87,14 +101,14 @@ export const darkTheme = createTheme({
       contrastText: '#ffffff',
     },
     background: {
-      default: '#0F172A', // Slate 900
-      paper: '#1E293B',   // Slate 800
+      default: '#0A0B10', // Deep obsidian background
+      paper: 'rgba(18, 18, 30, 0.6)', // Glassy deep blue/black
     },
     text: {
-      primary: '#F9FAFB', // Gray 50
-      secondary: '#9CA3AF', // Gray 400
+      primary: '#F8FAFC', // Slate 50
+      secondary: '#94A3B8', // Slate 400
     },
-    divider: 'rgba(255, 255, 255, 0.08)', // Subtle white
+    divider: 'rgba(255, 255, 255, 0.05)', // Subtle white line
   },
 });
 

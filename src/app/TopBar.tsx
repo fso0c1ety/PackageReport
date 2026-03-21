@@ -337,7 +337,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <Box component="header" sx={{ width: "100%", height: { xs: 60, sm: 72 }, bgcolor: theme.palette.background.default, display: "flex", alignItems: "center", borderBottom: `1px solid ${theme.palette.divider}`, px: { xs: 2, md: 4, lg: 6 }, justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+    <Box component="header" sx={{ width: "100%", height: { xs: 60, sm: 72 }, bgcolor: alpha(theme.palette.background.default, 0.6), backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: "flex", alignItems: "center", borderBottom: `1px solid ${theme.palette.divider}`, px: { xs: 2, md: 4, lg: 6 }, justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         {onMenuClick && (
           <IconButton onClick={onMenuClick} sx={{ color: theme.palette.text.primary, display: { md: 'none' }, mr: 1 }}>

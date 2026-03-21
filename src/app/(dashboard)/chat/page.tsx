@@ -198,7 +198,7 @@ function ChatContent() {
     };
 
     return (
-        <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: theme.palette.mode === 'dark' ? '#0a0a0f' : '#f4f7fc' }}>
+        <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: 'transparent' }}>
                 {/* Conversations / Social List */}
                 <Box sx={{
                     width: { xs: otherUserId ? 0 : '100%', sm: 340 },
