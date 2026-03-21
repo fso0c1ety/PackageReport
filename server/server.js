@@ -1584,9 +1584,9 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                          for (const u of matchedUsers) {
                              // Add to internal notifications table (shows in top bar)
                              await db.query(`
-                                 INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
-                                 VALUES ($1, $2, $3, $4, $5, NOW())
-                             `, [uuidv4(), u.id, 'automation', {
+                                 INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
+                                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                             `, [uuidv4(), u.id, null, 'automation', {
                                  subject: subject,
                                  body: textSummary, // Pass details for UI if needed
                                  tableName: table.name,
@@ -2019,9 +2019,9 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
         // 2. Save In-App Notifications
         for (const recipientId of recipientsArray) {
             await db.query(`
-                INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
-            `, [uuidv4(), recipientId, 'chat_message', {
+                INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            `, [uuidv4(), recipientId, req.user.id, 'chat_message', {
                 subject: `New message in ${tableName}`,
                 body: `${newMessage.sender}: ${newMessage.text}`,
                 tableName: tableName,
