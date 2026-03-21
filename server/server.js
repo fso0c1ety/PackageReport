@@ -1805,9 +1805,11 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
   try {
     // Simplified query to avoid UUID casting errors
     const result = await db.query(`
-      SELECT * FROM notifications 
-      WHERE recipient_id = $1 
-      ORDER BY read ASC, created_at DESC 
+      SELECT n.*, u.name as sender_name, u.avatar as sender_avatar
+      FROM notifications n
+      LEFT JOIN users u ON n.sender_id = u.id
+      WHERE n.recipient_id = $1 
+      ORDER BY n.read ASC, n.created_at DESC 
       LIMIT 50
     `, [req.user.id]);
     

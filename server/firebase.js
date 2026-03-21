@@ -59,17 +59,18 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
 
   try {
     const response = await getMessaging().sendEachForMulticast(message);
-    console.log('[FCM] Successfully sent message:', response.successCount);
-    if (response.failureCount > 0) {
-      const failedTokens = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          failedTokens.push(tokens[idx]);
-          console.error('[FCM] Failed for token:', tokens[idx], resp.error);
+    console.log(`[FCM] Attempted to send to ${tokens.length} tokens. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+    
+    response.responses.forEach((resp, idx) => {
+      if (resp.success) {
+        console.log(`[FCM] Token ${idx} success: ${resp.messageId}`);
+      } else {
+        console.error(`[FCM] Token ${idx} failure:`, resp.error.code, resp.error.message);
+        if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+          console.warn(`[FCM] Token ${idx} is stale and should be removed.`);
         }
-      });
-      // Here you could remove failed tokens from your DB if needed
-    }
+      }
+    });
     return response;
   } catch (error) {
     console.error('[FCM] Error sending message:', error);

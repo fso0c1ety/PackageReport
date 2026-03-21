@@ -45,6 +45,8 @@ type Notification = {
     data: any;
     read: boolean;
     created_at: string;
+    sender_name?: string;
+    sender_avatar?: string;
 };
 
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
@@ -262,7 +264,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
               <>
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Table Invite</Typography>
                   <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
-                    User requested to share table <strong>{data.tableName}</strong> with you.
+                    <strong>{notif.sender_name || 'Someone'}</strong> requested to share table <strong>{data.tableName}</strong> with you.
                   </Box>
               </>
           );
@@ -395,7 +397,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                     notifications.map((notif) => (
                         <MenuItem key={notif.id} onClick={() => handleNotificationClick(notif)} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, py: 2, borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'normal', transition: 'all 0.2s', '&:hover': { bgcolor: theme.palette.action.hover } }}>
                             <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: getNotificationColor(notif.type), color: '#fff', border: `2px solid ${theme.palette.background.paper}` }}>
+                                <Avatar src={getAvatarUrl(notif.sender_avatar, notif.sender_name)} sx={{ width: 32, height: 32, bgcolor: getNotificationColor(notif.type), color: '#fff', border: `2px solid ${theme.palette.background.paper}` }}>
                                     {getNotificationIcon(notif.type)}
                                 </Avatar>
                                 <Box sx={{ flex: 1 }}>
