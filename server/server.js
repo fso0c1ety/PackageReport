@@ -1251,7 +1251,7 @@ app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateTok
 app.get('/api/tables/:tableId/tasks', async (req, res) => {
   try {
     const result = await db.query(
-      "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::integer ASC NULLS LAST, id ASC",
+      "SELECT * FROM rows WHERE table_id = $1 ORDER BY created_at DESC, id ASC",
       [req.params.tableId]
     );
     res.json(result.rows);
@@ -1286,7 +1286,7 @@ app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
     };
     
     await db.query(
-      'INSERT INTO rows (id, table_id, values, created_by) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO rows (id, table_id, values, created_by, created_at) VALUES ($1, $2, $3, $4, NOW())',
       [newTask.id, newTask.table_id, JSON.stringify(newTask.values), newTask.created_by]
     );
     console.log(`Task created for table ${req.params.tableId}:`, newTask);

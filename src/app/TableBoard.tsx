@@ -1124,6 +1124,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [editingLabelsColId, setEditingLabelsColId] = useState<string | null>(null);
   const [labelEdits, setLabelEdits] = useState<{ [colId: string]: { [idx: number]: string } }>({});
   const [rows, setRows] = useState<Row[]>(initialRows);
+  const [visibleLimit, setVisibleLimit] = useState(10);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [editValue, setEditValue] = useState<any>("");
   const editValueRef = React.useRef(editValue);
@@ -1546,7 +1547,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       body: JSON.stringify(newTask),
     });
     const created = await res.json();
-    setRows((prev) => [...prev, created]);
+    setRows((prev) => [created, ...prev]);
     setLoading(false);
   };
 
@@ -5296,7 +5297,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                     return (
                       <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                        {filteredRows.map((row, index) => {
+                        {filteredRows.slice(0, visibleLimit).map((row, index) => {
                           // Calculate background color based on status
                           let rowBg = theme.palette.background.default;
                           let rowHoverBg = theme.palette.action.hover;
@@ -5781,8 +5782,25 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 </TableRow>
                               )}
                             </Draggable>
-                          )
+                          );
                         })}
+                        {filteredRows.length > visibleLimit && (
+                          <TableRow>
+                            <TableCell colSpan={columns.length + 2} sx={{ py: 2, textAlign: 'center', borderBottom: 'none' }}>
+                              <Button 
+                                onClick={() => setVisibleLimit(prev => prev + 10)}
+                                variant="outlined"
+                                sx={{ 
+                                  color: theme.palette.primary.main, 
+                                  borderColor: theme.palette.primary.main,
+                                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                                }}
+                              >
+                                Load More ({filteredRows.length - visibleLimit} remaining)
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )}
                         {provided.placeholder}
                       </TableBody>
                     )
