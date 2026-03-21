@@ -198,21 +198,38 @@ function ChatContent() {
     };
 
     return (
-        <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: theme.palette.background.default }}>
+        <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: theme.palette.mode === 'dark' ? '#0a0a0f' : '#f4f7fc' }}>
                 {/* Conversations / Social List */}
                 <Box sx={{
-                    width: { xs: otherUserId ? 0 : '100%', sm: 320 },
+                    width: { xs: otherUserId ? 0 : '100%', sm: 340 },
                     display: { xs: otherUserId ? 'none' : 'block', sm: 'block' },
                     borderRight: `1px solid ${theme.palette.divider}`,
-                    bgcolor: alpha(theme.palette.background.paper, 0.8),
+                    bgcolor: theme.palette.mode === 'dark' ? alpha('#13141f', 0.8) : alpha('#ffffff', 0.8),
                     backdropFilter: 'blur(20px)',
-                    overflowY: 'auto'
+                    overflowY: 'auto',
+                    boxShadow: '2px 0 10px rgba(0,0,0,0.02)',
+                    zIndex: 10,
+                    '&::-webkit-scrollbar': { width: 6 },
+                    '&::-webkit-scrollbar-track': { background: 'transparent' },
+                    '&::-webkit-scrollbar-thumb': { background: alpha(theme.palette.text.primary, 0.1), borderRadius: 3 },
+                    '&::-webkit-scrollbar-thumb:hover': { background: alpha(theme.palette.text.primary, 0.2) }
                 }}>
-                    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: -0.5 }}>Chat</Typography>
+                    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                        <Typography variant="h5" fontWeight={800} sx={{ 
+                            letterSpacing: -0.5,
+                            background: theme.palette.mode === 'dark' ? 'linear-gradient(45deg, #fff, #a5a5b0)' : 'linear-gradient(45deg, #1a1a24, #4a4a5a)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                        }}>Direct Messages</Typography>
                         
                         {/* Tab Switcher */}
-                        <Box sx={{ display: 'flex', bgcolor: alpha(theme.palette.text.primary, 0.05), borderRadius: 3, p: 0.5 }}>
+                        <Box sx={{ 
+                            display: 'flex', 
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)', 
+                            borderRadius: 3, 
+                            p: 0.5,
+                            border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`
+                        }}>
                             <Button 
                                 fullWidth 
                                 size="small"
@@ -221,10 +238,11 @@ function ChatContent() {
                                     borderRadius: 2.5, 
                                     textTransform: 'none',
                                     fontWeight: 600,
-                                    bgcolor: activeTab === "chats" ? theme.palette.background.paper : 'transparent',
-                                    color: activeTab === "chats" ? theme.palette.primary.main : theme.palette.text.secondary,
-                                    boxShadow: activeTab === "chats" ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                                    '&:hover': { bgcolor: activeTab === "chats" ? theme.palette.background.paper : alpha(theme.palette.text.primary, 0.05) }
+                                    bgcolor: activeTab === "chats" ? (theme.palette.mode === 'dark' ? '#2d2e3d' : '#ffffff') : 'transparent',
+                                    color: activeTab === "chats" ? (theme.palette.mode === 'dark' ? '#fff' : '#1a1a24') : theme.palette.text.secondary,
+                                    boxShadow: activeTab === "chats" ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': { bgcolor: activeTab === "chats" ? (theme.palette.mode === 'dark' ? '#3d3e4d' : '#f0f0f0') : alpha(theme.palette.text.primary, 0.05) }
                                 }}
                             >
                                 Messages
@@ -237,13 +255,14 @@ function ChatContent() {
                                     borderRadius: 2.5, 
                                     textTransform: 'none',
                                     fontWeight: 600,
-                                    bgcolor: activeTab === "social" ? theme.palette.background.paper : 'transparent',
-                                    color: activeTab === "social" ? theme.palette.primary.main : theme.palette.text.secondary,
-                                    boxShadow: activeTab === "social" ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                                    '&:hover': { bgcolor: activeTab === "social" ? theme.palette.background.paper : alpha(theme.palette.text.primary, 0.05) }
+                                    bgcolor: activeTab === "social" ? (theme.palette.mode === 'dark' ? '#2d2e3d' : '#ffffff') : 'transparent',
+                                    color: activeTab === "social" ? (theme.palette.mode === 'dark' ? '#fff' : '#1a1a24') : theme.palette.text.secondary,
+                                    boxShadow: activeTab === "social" ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': { bgcolor: activeTab === "social" ? (theme.palette.mode === 'dark' ? '#3d3e4d' : '#f0f0f0') : alpha(theme.palette.text.primary, 0.05) }
                                 }}
                             >
-                                <Badge badgeContent={pendingRequests.length} color="error" variant="dot" invisible={pendingRequests.length === 0}>
+                                <Badge badgeContent={pendingRequests.length} color="error" variant="dot" invisible={pendingRequests.length === 0} sx={{ '& .MuiBadge-dot': { right: -4, top: 4 } }}>
                                     Social
                                 </Badge>
                             </Button>
@@ -267,24 +286,42 @@ function ChatContent() {
                                         key={conv.id}
                                         onClick={() => router.push(`/chat?userId=${conv.id}`)}
                                         sx={{
-                                            px: 2, py: 1.5,
+                                            px: 3, py: 2,
                                             cursor: 'pointer',
-                                            bgcolor: otherUserId === conv.id ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
-                                            '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.04) },
-                                            transition: 'background 0.2s',
-                                            borderLeft: otherUserId === conv.id ? `4px solid ${theme.palette.primary.main}` : '4px solid transparent'
+                                            bgcolor: otherUserId === conv.id ? (theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)') : 'transparent',
+                                            '&:hover': { bgcolor: otherUserId === conv.id ? (theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)') : alpha(theme.palette.action.hover, 0.08) },
+                                            transition: 'all 0.2s',
+                                            borderLeft: otherUserId === conv.id ? `4px solid #6366f1` : '4px solid transparent',
+                                            position: 'relative',
+                                            '&::after': {
+                                                content: '""',
+                                                position: 'absolute',
+                                                bottom: 0,
+                                                left: 80,
+                                                right: 24,
+                                                height: '1px',
+                                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                                                display: otherUserId === conv.id ? 'none' : 'block'
+                                            }
                                         }}
                                     >
-                                        <Avatar src={conv.avatar} sx={{ mr: 2, width: 44, height: 44, border: `2px solid ${theme.palette.background.paper}` }} />
+                                        <Badge
+                                            overlap="circular"
+                                            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                                            variant="dot"
+                                            sx={{ '& .MuiBadge-dot': { bgcolor: '#10b981', border: `2px solid ${theme.palette.background.paper}`, width: 12, height: 12, borderRadius: '50%' } }}
+                                        >
+                                            <Avatar src={conv.avatar} sx={{ mr: 2, width: 48, height: 48, border: `2px solid ${theme.palette.background.paper}`, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+                                        </Badge>
                                         <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                                <Typography variant="subtitle2" noWrap fontWeight={700}>{conv.name}</Typography>
-                                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+                                                <Typography variant="subtitle2" noWrap fontWeight={700} sx={{ color: theme.palette.text.primary }}>{conv.name}</Typography>
+                                                <Typography variant="caption" sx={{ color: theme.palette.text.disabled, fontSize: '0.7rem', fontWeight: 500 }}>
                                                     {dayjs(conv.timestamp).format('HH:mm')}
                                                 </Typography>
                                             </Box>
-                                            <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.75rem', opacity: 0.8 }}>
-                                                {conv.last_message}
+                                            <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                                                {conv.last_message || "No messages yet"}
                                             </Typography>
                                         </Box>
                                     </ListItem>
@@ -378,55 +415,127 @@ function ChatContent() {
                     flexGrow: 1,
                     display: { xs: otherUserId ? 'flex' : 'none', sm: 'flex' },
                     flexDirection: 'column',
-                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : '#f8f9fa'
+                    bgcolor: 'transparent',
+                    backgroundImage: theme.palette.mode === 'dark' 
+                        ? 'radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 70%)' 
+                        : 'radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.03) 0%, transparent 70%)',
+                    position: 'relative'
                 }}>
                     {!otherUserId ? (
-                        <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2, p: 4, textAlign: 'center' }}>
-                            <Avatar sx={{ width: 80, height: 80, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                                <ChatBubbleOutlineIcon sx={{ fontSize: 40 }} />
-                            </Avatar>
+                        <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 3, p: 4, textAlign: 'center' }}>
+                            <Box sx={{ 
+                                width: 100, height: 100, 
+                                borderRadius: '50%', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: theme.palette.mode === 'dark' ? 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(99,102,241,0.05))' : 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.02))',
+                                boxShadow: theme.palette.mode === 'dark' ? 'inset 0 0 20px rgba(99,102,241,0.1)' : 'none',
+                                border: `1px solid ${alpha('#6366f1', 0.2)}`
+                            }}>
+                                <ChatBubbleOutlineIcon sx={{ fontSize: 40, color: '#6366f1' }} />
+                            </Box>
                             <Box>
-                                <Typography variant="h6" fontWeight={600}>Your Messages</Typography>
-                                <Typography variant="body2" color="text.secondary">Select a user to start a private conversation</Typography>
+                                <Typography variant="h5" fontWeight={700} sx={{ mb: 1, color: theme.palette.text.primary }}>Your Messages</Typography>
+                                <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 300, mx: 'auto' }}>Select a user from the sidebar to start a private conversation</Typography>
                             </Box>
                         </Box>
                     ) : (
                         <>
                             {/* Header */}
-                            <Paper sx={{ p: { xs: 1.5, sm: 2 }, display: 'flex', alignItems: 'center', gap: 2, borderBottom: `1px solid ${theme.palette.divider}`, borderRadius: 0, bgcolor: theme.palette.background.paper }} elevation={0}>
-                                <IconButton sx={{ display: { xs: 'flex', sm: 'none' } }} onClick={() => router.push('/chat')}>
+                            <Paper sx={{ 
+                                p: { xs: 1.5, sm: 2.5 }, 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 2.5, 
+                                borderBottom: `1px solid ${theme.palette.divider}`, 
+                                borderRadius: 0, 
+                                bgcolor: theme.palette.mode === 'dark' ? alpha('#13141f', 0.9) : alpha('#ffffff', 0.9),
+                                backdropFilter: 'blur(10px)',
+                                zIndex: 10,
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+                            }} elevation={0}>
+                                <IconButton sx={{ display: { xs: 'flex', sm: 'none' }, bgcolor: alpha(theme.palette.text.primary, 0.05) }} onClick={() => router.push('/chat')}>
                                     <ArrowBackIcon />
                                 </IconButton>
-                                <Avatar src={otherUser?.avatar} />
+                                <Badge
+                                    overlap="circular"
+                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                                    variant="dot"
+                                    sx={{ '& .MuiBadge-dot': { bgcolor: '#10b981', border: `2px solid ${theme.palette.background.paper}`, width: 12, height: 12, borderRadius: '50%' } }}
+                                >
+                                    <Avatar src={otherUser?.avatar} sx={{ width: 48, height: 48, border: `2px solid ${theme.palette.background.paper}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }} />
+                                </Badge>
                                 <Box>
-                                    <Typography variant="subtitle1" fontWeight={600}>{otherUser?.name || "Loading..."}</Typography>
-                                    <Typography variant="caption" color="text.secondary">{otherUser?.email}</Typography>
+                                    <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>{otherUser?.name || "Loading..."}</Typography>
+                                    <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Box component="span" sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#10b981', display: 'inline-block' }} /> Online
+                                    </Typography>
                                 </Box>
                             </Paper>
-
+                            
                             {/* Messages */}
-                            <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <Box sx={{ 
+                                flexGrow: 1, 
+                                overflowY: 'auto', 
+                                p: { xs: 2, sm: 4 }, 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: 2.5,
+                                '&::-webkit-scrollbar': { width: 6 },
+                                '&::-webkit-scrollbar-track': { background: 'transparent' },
+                                '&::-webkit-scrollbar-thumb': { background: alpha(theme.palette.text.primary, 0.1), borderRadius: 3 },
+                            }}>
                                 {loading && messages.length === 0 ? (
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress size={24} /></Box>
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress size={24} sx={{ color: '#6366f1' }} /></Box>
                                 ) : (
                                     messages.map((msg, idx) => {
                                         const isMe = msg.sender_id === currentUser?.id;
+                                        const showAvatar = !isMe && (idx === messages.length - 1 || messages[idx + 1]?.sender_id === currentUser?.id);
+                                        
                                         return (
-                                            <Box key={msg.id || idx} sx={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                                                <Paper sx={{
-                                                    p: 1.5,
-                                                    bgcolor: isMe ? theme.palette.primary.main : alpha(theme.palette.background.paper, 0.9),
-                                                    backdropFilter: 'blur(10px)',
-                                                    color: isMe ? '#fff' : theme.palette.text.primary,
-                                                    borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                                                    boxShadow: isMe ? '0 4px 12px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
-                                                    border: isMe ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.5)}`
-                                                }}>
-                                                    <Typography variant="body2" sx={{ wordBreak: 'break-word', lineHeight: 1.6, fontSize: '0.9rem' }}>{msg.text}</Typography>
-                                                </Paper>
-                                                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: isMe ? 'right' : 'left', color: theme.palette.text.disabled }}>
-                                                    {dayjs(msg.timestamp).format('HH:mm')}
-                                                </Typography>
+                                            <Box key={msg.id || idx} sx={{ 
+                                                display: 'flex', 
+                                                justifyContent: isMe ? 'flex-end' : 'flex-start',
+                                                alignItems: 'flex-end',
+                                                gap: 1.5,
+                                                mb: 0.5
+                                            }}>
+                                                {!isMe && (
+                                                    <Avatar 
+                                                        src={otherUser?.avatar} 
+                                                        sx={{ 
+                                                            width: 28, height: 28, 
+                                                            opacity: showAvatar ? 1 : 0,
+                                                            visibility: showAvatar ? 'visible' : 'hidden' 
+                                                        }} 
+                                                    />
+                                                )}
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+                                                    <Box sx={{
+                                                        p: 1.8,
+                                                        px: 2.2,
+                                                        background: isMe 
+                                                            ? 'linear-gradient(135deg, #6366f1, #4f46e5)' 
+                                                            : (theme.palette.mode === 'dark' ? '#1f202e' : '#ffffff'),
+                                                        color: isMe ? '#ffffff' : theme.palette.text.primary,
+                                                        borderRadius: isMe ? '24px 24px 4px 24px' : '24px 24px 24px 4px',
+                                                        boxShadow: isMe 
+                                                            ? '0 8px 16px rgba(99, 102, 241, 0.2), inset 0 2px 4px rgba(255,255,255,0.1)' 
+                                                            : '0 4px 12px rgba(0,0,0,0.04), border 1px solid rgba(0,0,0,0.02)',
+                                                        border: isMe ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.4)}`,
+                                                        position: 'relative',
+                                                        transformOrigin: isMe ? 'bottom right' : 'bottom left',
+                                                        animation: 'bubbleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                                                        '@keyframes bubbleIn': {
+                                                            '0%': { opacity: 0, transform: 'scale(0.8)' },
+                                                            '100%': { opacity: 1, transform: 'scale(1)' }
+                                                        }
+                                                    }}>
+                                                        <Typography variant="body1" sx={{ wordBreak: 'break-word', lineHeight: 1.5, fontSize: '0.95rem' }}>{msg.text}</Typography>
+                                                    </Box>
+                                                    <Typography variant="caption" sx={{ mt: 0.8, px: 1, color: theme.palette.text.disabled, fontSize: '0.7rem', fontWeight: 500 }}>
+                                                        {dayjs(msg.timestamp).format('h:mm A')}
+                                                    </Typography>
+                                                </Box>
                                             </Box>
                                         );
                                     })
@@ -435,31 +544,70 @@ function ChatContent() {
                             </Box>
 
                             {/* Input */}
-                            <Box sx={{ p: 2, bgcolor: theme.palette.background.paper, borderTop: `1px solid ${theme.palette.divider}` }}>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Box sx={{ 
+                                p: { xs: 2, sm: 3 }, 
+                                bgcolor: theme.palette.mode === 'dark' ? alpha('#13141f', 0.9) : alpha('#ffffff', 0.9), 
+                                backdropFilter: 'blur(10px)',
+                                borderTop: `1px solid ${theme.palette.divider}`,
+                                zIndex: 10
+                            }}>
+                                <Box sx={{ 
+                                    display: 'flex', 
+                                    gap: 1.5, 
+                                    alignItems: 'flex-end',
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8f9fa',
+                                    borderRadius: '24px',
+                                    p: 1,
+                                    pl: 2.5,
+                                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)',
+                                    transition: 'border-color 0.3s',
+                                    '&:focus-within': {
+                                        borderColor: '#6366f1'
+                                    }
+                                }}>
                                     <TextField
                                         fullWidth
-                                        size="small"
-                                        placeholder="Type a message..."
+                                        variant="standard"
+                                        placeholder="Message..."
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
                                         multiline
-                                        maxRows={4}
-                                        sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                                borderRadius: 3,
-                                                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#f1f3f4'
+                                        maxRows={5}
+                                        InputProps={{
+                                            disableUnderline: true,
+                                            sx: { 
+                                                py: 1, 
+                                                fontSize: '0.95rem',
+                                                '&::placeholder': { color: theme.palette.text.disabled, opacity: 1 }
                                             }
                                         }}
                                     />
                                     <IconButton
-                                        color="primary"
                                         onClick={handleSendMessage}
                                         disabled={!newMessage.trim()}
-                                        sx={{ alignSelf: 'flex-end', bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
+                                        sx={{ 
+                                            mb: 0.5,
+                                            mr: 0.5,
+                                            bgcolor: newMessage.trim() ? '#6366f1' : alpha(theme.palette.text.primary, 0.05),
+                                            color: newMessage.trim() ? '#fff' : theme.palette.text.disabled,
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            transform: newMessage.trim() ? 'scale(1)' : 'scale(0.95)',
+                                            '&:hover': { 
+                                                bgcolor: newMessage.trim() ? '#4f46e5' : alpha(theme.palette.text.primary, 0.08),
+                                                transform: newMessage.trim() ? 'scale(1.05)' : 'scale(0.95)'
+                                            },
+                                            width: 40,
+                                            height: 40
+                                        }}
                                     >
-                                        <SendIcon />
+                                        <SendIcon sx={{ fontSize: 20, ml: newMessage.trim() ? 0.5 : 0 }} />
                                     </IconButton>
                                 </Box>
                             </Box>
