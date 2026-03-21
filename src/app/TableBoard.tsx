@@ -1124,7 +1124,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [editingLabelsColId, setEditingLabelsColId] = useState<string | null>(null);
   const [labelEdits, setLabelEdits] = useState<{ [colId: string]: { [idx: number]: string } }>({});
   const [rows, setRows] = useState<Row[]>(initialRows);
-  const [visibleLimit, setVisibleLimit] = useState(10);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [editValue, setEditValue] = useState<any>("");
   const editValueRef = React.useRef(editValue);
@@ -5108,7 +5107,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       {
         workspaceView === 'table' ? (
           <DragDropContext onDragEnd={onDragEnd}>
-            <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none', overflowX: 'auto', position: 'relative' }}>
+            <TableContainer component={Paper} sx={{ 
+              bgcolor: 'transparent', 
+              boxShadow: 'none', 
+              overflowX: 'auto', 
+              overflowY: 'auto',
+              maxHeight: '600px', // Roughly 10-12 tasks
+              position: 'relative',
+              '&::-webkit-scrollbar': { width: 8 },
+              '&::-webkit-scrollbar-track': { background: 'transparent' },
+              '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
+              '&::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
+            }}>
               <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
                 <TableHead>
                   <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
@@ -5297,7 +5307,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                     return (
                       <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                        {filteredRows.slice(0, visibleLimit).map((row, index) => {
+                        {filteredRows.map((row, index) => {
                           // Calculate background color based on status
                           let rowBg = theme.palette.background.default;
                           let rowHoverBg = theme.palette.action.hover;
@@ -5784,23 +5794,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             </Draggable>
                           );
                         })}
-                        {filteredRows.length > visibleLimit && (
-                          <TableRow>
-                            <TableCell colSpan={columns.length + 2} sx={{ py: 2, textAlign: 'center', borderBottom: 'none' }}>
-                              <Button 
-                                onClick={() => setVisibleLimit(prev => prev + 10)}
-                                variant="outlined"
-                                sx={{ 
-                                  color: theme.palette.primary.main, 
-                                  borderColor: theme.palette.primary.main,
-                                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                                }}
-                              >
-                                Load More ({filteredRows.length - visibleLimit} remaining)
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        )}
                         {provided.placeholder}
                       </TableBody>
                     )
