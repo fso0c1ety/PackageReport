@@ -88,13 +88,32 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('[Socket] Client disconnected:', socket.id);
+    // Cleanup user socket tracking
+    for (const [userId, sockets] of userSockets.entries()) {
+        if (sockets.has(socket.id)) {
+            sockets.delete(socket.id);
+            if (sockets.size === 0) userSockets.delete(userId);
+            break;
+        }
+    }
   });
 
-  // --- WebRTC Direct Call Signaling ---
+  // --- WebRTC Direct Call Signaling & Session Management ---
   const pendingOffers = new Map(); // Store active call offers for users who might be opening the app from a push
+  const userSockets = new Map();   // userId -> Set of socket IDs for single-session enforcement
 
   socket.on('register_user', (userId) => {
     if (userId) {
+      // Single Session Enforcement: Check if user already has other active sockets
+      if (userSockets.has(userId) && userSockets.get(userId).size > 0) {
+          console.log(`[Socket] Duplicate session detected for user ${userId}. Prompting new client.`);
+          socket.emit('duplicate_session_check');
+      }
+
+      // Track this socket for the user
+      if (!userSockets.has(userId)) userSockets.set(userId, new Set());
+      userSockets.get(userId).add(socket.id);
+
       socket.join('user_' + userId);
       console.log(`[Socket] User ${userId} registered to room user_${userId}`);
 
@@ -155,6 +174,21 @@ io.on('connection', (socket) => {
     // data: { targetId }
     pendingOffers.delete(data.targetId);
     socket.to('user_' + data.targetId).emit('call_reject', data);
+  });
+
+  // Session Takeover Logic
+  socket.on('confirm_takeover', (userId) => {
+      console.log(`[Socket] User ${userId} confirmed takeover. Logging out other sessions.`);
+      const sockets = userSockets.get(userId);
+      if (sockets) {
+          for (const sId of sockets) {
+              if (sId !== socket.id) {
+                  socket.to(sId).emit('force_logout');
+              }
+          }
+          // Reset the set to only contain the current socket
+          userSockets.set(userId, new Set([socket.id]));
+      }
   });
 });
 

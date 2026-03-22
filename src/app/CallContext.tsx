@@ -8,6 +8,9 @@ import {
     Avatar,
     Button,
     IconButton,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from "@mui/material";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
@@ -15,7 +18,9 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import VideocamOffIcon from "@mui/icons-material/VideocamOff";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
+import { useRouter } from "next/navigation";
 import io from "socket.io-client";
 import { DEFAULT_SERVER_URL, getAvatarUrl, getApiUrl, authenticatedFetch } from "./apiUrl";
 
@@ -34,7 +39,9 @@ export const useCallContext = () => {
 };
 
 export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+    const router = useRouter();
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [isDuplicateSession, setIsDuplicateSession] = useState(false);
 
     // Call state
     const [socket, setSocket] = useState<any>(null);
@@ -137,13 +144,44 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         };
 
         newSocket.on('call_end', handleCallTerminated);
-        newSocket.on('call_reject', handleCallTerminated);
+        newSocket.on('call_reject', (data) => {
+            console.log("Call rejected by other user");
+            setIncomingCall(null);
+            setActiveCall(null);
+            setCallStatus(null);
+        });
+
+        newSocket.on('duplicate_session_check', () => {
+            console.log("[Socket] Duplicate session detected on server");
+            setIsDuplicateSession(true);
+        });
+
+        newSocket.on('force_logout', () => {
+            console.warn("[Socket] Forced logout by another device");
+            handleCancelTakeover(); // Re-use logout logic
+            alert("You have been signed out because you logged in on another device.");
+        });
 
         setSocket(newSocket);
         return () => {
             newSocket.disconnect();
         };
     }, [currentUser]);
+
+    const handleConfirmTakeover = () => {
+        if (socket && currentUser) {
+            socket.emit('confirm_takeover', currentUser.id);
+            setIsDuplicateSession(false);
+        }
+    };
+
+    const handleCancelTakeover = () => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setCurrentUser(null);
+        setIsDuplicateSession(false);
+        router.push("/login");
+    };
 
     const iceServers = {
         iceServers: [
@@ -478,6 +516,45 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                     </Box>
                 </Box>
             )}
+
+            {/* Duplicate Session Dialog */}
+            <Dialog 
+                open={isDuplicateSession} 
+                onClose={() => {}} // Disallow closing without choice
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{
+                    sx: { borderRadius: 4, bgcolor: 'background.paper', p: 1 }
+                }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
+                    <WarningAmberIcon color="warning" />
+                    Session Conflict
+                </DialogTitle>
+                <DialogContent>
+                    <Typography color="text.secondary">
+                        This account is already active on another device/browser. Do you want to log in here and close the other session?
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, pt: 1 }}>
+                    <Button 
+                        onClick={handleCancelTakeover} 
+                        variant="outlined" 
+                        color="inherit"
+                        sx={{ textTransform: 'none', borderRadius: 2 }}
+                    >
+                        Stay on other device
+                    </Button>
+                    <Button 
+                        onClick={handleConfirmTakeover} 
+                        variant="contained" 
+                        color="primary"
+                        sx={{ textTransform: 'none', borderRadius: 2 }}
+                    >
+                        Log in here
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </CallContext.Provider>
     );
 };
