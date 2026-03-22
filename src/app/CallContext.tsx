@@ -87,8 +87,32 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
+    const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+    const processIceCandidatesQueue = async () => {
+        if (!peerConnection.current || !peerConnection.current.remoteDescription) return;
+        console.log(`[WebRTC] Processing ${iceCandidatesQueue.current.length} queued ICE candidates`);
+        while (iceCandidatesQueue.current.length > 0) {
+            const candidate = iceCandidatesQueue.current.shift();
+            if (candidate) {
+                try {
+                    await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) { console.error("[WebRTC] Error adding queued ICE candidate:", e); }
+            }
+        }
+    };
+    
+    useEffect(() => {
+        const checkQueue = async () => {
+            if (peerConnection.current?.remoteDescription) {
+                await processIceCandidatesQueue();
+            }
+        };
+        const interval = setInterval(checkQueue, 1000);
+        return () => clearInterval(interval);
+    }, [activeCall]);
 
     useEffect(() => {
         try {
@@ -116,8 +140,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             newSocket.emit('register_user', currentUser.id);
         });
 
-        newSocket.on('call_offer', async (data) => {
+        newSocket.on('call_offer', (data) => {
+            console.log("Received call offer", data);
             setIncomingCall(data);
+            iceCandidatesQueue.current = []; // Reset queue for new call
         });
 
         newSocket.on('call_answer', async (data) => {
@@ -127,15 +153,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             if (peerConnection.current) {
                 try {
                     await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    await processIceCandidatesQueue();
                 } catch (e) { console.error("Error setting remote desc:", e); }
             }
         });
 
         newSocket.on('call_ice_candidate', async (data) => {
-            if (peerConnection.current) {
+            console.log("[WebRTC] Received ICE candidate");
+            if (peerConnection.current && peerConnection.current.remoteDescription) {
                 try {
                     await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
                 } catch (e) { console.error("Error adding ice candidate:", e); }
+            } else {
+                console.log("[WebRTC] Queuing ICE candidate (remoteDescription not set)");
+                iceCandidatesQueue.current.push(data.candidate);
             }
         });
 
@@ -203,17 +234,35 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             }
         };
         pc.ontrack = (event) => {
-            console.log("[WebRTC] Remote track received type:", event.track.kind);
-            if (event.streams && event.streams[0]) {
-                console.log("[WebRTC] Using existing remote stream");
-                setRemoteStream(event.streams[0]);
-            } else {
-                console.log("[WebRTC] Creating new remote stream from track");
-                setRemoteStream(new MediaStream([event.track]));
-            }
+            console.log(`[WebRTC] Remote track received: ${event.track.kind}`, event.streams[0]?.id);
+            
+            setRemoteStream((prev) => {
+                // If we already have a stream, try to add this track to it
+                if (prev) {
+                    console.log("[WebRTC] Adding track to existing remote stream");
+                    // We need a NEW stream object to trigger a React re-render, or just use the event stream
+                    if (event.streams && event.streams[0]) return event.streams[0];
+                    
+                    const newStream = new MediaStream(prev.getTracks());
+                    if (!newStream.getTracks().find(t => t.id === event.track.id)) {
+                        newStream.addTrack(event.track);
+                    }
+                    return newStream;
+                }
+                
+                // If no previous stream, use the one from the event or create a new one
+                if (event.streams && event.streams[0]) return event.streams[0];
+                return new MediaStream([event.track]);
+            });
+        };
+        pc.onicecandidateerror = (event) => {
+            console.error("[WebRTC] ICE Candidate Error:", event);
         };
         pc.onconnectionstatechange = () => {
             console.log("[WebRTC] Connection state changed:", pc.connectionState);
+            if (pc.connectionState === 'failed') {
+                console.error("[WebRTC] P2P Connection failed. This usually means a TURN server is required for this network.");
+            }
         };
         pc.oniceconnectionstatechange = () => {
             console.log("[WebRTC] ICE connection state changed:", pc.iceConnectionState);
@@ -325,6 +374,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setConnectedAt(Date.now());
 
             await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+            await processIceCandidatesQueue();
+            
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
@@ -398,11 +449,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }, [localStream]);
 
     useEffect(() => {
-        console.log("[CallContext] Remote stream update:", !!remoteStream);
+        console.log("[CallContext] Remote stream update. Tracks:", remoteStream?.getTracks().length);
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
-            // Explicitly play to avoid some browser blocks
-            remoteVideoRef.current.play().catch(e => console.warn("Remote video play failed:", e));
+            
+            // Critical for some browsers: unmuted remote audio requires a user gesture or specific handling
+            const playPromise = remoteVideoRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("[WebRTC] Auto-play was prevented. Remote audio might be silent until user interacts.", error);
+                    // To handle this, we could show an "Unmute" button, but usually the "Accept" click handles it.
+                });
+            }
         }
     }, [remoteStream]);
 
