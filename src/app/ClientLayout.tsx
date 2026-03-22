@@ -9,6 +9,7 @@ import Box from "@mui/material/Box";
 import PageTransition from "./PageTransition";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@mui/material/styles"; // Added
+import { CallProvider } from "./CallContext"; // Added
 
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -114,7 +115,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <ThemeRegistry>
       <NotificationRequester />
-      <ClientLayoutContent>{children}</ClientLayoutContent>
+      <CallProvider>
+        <ClientLayoutContent>{children}</ClientLayoutContent>
+      </CallProvider>
     </ThemeRegistry>
   );
 }

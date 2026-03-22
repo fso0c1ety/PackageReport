@@ -98,9 +98,22 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('call_offer', (data) => {
+  socket.on('call_offer', async (data) => {
     // data: { targetId, callerId, offer, callerName, callerAvatar, isVideo }
     socket.to('user_' + data.targetId).emit('call_offer', data);
+
+    try {
+        const { sendDirectNotification } = require('./notificationHelper');
+        await sendDirectNotification(
+            data.targetId,
+            'Incoming Call',
+            `${data.callerName || 'Someone'} is calling you via ${data.isVideo ? 'Video' : 'Audio'}.`,
+            'incoming_call',
+            { callerId: data.callerId, isVideo: data.isVideo }
+        );
+    } catch (err) {
+        console.error('[Socket] Failed to send push notification for call_offer:', err);
+    }
   });
 
   socket.on('call_answer', (data) => {

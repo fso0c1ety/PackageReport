@@ -18,8 +18,8 @@ import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import Dialog from "@mui/material/Dialog";
-import { authenticatedFetch, getApiUrl, DEFAULT_SERVER_URL, getAvatarUrl } from "../../apiUrl";
-import io from "socket.io-client";
+import { authenticatedFetch, getApiUrl, getAvatarUrl } from "../../apiUrl";
+import { useCallContext } from "../../CallContext";
 import dayjs from "dayjs";
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
@@ -71,209 +71,7 @@ function ChatContent() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [currentUser, setCurrentUser] = useState<any>(null);
 
-    // Call state
-    const [socket, setSocket] = useState<any>(null);
-    const [incomingCall, setIncomingCall] = useState<any>(null);
-    const [activeCall, setActiveCall] = useState<any>(null);
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [isAudioMuted, setIsAudioMuted] = useState(false);
-    const [isVideoMuted, setIsVideoMuted] = useState(false);
-    
-    // WebRTC refs
-    const peerConnection = useRef<RTCPeerConnection | null>(null);
-    const localVideoRef = useRef<HTMLVideoElement>(null);
-    const remoteVideoRef = useRef<HTMLVideoElement>(null);
-
-    useEffect(() => {
-        try {
-            const userStr = localStorage.getItem("user");
-            if (userStr) {
-                const parsed = JSON.parse(userStr);
-                setCurrentUser(parsed);
-                console.log("[Chat] Current user loaded:", parsed.id);
-            }
-        } catch (err) {
-            console.error("[Chat] Failed to parse user from localStorage", err);
-        }
-    }, []);
-
-    // Effect for Socket.io signaling
-    useEffect(() => {
-        if (!currentUser) return;
-        const newSocket = io(DEFAULT_SERVER_URL, {
-            path: '/socket.io',
-            transports: ['websocket', 'polling']
-        });
-        
-        newSocket.on('connect', () => {
-            console.log('[Chat] Connected to socket, registering user:', currentUser.id);
-            newSocket.emit('register_user', currentUser.id);
-        });
-
-        newSocket.on('call_offer', async (data) => {
-            // Use functional state checking to see if activeCall exists directly if needed, but safe enough here
-            setIncomingCall(data);
-        });
-
-        newSocket.on('call_answer', async (data) => {
-            console.log("Received call answer", data);
-            if (peerConnection.current) {
-                try {
-                    await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-                } catch (e) { console.error("Error setting remote desc:", e); }
-            }
-        });
-
-        newSocket.on('call_ice_candidate', async (data) => {
-            if (peerConnection.current) {
-                try {
-                    await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } catch (e) { console.error("Error adding ice candidate:", e); }
-            }
-        });
-
-        const handleCallTerminated = () => {
-             endCallLocally();
-        };
-
-        newSocket.on('call_end', handleCallTerminated);
-        newSocket.on('call_reject', handleCallTerminated);
-
-        setSocket(newSocket);
-        return () => {
-            newSocket.disconnect();
-        };
-    }, [currentUser]);
-
-    const iceServers = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-    };
-
-    const initializePeerConnection = (targetUserId: string) => {
-        const pc = new RTCPeerConnection(iceServers);
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                // Cannot reliably use socket direct from state array without ref, but socket state setter closure works if we use the object reference.
-                // We'll trust the outer scope socket or use functional state.
-                setSocket((currentSocket: any) => {
-                    currentSocket?.emit('call_ice_candidate', { targetId: targetUserId, candidate: event.candidate });
-                    return currentSocket;
-                });
-            }
-        };
-        pc.ontrack = (event) => {
-            setRemoteStream(event.streams[0]);
-        };
-        peerConnection.current = pc;
-        return pc;
-    };
-
-    const endCallLocally = () => {
-        setLocalStream((prevStream) => {
-            if (prevStream) prevStream.getTracks().forEach(track => track.stop());
-            return null;
-        });
-        setRemoteStream(null);
-        if (peerConnection.current) {
-            peerConnection.current.close();
-            peerConnection.current = null;
-        }
-        setIncomingCall(null);
-        setActiveCall(null);
-        setIsAudioMuted(false);
-        setIsVideoMuted(false);
-    };
-
-    const startCall = async (isVideo: boolean) => {
-        if (!otherUserId || !currentUser) return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
-            setLocalStream(stream);
-            setActiveCall({ userId: otherUserId, isVideo, isCaller: true });
-            
-            const pc = initializePeerConnection(otherUserId);
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            socket?.emit('call_offer', {
-                targetId: otherUserId,
-                callerId: currentUser.id,
-                callerName: currentUser.name,
-                callerAvatar: currentUser.avatar,
-                isVideo,
-                offer
-            });
-        } catch (err) {
-            console.error("Failed to start call", err);
-            alert("Could not access camera/microphone.");
-        }
-    };
-
-    const acceptCall = async () => {
-        if (!incomingCall) return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: incomingCall.isVideo, audio: true });
-            setLocalStream(stream);
-            setActiveCall({ userId: incomingCall.callerId, isVideo: incomingCall.isVideo, isCaller: false });
-            
-            const pc = initializePeerConnection(incomingCall.callerId);
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-            await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-
-            socket?.emit('call_answer', {
-                targetId: incomingCall.callerId,
-                answer
-            });
-            setIncomingCall(null);
-        } catch (err) {
-            console.error("Failed to accept call", err);
-            alert("Could not access camera/microphone.");
-            rejectCall();
-        }
-    };
-
-    const rejectCall = () => {
-        if (incomingCall && socket) {
-            socket.emit('call_reject', { targetId: incomingCall.callerId });
-        }
-        setIncomingCall(null);
-    };
-
-    const endCall = () => {
-        if (activeCall && socket) {
-            socket.emit('call_end', { targetId: activeCall.userId });
-        }
-        endCallLocally();
-    };
-
-    const toggleAudio = () => {
-        if (localStream) {
-            const audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                setIsAudioMuted(!audioTrack.enabled);
-            }
-        }
-    };
-
-    const toggleVideo = () => {
-        if (localStream && activeCall?.isVideo) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                setIsVideoMuted(!videoTrack.enabled);
-            }
-        }
-    };
+    const { startCall } = useCallContext();
 
     const fetchConversations = async () => {
         try {
@@ -396,18 +194,6 @@ function ChatContent() {
             console.error("Failed to send message", err);
         }
     };
-
-    useEffect(() => {
-        if (localVideoRef.current && localStream) {
-            localVideoRef.current.srcObject = localStream;
-        }
-    }, [localStream, activeCall]);
-
-    useEffect(() => {
-        if (remoteVideoRef.current && remoteStream) {
-            remoteVideoRef.current.srcObject = remoteStream;
-        }
-    }, [remoteStream, activeCall]);
 
     return (
         <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: 'transparent', position: 'relative' }}>
@@ -684,12 +470,12 @@ function ChatContent() {
                                 </Box>
                                 <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
                                     <Tooltip title="Audio Call">
-                                        <IconButton onClick={() => startCall(false)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                        <IconButton onClick={() => startCall(otherUserId, false, otherUser)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
                                             <LocalPhoneIcon />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Video Call">
-                                        <IconButton onClick={() => startCall(true)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                        <IconButton onClick={() => startCall(otherUserId, true, otherUser)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
                                             <VideocamIcon />
                                         </IconButton>
                                     </Tooltip>
@@ -839,69 +625,6 @@ function ChatContent() {
                     )}
                 </Box>
                 
-                {/* Incoming Call Dialog */}
-                <Dialog open={!!incomingCall && !activeCall} onClose={rejectCall}>
-                    <Box sx={{ p: 4, textAlign: 'center', minWidth: 300 }}>
-                        <Avatar src={incomingCall?.callerAvatar} sx={{ width: 80, height: 80, mx: 'auto', mb: 2 }} />
-                        <Typography variant="h6">{incomingCall?.callerName}</Typography>
-                        <Typography color="text.secondary" sx={{ mb: 4 }}>
-                            Incoming {incomingCall?.isVideo ? 'Video' : 'Audio'} Call...
-                        </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-                            <Button variant="contained" color="error" onClick={rejectCall} startIcon={<CallEndIcon />}>
-                                Decline
-                            </Button>
-                            <Button variant="contained" color="success" onClick={acceptCall} startIcon={incomingCall?.isVideo ? <VideocamIcon /> : <LocalPhoneIcon />}>
-                                Accept
-                            </Button>
-                        </Box>
-                    </Box>
-                </Dialog>
-
-                {/* Active Call Overlay */}
-                {activeCall && (
-                    <Box sx={{
-                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                        bgcolor: '#000', zIndex: 1000, display: 'flex', flexDirection: 'column'
-                    }}>
-                        <Box sx={{ flexGrow: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            {/* Remote Video */}
-                            <video 
-                                ref={remoteVideoRef} 
-                                autoPlay 
-                                playsInline 
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                            />
-                            {/* Local Video (Picture-in-Picture style) */}
-                            <Box sx={{
-                                position: 'absolute', bottom: 20, right: 20,
-                                width: 150, height: 200, bgcolor: '#222',
-                                borderRadius: 2, overflow: 'hidden',
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                                border: '2px solid rgba(255,255,255,0.1)'
-                            }}>
-                                <video 
-                                    ref={localVideoRef} 
-                                    autoPlay 
-                                    playsInline 
-                                    muted 
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
-                                />
-                            </Box>
-                        </Box>
-                        <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', gap: 3, bgcolor: 'rgba(0,0,0,0.8)' }}>
-                            <IconButton onClick={toggleAudio} sx={{ bgcolor: isAudioMuted ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,255,0.1)', color: isAudioMuted ? '#ef4444' : '#fff', p: 2, '&:hover': { bgcolor: isAudioMuted ? 'rgba(255,0,0,0.3)' : 'rgba(255,255,255,0.2)' } }}>
-                                {isAudioMuted ? <MicOffIcon /> : <MicIcon />}
-                            </IconButton>
-                            <IconButton onClick={toggleVideo} disabled={!activeCall?.isVideo} sx={{ bgcolor: isVideoMuted ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoMuted ? '#ef4444' : '#fff', p: 2, '&:hover': { bgcolor: isVideoMuted ? 'rgba(255,0,0,0.3)' : 'rgba(255,255,255,0.2)' } }}>
-                                {isVideoMuted ? <VideocamOffIcon /> : <VideocamIcon />}
-                            </IconButton>
-                            <IconButton onClick={endCall} sx={{ bgcolor: '#ef4444', color: '#fff', p: 2, '&:hover': { bgcolor: '#dc2626' } }}>
-                                <CallEndIcon />
-                            </IconButton>
-                        </Box>
-                    </Box>
-                )}
             </Box>
     );
 }
