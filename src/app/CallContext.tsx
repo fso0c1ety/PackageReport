@@ -152,9 +152,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const initializePeerConnection = (targetUserId: string) => {
+        console.log("[WebRTC] Initializing PeerConnection for:", targetUserId);
         const pc = new RTCPeerConnection(iceServers);
         pc.onicecandidate = (event) => {
             if (event.candidate) {
+                console.log("[WebRTC] ICE Candidate generated");
                 setSocket((currentSocket: any) => {
                     currentSocket?.emit('call_ice_candidate', { targetId: targetUserId, candidate: event.candidate });
                     return currentSocket;
@@ -162,7 +164,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             }
         };
         pc.ontrack = (event) => {
-            setRemoteStream(event.streams[0]);
+            console.log("[WebRTC] Remote track received type:", event.track.kind);
+            if (event.streams && event.streams[0]) {
+                console.log("[WebRTC] Using existing remote stream");
+                setRemoteStream(event.streams[0]);
+            } else {
+                console.log("[WebRTC] Creating new remote stream from track");
+                setRemoteStream(new MediaStream([event.track]));
+            }
+        };
+        pc.onconnectionstatechange = () => {
+            console.log("[WebRTC] Connection state changed:", pc.connectionState);
+        };
+        pc.oniceconnectionstatechange = () => {
+            console.log("[WebRTC] ICE connection state changed:", pc.iceConnectionState);
         };
         peerConnection.current = pc;
         return pc;
@@ -321,16 +336,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     useEffect(() => {
+        console.log("[CallContext] Local stream update:", !!localStream);
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
-    }, [localStream, activeCall]);
+    }, [localStream]);
 
     useEffect(() => {
+        console.log("[CallContext] Remote stream update:", !!remoteStream);
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
+            // Explicitly play to avoid some browser blocks
+            remoteVideoRef.current.play().catch(e => console.warn("Remote video play failed:", e));
         }
-    }, [remoteStream, activeCall]);
+    }, [remoteStream]);
 
     return (
         <CallContext.Provider value={{ startCall }}>
@@ -364,20 +383,24 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 }}>
                     <Box sx={{ flexGrow: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         
-                        {/* Remote Video OR Remote Avatar */}
-                        {activeCall.isVideo ? (
-                            <video
-                                ref={remoteVideoRef}
-                                autoPlay
-                                playsInline
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                        ) : (
+                        {/* Remote Stream Element (Always mounted for stability) */}
+                        <video
+                            ref={remoteVideoRef}
+                            autoPlay
+                            playsInline
+                            style={{ 
+                                width: '100%', height: '100%', objectFit: 'cover',
+                                display: activeCall.isVideo ? 'block' : 'none'
+                            }}
+                        />
+
+                        {/* Remote Avatar (Shown for Audio or Ringing) */}
+                        {!activeCall.isVideo && (
                             <Box sx={{ 
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                animation: callStatus === 'ringing' ? 'pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1)' : 'none'
+                                animation: callStatus === 'ringing' ? 'pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1)' : 'none',
+                                position: 'absolute'
                             }}>
-                                <audio ref={remoteVideoRef as any} autoPlay playsInline style={{ display: 'none' }} />
                                 <Avatar 
                                     src={getAvatarUrl(activeCall?.callerAvatar, activeCall?.callerName)} 
                                     sx={{ width: 150, height: 150, border: '4px solid', borderColor: 'primary.main', mb: 2 }} 
@@ -391,7 +414,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                             </Box>
                         )}
 
-                        {/* Local Video OR Local Avatar (Picture-in-Picture style) */}
+                        {/* Local Stream Element (PIcture-in-Picture) */}
                         <Box sx={{
                             position: 'absolute', bottom: 20, right: 20,
                             width: activeCall.isVideo ? 150 : 80, 
@@ -400,24 +423,24 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                             borderRadius: activeCall.isVideo ? 2 : '50%',
                             overflow: 'hidden',
                             boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                            border: activeCall.isVideo ? '2px solid rgba(255,255,255,0.1)' : 'none'
+                            border: activeCall.isVideo ? '2px solid rgba(255,255,255,0.1)' : 'none',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
                         }}>
-                            {activeCall.isVideo ? (
-                                <video
-                                    ref={localVideoRef}
-                                    autoPlay
-                                    playsInline
-                                    muted
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+                            <video
+                                ref={localVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                style={{ 
+                                    width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
+                                    display: activeCall.isVideo ? 'block' : 'none'
+                                }}
+                            />
+                            {!activeCall.isVideo && (
+                                <Avatar 
+                                    src={getAvatarUrl(currentUser?.avatar, currentUser?.name)} 
+                                    sx={{ width: '100%', height: '100%', border: '3px solid', borderColor: 'background.paper' }} 
                                 />
-                            ) : (
-                                <>
-                                    <audio ref={localVideoRef as any} autoPlay playsInline muted style={{ display: 'none' }} />
-                                    <Avatar 
-                                        src={getAvatarUrl(currentUser?.avatar, currentUser?.name)} 
-                                        sx={{ width: '100%', height: '100%', border: '3px solid', borderColor: 'background.paper' }} 
-                                    />
-                                </>
                             )}
                         </Box>
                     </Box>
