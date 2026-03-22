@@ -534,9 +534,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         .then((data) => {
           if (!isMounted) return;
           if (Array.isArray(data)) {
+            // Ensure messages are sorted sequentially by timestamp (oldest first)
+            const sortedData = [...data].sort((a: any, b: any) => {
+              const tsA = (a.timestamp && isNaN(Number(a.timestamp))) ? new Date(a.timestamp).getTime() : Number(a.timestamp || 0);
+              const tsB = (b.timestamp && isNaN(Number(b.timestamp))) ? new Date(b.timestamp).getTime() : Number(b.timestamp || 0);
+              return tsA - tsB;
+            });
             // Transform timestamp to readable time
             // Also map sender_avatar (PostgreSQL snake_case) to senderAvatar (camelCase expected by frontend)
-            const formattedData = data.map(formatChatMessage);
+            const formattedData = sortedData.map(formatChatMessage);
 
             // If first load, sync the ref immediately to prevent notification
             if (isFirstLoadRef.current) {
@@ -1526,15 +1532,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setLoading(true);
     // Initialize values for all columns
     const values: Record<string, any> = {};
-    columns.forEach(col => {
+    columns.forEach((col, idx) => {
       if (col.type === "Status") {
-        values[col.id] = ""; // Blank by default
+        values[col.id] = filterStatus.length > 0 ? filterStatus[0] : "";
       } else if (col.type === "Dropdown") {
         values[col.id] = ""; // Blank by default
       } else if (col.type === "Date") {
         values[col.id] = "";
       } else if (col.type === "Checkbox") {
         values[col.id] = false;
+      } else if (col.type === "People") {
+        values[col.id] = filterPerson.length > 0 ? tableMembers.filter((m: any) => filterPerson.includes(m.name)) : [];
+      } else if (idx === 0) {
+        // Pre-fill primary text column with the current text filter if present
+        values[col.id] = filterText ? filterText.trim() : "";
       } else {
         values[col.id] = "";
       }
@@ -1561,16 +1572,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       newColumns.forEach((col, idx) => (col.order = idx));
       setColumns(newColumns);
       // Persist new column order to backend
-      await authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ columns: newColumns }),
-      });
-      // Reload columns from backend to ensure persistence
-      const tablesRes = await authenticatedFetch(getApiUrl(`/tables`));
-      const tables = await tablesRes.json();
-      const table = tables.find((t: any) => t.id === tableId);
-      if (table) setColumns(table.columns || []);
+      }).catch(err => console.error("Failed to persist column order during drag and drop", err));
       return;
     }
     // Row drag
@@ -1590,17 +1596,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }
       setRows(newRows);
       // Persist new row order to backend (send only orderedTaskIds)
-      await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderedTaskIds: newRows.map(r => r.id) }),
-      });
-      // Reload rows from backend to ensure persistence
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`));
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        setRows(data);
-      }
+      }).catch(err => console.error("Failed to persist row order during drag and drop", err));
     }
   };
 

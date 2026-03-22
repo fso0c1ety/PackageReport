@@ -121,8 +121,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             const res = await authenticatedFetch(getApiUrl('notifications'));
             if (res.ok) {
                 const data = await res.json();
-                setNotifications(data);
-                setUnreadCount(data.filter((n: Notification) => !n.read).length);
+                const sortedData = Array.isArray(data) ? data.sort((a: Notification, b: Notification) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
+                setNotifications(sortedData);
+                setUnreadCount(sortedData.filter((n: Notification) => !n.read).length);
             }
         } catch (error) {
             console.error("Failed to fetch notifications", error);

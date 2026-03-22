@@ -89,6 +89,39 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('[Socket] Client disconnected:', socket.id);
   });
+
+  // --- WebRTC Direct Call Signaling ---
+  socket.on('register_user', (userId) => {
+    if (userId) {
+      socket.join('user_' + userId);
+      console.log(`[Socket] User ${userId} registered to room user_${userId}`);
+    }
+  });
+
+  socket.on('call_offer', (data) => {
+    // data: { targetId, callerId, offer, callerName, callerAvatar, isVideo }
+    socket.to('user_' + data.targetId).emit('call_offer', data);
+  });
+
+  socket.on('call_answer', (data) => {
+    // data: { targetId, answer }
+    socket.to('user_' + data.targetId).emit('call_answer', data);
+  });
+
+  socket.on('call_ice_candidate', (data) => {
+    // data: { targetId, candidate }
+    socket.to('user_' + data.targetId).emit('call_ice_candidate', data);
+  });
+
+  socket.on('call_end', (data) => {
+    // data: { targetId }
+    socket.to('user_' + data.targetId).emit('call_end', data);
+  });
+
+  socket.on('call_reject', (data) => {
+    // data: { targetId }
+    socket.to('user_' + data.targetId).emit('call_reject', data);
+  });
 });
 
 // --- Database Schema Migrations ---
