@@ -23,12 +23,21 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  // Customize notification here if needed
-  const notificationTitle = payload.notification.title;
+  
+  const type = payload.data ? payload.data.type : 'generic';
+  const notificationTitle = payload.notification ? payload.notification.title : 'New Notification';
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo.png', // Customize icon
-    data: payload.data // Pass data containing tableId
+    body: payload.notification ? payload.notification.body : '',
+    icon: '/logo.png',
+    data: payload.data,
+    tag: type === 'incoming_call' ? 'incoming_call' : undefined,
+    renotify: type === 'incoming_call',
+    requireInteraction: type === 'incoming_call',
+    vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500] : [100],
+    actions: type === 'incoming_call' ? [
+      { action: 'answer', title: 'Answer' },
+      { action: 'reject', title: 'Decline' }
+    ] : []
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
@@ -36,35 +45,39 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', function(event) {
   console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification.data);
+  const data = event.notification.data;
+  const action = event.action;
+
   event.notification.close();
 
-  // Check for tableId in data
+  if (action === 'reject') {
+      // Logic to tell server call was rejected could go here via a fetch
+      return;
+  }
+
   let urlToOpen = '/';
-  const data = event.notification.data;
-  
-  if (data && data.workspaceId) {
-      urlToOpen = `/workspace?id=${data.workspaceId}`;
-      if (data.tableId) {
-          urlToOpen += `&tableId=${data.tableId}`;
+  if (data) {
+      if (data.type === 'incoming_call') {
+          urlToOpen = `/chat?userId=${data.callerId}&autoAccept=true`;
+      } else if (data.workspaceId) {
+          urlToOpen = `/workspace?id=${data.workspaceId}`;
+          if (data.tableId) urlToOpen += `&tableId=${data.tableId}`;
+          if (data.taskId) urlToOpen += `&taskId=${data.taskId}`;
+          if (data.type === 'chat_message' || data.type === 'task_chat') {
+              urlToOpen += `&tab=chat`;
+          } else if (data.type === 'file_comment') {
+              urlToOpen += `&tab=files`;
+          }
       }
-      
-      if (data.taskId) {
-        urlToOpen += `&taskId=${data.taskId}`;
-      }
+  }
 
-      if (data.type === 'chat_message' || data.type === 'task_chat') {
-        urlToOpen += `&tab=chat`;
-      } else if (data.type === 'file_comment') {
-        urlToOpen += `&tab=files`;
-      }
-  } // Fallback logic could go here if workspaceId is missing but tableId is present.
-
-  // This looks to see if the current is already open and focuses if it is
   event.waitUntil(clients.matchAll({
     type: "window"
   }).then((clientList) => {
     for (const client of clientList) {
-      if ((urlToOpen === '/' && client.url === self.registration.scope) || (urlToOpen !== '/' && client.url.includes(urlToOpen)) && 'focus' in client) return client.focus();
+      if ((urlToOpen === '/' && client.url === self.registration.scope) || (urlToOpen !== '/' && client.url.includes(urlToOpen)) && 'focus' in client) {
+          return client.focus();
+      }
     }
     if (clients.openWindow) return clients.openWindow(urlToOpen);
   }));

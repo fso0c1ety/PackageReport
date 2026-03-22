@@ -43,16 +43,17 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
     },
     android: {
       notification: {
-        channelId: 'chat_messages',
+        channelId: data.type === 'incoming_call' ? 'calls' : 'chat_messages',
         priority: 'high',
         defaultSound: true,
         defaultVibrateTimings: true,
-        // clickAction removed to allow default intent handling
+        // For calls, ensure the notification is loud/vibrating
+        notificationPriority: 'PRIORITY_MAX', 
+        visibility: 'PUBLIC'
       }
     },
     data: {
       ...data,
-      // click_action removed
     },
     tokens: tokens, // sendEachForMulticast accepts 'tokens' array in the message object
   };

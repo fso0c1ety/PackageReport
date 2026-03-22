@@ -91,16 +91,34 @@ io.on('connection', (socket) => {
   });
 
   // --- WebRTC Direct Call Signaling ---
+  const pendingOffers = new Map(); // Store active call offers for users who might be opening the app from a push
+
   socket.on('register_user', (userId) => {
     if (userId) {
       socket.join('user_' + userId);
       console.log(`[Socket] User ${userId} registered to room user_${userId}`);
+
+      // Check if there's a pending call offer for this user
+      if (pendingOffers.has(userId)) {
+        const offerData = pendingOffers.get(userId);
+        console.log(`[Socket] Sending pending call offer to user ${userId}`);
+        socket.emit('call_offer', offerData);
+      }
     }
   });
 
   socket.on('call_offer', async (data) => {
     // data: { targetId, callerId, offer, callerName, callerAvatar, isVideo }
     socket.to('user_' + data.targetId).emit('call_offer', data);
+
+    // Persist the offer in case they are opening the app from a push
+    pendingOffers.set(data.targetId, data);
+    // Auto-cleanup after 60 seconds if no action taken
+    setTimeout(() => {
+        if (pendingOffers.get(data.targetId) === data) {
+            pendingOffers.delete(data.targetId);
+        }
+    }, 60000);
 
     try {
         const { sendDirectNotification } = require('./notificationHelper');
@@ -118,6 +136,7 @@ io.on('connection', (socket) => {
 
   socket.on('call_answer', (data) => {
     // data: { targetId, answer }
+    pendingOffers.delete(socket.rooms.has('user_' + data.targetId) ? data.targetId : null); // Simple cleanup
     socket.to('user_' + data.targetId).emit('call_answer', data);
   });
 
@@ -128,11 +147,13 @@ io.on('connection', (socket) => {
 
   socket.on('call_end', (data) => {
     // data: { targetId }
+    pendingOffers.delete(data.targetId);
     socket.to('user_' + data.targetId).emit('call_end', data);
   });
 
   socket.on('call_reject', (data) => {
     // data: { targetId }
+    pendingOffers.delete(data.targetId);
     socket.to('user_' + data.targetId).emit('call_reject', data);
   });
 });

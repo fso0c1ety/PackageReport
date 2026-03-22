@@ -49,6 +49,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const [callStatus, setCallStatus] = useState<'ringing' | 'connected' | null>(null);
     const [connectedAt, setConnectedAt] = useState<number | null>(null);
     const [callDuration, setCallDuration] = useState<number>(0);
+    const [autoAcceptProcessed, setAutoAcceptProcessed] = useState(false);
 
     // Refs for stale closures in socket handlers
     const activeCallRef = useRef<any>(null);
@@ -307,6 +308,22 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
         setIncomingCall(null);
     };
+
+    useEffect(() => {
+        if (incomingCall && !autoAcceptProcessed && typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('autoAccept') === 'true') {
+                console.log("[CallContext] Auto-accepting call based on URL parameter");
+                setAutoAcceptProcessed(true);
+                acceptCall();
+                
+                // Cleanup URL
+                const url = new URL(window.location.href);
+                url.searchParams.delete('autoAccept');
+                window.history.replaceState({}, '', url.pathname + url.search);
+            }
+        }
+    }, [incomingCall, autoAcceptProcessed]);
 
     const endCall = () => {
         if (activeCall && socket) {
