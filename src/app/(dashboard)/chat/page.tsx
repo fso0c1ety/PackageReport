@@ -60,7 +60,8 @@ function ChatContent() {
     const [conversations, setConversations] = useState<any[]>([]);
     const [friends, setFriends] = useState<any[]>([]);
     const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"chats" | "social">("chats");
+    const tabParam = searchParams.get("tab");
+    const [activeTab, setActiveTab] = useState<"chats" | "social">(tabParam === "social" ? "social" : "chats");
     const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState("");

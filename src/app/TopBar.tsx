@@ -19,6 +19,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import GroupIcon from '@mui/icons-material/Group';
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import PeopleIcon from "@mui/icons-material/People";
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
@@ -442,6 +443,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           <MenuItem onClick={() => router.push('/settings?tab=notifications')}><ListItemIcon><NotificationsNoneIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Notifications</MenuItem>
           <MenuItem onClick={() => router.push('/settings?tab=security')}><ListItemIcon><SecurityIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Security</MenuItem>
           <MenuItem onClick={() => router.push('/settings?tab=team')}><ListItemIcon><GroupIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Team</MenuItem>
+          <MenuItem onClick={() => router.push('/chat?tab=social')}><ListItemIcon><PeopleIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Friends</MenuItem>
           <Divider />
           <MenuItem onClick={handleLogout}><ListItemIcon><LogoutIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Logout</MenuItem>
         </Menu>

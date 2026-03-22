@@ -65,6 +65,36 @@ router.get('/friends/pending', authenticateToken, async (req, res) => {
     }
 });
 
+// GET /api/friends/status/:friendId - Get relationship status with a specific user
+router.get('/friends/status/:friendId', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const friendId = req.params.friendId;
+    if (!friendId) return res.status(400).json({ error: 'Friend ID is required' });
+
+    try {
+        const result = await db.query(
+            `SELECT status, user_id as sender_id 
+             FROM friends 
+             WHERE (user_id = $1 AND friend_id = $2) 
+                OR (user_id = $2 AND friend_id = $1)
+             LIMIT 1`,
+            [userId, friendId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.json({ status: 'none', sender_id: null });
+        }
+
+        res.json({ 
+            status: result.rows[0].status, 
+            sender_id: result.rows[0].sender_id 
+        });
+    } catch (err) {
+        console.error('Error fetching friend status:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // GET /api/friends - List all friends
 router.get('/friends', authenticateToken, async (req, res) => {
     const userId = req.user.id;

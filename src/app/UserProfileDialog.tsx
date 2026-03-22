@@ -21,6 +21,8 @@ import { useRouter } from "next/navigation";
 import { getAvatarUrl, authenticatedFetch, getApiUrl } from "./apiUrl";
 import { useNotification } from "./NotificationContext";
 import InviteToTableDialog from "./InviteToTableDialog";
+import CheckIcon from "@mui/icons-material/Check";
+import AutoModeIcon from "@mui/icons-material/AutoMode";
 
 interface UserProfileDialogProps {
   open: boolean;
@@ -34,6 +36,23 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
   const { showNotification } = useNotification();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [friendStatus, setFriendStatus] = useState<'loading' | 'none' | 'pending' | 'accepted'>('none');
+
+  React.useEffect(() => {
+      if (open && user && user.id) {
+          setFriendStatus('loading');
+          authenticatedFetch(getApiUrl(`friends/status/${user.id}`))
+              .then(res => res.json())
+              .then(data => {
+                  if (data && data.status) setFriendStatus(data.status);
+                  else setFriendStatus('none');
+              })
+              .catch(err => {
+                  console.error("Failed to fetch friend status:", err);
+                  setFriendStatus('none');
+              });
+      }
+  }, [open, user]);
 
   if (!user) return null;
 
@@ -122,22 +141,36 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
           <Divider sx={{ mb: 3, opacity: 0.6 }} />
 
           <Stack spacing={2}>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={<PersonAddIcon />}
-              onClick={handleAddFriend}
-              disabled={requesting}
-              sx={{
-                borderRadius: 2,
-                py: 1.2,
-                textTransform: "none",
-                fontWeight: 600,
-                boxShadow: "none",
-              }}
-            >
-              Add Friend
-            </Button>
+            {friendStatus === 'loading' ? (
+                <Button fullWidth variant="contained" disabled sx={{ borderRadius: 2, py: 1.2, textTransform: "none", fontWeight: 600, boxShadow: "none" }}>
+                    Loading...
+                </Button>
+            ) : friendStatus === 'accepted' ? (
+                <Button fullWidth variant="contained" disabled startIcon={<CheckIcon />} sx={{ borderRadius: 2, py: 1.2, textTransform: "none", fontWeight: 600, boxShadow: "none", bgcolor: `${theme.palette.success.main} !important`, color: '#fff !important' }}>
+                    Friends
+                </Button>
+            ) : friendStatus === 'pending' ? (
+                <Button fullWidth variant="contained" disabled startIcon={<AutoModeIcon />} sx={{ borderRadius: 2, py: 1.2, textTransform: "none", fontWeight: 600, boxShadow: "none", bgcolor: `${theme.palette.warning.main} !important`, color: '#fff !important' }}>
+                    Pending Request
+                </Button>
+            ) : (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<PersonAddIcon />}
+                  onClick={handleAddFriend}
+                  disabled={requesting}
+                  sx={{
+                    borderRadius: 2,
+                    py: 1.2,
+                    textTransform: "none",
+                    fontWeight: 600,
+                    boxShadow: "none",
+                  }}
+                >
+                  Add Friend
+                </Button>
+            )}
             <Box sx={{ display: "flex", gap: 2 }}>
               <Button
                 fullWidth
