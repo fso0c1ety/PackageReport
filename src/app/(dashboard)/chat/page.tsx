@@ -482,16 +482,20 @@ function ChatContent() {
                                     </Typography>
                                 </Box>
                                 <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-                                    <Tooltip title="Audio Call">
-                                        <IconButton onClick={() => startCall(otherUserId, false, otherUser)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                                            <LocalPhoneIcon />
-                                        </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Video Call">
-                                        <IconButton onClick={() => startCall(otherUserId, true, otherUser)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                                            <VideocamIcon />
-                                        </IconButton>
-                                    </Tooltip>
+                                    {otherUserId !== currentUser?.id && (
+                                        <>
+                                            <Tooltip title="Audio Call">
+                                                <IconButton onClick={() => startCall(otherUserId, false, otherUser)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                                    <LocalPhoneIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Video Call">
+                                                <IconButton onClick={() => startCall(otherUserId, true, otherUser)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                                    <VideocamIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </>
+                                    )}
                                 </Box>
                             </Paper>
                             
@@ -561,13 +565,25 @@ function ChatContent() {
                             </Box>
 
                             {/* Input */}
-                            <Box sx={{ 
-                                p: { xs: 2, sm: 3 }, 
-                                bgcolor: theme.palette.mode === 'dark' ? alpha('#13141f', 0.9) : alpha('#ffffff', 0.9), 
-                                backdropFilter: 'blur(10px)',
-                                borderTop: `1px solid ${theme.palette.divider}`,
-                                zIndex: 10
-                            }}>
+                            {otherUserId === currentUser?.id ? (
+                                <Box sx={{ 
+                                    p: 3, 
+                                    bgcolor: theme.palette.mode === 'dark' ? alpha('#13141f', 0.9) : alpha('#ffffff', 0.9), 
+                                    backdropFilter: 'blur(10px)',
+                                    borderTop: `1px solid ${theme.palette.divider}`,
+                                    textAlign: 'center',
+                                    zIndex: 10
+                                }}>
+                                    <Typography color="text.secondary" variant="body2" fontWeight={500}>You cannot message yourself.</Typography>
+                                </Box>
+                            ) : (
+                                <Box sx={{ 
+                                    p: { xs: 2, sm: 3 }, 
+                                    bgcolor: theme.palette.mode === 'dark' ? alpha('#13141f', 0.9) : alpha('#ffffff', 0.9), 
+                                    backdropFilter: 'blur(10px)',
+                                    borderTop: `1px solid ${theme.palette.divider}`,
+                                    zIndex: 10
+                                }}>
                                 <Box sx={{ 
                                     display: 'flex', 
                                     gap: 1.5, 
@@ -628,9 +644,10 @@ function ChatContent() {
                                     </IconButton>
                                 </Box>
                             </Box>
-                        </>
-                    )}
-                </Box>
+                        )}
+                    </>
+                )}
+            </Box>
                 
             </Box>
     );

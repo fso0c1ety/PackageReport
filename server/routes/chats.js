@@ -60,6 +60,7 @@ router.post('/chats/:userId', authenticateToken, async (req, res) => {
     const { text } = req.body;
 
     if (!text) return res.status(400).json({ error: 'Message text is required' });
+    if (myId === otherId) return res.status(400).json({ error: 'You cannot message yourself' });
 
     try {
         const newMessage = {
