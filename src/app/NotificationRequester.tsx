@@ -110,6 +110,15 @@ const NotificationRequester = () => {
                             vibration: true,
                         });
 
+                        await PushNotifications.createChannel({
+                            id: 'calls',
+                            name: 'Incoming Calls',
+                            description: 'Notifications for incoming audio and video calls',
+                            importance: 5,
+                            visibility: 1,
+                            vibration: true,
+                        });
+
                         await PushNotifications.removeAllListeners();
 
                         await PushNotifications.addListener('registration', async (token) => {

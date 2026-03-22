@@ -42,12 +42,10 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
       body,
     },
     android: {
+      priority: 'high',
       notification: {
         channelId: data.type === 'incoming_call' ? 'calls' : 'chat_messages',
-        priority: 'high',
-        defaultSound: true,
-        defaultVibrateTimings: true,
-        // For calls, ensure the notification is loud/vibrating
+        sound: 'default',
         notificationPriority: 'PRIORITY_MAX', 
         visibility: 'PUBLIC'
       }
