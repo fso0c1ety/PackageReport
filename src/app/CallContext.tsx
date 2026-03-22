@@ -17,7 +17,7 @@ import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 
 import io from "socket.io-client";
-import { DEFAULT_SERVER_URL, getAvatarUrl } from "./apiUrl";
+import { DEFAULT_SERVER_URL, getAvatarUrl, getApiUrl, authenticatedFetch } from "./apiUrl";
 
 type CallContextType = {
     startCall: (targetId: string, isVideo: boolean, otherUser?: any) => Promise<void>;
@@ -44,6 +44,38 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [isAudioMuted, setIsAudioMuted] = useState(false);
     const [isVideoMuted, setIsVideoMuted] = useState(false);
+
+    // Timing and Log State
+    const [callStatus, setCallStatus] = useState<'ringing' | 'connected' | null>(null);
+    const [connectedAt, setConnectedAt] = useState<number | null>(null);
+    const [callDuration, setCallDuration] = useState<number>(0);
+
+    // Refs for stale closures in socket handlers
+    const activeCallRef = useRef<any>(null);
+    const callStatusRef = useRef<any>(null);
+    const callDurationRef = useRef<number>(0);
+
+    useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
+    useEffect(() => { callStatusRef.current = callStatus; }, [callStatus]);
+    useEffect(() => { callDurationRef.current = callDuration; }, [callDuration]);
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (callStatus === 'connected' && connectedAt) {
+            interval = setInterval(() => {
+                setCallDuration(Math.floor((Date.now() - connectedAt) / 1000));
+            }, 1000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [callStatus, connectedAt]);
+
+    const formatDuration = (seconds: number) => {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
 
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -82,6 +114,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         newSocket.on('call_answer', async (data) => {
             console.log("Received call answer", data);
+            setCallStatus('connected');
+            setConnectedAt(Date.now());
             if (peerConnection.current) {
                 try {
                     await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -135,6 +169,25 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const endCallLocally = () => {
+        const callerData = activeCallRef.current;
+        const currentStatus = callStatusRef.current;
+        const duration = callDurationRef.current;
+
+        if (callerData && callerData.isCaller) {
+            const timeStr = formatDuration(duration);
+            const logMsg = currentStatus === 'connected'
+                ? `${callerData.isVideo ? '🎥 Video' : '📞 Audio'} Call - ${timeStr}`
+                : `❌ Missed ${callerData.isVideo ? 'Video' : 'Audio'} Call`;
+            
+            try {
+                authenticatedFetch(getApiUrl(`chats/${callerData.userId}`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: logMsg })
+                });
+            } catch (err) { console.error("Failed to log call", err); }
+        }
+
         setLocalStream((prevStream) => {
             if (prevStream) prevStream.getTracks().forEach(track => track.stop());
             return null;
@@ -148,6 +201,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setActiveCall(null);
         setIsAudioMuted(false);
         setIsVideoMuted(false);
+        setCallStatus(null);
+        setConnectedAt(null);
+        setCallDuration(0);
     };
 
     const startCall = async (targetId: string, isVideo: boolean, otherUser?: any) => {
@@ -162,6 +218,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 calculatedAvatar = otherUser.avatar;
                 calculatedName = otherUser.name;
             }
+
+            setCallStatus('ringing');
+            setCallDuration(0);
+            setConnectedAt(null);
 
             setActiveCall({
                 userId: targetId,
@@ -206,6 +266,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
             const pc = initializePeerConnection(incomingCall.callerId);
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            setCallStatus('connected');
+            setConnectedAt(Date.now());
 
             await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
             const answer = await pc.createAnswer();
@@ -312,14 +375,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                         ) : (
                             <Box sx={{ 
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                animation: 'pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1)'
+                                animation: callStatus === 'ringing' ? 'pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1)' : 'none'
                             }}>
                                 <Avatar 
                                     src={getAvatarUrl(activeCall?.callerAvatar, activeCall?.callerName)} 
                                     sx={{ width: 150, height: 150, border: '4px solid', borderColor: 'primary.main', mb: 2 }} 
                                 />
                                 <Typography variant="h5" fontWeight={600}>{activeCall?.callerName || 'Connected'}</Typography>
-                                <Typography variant="caption" color="text.secondary">Audio Call in progress...</Typography>
+                                {callStatus === 'ringing' ? (
+                                    <Typography variant="caption" color="text.secondary">Ringing...</Typography>
+                                ) : (
+                                    <Typography variant="subtitle1" fontWeight={700} color="primary.main">{formatDuration(callDuration)}</Typography>
+                                )}
                             </Box>
                         )}
 

@@ -499,8 +499,6 @@ function ChatContent() {
                                 ) : (
                                     messages.map((msg, idx) => {
                                         const isMe = msg.sender_id === currentUser?.id;
-                                        const showAvatar = !isMe && (idx === messages.length - 1 || messages[idx + 1]?.sender_id === currentUser?.id);
-                                        
                                         return (
                                             <Box key={msg.id || idx} sx={{ 
                                                 display: 'flex', 
@@ -510,14 +508,7 @@ function ChatContent() {
                                                 mb: 0.5
                                             }}>
                                                 {!isMe && (
-                                                    <Avatar 
-                                                        src={otherUser?.avatar} 
-                                                        sx={{ 
-                                                            width: 28, height: 28, 
-                                                            opacity: showAvatar ? 1 : 0,
-                                                            visibility: showAvatar ? 'visible' : 'hidden' 
-                                                        }} 
-                                                    />
+                                                    <Avatar src={otherUser?.avatar} sx={{ width: 28, height: 28 }} />
                                                 )}
                                                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
                                                     <Box sx={{
@@ -546,6 +537,9 @@ function ChatContent() {
                                                         {dayjs(msg.timestamp).format('h:mm A')}
                                                     </Typography>
                                                 </Box>
+                                                {isMe && (
+                                                    <Avatar src={currentUser?.avatar} sx={{ width: 28, height: 28 }} />
+                                                )}
                                             </Box>
                                         );
                                     })
