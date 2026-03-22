@@ -321,13 +321,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     useEffect(() => {
-        if (localVideoRef.current && localStream && activeCall?.isVideo) {
+        if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
     }, [localStream, activeCall]);
 
     useEffect(() => {
-        if (remoteVideoRef.current && remoteStream && activeCall?.isVideo) {
+        if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
         }
     }, [remoteStream, activeCall]);
@@ -377,6 +377,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                                 animation: callStatus === 'ringing' ? 'pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1)' : 'none'
                             }}>
+                                <audio ref={remoteVideoRef as any} autoPlay playsInline style={{ display: 'none' }} />
                                 <Avatar 
                                     src={getAvatarUrl(activeCall?.callerAvatar, activeCall?.callerName)} 
                                     sx={{ width: 150, height: 150, border: '4px solid', borderColor: 'primary.main', mb: 2 }} 
@@ -410,10 +411,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                                     style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
                                 />
                             ) : (
-                                <Avatar 
-                                    src={getAvatarUrl(currentUser?.avatar, currentUser?.name)} 
-                                    sx={{ width: '100%', height: '100%', border: '3px solid', borderColor: 'background.paper' }} 
-                                />
+                                <>
+                                    <audio ref={localVideoRef as any} autoPlay playsInline muted style={{ display: 'none' }} />
+                                    <Avatar 
+                                        src={getAvatarUrl(currentUser?.avatar, currentUser?.name)} 
+                                        sx={{ width: '100%', height: '100%', border: '3px solid', borderColor: 'background.paper' }} 
+                                    />
+                                </>
                             )}
                         </Box>
                     </Box>

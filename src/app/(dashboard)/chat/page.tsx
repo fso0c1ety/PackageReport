@@ -71,6 +71,19 @@ function ChatContent() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [currentUser, setCurrentUser] = useState<any>(null);
 
+    useEffect(() => {
+        try {
+            const userStr = localStorage.getItem("user");
+            if (userStr) {
+                const parsed = JSON.parse(userStr);
+                setCurrentUser(parsed);
+                console.log("[Chat] Current user loaded:", parsed.id);
+            }
+        } catch (err) {
+            console.error("[Chat] Failed to parse user from localStorage", err);
+        }
+    }, []);
+
     const { startCall } = useCallContext();
 
     const fetchConversations = async () => {
