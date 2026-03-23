@@ -1352,7 +1352,7 @@ app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateTok
 app.get('/api/tables/:tableId/tasks', async (req, res) => {
   try {
     const result = await db.query(
-      "SELECT * FROM rows WHERE table_id = $1 ORDER BY created_at DESC, id ASC",
+      "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC",
       [req.params.tableId]
     );
     res.json(result.rows);
