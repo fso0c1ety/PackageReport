@@ -172,7 +172,9 @@ const NotificationRequester = () => {
                         
                         const handleNotificationTap = (data: any) => {
                             let url = "";
-                            if (data.workspaceId) {
+                            if (data.type === 'incoming_call') {
+                                url = `/chat?userId=${data.callerId}&autoAccept=true`;
+                            } else if (data.workspaceId) {
                                 url = `/workspace?id=${data.workspaceId}`;
                                 if (data.tableId) {
                                     url += `&tableId=${data.tableId}`;

@@ -114,8 +114,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   
   return (
     <ThemeRegistry>
-      <NotificationRequester />
       <CallProvider>
+        <NotificationRequester />
         <ClientLayoutContent>{children}</ClientLayoutContent>
       </CallProvider>
     </ThemeRegistry>
