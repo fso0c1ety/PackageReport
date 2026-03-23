@@ -111,12 +111,13 @@ const NotificationRequester = () => {
                         });
 
                         await PushNotifications.createChannel({
-                            id: 'calls',
+                            id: 'calls_v4',
                             name: 'Incoming Calls',
                             description: 'Notifications for incoming audio and video calls',
                             importance: 5,
                             visibility: 1,
                             vibration: true,
+                            sound: 'ringtone',
                         });
 
                         await PushNotifications.removeAllListeners();

@@ -25,30 +25,33 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
             // 1. Send Push Notifications
             const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
             const tokens = tokensRes.rows.map(r => r.fcm_token);
+            const safeData = data || {};
             if (tokens.length > 0) {
                 await sendPushNotification(tokens, title, body, {
                     type: type || 'chat_message',
-                    tableId: table.id,
-                    workspaceId: table.workspace_id,
-                    taskId: data.taskId,
-                    ...data
+                    tableId: table ? table.id : undefined,
+                    workspaceId: table ? table.workspace_id : undefined,
+                    taskId: safeData.taskId,
+                    ...safeData
                 });
             }
             
             // 2. Save In-App Notifications
-            for (const recipientId of recipientsArray) {
-                 await db.query(`
-                   INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
-                   VALUES ($1, $2, $3, $4, $5, NOW())
-               `, [uuidv4(), recipientId, type || 'chat_message', {
-                   subject: title,
-                   body: body,
-                   tableName: table.name,
-                   tableId: table.id,
-                   workspaceId: table.workspace_id,
-                   taskId: data.taskId,
-                   ...data
-               }, false]);
+            if (table) {
+                for (const recipientId of recipientsArray) {
+                    await db.query(`
+                        INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
+                        VALUES ($1, $2, $3, $4, $5, NOW())
+                    `, [uuidv4(), recipientId, type || 'chat_message', {
+                        subject: title,
+                        body: body,
+                        tableName: table.name,
+                        tableId: table.id,
+                        workspaceId: table.workspace_id,
+                        taskId: safeData.taskId,
+                        ...safeData
+                    }, false]);
+                }
             }
         }
     } catch (e) {
@@ -58,12 +61,13 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
 
 async function sendDirectNotification(recipientId, title, body, type, data) {
     try {
+        const safeData = data || {};
         // 1. Send Push Notification if token exists
         const tokenRes = await db.query('SELECT fcm_token FROM users WHERE id = $1 AND fcm_token IS NOT NULL', [recipientId]);
         if (tokenRes.rows.length > 0) {
             await sendPushNotification([tokenRes.rows[0].fcm_token], title, body, {
                 type: type || 'generic',
-                ...data
+                ...safeData
             });
         }
 
@@ -74,7 +78,7 @@ async function sendDirectNotification(recipientId, title, body, type, data) {
         `, [uuidv4(), recipientId, type || 'generic', {
             subject: title,
             body: body,
-            ...data
+            ...safeData
         }, false]);
     } catch (e) {
         console.error('[Notification] Failed to send direct notification:', e);

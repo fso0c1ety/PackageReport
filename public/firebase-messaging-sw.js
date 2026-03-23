@@ -31,13 +31,13 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/logo.png',
     data: payload.data,
     tag: type === 'incoming_call' ? 'incoming_call' : undefined,
-    renotify: type === 'incoming_call',
-    requireInteraction: type === 'incoming_call',
-    vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500] : [100],
     actions: type === 'incoming_call' ? [
       { action: 'answer', title: 'Answer' },
       { action: 'reject', title: 'Decline' }
-    ] : []
+    ] : [],
+    requireInteraction: type === 'incoming_call',
+    renotify: type === 'incoming_call',
+    vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500] : [100]
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

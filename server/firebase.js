@@ -44,10 +44,11 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
     android: {
       priority: 'high',
       notification: {
-        channelId: data.type === 'incoming_call' ? 'calls' : 'chat_messages',
-        sound: 'default',
+        channelId: data.type === 'incoming_call' ? 'calls_v4' : 'chat_messages',
+        sound: 'default', // Reverting to default until ringtone is provided
         notificationPriority: 'PRIORITY_MAX', 
-        visibility: 'PUBLIC'
+        visibility: 'PUBLIC',
+        category: data.type === 'incoming_call' ? 'call' : 'msg'
       }
     },
     data: {
