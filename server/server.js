@@ -911,6 +911,127 @@ app.post('/api/tables', authenticateToken, async (req, res) => {
   }
 });
 
+// Import a table from an Excel / CSV file
+app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
+  if (!req.user || !req.user.id) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Use multer memoryStorage so we can parse the buffer directly
+  const memUpload = multer({ storage: multer.memoryStorage() });
+  memUpload.single('file')(req, res, async (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const { workspaceId, tableName } = req.body;
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' });
+
+    // Check workspace ownership
+    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [workspaceId]);
+    const workspace = wsResult.rows[0];
+    if (!workspace || workspace.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    try {
+      const XLSX = require('xlsx');
+
+      // Parse workbook from buffer
+      const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+      const sheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[sheetName];
+
+      // Convert to array of arrays (no header parsing yet)
+      const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+      // Auto-detect header row: first row that has >= 3 non-null cells
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(raw.length, 20); i++) {
+        const nonNull = (raw[i] || []).filter(c => c !== null && String(c).trim() !== '').length;
+        if (nonNull >= 3) { headerIdx = i; break; }
+      }
+
+      const headerRow = (raw[headerIdx] || []).map(c => (c !== null ? String(c).trim() : null));
+      const dataRows = raw.slice(headerIdx + 1);
+
+      // Build columns with smart type detection
+      const statusKeywords = ['status', 'statusi', 'gjendja', 'gjendjа'];
+      const dateKeywords = ['date', 'data', 'datum', 'tarih'];
+      const countryKeywords = ['country', 'shteti', 'land', 'pays', 'paese'];
+      const numberKeywords = ['price', 'qty', 'quantity', 'amount', 'nr', 'no', 'number', 'çmimi', 'sasi'];
+
+      const getColumnType = (name) => {
+        const lower = (name || '').toLowerCase();
+        if (statusKeywords.some(k => lower.includes(k))) return 'Status';
+        if (dateKeywords.some(k => lower.includes(k))) return 'Date';
+        if (countryKeywords.some(k => lower.includes(k))) return 'Country';
+        if (numberKeywords.some(k => lower.includes(k))) return 'Numbers';
+        return 'Text';
+      };
+
+      // Only create columns for non-empty header cells
+      const columns = headerRow
+        .map((name, i) => ({ name, idx: i }))
+        .filter(({ name }) => name && name.length > 0)
+        .map(({ name, idx }, order) => {
+          const type = getColumnType(name);
+          const col = { id: uuidv4(), name, type, order };
+          if (type === 'Status') {
+            col.options = [
+              { value: 'Done', color: '#00c875' },
+              { value: 'In Progress', color: '#fdab3d' },
+              { value: 'Stuck', color: '#e2445c' },
+              { value: 'Not Started', color: '#c4c4c4' },
+            ];
+          }
+          // Store original excel column index for value mapping
+          col._excelIdx = idx;
+          return col;
+        });
+
+      // Final columns (strip internal _excelIdx before saving)
+      const colMap = columns.map(c => ({ ...c })); // shallow copy
+      const dbColumns = columns.map(({ _excelIdx, ...rest }) => rest);
+
+      // Create the table
+      const tableId = uuidv4();
+      const finalName = (tableName && tableName.trim()) ? tableName.trim() : (sheetName || 'Imported Table');
+      await db.query(
+        'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [tableId, finalName, workspaceId, JSON.stringify(dbColumns), Date.now()]
+      );
+
+      // Insert rows
+      let rowCount = 0;
+      for (const rawRow of dataRows) {
+        if (!rawRow || rawRow.every(c => c === null || String(c).trim() === '')) continue;
+
+        // Build values map
+        const values = {};
+        for (const col of colMap) {
+          let val = rawRow[col._excelIdx];
+          if (val === null || val === undefined) {
+            values[col.id] = null;
+          } else if (val instanceof Date) {
+            values[col.id] = val.toISOString();
+          } else {
+            const strVal = String(val).trim();
+            values[col.id] = strVal === '' ? null : strVal;
+          }
+        }
+
+        await db.query(
+          'INSERT INTO rows (id, table_id, values) VALUES ($1, $2, $3)',
+          [uuidv4(), tableId, JSON.stringify(values)]
+        );
+        rowCount++;
+      }
+
+      console.log(`[Import Excel] Created table "${finalName}" (${tableId}) with ${rowCount} rows for user ${req.user.id}`);
+      res.json({ tableId, tableName: finalName, columns: dbColumns, rowCount });
+    } catch (importErr) {
+      console.error('[Import Excel Error]', importErr);
+      res.status(500).json({ error: importErr.message });
+    }
+  });
+});
+
 // Share a table with another user
 app.post('/api/tables/:tableId/share', authenticateToken, async (req, res) => {
   if (!req.user || !req.user.id) {

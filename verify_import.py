@@ -1,0 +1,10 @@
+import psycopg2
+conn = psycopg2.connect('postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres')
+cur = conn.cursor()
+cur.execute("SELECT id, name FROM tables WHERE id = '305b2a3c-9d40-474a-ac0d-f42ff20a0ea1'")
+t = cur.fetchone()
+print('Table:', t)
+cur.execute("SELECT COUNT(*) FROM rows WHERE table_id = '305b2a3c-9d40-474a-ac0d-f42ff20a0ea1'")
+count = cur.fetchone()
+print('Row count:', count[0])
+conn.close()

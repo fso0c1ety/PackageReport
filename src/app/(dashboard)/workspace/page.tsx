@@ -3,12 +3,14 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
-import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
+import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
+import ImportExcelDialog from "../../ImportExcelDialog";
 
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import BackupTableIcon from "@mui/icons-material/BackupTable";
 
 function WorkspaceContent() {
   const searchParams = useSearchParams();
@@ -59,6 +61,7 @@ function WorkspaceContent() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, idx: number) => {
     setMenuAnchor(event.currentTarget);
     setMenuTableId(tables[idx]?.id || null);
@@ -244,21 +247,40 @@ function WorkspaceContent() {
             />
           ))}
         </Tabs>
-        <IconButton
-          onClick={handleAddTable}
-          disabled={creating}
-          size="small"
-          sx={{
-            ml: 1,
-            bgcolor: '#0073ea',
-            color: 'text.primary',
-            '&:hover': { bgcolor: '#0060c2' },
-            width: 32,
-            height: 32
-          }}
-        >
-          <AddIcon sx={{ fontSize: 20 }} />
-        </IconButton>
+        <Tooltip title="Add Table">
+          <IconButton
+            onClick={handleAddTable}
+            disabled={creating}
+            size="small"
+            sx={{
+              ml: 1,
+              bgcolor: '#0073ea',
+              color: 'text.primary',
+              '&:hover': { bgcolor: '#0060c2' },
+              width: 32,
+              height: 32
+            }}
+          >
+            <AddIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Import from Excel">
+          <IconButton
+            onClick={() => setImportDialogOpen(true)}
+            size="small"
+            sx={{
+              ml: 0.5,
+              color: '#4f8ef7',
+              background: 'rgba(79,142,247,0.12)',
+              borderRadius: 2,
+              width: 32,
+              height: 32,
+              '&:hover': { background: 'rgba(79,142,247,0.25)' }
+            }}
+          >
+            <BackupTableIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Table menu */}
@@ -365,6 +387,24 @@ function WorkspaceContent() {
         </DialogActions>
       </Dialog>
 
+      <ImportExcelDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onSuccess={async () => {
+          await fetchTables();
+          // Auto-select the newest table
+          if (!workspaceId) return;
+          const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
+          const data = await res.json();
+          if (data.length > 0) {
+            setTables(data);
+            const sorted = [...data].sort((a: any, b: any) => (b.created_at || 0) - (a.created_at || 0));
+            setSelected(sorted[0].id);
+          }
+        }}
+        workspaces={workspaceId ? [{ id: workspaceId, name: 'Current Workspace' }] : []}
+        defaultWorkspaceId={workspaceId || undefined}
+      />
       <TableBoard 
         tableId={selected || (tables[0]?.id ?? null)} 
         taskId={selected === tableIdParam ? taskIdParam : undefined}

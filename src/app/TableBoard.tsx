@@ -250,6 +250,8 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
+import BackupTableIcon from '@mui/icons-material/BackupTable';
+import ImportExcelDialog from './ImportExcelDialog';
 
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];
@@ -394,6 +396,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  // Extract workspaceId from URL for import dialog
+  const searchParamsForImport = useSearchParams();
+  const workspaceIdForImport = searchParamsForImport?.get('id') || null;
 
   // Initialize Socket Connection - depends on tableId
   useEffect(() => {
@@ -4764,7 +4770,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </IconButton>
           </Tooltip>
         )}
-        <Box sx={{ width: 12, display: { xs: 'none', sm: 'block' } }} />
+        {(userPermission === 'owner' || userPermission === 'admin') && (
+          <Tooltip title="Import from Excel">
+            <IconButton
+              onClick={() => setImportDialogOpen(true)}
+              sx={{
+                color: '#4f8ef7',
+                '&:hover': { color: '#4f8ef7', bgcolor: 'rgba(79,142,247,0.12)' }
+              }}
+            >
+              <BackupTableIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+        <ImportExcelDialog
+          open={importDialogOpen}
+          onClose={() => setImportDialogOpen(false)}
+          onSuccess={async () => {
+            // Navigate to the workspace page so the new table tab appears
+            window.dispatchEvent(new CustomEvent('workspaceUpdated'));
+          }}
+          workspaces={workspaceIdForImport ? [{ id: workspaceIdForImport, name: 'Current Workspace' }] : []}
+          defaultWorkspaceId={workspaceIdForImport || undefined}
+        />
 
         {/* Filters Container */}
         <Box sx={{
