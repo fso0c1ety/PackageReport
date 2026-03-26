@@ -23,11 +23,18 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
             const recipientsArray = Array.from(recipientIds);
             
             // 1. Send Push Notifications
-            const tokensRes = await db.query('SELECT fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
-            const tokens = tokensRes.rows.map(r => r.fcm_token);
+            const tokensRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = ANY($1)', [recipientsArray]);
+            let tokens = new Set();
+            tokensRes.rows.forEach(r => {
+                if (r.fcm_token) tokens.add(r.fcm_token);
+                if (Array.isArray(r.fcm_tokens)) {
+                    r.fcm_tokens.forEach(t => { if (t) tokens.add(t); });
+                }
+            });
+            const tokensArray = Array.from(tokens);
             const safeData = data || {};
-            if (tokens.length > 0) {
-                await sendPushNotification(tokens, title, body, {
+            if (tokensArray.length > 0) {
+                await sendPushNotification(tokensArray, title, body, {
                     type: type || 'chat_message',
                     tableId: table ? table.id : undefined,
                     workspaceId: table ? table.workspace_id : undefined,
@@ -62,13 +69,22 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
 async function sendDirectNotification(recipientId, title, body, type, data) {
     try {
         const safeData = data || {};
-        // 1. Send Push Notification if token exists
-        const tokenRes = await db.query('SELECT fcm_token FROM users WHERE id = $1 AND fcm_token IS NOT NULL', [recipientId]);
+        // 1. Send Push Notification if tokens exist
+        const tokenRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = $1', [recipientId]);
         if (tokenRes.rows.length > 0) {
-            await sendPushNotification([tokenRes.rows[0].fcm_token], title, body, {
-                type: type || 'generic',
-                ...safeData
-            });
+            const r = tokenRes.rows[0];
+            let tokens = new Set();
+            if (r.fcm_token) tokens.add(r.fcm_token);
+            if (Array.isArray(r.fcm_tokens)) {
+                r.fcm_tokens.forEach(t => { if (t) tokens.add(t); });
+            }
+            const tokensArray = Array.from(tokens);
+            if (tokensArray.length > 0) {
+                await sendPushNotification(tokensArray, title, body, {
+                    type: type || 'generic',
+                    ...safeData
+                });
+            }
         }
 
         // 2. Save In-App Notification

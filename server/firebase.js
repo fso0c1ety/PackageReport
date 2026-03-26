@@ -22,7 +22,7 @@ try {
   }
 } catch (error) {
   console.error('[Firebase] Failed to initialize Admin SDK:', error.message);
-  console.error('[Firebase] Please ensure FIREBASE_SERVICE_ACCOUNT env var is set or firebase-service-account.json exists.');
+  console.warn('[Firebase] Notifications will be disabled until server/firebase-service-account.json is provided or the FIREBASE_SERVICE_ACCOUNT environment variable is set.');
 }
 
 const { getMessaging } = require('firebase-admin/messaging');
@@ -45,10 +45,7 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
       priority: 'high',
       notification: {
         channelId: data.type === 'incoming_call' ? 'calls_v4' : 'chat_messages',
-        sound: 'default', // Reverting to default until ringtone is provided
-        notificationPriority: 'PRIORITY_MAX', 
-        visibility: 'PUBLIC',
-        category: data.type === 'incoming_call' ? 'call' : 'msg'
+        sound: 'default'
       }
     },
     data: {

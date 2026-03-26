@@ -42,25 +42,35 @@ const NotificationRequester = () => {
     const initWebPush = async () => {
         try {
             if (messaging) {
+                    console.log('Requesting Web FCM Token...');
                     const currentToken = await getToken(messaging, { 
                         vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
                     });
                     if (currentToken) {
-                        console.log('Web FCM Token:', currentToken);
+                        console.log('Web FCM Token obtained:', currentToken);
                         // Send token to backend
-                        await authenticatedFetch(getApiUrl('users/fcm'), {
+                        const response = await authenticatedFetch(getApiUrl('users/fcm'), {
                             method: 'PUT',
                             body: JSON.stringify({ token: currentToken })
                         });
+                        if (response.ok) {
+                            console.log('Web FCM Token sent to server successfully');
+                        } else {
+                            console.error('Failed to send Web FCM token to server', response.status);
+                        }
+                    } else {
+                        console.warn('No registration token available. Request permission to generate one.');
                     }
                     
                     const { onMessage } = await import("firebase/messaging"); 
                     onMessage(messaging, (payload) => {
-                        console.log('Message received. ', payload);
+                        console.log('Foreground message received: ', payload);
                         const title = payload.notification?.title || 'Notification';
                         const body = payload.notification?.body || 'New message';
                         showNotification(`${title}: ${body}`, 'info');
                     });
+            } else {
+                console.warn('Firebase Messaging not initialized.');
             }
         } catch(e) {
             console.error('An error occurred while retrieving token on web. ', e);

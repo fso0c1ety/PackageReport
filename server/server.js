@@ -921,8 +921,20 @@ function getHexFromExcelColor(color) {
     // ARGB: remove alpha (A) and ensure 6 chars
     hex = color.argb.length === 8 ? color.argb.substring(2) : color.argb;
   } else if (color.theme !== undefined) {
-    // Theme colors are complex, fallback to a neutral or AI hint
-    return null;
+    // Map standard Excel theme colors (Indices 0-9)
+    const themeColors = {
+      0: 'FFFFFF', // White
+      1: '000000', // Black
+      2: 'E7E6E6', // Light Gray
+      3: '44546A', // Dark Blue
+      4: '4472C4', // Accent 1
+      5: 'ED7D31', // Accent 2
+      6: 'A5A5A5', // Accent 3
+      7: 'FFC000', // Accent 4
+      8: '5B9BD5', // Accent 5
+      9: '70AD47'  // Accent 6
+    };
+    hex = themeColors[color.theme] || null;
   }
 
   if (hex && /^[0-9A-Fa-f]{6}$/.test(hex)) {
@@ -936,25 +948,35 @@ async function analyzeExcelWithNexusBrain(rawRows) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('Nexus Brain API Key missing');
 
-  // Take first 20 rows for analysis
-  const sample = rawRows.slice(0, 25);
+  // Take first 30 rows for analysis to provide more context
+  const sample = rawRows.slice(0, 30);
   
-  const systemPrompt = `You are the Nexus Brain, a data engineering expert. 
-Analyze these raw spreadsheet rows and provide a JSON schema.
-RULES:
-1. Identify "headerRowIndex" (0-based) where actual column names start.
-2. Identify "columns": [{ name, type, options: [{ value, color }] }]
-   - type must be: Text, Status, Date, Numbers, Country, or Dropdown.
-   - For 'Status', detect specific status values in the sample and suggest vibrant hex colors (e.g. #00c875 for done/finished).
-3. Identify "skipRowIndices": array of indices (relative to the sample) that are summary rows, total rows, empty rows, or metadata (not actual data).
-4. Identify "dataStartRowIndex": index where real data starts (usually headerRowIndex + 1).
+  const systemPrompt = `You are the Nexus Brain, a world-class data engineering expert specializing in spreadsheet ingestion.
+Analyze these raw spreadsheet rows and provide a highly accurate JSON schema.
+
+OBJECTIVES:
+1. "headerRowIndex": Find the exact 0-based index where the table headers start. Ignore metadata/trash rows at the top.
+2. "dataStartRowIndex": Find where the actual data begins (usually headerRowIndex + 1).
+3. "columns": Define each column with:
+   - "name": The string name of the column.
+   - "type": Choose the most appropriate type from: [Text, Status, Date, Numbers, Country, Dropdown].
+   - "options": For 'Status' and 'Dropdown', identify unique values in the sample and suggest vibrant, professional hex colors (e.g., #00c875 for positive/done, #fdab3d for warning/in-progress, #e53935 for negative/blocked).
+4. "skipRowIndices": Identify indices of empty rows, summary/total rows, or metadata that should NOT be imported as data rows.
+
+PRECISE RULES:
+- If headers span multiple rows, pick the main row containing identifying names.
+- For Date columns, look for ISO strings, timestamps, or common date formats.
+- For Numbers, identify if they are currency, percentages, or plain decimals.
+- BE AGGRESSIVE in identifying summary rows at the bottom of the sample.
 
 Return ONLY JSON:
 {
   "headerRowIndex": number,
   "dataStartRowIndex": number,
-  "columns": [...],
-  "skipRowIndices": [...]
+  "columns": [
+    { "name": string, "type": string, "options": [{ "value": string, "color": string }] }
+  ],
+  "skipRowIndices": [number]
 }`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -967,8 +989,9 @@ Return ONLY JSON:
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: JSON.stringify(sample) }
+        { role: "user", content: `Here is a sample of the Excel data in JSON format:\n${JSON.stringify(sample)}` }
       ],
+      temperature: 0.1, // Low temperature for higher precision
       response_format: { type: "json_object" }
     })
   });
@@ -1114,8 +1137,19 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
           const cell = row.getCell(col._excelColIdx);
           let val = cell.value;
           
+          // Handle formulas (extract result)
+          if (val && typeof val === 'object' && 'result' in val) {
+            val = val.result;
+          }
+
+          // Handle Rich Text
           if (val && val.richText) {
             val = val.richText.map(t => t.text).join('');
+          }
+
+          // Handle Hyperlinks
+          if (val && val.text && val.hyperlink) {
+            val = val.text;
           }
           
           if (val instanceof Date) {
@@ -1909,14 +1943,14 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                          console.log('[AUTOMATION] Sending notification...');
                          
                          // Fetch users with their FCM tokens
-                         const userRes = await db.query('SELECT id, email, fcm_token FROM users WHERE email = ANY($1)', [recipients]);
+                         const userRes = await db.query('SELECT id, email, fcm_token, fcm_tokens FROM users WHERE email = ANY($1)', [recipients]);
                          const matchedUsers = userRes.rows;
                          
                          if (matchedUsers.length === 0) {
                             console.warn('[AUTOMATION] No matching users found via email for notification.');
                          }
         
-                         const fcmTokens = [];
+                         const fcmTokens = new Set();
         
                          for (const u of matchedUsers) {
                              // Add to internal notifications table (shows in top bar)
@@ -1932,14 +1966,17 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                                  logId: logId
                              }, false]);
         
-                             // Collect FCM token for push notification
-                             if (u.fcm_token) {
-                               fcmTokens.push(u.fcm_token);
+                             // Collect FCM tokens for push notification
+                             if (u.fcm_token) fcmTokens.add(u.fcm_token);
+                             if (Array.isArray(u.fcm_tokens)) {
+                                 u.fcm_tokens.forEach(t => { if (t) fcmTokens.add(t); });
                              }
                          }
+                         
+                         const tokensArray = Array.from(fcmTokens);
         
                          // Send Push Notifications via Firebase
-                         if (fcmTokens.length > 0) {
+                         if (tokensArray.length > 0) {
                            const pushTitle = subject;
                            const pushBody = textSummary || "Task updated.";
                            const pushData = {
@@ -1948,8 +1985,8 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                              workspaceId: table.workspace_id,
                              taskId: id.toString()
                            };
-                           await sendPushNotification(fcmTokens, pushTitle, pushBody, pushData);
-                           console.log('[AUTOMATION] Sent push notifications with details to', fcmTokens.length, 'devices.');
+                           await sendPushNotification(tokensArray, pushTitle, pushBody, pushData);
+                           console.log('[AUTOMATION] Sent push notifications with details to', tokensArray.length, 'devices.');
                          }
                      } catch (pushErr) {
                          successNotif = false;
@@ -2078,7 +2115,20 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ error: 'Token is required' });
   try {
+    // 1. Update the singular field (for backward compatibility)
     await db.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
+    
+    // 2. Add to the plural array if not already present
+    await db.query(`
+        UPDATE users 
+        SET fcm_tokens = CASE 
+            WHEN fcm_tokens IS NULL THEN jsonb_build_array($1)
+            WHEN NOT (fcm_tokens @> jsonb_build_array($1)) THEN fcm_tokens || jsonb_build_array($1)
+            ELSE fcm_tokens 
+        END 
+        WHERE id = $2
+    `, [token, req.user.id]);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating FCM token:', err);
@@ -2088,8 +2138,8 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
 
 app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
   try {
-    await db.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
-    console.log(`[FCM] Cleared token for user ${req.user.id}`);
+    await db.query('UPDATE users SET fcm_token = NULL, fcm_tokens = \'[]\'::jsonb WHERE id = $1', [req.user.id]);
+    console.log(`[FCM] Cleared tokens for user ${req.user.id}`);
     res.json({ success: true });
   } catch (err) {
     console.error('Error clearing FCM token:', err);
@@ -2100,15 +2150,25 @@ app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
 // --- Test Notification Endpoint ---
 app.post('/api/test-notification', authenticateToken, async (req, res) => {
     try {
-        const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [req.user.id]);
-        if (userRes.rows.length === 0 || !userRes.rows[0].fcm_token) {
-            return res.status(400).json({ error: 'No FCM token found for user' });
+        const userRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = $1', [req.user.id]);
+        if (userRes.rows.length === 0) {
+            return res.status(400).json({ error: 'User not found' });
         }
         
-        const token = userRes.rows[0].fcm_token;
-        console.log(`Sending test notification to user ${req.user.id} with token ${token.substring(0, 10)}...`);
+        const r = userRes.rows[0];
+        let tokens = new Set();
+        if (r.fcm_token) tokens.add(r.fcm_token);
+        if (Array.isArray(r.fcm_tokens)) {
+            r.fcm_tokens.forEach(t => { if (t) tokens.add(t); });
+        }
+        const tokensArray = Array.from(tokens);
+
+        if (tokensArray.length === 0) {
+            return res.status(400).json({ error: 'No FCM tokens found for user' });
+        }
         
-        await sendPushNotification([token], 'Test Notification', 'This is a test from SmartManage!');
+        console.log(`Sending test notification to user ${req.user.id} with ${tokensArray.length} tokens...`);
+        await sendPushNotification(tokensArray, 'Test Notification', 'This is a test from SmartManage!');
         res.json({ success: true, message: 'Notification sent' });
     } catch (err) {
         console.error('Error sending test notification:', err);
