@@ -42,7 +42,11 @@ messaging.onBackgroundMessage((payload) => {
     renotify: type === 'incoming_call',
     silent: false,
     sound: type === 'incoming_call' ? '/ringtone.wav' : undefined,
-    vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500] : [100]
+    vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500] : [100],
+    // Add specific FCM options for web to ensure it opens the correct link if possible
+    fcm_options: {
+      link: data.link || (type === 'incoming_call' ? `/chat?userId=${data.callerId}&autoAccept=true` : undefined)
+    }
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

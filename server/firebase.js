@@ -48,9 +48,9 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
     tokens: tokens,
   };
 
-  // Only add 'notification' if title or body is provided AND it's not a call
-  // Data-only messages (no 'notification' field) are better for background handling of calls
-  if (title && body && !isCall) {
+  // Always add 'notification' to ensure OS/Browser delivery even if background process is asleep.
+  // Data-only messages are often suppressed by browsers/OS unless high-priority headers are perfectly set.
+  if (title && body) {
     message.notification = {
       title,
       body,
@@ -75,6 +75,31 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   if (isCall) {
     message.android.notification.category = 'call';
   }
+
+  // Webpush-specific configuration for background wake-up
+  message.webpush = {
+    headers: {
+      Urgency: isCall ? 'high' : 'normal',
+    },
+    fcmOptions: {
+      link: isCall ? `/chat?userId=${data.callerId}&autoAccept=true` : undefined,
+    },
+  };
+
+  // APNS-specific configuration (iOS) for background wake-up
+  message.apns = {
+    headers: {
+      'apns-priority': isCall ? '10' : '5',
+      'apns-push-type': 'alert',
+    },
+    payload: {
+      aps: {
+        'content-available': 1,
+        sound: isCall ? 'ringtone.wav' : 'default',
+        category: isCall ? 'call' : undefined,
+      },
+    },
+  };
 
   try {
     const response = await getMessaging().sendEachForMulticast(message);

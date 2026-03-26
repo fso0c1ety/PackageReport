@@ -81,15 +81,16 @@ async function sendDirectNotification(recipientId, title, body, type, data) {
             const tokensArray = Array.from(tokens);
             const isCall = type === 'incoming_call';
             if (tokensArray.length > 0) {
-                // For calls, we send as data-only to allow the service worker/app background logic to handle the ringing.
-                // Our updated sendPushNotification handles moving title/body to data if they are passed or if they are null.
+                // Updated: We now ALWAYS pass title and body to sendPushNotification to ensure the 
+                // "notification" block is created in the FCM payload. This is much more reliable
+                // for background wake-up on Web/Android/iOS.
                 await sendPushNotification(
                     tokensArray, 
-                    isCall ? null : title, 
-                    isCall ? null : body, 
+                    title, 
+                    body, 
                     {
                         type: type || 'generic',
-                        title: title, // Explicitly include in data for calls
+                        title: title, // Also keep in data for service worker fallback
                         body: body,
                         ...safeData
                     }
