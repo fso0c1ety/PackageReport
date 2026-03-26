@@ -16,6 +16,55 @@ const { sendEmail } = require('./mailer');
 const { sendPushNotification } = require('./firebase');
 const { sendNotification } = require('./notificationHelper');
 
+// --- Production Database Auto-Repair ---
+async function bootstrapProductionDb() {
+    console.log('[DB-BOOTSTRAP] Checking schema integrity...');
+    try {
+        // 1. users table: Add fcm_tokens and profile columns
+        await db.query(`
+            ALTER TABLE users 
+            ADD COLUMN IF NOT EXISTS fcm_tokens JSONB DEFAULT '[]'::jsonb,
+            ADD COLUMN IF NOT EXISTS phone TEXT,
+            ADD COLUMN IF NOT EXISTS job_title TEXT,
+            ADD COLUMN IF NOT EXISTS company TEXT;
+        `);
+
+        // 2. tables table: Add invite_code and shared_users
+        await db.query(`
+            ALTER TABLE tables 
+            ADD COLUMN IF NOT EXISTS invite_code TEXT,
+            ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;
+        `);
+
+        // 3. rows table: Add created_by and created_at
+        await db.query(`
+            ALTER TABLE rows 
+            ADD COLUMN IF NOT EXISTS created_by TEXT,
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+        `);
+
+        // 4. activity_logs: Add status and error_message
+        await db.query(`
+            ALTER TABLE activity_logs 
+            ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent',
+            ADD COLUMN IF NOT EXISTS error_message TEXT;
+        `);
+
+        // 5. table_chats: Add sender_id
+        await db.query(`
+            ALTER TABLE table_chats 
+            ADD COLUMN IF NOT EXISTS sender_id TEXT;
+        `);
+
+        console.log('[DB-BOOTSTRAP] Schema repair completed successfully.');
+    } catch (err) {
+        console.error('[DB-BOOTSTRAP] Error during schema repair:', err.message);
+    }
+}
+
+// Global initialization
+bootstrapProductionDb();
+
 
 const http = require('http');
 const { Server } = require("socket.io");
