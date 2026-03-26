@@ -81,6 +81,16 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
     headers: {
       Urgency: isCall ? 'high' : 'normal',
     },
+    notification: isCall ? {
+      title: title,
+      body: body,
+      icon: '/logo.png',
+      requireInteraction: true,
+      actions: [
+        { action: 'answer', title: '📞 Answer' },
+        { action: 'reject', title: '❌ Decline' }
+      ]
+    } : undefined,
     fcmOptions: {
       link: isCall ? `/chat?userId=${data.callerId}&autoAccept=true` : undefined,
     },

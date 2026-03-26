@@ -44,9 +44,17 @@ const NotificationRequester = () => {
     const initWebPush = async () => {
         try {
             if (messaging) {
+                    // Explicitly register the Service Worker with 'none' cache to force updates
+                    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                        scope: '/',
+                        updateViaCache: 'none'
+                    });
+                    console.log('Service Worker registered with scope:', registration.scope);
+
                     console.log('Requesting Web FCM Token...');
                     const currentToken = await getToken(messaging, { 
-                        vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII'
+                        vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII',
+                        serviceWorkerRegistration: registration
                     });
                     if (currentToken) {
                         console.log('Web FCM Token obtained:', currentToken);
