@@ -2164,9 +2164,12 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ error: 'Token is required' });
   try {
+    console.log('[FCM] PUT /api/users/fcm called');
+    console.log('User from token:', req.user);
+    console.log('Token in body:', token);
     // 1. Update the singular field (for backward compatibility)
     await db.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
-    
+    console.log('Updated fcm_token for user', req.user.id);
     // 2. Add to the plural array if not already present
     await db.query(`
         UPDATE users 
@@ -2177,11 +2180,12 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
         END 
         WHERE id = $2
     `, [token, req.user.id]);
-
+    console.log('Updated fcm_tokens for user', req.user.id);
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating FCM token:', err);
-    res.status(500).json({ error: 'Internal server error', details: err.message });
+    if (err.stack) console.error(err.stack);
+    res.status(500).json({ error: 'Internal server error', details: err.message, stack: err.stack });
   }
 });
 
