@@ -2185,7 +2185,12 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error updating FCM token:', err);
     if (err.stack) console.error(err.stack);
-    res.status(500).json({ error: 'Internal server error', details: err.message, stack: err.stack });
+    res.status(500).json({
+      error: 'Internal server error',
+      message: err && err.message ? err.message : null,
+      stack: err && err.stack ? err.stack : null,
+      full: JSON.stringify(err)
+    });
   }
 });
 
