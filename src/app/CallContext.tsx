@@ -90,6 +90,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const ringAudioRef = useRef<HTMLAudioElement | null>(null);
+    const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const processIceCandidatesQueue = async () => {
         if (!peerConnection.current || !peerConnection.current.remoteDescription) return;
@@ -414,6 +416,38 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, [incomingCall, autoAcceptProcessed]);
 
+    // Play/stop ringtone when incomingCall changes
+    useEffect(() => {
+        if (incomingCall && !activeCall) {
+            // Play ringtone loop
+            if (ringAudioRef.current) {
+                ringAudioRef.current.currentTime = 0;
+                ringAudioRef.current.volume = 0.8;
+                ringAudioRef.current.play().catch(() => {});
+            }
+            // Auto-stop ring after 60 seconds (unanswered)
+            ringTimeoutRef.current = setTimeout(() => {
+                stopRing();
+            }, 60000);
+        } else {
+            stopRing();
+        }
+        return () => {
+            if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+        };
+    }, [incomingCall, activeCall]);
+
+    const stopRing = () => {
+        if (ringAudioRef.current) {
+            ringAudioRef.current.pause();
+            ringAudioRef.current.currentTime = 0;
+        }
+        if (ringTimeoutRef.current) {
+            clearTimeout(ringTimeoutRef.current);
+            ringTimeoutRef.current = null;
+        }
+    };
+
     const endCall = () => {
         if (activeCall && socket) {
             socket.emit('call_end', { targetId: activeCall.userId });
@@ -467,6 +501,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     return (
         <CallContext.Provider value={{ startCall }}>
             {children}
+
+            {/* Hidden ringtone audio — plays on incoming call */}
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <audio ref={ringAudioRef} src="/ringtone.wav" loop preload="auto" style={{ display: 'none' }} />
 
             {/* Incoming Call Dialog */}
             <Dialog open={!!incomingCall && !activeCall} onClose={rejectCall}>

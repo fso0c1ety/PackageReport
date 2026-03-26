@@ -32,11 +32,13 @@ messaging.onBackgroundMessage((payload) => {
     data: payload.data,
     tag: type === 'incoming_call' ? 'incoming_call' : undefined,
     actions: type === 'incoming_call' ? [
-      { action: 'answer', title: 'Answer' },
-      { action: 'reject', title: 'Decline' }
+      { action: 'answer', title: '📞 Answer' },
+      { action: 'reject', title: '❌ Decline' }
     ] : [],
     requireInteraction: type === 'incoming_call',
     renotify: type === 'incoming_call',
+    silent: false,
+    sound: type === 'incoming_call' ? '/ringtone.wav' : undefined,
     vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500] : [100]
   };
 

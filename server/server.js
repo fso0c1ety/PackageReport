@@ -911,6 +911,54 @@ app.post('/api/tables', authenticateToken, async (req, res) => {
   }
 });
 
+// Helper function to call Nexus Brain for Excel analysis
+async function analyzeExcelWithNexusBrain(rawRows) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('Nexus Brain API Key missing');
+
+  // Take first 20 rows for analysis
+  const sample = rawRows.slice(0, 25);
+  
+  const systemPrompt = `You are the Nexus Brain, a data engineering expert. 
+Analyze these raw spreadsheet rows and provide a JSON schema.
+RULES:
+1. Identify "headerRowIndex" (0-based) where actual column names start.
+2. Identify "columns": [{ name, type, options: [{ value, color }] }]
+   - type must be: Text, Status, Date, Numbers, Country, or Dropdown.
+   - For 'Status', detect specific status values in the sample and suggest vibrant hex colors (e.g. #00c875 for done/finished).
+3. Identify "skipRowIndices": array of indices (relative to the sample) that are summary rows, total rows, empty rows, or metadata (not actual data).
+4. Identify "dataStartRowIndex": index where real data starts (usually headerRowIndex + 1).
+
+Return ONLY JSON:
+{
+  "headerRowIndex": number,
+  "dataStartRowIndex": number,
+  "columns": [...],
+  "skipRowIndices": [...]
+}`;
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json", 
+      "Authorization": `Bearer ${apiKey}` 
+    },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(sample) }
+      ],
+      response_format: { type: "json_object" }
+    })
+  });
+
+  if (!response.ok) throw new Error("Nexus Brain Analysis Failed");
+  const data = await response.json();
+  const result = JSON.parse(data.choices[0].message.content);
+  return result;
+}
+
 // Import a table from an Excel / CSV file
 app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
   if (!req.user || !req.user.id) return res.status(401).json({ error: 'Unauthorized' });
@@ -940,53 +988,50 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
       // Convert to array of arrays (no header parsing yet)
       const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
 
-      // Auto-detect header row: first row that has >= 3 non-null cells
-      let headerIdx = 0;
-      for (let i = 0; i < Math.min(raw.length, 20); i++) {
-        const nonNull = (raw[i] || []).filter(c => c !== null && String(c).trim() !== '').length;
-        if (nonNull >= 3) { headerIdx = i; break; }
+      console.log(`[Import Excel] Analyzing with Nexus Brain...`);
+      let aiResult;
+      try {
+        aiResult = await analyzeExcelWithNexusBrain(raw);
+      } catch (aiErr) {
+        console.warn(`[Nexus Brain] Analysis failed, falling back to basic detection:`, aiErr);
+        // Fallback to basic detection if AI fails
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(raw.length, 20); i++) {
+          const nonNull = (raw[i] || []).filter(c => c !== null && String(c).trim() !== '').length;
+          if (nonNull >= 3) { headerIdx = i; break; }
+        }
+        aiResult = {
+          headerRowIndex: headerIdx,
+          dataStartRowIndex: headerIdx + 1,
+          columns: (raw[headerIdx] || []).map(name => ({
+            name: name ? String(name).trim() : 'Column',
+            type: 'Text'
+          })),
+          skipRowIndices: []
+        };
       }
 
-      const headerRow = (raw[headerIdx] || []).map(c => (c !== null ? String(c).trim() : null));
-      const dataRows = raw.slice(headerIdx + 1);
+      const { headerRowIndex, dataStartRowIndex, columns: aiColumns, skipRowIndices } = aiResult;
+      const dataRows = raw.slice(dataStartRowIndex);
 
-      // Build columns with smart type detection
-      const statusKeywords = ['status', 'statusi', 'gjendja', 'gjendjа'];
-      const dateKeywords = ['date', 'data', 'datum', 'tarih'];
-      const countryKeywords = ['country', 'shteti', 'land', 'pays', 'paese'];
-      const numberKeywords = ['price', 'qty', 'quantity', 'amount', 'nr', 'no', 'number', 'çmimi', 'sasi'];
-
-      const getColumnType = (name) => {
-        const lower = (name || '').toLowerCase();
-        if (statusKeywords.some(k => lower.includes(k))) return 'Status';
-        if (dateKeywords.some(k => lower.includes(k))) return 'Date';
-        if (countryKeywords.some(k => lower.includes(k))) return 'Country';
-        if (numberKeywords.some(k => lower.includes(k))) return 'Numbers';
-        return 'Text';
-      };
-
-      // Only create columns for non-empty header cells
-      const columns = headerRow
-        .map((name, i) => ({ name, idx: i }))
-        .filter(({ name }) => name && name.length > 0)
-        .map(({ name, idx }, order) => {
-          const type = getColumnType(name);
-          const col = { id: uuidv4(), name, type, order };
-          if (type === 'Status') {
-            col.options = [
-              { value: 'Done', color: '#00c875' },
-              { value: 'In Progress', color: '#fdab3d' },
-              { value: 'Stuck', color: '#e2445c' },
-              { value: 'Not Started', color: '#c4c4c4' },
-            ];
+      // Map AI columns to DB structure
+      const columns = aiColumns
+        .filter(c => c.name && c.name.length > 0)
+        .map((c, order) => {
+          const col = { id: uuidv4(), name: c.name, type: c.type || 'Text', order };
+          if (c.options) col.options = c.options;
+          // Find original index in raw header row
+          const rawHeader = raw[headerRowIndex] || [];
+          col._excelIdx = rawHeader.findIndex(h => h && String(h).trim().toLowerCase() === c.name.toLowerCase());
+          if (col._excelIdx === -1) {
+             // Try a fuzzy match or just fallback to order
+             col._excelIdx = order; 
           }
-          // Store original excel column index for value mapping
-          col._excelIdx = idx;
           return col;
         });
 
       // Final columns (strip internal _excelIdx before saving)
-      const colMap = columns.map(c => ({ ...c })); // shallow copy
+      const colMap = columns.map(c => ({ ...c }));
       const dbColumns = columns.map(({ _excelIdx, ...rest }) => rest);
 
       // Create the table
@@ -999,8 +1044,17 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
 
       // Insert rows
       let rowCount = 0;
-      for (const rawRow of dataRows) {
+      for (let i = 0; i < dataRows.length; i++) {
+        const rawRow = dataRows[i];
+        const actualIdx = i + dataStartRowIndex;
+
         if (!rawRow || rawRow.every(c => c === null || String(c).trim() === '')) continue;
+        
+        // Skip rows identified by AI as summary/junk
+        if (skipRowIndices && skipRowIndices.includes(actualIdx)) {
+          console.log(`[Import Excel] Skipping AI-identified summary row at index ${actualIdx}`);
+          continue;
+        }
 
         // Build values map
         const values = {};

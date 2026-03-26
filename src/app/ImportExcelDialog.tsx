@@ -159,12 +159,23 @@ export default function ImportExcelDialog({
         ) : stage === "importing" ? (
           // Loading state
           <Box sx={{ textAlign: "center", py: 4 }}>
-            <CircularProgress size={56} sx={{ color: "#4f8ef7", mb: 2 }} />
-            <Typography variant="h6" gutterBottom>Importing…</Typography>
-            <Typography sx={{ color: "rgba(255,255,255,0.5)" }}>
-              Parsing <b style={{ color: "#fff" }}>{file?.name}</b> and creating table…
+            <Box sx={{ position: 'relative', display: 'inline-flex', mb: 3 }}>
+              <CircularProgress size={64} thickness={2} sx={{ color: "#4f8ef7" }} />
+              <Box
+                sx={{
+                  top: 0, left: 0, bottom: 0, right: 0,
+                  position: 'absolute', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <TableChartIcon sx={{ color: "#4f8ef7", fontSize: 28 }} />
+              </Box>
+            </Box>
+            <Typography variant="h6" fontWeight={700} gutterBottom>Nexus Brain is Processing</Typography>
+            <Typography sx={{ color: "rgba(255,255,255,0.6)", px: 2 }}>
+              Analyzing <b style={{ color: "#fff" }}>{file?.name}</b> to detect headers, types, and clean data...
             </Typography>
-            <LinearProgress sx={{ mt: 3, borderRadius: 2, height: 6, backgroundColor: "rgba(255,255,255,0.08)", "& .MuiLinearProgress-bar": { background: "linear-gradient(90deg,#4f8ef7,#8b5cf6)" } }} />
+            <LinearProgress sx={{ mt: 4, borderRadius: 2, height: 4, backgroundColor: "rgba(255,255,255,0.08)", "& .MuiLinearProgress-bar": { background: "linear-gradient(90deg,#4f8ef7,#8b5cf6)" } }} />
           </Box>
         ) : (
           // Setup state
