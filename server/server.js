@@ -2122,8 +2122,8 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
     await db.query(`
         UPDATE users 
         SET fcm_tokens = CASE 
-            WHEN fcm_tokens IS NULL THEN jsonb_build_array($1)
-            WHEN NOT (fcm_tokens @> jsonb_build_array($1)) THEN fcm_tokens || jsonb_build_array($1)
+            WHEN fcm_tokens IS NULL THEN jsonb_build_array($1::text)
+            WHEN NOT (fcm_tokens @> jsonb_build_array($1::text)) THEN fcm_tokens || jsonb_build_array($1::text)
             ELSE fcm_tokens 
         END 
         WHERE id = $2
@@ -2132,7 +2132,7 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating FCM token:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 
