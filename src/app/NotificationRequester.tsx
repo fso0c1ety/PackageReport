@@ -156,6 +156,7 @@ const NotificationRequester = () => {
                         await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
                             console.log('Push received: ' + JSON.stringify(notification));
 
+                            // Extract title and body from the notification object or the data payload (for data-only messages)
                             const title = notification.title || notification.data?.title || 'Notification';
                             const body = notification.body || notification.data?.body || 'New message';
                             showNotification(`${title}: ${body}`, 'info');

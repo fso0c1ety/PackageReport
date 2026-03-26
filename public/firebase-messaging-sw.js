@@ -24,13 +24,16 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
   
-  const type = payload.data ? payload.data.type : 'generic';
-  const notificationTitle = payload.notification ? payload.notification.title : 'New Notification';
+  const data = payload.data || {};
+  const type = data.type || 'generic';
+  
+  // Extract title and body from payload.notification OR payload.data (for data-only messages)
+  const notificationTitle = payload.notification?.title || data.title || 'Incoming Call';
   const notificationOptions = {
-    body: payload.notification ? payload.notification.body : '',
+    body: payload.notification?.body || data.body || 'New message',
     icon: '/logo.png',
-    data: payload.data,
-    tag: type === 'incoming_call' ? 'incoming_call' : undefined,
+    data: data,
+    tag: type === 'incoming_call' ? 'call-' + (data.callerId || Date.now()) : type,
     actions: type === 'incoming_call' ? [
       { action: 'answer', title: '📞 Answer' },
       { action: 'reject', title: '❌ Decline' }

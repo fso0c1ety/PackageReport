@@ -79,11 +79,21 @@ async function sendDirectNotification(recipientId, title, body, type, data) {
                 r.fcm_tokens.forEach(t => { if (t) tokens.add(t); });
             }
             const tokensArray = Array.from(tokens);
+            const isCall = type === 'incoming_call';
             if (tokensArray.length > 0) {
-                await sendPushNotification(tokensArray, title, body, {
-                    type: type || 'generic',
-                    ...safeData
-                });
+                // For calls, we send as data-only to allow the service worker/app background logic to handle the ringing.
+                // Our updated sendPushNotification handles moving title/body to data if they are passed or if they are null.
+                await sendPushNotification(
+                    tokensArray, 
+                    isCall ? null : title, 
+                    isCall ? null : body, 
+                    {
+                        type: type || 'generic',
+                        title: title, // Explicitly include in data for calls
+                        body: body,
+                        ...safeData
+                    }
+                );
             }
         }
 

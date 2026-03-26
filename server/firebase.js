@@ -35,28 +35,50 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   
   if (!tokens || tokens.length === 0) return;
 
-  // Use the modern 'sendEachForMulticast' API
+  const isCall = data.type === 'incoming_call';
+
+  // Base message structure
   const message = {
-    notification: {
-      title,
-      body,
-    },
-    android: {
-      priority: 'high',
-      notification: {
-        channelId: data.type === 'incoming_call' ? 'calls_v4' : 'chat_messages',
-        sound: 'default'
-      }
-    },
     data: {
       ...data,
+      // Ensure title and body are available in data for service workers (data-only messages)
+      title: title || data.title || '',
+      body: body || data.body || '',
     },
-    tokens: tokens, // sendEachForMulticast accepts 'tokens' array in the message object
+    tokens: tokens,
   };
+
+  // Only add 'notification' if title or body is provided AND it's not a call
+  // Data-only messages (no 'notification' field) are better for background handling of calls
+  if (title && body && !isCall) {
+    message.notification = {
+      title,
+      body,
+    };
+  }
+
+  // Android-specific configuration
+  message.android = {
+    priority: isCall ? 'high' : 'normal',
+    ttl: isCall ? 0 : 3600 * 1000, // 0 for immediate (calls), 1 hour for others
+  };
+
+  // Only add Android notification settings if we are sending a notification or if it's a call
+  // For calls, we still want to provide channel information for the background handler
+  message.android.notification = {
+    channelId: isCall ? 'calls_v4' : 'chat_messages',
+    sound: 'default',
+    notificationPriority: isCall ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
+    visibility: 'PUBLIC',
+  };
+
+  if (isCall) {
+    message.android.notification.category = 'call';
+  }
 
   try {
     const response = await getMessaging().sendEachForMulticast(message);
-    console.log(`[FCM] Attempted to send to ${tokens.length} tokens. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+    console.log(`[FCM] Sent to ${tokens.length} tokens. Type: ${data.type || 'generic'}. Success: ${response.successCount}, Failure: ${response.failureCount}`);
     
     response.responses.forEach((resp, idx) => {
       if (resp.success) {
