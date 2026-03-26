@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
 const cors = require('cors');
 const multer = require('multer');
+const ExcelJS = require('exceljs');
 const db = require('./db');
 const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
@@ -911,6 +912,25 @@ app.post('/api/tables', authenticateToken, async (req, res) => {
   }
 });
 
+// Helper to convert Excel color to Hex
+function getHexFromExcelColor(color) {
+  if (!color) return null;
+  
+  let hex = "";
+  if (color.argb) {
+    // ARGB: remove alpha (A) and ensure 6 chars
+    hex = color.argb.length === 8 ? color.argb.substring(2) : color.argb;
+  } else if (color.theme !== undefined) {
+    // Theme colors are complex, fallback to a neutral or AI hint
+    return null;
+  }
+
+  if (hex && /^[0-9A-Fa-f]{6}$/.test(hex)) {
+    return `#${hex}`;
+  }
+  return null;
+}
+
 // Helper function to call Nexus Brain for Excel analysis
 async function analyzeExcelWithNexusBrain(rawRows) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -978,15 +998,19 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
     if (!workspace || workspace.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
     try {
-      const XLSX = require('xlsx');
-
-      // Parse workbook from buffer
-      const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
-      const sheetName = wb.SheetNames[0];
-      const sheet = wb.Sheets[sheetName];
-
-      // Convert to array of arrays (no header parsing yet)
-      const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      const worksheet = workbook.getWorksheet(1) || workbook.worksheets[0];
+      
+      // Convert to raw array for AI analysis
+      const raw = [];
+      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        const rowValues = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          rowValues.push(cell.value === undefined ? null : cell.value);
+        });
+        raw.push(rowValues);
+      });
 
       console.log(`[Import Excel] Analyzing with Nexus Brain...`);
       let aiResult;
@@ -1012,76 +1036,113 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
       }
 
       const { headerRowIndex, dataStartRowIndex, columns: aiColumns, skipRowIndices } = aiResult;
-      const dataRows = raw.slice(dataStartRowIndex);
+      const rawHeaderRow = raw[headerRowIndex] || [];
 
-      // Map AI columns to DB structure
-      const columns = aiColumns
-        .filter(c => c.name && c.name.length > 0)
-        .map((c, order) => {
-          const col = { id: uuidv4(), name: c.name, type: c.type || 'Text', order };
-          if (c.options) col.options = c.options;
-          // Find original index in raw header row
-          const rawHeader = raw[headerRowIndex] || [];
-          col._excelIdx = rawHeader.findIndex(h => h && String(h).trim().toLowerCase() === c.name.toLowerCase());
-          if (col._excelIdx === -1) {
-             // Try a fuzzy match or just fallback to order
-             col._excelIdx = order; 
-          }
-          return col;
-        });
+      // Build Columns and Extract Colors for Status/Dropdown
+      const columns = [];
+      const colMap = []; // internal tracking
 
-      // Final columns (strip internal _excelIdx before saving)
-      const colMap = columns.map(c => ({ ...c }));
-      const dbColumns = columns.map(({ _excelIdx, ...rest }) => rest);
+      for (let i = 0; i < aiColumns.length; i++) {
+        const aiCol = aiColumns[i];
+        if (!aiCol.name) continue;
 
-      // Create the table
-      const tableId = uuidv4();
-      const finalName = (tableName && tableName.trim()) ? tableName.trim() : (sheetName || 'Imported Table');
-      await db.query(
-        'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
-        [tableId, finalName, workspaceId, JSON.stringify(dbColumns), Date.now()]
-      );
-
-      // Insert rows
-      let rowCount = 0;
-      for (let i = 0; i < dataRows.length; i++) {
-        const rawRow = dataRows[i];
-        const actualIdx = i + dataStartRowIndex;
-
-        if (!rawRow || rawRow.every(c => c === null || String(c).trim() === '')) continue;
+        // Find the index of this column in the actual worksheet
+        // (AI might have returned a normalized name, so we find the best match)
+        const excelColIdx = rawHeaderRow.findIndex(h => h && String(h).trim().toLowerCase() === aiCol.name.toLowerCase()) + 1; // 1-based for exceljs
         
-        // Skip rows identified by AI as summary/junk
-        if (skipRowIndices && skipRowIndices.includes(actualIdx)) {
-          console.log(`[Import Excel] Skipping AI-identified summary row at index ${actualIdx}`);
-          continue;
+        const colId = uuidv4();
+        const col = {
+          id: colId,
+          name: aiCol.name,
+          type: aiCol.type || 'Text',
+          order: i,
+          _excelColIdx: excelColIdx > 0 ? excelColIdx : (i + 1)
+        };
+
+        // If Status/Dropdown, scan rows for exact options and colors
+        if (col.type === 'Status' || col.type === 'Dropdown') {
+          const optionsMap = new Map(); // value -> color
+          
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber <= dataStartRowIndex) return; // skip headers
+            if (skipRowIndices && skipRowIndices.includes(rowNumber - 1)) return;
+
+            const cell = row.getCell(col._excelColIdx);
+            const val = cell.value ? String(cell.value).trim() : null;
+            if (val) {
+              // Extract color if not already found for this value
+              if (!optionsMap.has(val)) {
+                let hexColor = getHexFromExcelColor(cell.fill?.fgColor);
+                // If no color in file, use AI suggestion or default
+                if (!hexColor && aiCol.options) {
+                  const aiOpt = aiCol.options.find(o => o.value.toLowerCase() === val.toLowerCase());
+                  hexColor = aiOpt ? aiOpt.color : '#4f8ef7';
+                }
+                optionsMap.set(val, hexColor || '#4f8ef7');
+              }
+            }
+          });
+
+          col.options = Array.from(optionsMap.entries()).map(([value, color]) => ({ value, color }));
         }
 
-        // Build values map
-        const values = {};
-        for (const col of colMap) {
-          let val = rawRow[col._excelIdx];
-          if (val === null || val === undefined) {
-            values[col.id] = null;
-          } else if (val instanceof Date) {
-            values[col.id] = val.toISOString();
-          } else {
-            const strVal = String(val).trim();
-            values[col.id] = strVal === '' ? null : strVal;
-          }
-        }
-
-        await db.query(
-          'INSERT INTO rows (id, table_id, values) VALUES ($1, $2, $3)',
-          [uuidv4(), tableId, JSON.stringify(values)]
-        );
-        rowCount++;
+        columns.push(col);
+        colMap.push(col);
       }
 
-      console.log(`[Import Excel] Created table "${finalName}" (${tableId}) with ${rowCount} rows for user ${req.user.id}`);
-      res.json({ tableId, tableName: finalName, columns: dbColumns, rowCount });
-    } catch (importErr) {
-      console.error('[Import Excel Error]', importErr);
-      res.status(500).json({ error: importErr.message });
+      // Create Table
+      const tableId = uuidv4();
+      const dbColumns = columns.map(({ _excelColIdx, ...rest }) => rest);
+      await db.query(
+        'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [tableId, tableName || worksheet.name, workspaceId, JSON.stringify(dbColumns), Date.now()]
+      );
+
+      // Insert Row Data
+      let rowCount = 0;
+      for (let i = dataStartRowIndex + 1; i <= worksheet.rowCount; i++) {
+        const row = worksheet.getRow(i);
+        const actualIdx = i - 1;
+
+        if (row.actualCellCount === 0) continue;
+        if (skipRowIndices && skipRowIndices.includes(actualIdx)) continue;
+
+        const values = {};
+        let hasData = false;
+        
+        for (const col of colMap) {
+          const cell = row.getCell(col._excelColIdx);
+          let val = cell.value;
+          
+          if (val && val.richText) {
+            val = val.richText.map(t => t.text).join('');
+          }
+          
+          if (val instanceof Date) {
+            values[col.id] = val.toISOString();
+          } else if (val !== null && val !== undefined) {
+            values[col.id] = String(val).trim();
+          } else {
+            values[col.id] = null;
+          }
+          if (values[col.id]) hasData = true;
+        }
+
+        if (hasData) {
+          await db.query(
+            'INSERT INTO rows (id, table_id, values) VALUES ($1, $2, $3)',
+            [uuidv4(), tableId, JSON.stringify(values)]
+          );
+          rowCount++;
+        }
+      }
+
+      console.log(`[Import Excel] Success. Built table with ${rowCount} rows.`);
+      res.json({ tableId, tableName: tableName || worksheet.name, columns: dbColumns, rowCount });
+
+    } catch (err) {
+      console.error('[Import Excel Error]', err);
+      res.status(500).json({ error: err.message });
     }
   });
 });
