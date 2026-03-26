@@ -98,7 +98,12 @@ public class MyFCMService extends FirebaseMessagingService {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
 
         // Add Answer/Decline Actions
-        builder.addAction(android.R.drawable.ic_menu_call, "Answer", pendingIntent);
+        Intent declineIntent = new Intent(this, MainActivity.class); // In a real app, this might be a BroadcastReceiver to stop the sound
+        declineIntent.putExtra("action", "decline");
+        PendingIntent pendingDecline = PendingIntent.getActivity(this, 1, declineIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        builder.addAction(android.R.drawable.ic_menu_call, "ANSWER", pendingIntent);
+        builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "DECLINE", pendingDecline);
         
         // Notification ID for calls
         notificationManager.notify(1001, builder.build());

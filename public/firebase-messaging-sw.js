@@ -46,13 +46,13 @@ messaging.onBackgroundMessage((payload) => {
         data: data,
         tag: type === 'incoming_call' ? 'call-' + (data.callerId || Date.now()) : type,
         actions: type === 'incoming_call' ? [
-        { action: 'answer', title: '📞 Answer' },
-        { action: 'reject', title: '❌ Decline' }
+        { action: 'answer', title: '✅ ACCEPT CALL' },
+        { action: 'reject', title: '❌ DECLINE' }
         ] : [],
         requireInteraction: true, // Crucial for calls - stays until user acts
         renotify: true, // Triggers every time a fresh push arrives for the same tag
         silent: false,
-        sound: type === 'incoming_call' ? '/ringtone.wav' : undefined,
+        sound: type === 'incoming_call' ? './ringtone.wav' : undefined,
         vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 1000] : [100],
     };
 

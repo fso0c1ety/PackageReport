@@ -67,7 +67,7 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   // For calls, we still want to provide channel information for the background handler
   message.android.notification = {
     channelId: isCall ? 'calls_v4' : 'chat_messages',
-    sound: 'default',
+    sound: isCall ? 'ringtone' : 'default',
     notificationPriority: isCall ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
     visibility: 'PUBLIC',
   };
@@ -87,8 +87,8 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
       icon: '/logo.png',
       requireInteraction: true,
       actions: [
-        { action: 'answer', title: '📞 Answer' },
-        { action: 'reject', title: '❌ Decline' }
+        { action: 'answer', title: '✅ ACCEPT CALL' },
+        { action: 'reject', title: '❌ DECLINE' }
       ]
     } : undefined,
     fcmOptions: {
