@@ -26,6 +26,7 @@ import { DEFAULT_SERVER_URL, getAvatarUrl, getApiUrl, authenticatedFetch } from 
 
 type CallContextType = {
     startCall: (targetId: string, isVideo: boolean, otherUser?: any) => Promise<void>;
+    showIncomingCall: (data: any) => void; 
 };
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -400,6 +401,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIncomingCall(null);
     };
 
+    const showIncomingCall = (data: any) => {
+        if (!data || activeCallRef.current) return;
+        console.log("[CallContext] Manual showIncomingCall triggered:", data);
+        setIncomingCall({
+            callerId: data.callerId,
+            callerName: data.callerName || 'Incoming Call',
+            callerAvatar: data.callerAvatar,
+            isVideo: data.isVideo === 'true' || data.isVideo === true,
+            offer: data.offer || null // Might be null if just a push ping
+        });
+    };
+
     useEffect(() => {
         if (incomingCall && !autoAcceptProcessed && typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
@@ -499,28 +512,110 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }, [remoteStream]);
 
     return (
-        <CallContext.Provider value={{ startCall }}>
+        <CallContext.Provider value={{ startCall, showIncomingCall }}>
             {children}
 
             {/* Hidden ringtone audio — plays on incoming call */}
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <audio ref={ringAudioRef} src="/ringtone.wav" loop preload="auto" style={{ display: 'none' }} />
 
-            {/* Incoming Call Dialog */}
-            <Dialog open={!!incomingCall && !activeCall} onClose={rejectCall}>
-                <Box sx={{ p: 4, textAlign: 'center', minWidth: 300 }}>
-                    <Avatar src={getAvatarUrl(incomingCall?.callerAvatar, incomingCall?.callerName)} sx={{ width: 80, height: 80, mx: 'auto', mb: 2 }} />
-                    <Typography variant="h6">{incomingCall?.callerName}</Typography>
-                    <Typography color="text.secondary" sx={{ mb: 4 }}>
-                        Incoming {incomingCall?.isVideo ? 'Video' : 'Audio'} Call...
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-                        <Button variant="contained" color="error" onClick={rejectCall} startIcon={<CallEndIcon />}>
-                            Decline
-                        </Button>
-                        <Button variant="contained" color="success" onClick={acceptCall} startIcon={incomingCall?.isVideo ? <VideocamIcon /> : <LocalPhoneIcon />}>
-                            Accept
-                        </Button>
+            {/* Redesigned Incoming Call Overlay - Premium Experience */}
+            <Dialog 
+                fullScreen 
+                open={!!incomingCall && !activeCall} 
+                onClose={rejectCall}
+                PaperProps={{
+                    sx: {
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+                        color: 'white',
+                    }
+                }}
+            >
+                <Box sx={{ 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    py: 12,
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}>
+                    {/* Dynamic Background Ripples */}
+                    <Box sx={{ position: 'absolute', top: '35%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 0 }}>
+                        <div className="ring-ripple" style={{ width: 250, height: 250 }}></div>
+                        <div className="ring-ripple" style={{ width: 250, height: 250 }}></div>
+                        <div className="ring-ripple" style={{ width: 250, height: 250 }}></div>
+                    </Box>
+
+                    {/* Caller Info */}
+                    <Box sx={{ textAlign: 'center', zIndex: 1, px: 4 }}>
+                        <Avatar 
+                            src={getAvatarUrl(incomingCall?.callerAvatar, incomingCall?.callerName)} 
+                            className="animate-pulse-custom"
+                            sx={{ 
+                                width: 140, 
+                                height: 140, 
+                                mx: 'auto', 
+                                mb: 3, 
+                                border: '4px solid rgba(255,255,255,0.2)',
+                                boxShadow: '0 0 40px rgba(99, 102, 241, 0.4)'
+                            }} 
+                        />
+                        <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, background: 'linear-gradient(to right, #fff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            {incomingCall?.callerName}
+                        </Typography>
+                        <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.6)', letterSpacing: 2, textTransform: 'uppercase', fontSize: '0.9rem', fontWeight: 600 }}>
+                            {incomingCall?.isVideo ? 'Incoming Video Call' : 'Incoming Audio Call'}
+                        </Typography>
+                    </Box>
+
+                    {/* Action Buttons */}
+                    <Box sx={{ 
+                        display: 'flex', 
+                        gap: 6, 
+                        zIndex: 1, 
+                        width: '100%', 
+                        justifyContent: 'center',
+                        pb: 4
+                    }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                            <IconButton 
+                                onClick={rejectCall} 
+                                sx={{ 
+                                    bgcolor: '#ef4444', 
+                                    color: 'white', 
+                                    width: 80, 
+                                    height: 80, 
+                                    mb: 1,
+                                    boxShadow: '0 4px 20px rgba(239, 68, 68, 0.4)',
+                                    transition: 'transform 0.2s',
+                                    '&:hover': { bgcolor: '#dc2626', transform: 'scale(1.1)' } 
+                                }}
+                            >
+                                <CallEndIcon sx={{ fontSize: 32 }} />
+                            </IconButton>
+                            <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, opacity: 0.8 }}>Decline</Typography>
+                        </Box>
+
+                        <Box sx={{ textAlign: 'center' }}>
+                            <IconButton 
+                                onClick={acceptCall} 
+                                sx={{ 
+                                    bgcolor: '#22c55e', 
+                                    color: 'white', 
+                                    width: 80, 
+                                    height: 80, 
+                                    mb: 1,
+                                    boxShadow: '0 4px 20px rgba(34, 197, 94, 0.4)',
+                                    transition: 'transform 0.2s',
+                                    '&:hover': { bgcolor: '#16a34a', transform: 'scale(1.1)' } 
+                                }}
+                            >
+                                {incomingCall?.isVideo ? <VideocamIcon sx={{ fontSize: 32 }} /> : <LocalPhoneIcon sx={{ fontSize: 32 }} />}
+                            </IconButton>
+                            <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, opacity: 0.8 }}>Accept</Typography>
+                        </Box>
                     </Box>
                 </Box>
             </Dialog>

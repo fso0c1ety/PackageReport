@@ -12,6 +12,7 @@ import { useNotification } from "./NotificationContext";
 // WEB: To use Push Notifications on Web, you must initialize Firebase here.
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken } from "firebase/messaging";
+import { useCallContext } from "./CallContext";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBIUK8vR4o_0K-TVUy_bA0w_Z7WHY165Eo",
@@ -36,6 +37,7 @@ if (typeof window !== "undefined") {
 
 const NotificationRequester = () => {
     const { showNotification } = useNotification();
+    const { showIncomingCall } = useCallContext();
     const router = useRouter();
     const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
 
@@ -65,9 +67,16 @@ const NotificationRequester = () => {
                     const { onMessage } = await import("firebase/messaging"); 
                     onMessage(messaging, (payload) => {
                         console.log('Foreground message received: ', payload);
-                        const title = payload.notification?.title || 'Notification';
-                        const body = payload.notification?.body || 'New message';
-                        showNotification(`${title}: ${body}`, 'info');
+                        const data = payload.data || {};
+                        const type = data.type || payload.notification?.title === 'Incoming Call' ? 'incoming_call' : 'generic';
+
+                        if (type === 'incoming_call') {
+                            showIncomingCall(data);
+                        } else {
+                            const title = payload.notification?.title || 'Notification';
+                            const body = payload.notification?.body || 'New message';
+                            showNotification(`${title}: ${body}`, 'info');
+                        }
                     });
             } else {
                 console.warn('Firebase Messaging not initialized.');
@@ -159,12 +168,17 @@ const NotificationRequester = () => {
                             // Extract title and body from the notification object or the data payload (for data-only messages)
                             const title = notification.title || notification.data?.title || 'Notification';
                             const body = notification.body || notification.data?.body || 'New message';
-                            showNotification(`${title}: ${body}`, 'info');
+                            const type = notification.data?.type;
+
+                            if (type === 'incoming_call') {
+                                showIncomingCall(notification.data);
+                            } else {
+                                showNotification(`${title}: ${body}`, 'info');
+                            }
 
                             const tableId = notification.data?.tableId;
                             const workspaceId = notification.data?.workspaceId;
                             const taskId = notification.data?.taskId;
-                            const type = notification.data?.type;
 
                             await LocalNotifications.schedule({
                                 notifications: [
@@ -191,6 +205,10 @@ const NotificationRequester = () => {
                                 if (data.tableId) {
                                     url += `&tableId=${data.tableId}`;
                                 }
+                                router.push(url);
+                            } else if (data.type === 'incoming_call') {
+                                // For background tap on call, we show the UI immediately
+                                showIncomingCall(data);
                             }
                             
                             if (url) {
