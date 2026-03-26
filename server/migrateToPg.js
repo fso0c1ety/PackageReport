@@ -31,7 +31,11 @@ async function migrate() {
         email TEXT UNIQUE,
         avatar TEXT,
         password TEXT,
-        fcm_token TEXT
+        fcm_token TEXT,
+        fcm_tokens JSONB DEFAULT '[]'::jsonb,
+        phone TEXT,
+        job_title TEXT,
+        company TEXT
       );
 
       CREATE TABLE IF NOT EXISTS workspaces (
@@ -46,13 +50,17 @@ async function migrate() {
         workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
         columns JSONB,
         created_at BIGINT,
-        doc_content TEXT
+        doc_content TEXT,
+        invite_code TEXT,
+        shared_users JSONB DEFAULT '[]'::jsonb
       );
 
       CREATE TABLE IF NOT EXISTS rows (
         id TEXT PRIMARY KEY,
         table_id TEXT REFERENCES tables(id) ON DELETE CASCADE,
-        values JSONB
+        values JSONB,
+        created_by TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
       CREATE TABLE IF NOT EXISTS activity_logs (
@@ -62,7 +70,9 @@ async function migrate() {
         html TEXT,
         timestamp BIGINT,
         table_id TEXT,
-        task_id TEXT
+        task_id TEXT,
+        status TEXT DEFAULT 'sent',
+        error_message TEXT
       );
 
       CREATE TABLE IF NOT EXISTS automations (
@@ -80,7 +90,8 @@ async function migrate() {
         table_id TEXT REFERENCES tables(id) ON DELETE CASCADE,
         sender TEXT,
         text TEXT,
-        timestamp BIGINT
+        timestamp BIGINT,
+        sender_id TEXT
       );
     `);
         console.log('Tables created or already exist.');
