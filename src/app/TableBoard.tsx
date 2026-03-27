@@ -896,7 +896,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [invoiceSummary, setInvoiceSummary] = useState("");
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
   const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
-  const [tableRowLimit, setTableRowLimit] = useState(200);
+  const [tableRowLimit, setTableRowLimit] = useState(8);
+  const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   // Load persistent AI chat history for this board
   useEffect(() => {
@@ -2525,8 +2526,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   useEffect(() => {
     // Reset viewport window when filters/data change significantly.
-    setTableRowLimit(200);
+    setTableRowLimit(8);
   }, [tableId, filterText, filterPerson, filterStatus]);
+
+  const handleTableScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
+    if (!nearBottom) return;
+    setTableRowLimit(prev => {
+      if (prev >= filteredRows.length) return prev;
+      return Math.min(prev + 16, filteredRows.length);
+    });
+  }, [filteredRows.length]);
 
   const invoiceTaskOptions = React.useMemo(() => {
     const titleColId = columns[0]?.id;
@@ -5967,7 +5978,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               '&::-webkit-scrollbar-track': { background: 'transparent' },
               '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
               '&::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
-            }}>
+            }}
+              ref={tableContainerRef}
+              onScroll={handleTableScroll}
+            >
               <Table sx={{ borderSpacing: '0 8px', borderCollapse: 'separate' }}>
                 <TableHead>
                   <Droppable droppableId="columns-droppable" direction="horizontal" type="column">
@@ -6660,10 +6674,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <Button
                     size="small"
                     variant="outlined"
-                    onClick={() => setTableRowLimit((prev) => prev + 200)}
+                    onClick={() => setTableRowLimit((prev) => prev + 16)}
                     sx={{ textTransform: 'none', fontWeight: 700 }}
                   >
-                    Load 200 More
+                    Load 16 More
                   </Button>
                 )}
               </Box>
