@@ -263,6 +263,7 @@ interface TableBoardProps {
   taskId?: string | null;
   initialTab?: string | null;
 }
+type AiMode = 'assistant' | 'invoice';
 
 const initialRows: Row[] = [
   {
@@ -887,6 +888,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [automationTab, setAutomationTab] = useState<'list' | 'ai' | 'analytics'>('list');
   const [aiChatInput, setAiChatInput] = useState("");
   const [aiMessages, setAiMessages] = useState<any[]>([]);
+  const [aiMode, setAiMode] = useState<AiMode>('assistant');
 
   // Load persistent AI chat history for this board
   useEffect(() => {
@@ -899,6 +901,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           { role: 'assistant', text: "Hello! I'm your Nexus Brain. I can help you manage this board, send emails, or set up automations. What's on your mind?", timestamp: new Date().toISOString() }
         ]);
       }
+      setAiMode('assistant');
     }
   }, [tableId]);
 
@@ -1010,6 +1013,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   };
 
+  const handleCopyInvoiceDraft = async (invoiceDraft: any) => {
+    const contentToCopy = invoiceDraft?.markdown
+      || invoiceDraft?.text
+      || JSON.stringify(invoiceDraft, null, 2);
+    try {
+      await navigator.clipboard.writeText(contentToCopy);
+      showNotification('Invoice draft copied to clipboard', 'success');
+    } catch (err) {
+      console.error('Copy invoice draft failed:', err);
+      showNotification('Failed to copy invoice draft', 'error');
+    }
+  };
+
   const handleAiChatSubmit = (input: string) => {
     if (!input.trim()) return;
     
@@ -1020,7 +1036,53 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setTimeout(async () => {
       let responseText = "";
       try {
-        const systemPrompt = `
+        const parsedHistory = aiMessages.slice(-10).map(m => ({
+          role: m.role,
+          content: m.text
+        }));
+
+        const parseAiJson = (rawContent: string) => {
+          const clean = rawContent
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/```$/i, '')
+            .trim();
+          try {
+            return JSON.parse(clean);
+          } catch {
+            return { action: "none", params: {}, response: clean };
+          }
+        };
+
+        const taskSnapshot = rows.slice(0, 100).map((r, i) => {
+          const valuesByColumn = columns.reduce((acc, col) => {
+            acc[col.name] = r.values[col.id] ?? "";
+            return acc;
+          }, {} as Record<string, any>);
+
+          return {
+            index: i + 1,
+            id: r.id,
+            values: valuesByColumn
+          };
+        });
+
+        const invoiceSourceRows = (selectedTaskIds.length > 0
+          ? rows.filter(r => selectedTaskIds.includes(r.id))
+          : rows
+        ).slice(0, 100).map((r, i) => {
+          const valuesByColumn = columns.reduce((acc, col) => {
+            acc[col.name] = r.values[col.id] ?? "";
+            return acc;
+          }, {} as Record<string, any>);
+          return {
+            index: i + 1,
+            id: r.id,
+            values: valuesByColumn
+          };
+        });
+
+        const assistantSystemPrompt = `
           You are the "Nexus Brain", the intelligent core of this project management app.
           Capabilities:
           1. add_task: Add a new row.
@@ -1035,7 +1097,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           Board Schema: ${JSON.stringify(columns.map(c => ({ id: c.id, name: c.name, type: c.type })))}
           Team Members: ${JSON.stringify(tableMembers.map(m => ({ name: m.name, email: m.email })))}
           Current User: ${currentUser?.name || "User"}
-          Current Tasks: ${JSON.stringify(rows.map((r, i) => ({ index: i + 1, id: r.id, name: String(r.values[columns[0]?.id] || "Unnamed") })))}
+          Current Tasks: ${JSON.stringify(taskSnapshot)}
 
           Rules:
           - If you are going to take an action, set the "action" field. The user will be asked to confirm before it executes.
@@ -1057,19 +1119,55 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           }
         `;
 
-        // Construct conversation history (last 10 messages)
-        const history = aiMessages.slice(-10).map(m => ({
-          role: m.role,
-          content: m.text
-        }));
+        const invoiceSystemPrompt = `
+          You are "Nexus Brain AI" in INVOICE MODE.
+          Convert board tasks into a professional invoice draft.
+
+          Board Title: ${boardTitle}
+          Current User: ${currentUser?.name || "User"}
+          Current Date: ${new Date().toISOString()}
+          Board Schema: ${JSON.stringify(columns.map(c => ({ name: c.name, type: c.type })))}
+          Selected Task IDs: ${JSON.stringify(selectedTaskIds)}
+          Tasks for Invoice Conversion (max 100): ${JSON.stringify(invoiceSourceRows)}
+
+          Rules:
+          - Do not invent tasks that are not provided.
+          - Infer line items from task data (title, quantity, rate, amount, notes) when possible.
+          - If key fields are missing, still provide a usable draft and mention assumptions.
+          - Keep response concise and practical.
+
+          Return JSON:
+          {
+            "response": "short friendly summary for the user",
+            "action": "none",
+            "params": {},
+            "invoiceDraft": {
+              "invoiceNumber": "INV-XXXX",
+              "issueDate": "YYYY-MM-DD",
+              "dueDate": "YYYY-MM-DD",
+              "billFrom": "...",
+              "billTo": "...",
+              "currency": "EUR",
+              "subtotal": 0,
+              "taxPercent": 0,
+              "taxAmount": 0,
+              "total": 0,
+              "assumptions": ["..."],
+              "items": [
+                { "description": "...", "quantity": 1, "unitPrice": 0, "amount": 0 }
+              ],
+              "markdown": "full invoice as markdown ready to copy"
+            }
+          }
+        `;
 
         const res = await authenticatedFetch(getApiUrl('/nexus/chat'), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
              input,
-             systemPrompt,
-             messages: history
+             systemPrompt: aiMode === 'invoice' ? invoiceSystemPrompt : assistantSystemPrompt,
+             messages: parsedHistory
           })
         });
 
@@ -1079,16 +1177,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         }
 
         const data = await res.json();
-        const aiResult = JSON.parse(data.choices[0].message.content);
+        const aiResult = parseAiJson(data?.choices?.[0]?.message?.content || "");
         responseText = aiResult.response;
 
         const { action: aiAction, params } = aiResult;
 
         setAiMessages(prev => [...prev, { 
           role: 'assistant', 
-          text: responseText, 
+          text: responseText || (aiMode === 'invoice' ? "I prepared an invoice draft based on your tasks." : "Done."), 
           timestamp: new Date().toISOString(),
-          pendingAction: aiAction !== "none" ? { action: aiAction, params } : undefined
+          pendingAction: aiMode === 'assistant' && aiAction !== "none" ? { action: aiAction, params } : undefined,
+          invoiceDraft: aiMode === 'invoice' ? aiResult.invoiceDraft : undefined
         }]);
 
       } catch (err) {
@@ -8286,6 +8385,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(0,0,0,0.2)' : '0 4px 12px rgba(0,0,0,0.05)'
                           }}>
                             <Typography sx={{ fontSize: '0.925rem', lineHeight: 1.6, fontWeight: 450 }}>{msg.text}</Typography>
+                            {msg.invoiceDraft && (
+                              <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: theme.palette.action.hover, border: `1px solid ${theme.palette.divider}` }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
+                                  INVOICE DRAFT
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.text.primary }}>
+                                  {msg.invoiceDraft.invoiceNumber || 'Draft Invoice'} • Total: {msg.invoiceDraft.total ?? 0} {msg.invoiceDraft.currency || 'EUR'}
+                                </Typography>
+                                {Array.isArray(msg.invoiceDraft.items) && msg.invoiceDraft.items.length > 0 && (
+                                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                    {msg.invoiceDraft.items.length} line items
+                                  </Typography>
+                                )}
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ mt: 1.2, textTransform: 'none', fontWeight: 700, borderRadius: 1.5 }}
+                                  onClick={() => handleCopyInvoiceDraft(msg.invoiceDraft)}
+                                >
+                                  Copy Invoice Draft
+                                </Button>
+                              </Box>
+                            )}
                             
                             {msg.pendingAction && (
                               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
@@ -8373,10 +8495,34 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       transition: 'all 0.2s',
                       '&:focus-within': { borderColor: theme.palette.primary.main, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }
                     }}>
+                      <Stack direction="row" spacing={1} sx={{ px: 1, pb: 0.5 }}>
+                        <Chip
+                          label="Assistant"
+                          size="small"
+                          onClick={() => setAiMode('assistant')}
+                          sx={{
+                            border: `1px solid ${theme.palette.divider}`,
+                            bgcolor: aiMode === 'assistant' ? theme.palette.primary.main : 'transparent',
+                            color: aiMode === 'assistant' ? '#fff' : theme.palette.text.secondary,
+                            fontWeight: 700
+                          }}
+                        />
+                        <Chip
+                          label="Invoice Mode"
+                          size="small"
+                          onClick={() => setAiMode('invoice')}
+                          sx={{
+                            border: `1px solid ${theme.palette.divider}`,
+                            bgcolor: aiMode === 'invoice' ? theme.palette.primary.main : 'transparent',
+                            color: aiMode === 'invoice' ? '#fff' : theme.palette.text.secondary,
+                            fontWeight: 700
+                          }}
+                        />
+                      </Stack>
                       <TextField
                         fullWidth
                         variant="standard"
-                        placeholder="e.g. 'Notify the team when status changes to Done'"
+                        placeholder={aiMode === 'invoice' ? "e.g. 'Convert these tasks into an invoice for ACME'" : "e.g. 'Notify the team when status changes to Done'"}
                         value={aiChatInput}
                         onChange={(e) => setAiChatInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -8587,8 +8733,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Box>
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="body1" sx={{ fontWeight: 900, color: theme.palette.mode === 'dark' ? '#fff' : '#1e1b4b', fontSize: '1.05rem', letterSpacing: '-0.02em' }}>Nexus Brain</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>Intelligence Engine</Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+                    {aiMode === 'invoice' ? 'Invoice Mode' : 'Intelligence Engine'}
+                  </Typography>
                 </Box>
+                <Chip
+                  label={aiMode === 'invoice' ? 'Invoice' : 'Assistant'}
+                  size="small"
+                  onClick={() => setAiMode(prev => prev === 'assistant' ? 'invoice' : 'assistant')}
+                  sx={{
+                    border: `1px solid ${theme.palette.divider}`,
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.08)',
+                    color: theme.palette.primary.main,
+                    fontWeight: 800
+                  }}
+                />
                 <IconButton 
                   onClick={() => setIsGlobalAiOpen(false)} 
                   sx={{ 
@@ -8643,6 +8802,32 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       }}
                     >
                       <Typography sx={{ fontSize: '0.925rem', color: msg.role === 'user' ? '#fff' : theme.palette.text.primary, lineHeight: 1.6, fontWeight: 450 }}>{msg.text}</Typography>
+                      {msg.invoiceDraft && (
+                        <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: msg.role === 'user' ? 'rgba(255,255,255,0.15)' : theme.palette.action.hover, border: `1px solid ${theme.palette.divider}` }}>
+                          <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', mb: 0.5, color: msg.role === 'user' ? '#fff' : theme.palette.text.secondary }}>
+                            INVOICE DRAFT
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: msg.role === 'user' ? '#fff' : theme.palette.text.primary }}>
+                            {msg.invoiceDraft.invoiceNumber || 'Draft Invoice'} • Total: {msg.invoiceDraft.total ?? 0} {msg.invoiceDraft.currency || 'EUR'}
+                          </Typography>
+                          <Button
+                            size="small"
+                            fullWidth
+                            variant="outlined"
+                            onClick={() => handleCopyInvoiceDraft(msg.invoiceDraft)}
+                            sx={{
+                              mt: 1,
+                              textTransform: 'none',
+                              fontWeight: 700,
+                              borderRadius: 1.5,
+                              borderColor: msg.role === 'user' ? 'rgba(255,255,255,0.4)' : theme.palette.divider,
+                              color: msg.role === 'user' ? '#fff' : theme.palette.text.secondary
+                            }}
+                          >
+                            Copy Invoice Draft
+                          </Button>
+                        </Box>
+                      )}
                       
                       {msg.pendingAction && (
                         <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
@@ -8726,7 +8911,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               <Box sx={{ p: 2.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(20, 20, 25, 0.4)' : 'rgba(240, 240, 255, 0.4)', borderTop: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
                 {aiMessages.length < 3 && (
                   <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
-                    {["Add a task", "Send an email", "Change status"].map((suggestion) => (
+                    {(aiMode === 'invoice'
+                      ? ["Convert all tasks to invoice", "Create invoice for selected tasks", "Draft invoice email body"]
+                      : ["Add a task", "Send an email", "Change status"]
+                    ).map((suggestion) => (
                       <Chip 
                         key={suggestion}
                         label={suggestion} 
@@ -8761,7 +8949,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <TextField
                     fullWidth
                     variant="standard"
-                    placeholder="Ask the brain anything..."
+                    placeholder={aiMode === 'invoice' ? "Ask the brain to build an invoice from your tasks..." : "Ask the brain anything..."}
                     value={aiChatInput}
                     onChange={(e) => setAiChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAiChatSubmit(aiChatInput)}
