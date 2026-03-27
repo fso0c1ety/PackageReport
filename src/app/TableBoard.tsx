@@ -897,6 +897,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
   const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
   const [tableVirtualStart, setTableVirtualStart] = useState(0);
+  const [isReorderMode, setIsReorderMode] = useState(false);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   // Load persistent AI chat history for this board
@@ -2014,6 +2015,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Drag and drop handler
   const onDragEnd = async (result: any) => {
     if (!result.destination || userPermission === 'read') return;
+    if ((filterText || filterPerson.length > 0 || filterStatus.length > 0) && (result.type === undefined || result.type === 'row' || result.type === 'default')) {
+      showNotification('Clear filters before reordering tasks', 'info');
+      return;
+    }
     // Column drag
     if (result.type === 'column') {
       const newColumns = Array.from(columns);
@@ -2532,12 +2537,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [filteredRows, tableVirtualStart, tableVirtualEnd]);
 
   const isTableVirtualized = filteredRows.length > ROW_WINDOW_SIZE;
+  const hasActiveFilters = !!filterText || filterPerson.length > 0 || filterStatus.length > 0;
   const topSpacerHeight = tableVirtualStart * ROW_HEIGHT_ESTIMATE;
   const bottomSpacerHeight = Math.max(0, (filteredRows.length - tableVirtualEnd) * ROW_HEIGHT_ESTIMATE);
 
   useEffect(() => {
     // Reset viewport window when filters/data change significantly.
     setTableVirtualStart(0);
+    setIsReorderMode(false);
     if (tableContainerRef.current) {
       tableContainerRef.current.scrollTop = 0;
     }
@@ -6180,13 +6187,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                     return (
                       <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                        {topSpacerHeight > 0 && (
+                        {!isReorderMode && topSpacerHeight > 0 && (
                           <TableRow>
                             <TableCell colSpan={sortedColumns.length + 2} sx={{ p: 0, border: 0, height: `${topSpacerHeight}px` }} />
                           </TableRow>
                         )}
-                        {visibleFilteredRows.map((row, index) => {
-                          const rowIndex = tableVirtualStart + index;
+                        {(isReorderMode ? filteredRows : visibleFilteredRows).map((row, index) => {
+                          const rowIndex = isReorderMode ? index : (tableVirtualStart + index);
                           // Calculate background color based on status
                           let rowBg = theme.palette.background.default;
                           let rowHoverBg = theme.palette.action.hover;
@@ -6204,7 +6211,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }
 
                           return (
-                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={!!filterText || isTableVirtualized}>
+                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={hasActiveFilters || (isTableVirtualized && !isReorderMode)}>
                               {(provided, snapshot) => (
                                 <TableRow
                                   ref={provided.innerRef}
@@ -6673,7 +6680,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             </Draggable>
                           );
                         })}
-                        {bottomSpacerHeight > 0 && (
+                        {!isReorderMode && bottomSpacerHeight > 0 && (
                           <TableRow>
                             <TableCell colSpan={sortedColumns.length + 2} sx={{ p: 0, border: 0, height: `${bottomSpacerHeight}px` }} />
                           </TableRow>
@@ -6688,9 +6695,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             {(isTableVirtualized || filteredRows.length > 300) && (
               <Box sx={{ mt: 1.2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 0.5 }}>
                 <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                  Rendering {visibleFilteredRows.length} visible tasks (virtualized) from {filteredRows.length} total.
-                  {isTableVirtualized ? ' Drag reorder is temporarily disabled while virtualized.' : ''}
+                  {isReorderMode
+                    ? `Reorder mode active. Rendering all ${filteredRows.length} tasks for drag-and-drop.`
+                    : `Rendering ${visibleFilteredRows.length} visible tasks (virtualized) from ${filteredRows.length} total.`}
+                  {isTableVirtualized && !isReorderMode ? ' Drag reorder is disabled until Reorder mode is enabled.' : ''}
                 </Typography>
+                {isTableVirtualized && (
+                  <Button
+                    size="small"
+                    variant={isReorderMode ? "contained" : "outlined"}
+                    onClick={() => setIsReorderMode(prev => !prev)}
+                    disabled={hasActiveFilters}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    {isReorderMode ? 'Exit Reorder Mode' : 'Enable Reorder Mode'}
+                  </Button>
+                )}
               </Box>
             )}
           </DragDropContext >
