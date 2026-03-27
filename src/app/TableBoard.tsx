@@ -1,3 +1,5 @@
+// --- Invoice Mode State ---
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
 import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch, getAvatarUrl } from "./apiUrl";
@@ -380,6 +382,88 @@ function DateCellEditor({
   );
 }
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
+    // Invoice mode state
+    const [invoiceMode, setInvoiceMode] = useState(false);
+    const [invoiceResult, setInvoiceResult] = useState<any>(null);
+    const [invoiceLoading, setInvoiceLoading] = useState(false);
+    const showNotification = useNotification();
+    // Konverto taskat në fatura me Nexus Brain
+    const handleConvertToInvoice = async () => {
+      setInvoiceLoading(true);
+      setInvoiceResult(null);
+      try {
+        // Përgatit taskat si array të thjeshtë për backend
+        const tasksForInvoice = rows.map(r => ({ id: r.id, ...r.values }));
+        const res = await authenticatedFetch(getApiUrl('/tasks/convert-to-invoice'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: tasksForInvoice })
+        });
+        if (!res.ok) throw new Error('Konvertimi dështoi');
+        const data = await res.json();
+        setInvoiceResult(data);
+      } catch (err: any) {
+        showNotification('Konvertimi në faturë dështoi', 'error');
+      } finally {
+        setInvoiceLoading(false);
+      }
+    };
+    // --- UI: Butoni për Invoice Mode ---
+    const renderInvoiceButton = () => (
+      <Button
+        variant={invoiceMode ? 'contained' : 'outlined'}
+        color="secondary"
+        startIcon={<ReceiptLongIcon />}
+        sx={{ ml: 2 }}
+        onClick={() => {
+          setInvoiceMode(m => !m);
+          setInvoiceResult(null);
+        }}
+      >
+        {invoiceMode ? 'Shfaq Taskat' : 'Konverto në Faturë'}
+      </Button>
+    );
+    // --- UI: Shfaqja e Faturës ---
+    const renderInvoiceResult = () => (
+      <Box sx={{ mt: 3, mb: 3, p: 3, border: '1px solid #eee', borderRadius: 2, bgcolor: '#fafbfc' }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Fatura e Gjeneruar</Typography>
+        {invoiceResult ? (
+          <>
+            <TableContainer component={Paper} sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Përshkrimi</TableCell>
+                    <TableCell>Sasia</TableCell>
+                    <TableCell>Cmimi/Unit</TableCell>
+                    <TableCell>Total</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {invoiceResult.items?.map((item: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{item.description}</TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell>{item.unit_price}</TableCell>
+                      <TableCell>{item.total}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box sx={{ textAlign: 'right', pr: 2 }}>
+              <Typography>Subtotal: <b>{invoiceResult.summary?.subtotal}</b></Typography>
+              <Typography>TVSH: <b>{invoiceResult.summary?.tax}</b></Typography>
+              <Typography>Totali: <b>{invoiceResult.summary?.grand_total}</b></Typography>
+            </Box>
+          </>
+        ) : invoiceLoading ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}><CircularProgress size={24} /> <span>Duke gjeneruar faturën...</span></Box>
+        ) : (
+          <Button variant="contained" color="secondary" onClick={handleConvertToInvoice} startIcon={<ReceiptLongIcon />}>Konverto Taskat në Faturë</Button>
+        )}
+      </Box>
+    );
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // Workspace view state
@@ -514,11 +598,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const ts = isNaN(Number(msg.timestamp)) ? msg.timestamp : Number(msg.timestamp);
       formattedTime = dayjs(ts).format('MMM D, HH:mm');
     }
-    return {
-      ...msg,
-      time: formattedTime,
-      // Map sender_avatar (PostgreSQL snake_case) to senderAvatar (camelCase)
-      senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
+    return (
+      <>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" sx={{ flex: 1 }}>{boardTitle || 'Table Board'}</Typography>
+          {renderInvoiceButton()}
+        </Box>
+        {invoiceMode ? renderInvoiceResult() : null}
+        {/* ...existing code... */}
+      </>
+    );
     };
   };
 
