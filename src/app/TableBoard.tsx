@@ -1039,10 +1039,96 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   };
 
+  const toNumber = (value: any) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const formatMoney = (value: any, currency: string) => {
+    const amount = toNumber(value);
+    return `${amount.toFixed(2)} ${currency || 'EUR'}`;
+  };
+
+  const buildInvoiceText = (draft: any) => {
+    if (!draft) return '';
+
+    const currency = draft?.currency || invoiceCurrency || 'EUR';
+    const items = Array.isArray(draft?.items) ? draft.items : [];
+    const subtotal = toNumber(draft?.subtotal);
+    const taxPercent = toNumber(draft?.taxPercent);
+    const taxAmount = toNumber(draft?.taxAmount);
+    const total = toNumber(draft?.total);
+    const notes = Array.isArray(draft?.assumptions) ? draft.assumptions : [];
+
+    const itemLines = items.length > 0
+      ? items.map((item: any) => {
+        const qty = toNumber(item?.quantity);
+        const unitPrice = toNumber(item?.unitPrice);
+        const amount = toNumber(item?.amount);
+        return `| ${String(item?.description || 'Service Item')} | ${qty} | ${unitPrice.toFixed(2)} | ${amount.toFixed(2)} |`;
+      }).join('\n')
+      : '| Service Item | 1 | 0.00 | 0.00 |';
+
+    const notesBlock = notes.length > 0
+      ? notes.map((note: string) => `- ${note}`).join('\n')
+      : '- No additional notes.';
+
+    return [
+      '# INVOICE',
+      '',
+      `**Invoice Number:** ${String(draft?.invoiceNumber || 'INV-DRAFT')}`,
+      `**Issue Date:** ${String(draft?.issueDate || dayjs().format('YYYY-MM-DD'))}`,
+      `**Due Date:** ${String(draft?.dueDate || dayjs().add(toNumber(invoiceDueDays || 14), 'day').format('YYYY-MM-DD'))}`,
+      '',
+      '## Parties',
+      `**Bill From:** ${String(draft?.companyName || draft?.billFrom || invoiceCompanyName || boardTitle || 'Your Company')}`,
+      `**Bill To:** ${String(draft?.clientName || draft?.billTo || invoiceClientName || 'Client')}`,
+      `**Currency:** ${currency}`,
+      '',
+      '## Line Items',
+      '| Description | Quantity | Unit Price | Amount |',
+      '|-------------|----------|------------|--------|',
+      itemLines,
+      '',
+      '## Totals',
+      `**Subtotal:** ${formatMoney(subtotal, currency)}`,
+      `**Tax (${taxPercent}%):** ${formatMoney(taxAmount, currency)}`,
+      `**Total:** ${formatMoney(total, currency)}`,
+      '',
+      '## Notes',
+      notesBlock,
+      '',
+      `**Status Stamp:** ${String(draft?.stampText || invoiceStampText || 'NOT PAID')}`
+    ].join('\n');
+  };
+
+  const getInvoicePreviewStyles = (template: InvoiceTemplate) => {
+    if (template === 'modern') {
+      return {
+        headerBg: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)',
+        cardBg: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fbff',
+        borderColor: theme.palette.mode === 'dark' ? '#1e293b' : '#bfdbfe',
+        accent: '#2563eb'
+      };
+    }
+    if (template === 'minimal') {
+      return {
+        headerBg: theme.palette.mode === 'dark' ? '#18181b' : '#f3f4f6',
+        cardBg: theme.palette.mode === 'dark' ? '#0b0b0c' : '#ffffff',
+        borderColor: theme.palette.mode === 'dark' ? '#3f3f46' : '#e5e7eb',
+        accent: theme.palette.mode === 'dark' ? '#e5e7eb' : '#374151'
+      };
+    }
+    return {
+      headerBg: 'linear-gradient(135deg, #3f3f46 0%, #111827 100%)',
+      cardBg: theme.palette.mode === 'dark' ? '#111827' : '#fcfcfd',
+      borderColor: theme.palette.mode === 'dark' ? '#374151' : '#d1d5db',
+      accent: '#111827'
+    };
+  };
+
   const handleCopyInvoiceDraft = async (draft: any) => {
-    const contentToCopy = draft?.markdown
-      || draft?.text
-      || JSON.stringify(draft, null, 2);
+    const contentToCopy = buildInvoiceText(draft);
     try {
       await navigator.clipboard.writeText(contentToCopy);
       showNotification('Invoice draft copied to clipboard', 'success');
@@ -1075,7 +1161,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const lineHeight = 15;
       let y = margin + 90;
 
-      const content = draft?.markdown || JSON.stringify(draft, null, 2);
+      const content = buildInvoiceText(draft);
       const lines = String(content).split('\n');
 
       const template = draft?.template || 'classic';
@@ -5413,14 +5499,155 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               </Typography>
             )}
             {invoiceDraft && (
-              <TextField
-                fullWidth
-                multiline
-                minRows={12}
-                value={invoiceDraft?.markdown || JSON.stringify(invoiceDraft, null, 2)}
-                sx={{ mt: 2, fontFamily: 'monospace' }}
-                InputProps={{ readOnly: true }}
-              />
+              <Box
+                sx={{
+                  mt: 2,
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  border: `1px solid ${getInvoicePreviewStyles((invoiceDraft?.template || invoiceTemplate) as InvoiceTemplate).borderColor}`,
+                  bgcolor: getInvoicePreviewStyles((invoiceDraft?.template || invoiceTemplate) as InvoiceTemplate).cardBg,
+                  position: 'relative'
+                }}
+              >
+                <Box
+                  sx={{
+                    px: 2.5,
+                    py: 2,
+                    background: getInvoicePreviewStyles((invoiceDraft?.template || invoiceTemplate) as InvoiceTemplate).headerBg,
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <Box>
+                    <Typography sx={{ fontWeight: 900, letterSpacing: '0.08em', fontSize: '0.72rem', opacity: 0.9 }}>
+                      INVOICE
+                    </Typography>
+                    <Typography sx={{ fontWeight: 800, fontSize: '1.05rem' }}>
+                      {String(invoiceDraft?.invoiceNumber || 'INV-DRAFT')}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                        Issue: {String(invoiceDraft?.issueDate || dayjs().format('YYYY-MM-DD'))}
+                      </Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                        Due: {String(invoiceDraft?.dueDate || dayjs().add(toNumber(invoiceDueDays || 14), 'day').format('YYYY-MM-DD'))}
+                      </Typography>
+                    </Box>
+                    {(invoiceDraft?.logoDataUrl || invoiceLogoDataUrl) && (
+                      <Avatar
+                        src={invoiceDraft?.logoDataUrl || invoiceLogoDataUrl || undefined}
+                        variant="rounded"
+                        sx={{ width: 42, height: 42, border: '1px solid rgba(255,255,255,0.35)' }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+
+                <Box sx={{ p: 2.5 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 800, textTransform: 'uppercase' }}>
+                        Bill From
+                      </Typography>
+                      <Typography sx={{ fontWeight: 700, color: theme.palette.text.primary }}>
+                        {String(invoiceDraft?.companyName || invoiceDraft?.billFrom || invoiceCompanyName || boardTitle || 'Your Company')}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 800, textTransform: 'uppercase' }}>
+                        Bill To
+                      </Typography>
+                      <Typography sx={{ fontWeight: 700, color: theme.palette.text.primary }}>
+                        {String(invoiceDraft?.clientName || invoiceDraft?.billTo || invoiceClientName || 'Client')}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <TableContainer component={Paper} sx={{ boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
+                          <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
+                          <TableCell sx={{ fontWeight: 800, width: 90 }}>Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 800, width: 120 }}>Unit Price</TableCell>
+                          <TableCell sx={{ fontWeight: 800, width: 120 }}>Amount</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(Array.isArray(invoiceDraft?.items) && invoiceDraft.items.length > 0 ? invoiceDraft.items : [{ description: 'Service Item', quantity: 1, unitPrice: 0, amount: 0 }]).map((item: any, idx: number) => (
+                          <TableRow key={`${idx}-${item?.description || 'item'}`}>
+                            <TableCell>{String(item?.description || 'Service Item')}</TableCell>
+                            <TableCell>{toNumber(item?.quantity)}</TableCell>
+                            <TableCell>{formatMoney(item?.unitPrice, invoiceDraft?.currency || invoiceCurrency)}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{formatMoney(item?.amount, invoiceDraft?.currency || invoiceCurrency)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  <Box sx={{ mt: 2, ml: 'auto', width: { xs: '100%', md: 280 }, border: `1px solid ${theme.palette.divider}`, borderRadius: 1.5, p: 1.5 }}>
+                    <Stack spacing={0.7}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>Subtotal</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatMoney(invoiceDraft?.subtotal, invoiceDraft?.currency || invoiceCurrency)}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>Tax ({toNumber(invoiceDraft?.taxPercent)}%)</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatMoney(invoiceDraft?.taxAmount, invoiceDraft?.currency || invoiceCurrency)}</Typography>
+                      </Box>
+                      <Divider />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontWeight: 800, color: theme.palette.text.primary }}>Total</Typography>
+                        <Typography sx={{ fontWeight: 900, color: getInvoicePreviewStyles((invoiceDraft?.template || invoiceTemplate) as InvoiceTemplate).accent }}>
+                          {formatMoney(invoiceDraft?.total, invoiceDraft?.currency || invoiceCurrency)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+
+                  {Array.isArray(invoiceDraft?.assumptions) && invoiceDraft.assumptions.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 800, textTransform: 'uppercase' }}>
+                        Notes
+                      </Typography>
+                      <Stack spacing={0.5} sx={{ mt: 0.6 }}>
+                        {invoiceDraft.assumptions.map((note: string, idx: number) => (
+                          <Typography key={`${idx}-${note}`} variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                            - {note}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {invoiceDraft?.stampText && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        right: 20,
+                        bottom: 24,
+                        border: '2px solid #b91c1c',
+                        color: '#b91c1c',
+                        px: 1.2,
+                        py: 0.2,
+                        borderRadius: 1,
+                        fontWeight: 900,
+                        transform: 'rotate(-14deg)',
+                        opacity: 0.7,
+                        letterSpacing: '0.04em',
+                        bgcolor: 'rgba(255,255,255,0.25)'
+                      }}
+                    >
+                      {String(invoiceDraft.stampText).toUpperCase()}
+                    </Box>
+                  )}
+                </Box>
+              </Box>
             )}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2.5 }}>
