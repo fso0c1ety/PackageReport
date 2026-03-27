@@ -1158,55 +1158,147 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const pageHeight = doc.internal.pageSize.getHeight();
       const pageWidth = doc.internal.pageSize.getWidth();
       const maxWidth = pageWidth - margin * 2;
-      const lineHeight = 15;
-      let y = margin + 90;
+      const currency = draft?.currency || invoiceCurrency || 'EUR';
+      const items = Array.isArray(draft?.items) && draft.items.length > 0
+        ? draft.items
+        : [{ description: 'Service Item', quantity: 1, unitPrice: 0, amount: 0 }];
+      const notes = Array.isArray(draft?.assumptions) ? draft.assumptions : [];
+      const template = (draft?.template || 'classic') as InvoiceTemplate;
+      const palette = template === 'modern'
+        ? { header: [37, 99, 235], textOnHeader: 255, soft: [239, 246, 255] }
+        : template === 'minimal'
+          ? { header: [243, 244, 246], textOnHeader: 20, soft: [249, 250, 251] }
+          : { header: [17, 24, 39], textOnHeader: 255, soft: [243, 244, 246] };
 
-      const content = buildInvoiceText(draft);
-      const lines = String(content).split('\n');
+      const drawHeader = () => {
+        doc.setFillColor(palette.header[0], palette.header[1], palette.header[2]);
+        doc.rect(0, 0, pageWidth, 82, 'F');
 
-      const template = draft?.template || 'classic';
-      const headerColor = template === 'modern' ? [33, 150, 243] : template === 'minimal' ? [245, 245, 245] : [60, 63, 78];
-      doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
-      doc.rect(0, 0, pageWidth, 75, 'F');
-
-      if (draft?.logoDataUrl) {
-        try {
-          doc.addImage(draft.logoDataUrl, 'PNG', pageWidth - margin - 60, 10, 50, 50);
-        } catch (e) {
-          console.error('Could not render logo in PDF:', e);
-        }
-      }
-
-      doc.setTextColor(template === 'minimal' ? 20 : 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.text(String(draft?.companyName || invoiceCompanyName || boardTitle || 'Company'), margin, 32);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Invoice: ${String(draft?.invoiceNumber || 'Draft')}`, margin, 50);
-      doc.text(`Client: ${String(draft?.clientName || invoiceClientName || 'Client')}`, margin, 64);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      doc.setTextColor(35, 35, 35);
-
-      lines.forEach((line) => {
-        const wrapped = doc.splitTextToSize(line, maxWidth) as string[];
-        wrapped.forEach((segment) => {
-          if (y > pageHeight - margin) {
-            doc.addPage();
-            y = margin;
+        if (draft?.logoDataUrl) {
+          try {
+            const imageType = String(draft.logoDataUrl).includes('image/jpeg') ? 'JPEG' : 'PNG';
+            doc.addImage(draft.logoDataUrl, imageType, pageWidth - margin - 56, 14, 42, 42);
+          } catch (e) {
+            console.error('Could not render logo in PDF:', e);
           }
-          doc.text(segment, margin, y);
-          y += lineHeight;
-        });
+        }
+
+        doc.setTextColor(palette.textOnHeader, palette.textOnHeader, palette.textOnHeader);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text(String(draft?.companyName || draft?.billFrom || invoiceCompanyName || boardTitle || 'Your Company'), margin, 32);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`INVOICE ${String(draft?.invoiceNumber || 'INV-DRAFT')}`, margin, 50);
+        doc.text(`Issue: ${String(draft?.issueDate || dayjs().format('YYYY-MM-DD'))}`, margin, 64);
+        doc.text(`Due: ${String(draft?.dueDate || dayjs().add(toNumber(invoiceDueDays || 14), 'day').format('YYYY-MM-DD'))}`, margin + 120, 64);
+      };
+
+      const drawItemsHeader = (y: number) => {
+        doc.setFillColor(palette.soft[0], palette.soft[1], palette.soft[2]);
+        doc.rect(margin, y, maxWidth, 24, 'F');
+        doc.setDrawColor(210, 210, 210);
+        doc.rect(margin, y, maxWidth, 24);
+        doc.setTextColor(45, 45, 45);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Description', margin + 8, y + 16);
+        doc.text('Qty', margin + maxWidth - 210, y + 16);
+        doc.text('Unit Price', margin + maxWidth - 150, y + 16);
+        doc.text('Amount', margin + maxWidth - 70, y + 16);
+      };
+
+      drawHeader();
+      let y = 110;
+
+      doc.setTextColor(35, 35, 35);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Bill From', margin, y);
+      doc.text('Bill To', margin + maxWidth / 2, y);
+      y += 14;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text(String(draft?.companyName || draft?.billFrom || invoiceCompanyName || boardTitle || 'Your Company'), margin, y);
+      doc.text(String(draft?.clientName || draft?.billTo || invoiceClientName || 'Client'), margin + maxWidth / 2, y);
+      y += 24;
+
+      drawItemsHeader(y);
+      y += 24;
+
+      const descX = margin + 8;
+      const qtyX = margin + maxWidth - 210;
+      const unitX = margin + maxWidth - 150;
+      const amountX = margin + maxWidth - 70;
+      const descWidth = maxWidth - 225;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      items.forEach((item: any) => {
+        const descLines = doc.splitTextToSize(String(item?.description || 'Service Item'), descWidth) as string[];
+        const rowHeight = Math.max(22, (descLines.length * 12) + 8);
+        if (y + rowHeight > pageHeight - margin - 170) {
+          doc.addPage();
+          drawHeader();
+          y = 96;
+          drawItemsHeader(y);
+          y += 24;
+        }
+
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(margin, y, maxWidth, rowHeight);
+        doc.text(descLines, descX, y + 14);
+        doc.text(String(toNumber(item?.quantity)), qtyX, y + 14);
+        doc.text(formatMoney(item?.unitPrice, currency), unitX, y + 14);
+        doc.text(formatMoney(item?.amount, currency), amountX, y + 14);
+        y += rowHeight;
       });
 
-      if (draft?.stampText) {
-        doc.setTextColor(180, 25, 25);
-        doc.setFontSize(34);
+      y += 14;
+      const totalsWidth = 250;
+      const totalsX = margin + maxWidth - totalsWidth;
+      if (y + 90 > pageHeight - margin - 80) {
+        doc.addPage();
+        drawHeader();
+        y = 100;
+      }
+      doc.setDrawColor(210, 210, 210);
+      doc.rect(totalsX, y, totalsWidth, 78);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('Subtotal', totalsX + 10, y + 18);
+      doc.text(formatMoney(draft?.subtotal, currency), totalsX + totalsWidth - 10, y + 18, { align: 'right' });
+      doc.text(`Tax (${toNumber(draft?.taxPercent)}%)`, totalsX + 10, y + 36);
+      doc.text(formatMoney(draft?.taxAmount, currency), totalsX + totalsWidth - 10, y + 36, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total', totalsX + 10, y + 58);
+      doc.text(formatMoney(draft?.total, currency), totalsX + totalsWidth - 10, y + 58, { align: 'right' });
+      y += 92;
+
+      if (notes.length > 0) {
+        if (y + 50 > pageHeight - margin - 60) {
+          doc.addPage();
+          drawHeader();
+          y = 100;
+        }
         doc.setFont('helvetica', 'bold');
-        doc.text(String(draft.stampText).toUpperCase(), pageWidth - margin - 140, pageHeight - margin - 20, { angle: -20 });
+        doc.setFontSize(10);
+        doc.text('Notes', margin, y);
+        y += 14;
+        doc.setFont('helvetica', 'normal');
+        notes.forEach((note: string) => {
+          const wrapped = doc.splitTextToSize(`- ${note}`, maxWidth) as string[];
+          doc.text(wrapped, margin, y);
+          y += wrapped.length * 12;
+        });
+      }
+
+      if (draft?.stampText) {
+        doc.setTextColor(185, 28, 28);
+        doc.setFontSize(30);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(draft.stampText).toUpperCase(), pageWidth - margin - 150, pageHeight - margin - 18, { angle: -20 });
       }
 
       const rawName = String(draft?.invoiceNumber || `invoice-${Date.now()}`);
