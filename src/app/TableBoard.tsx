@@ -2318,11 +2318,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const invoiceTaskOptions = React.useMemo(() => {
     const titleColId = columns[0]?.id;
-    return rows.map((row, index) => ({
+    return filteredRows.map((row, index) => ({
       id: row.id,
       label: String(row.values[titleColId] || `Task ${index + 1}`)
     }));
-  }, [rows, columns]);
+  }, [filteredRows, columns]);
 
   useEffect(() => {
     if (!invoiceCompanyName && boardTitle) {
@@ -2336,10 +2336,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       setSelectedInvoiceTaskIds(rows.map(r => r.id));
     } else if (invoiceTaskScope === 'filtered') {
       setSelectedInvoiceTaskIds(filteredRows.map(r => r.id));
-    } else if (invoiceTaskScope === 'custom' && selectedInvoiceTaskIds.length === 0) {
-      setSelectedInvoiceTaskIds(filteredRows.map(r => r.id));
     }
-  }, [isInvoiceDialogOpen, invoiceTaskScope, rows, filteredRows, selectedInvoiceTaskIds.length]);
+  }, [isInvoiceDialogOpen, invoiceTaskScope, rows, filteredRows]);
+
+  useEffect(() => {
+    if (invoiceTaskScope === 'custom') {
+      // Manual mode starts with no auto-selection; user picks tasks explicitly.
+      setSelectedInvoiceTaskIds([]);
+    }
+  }, [invoiceTaskScope]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
@@ -5295,21 +5300,32 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   ))}
                 </Stack>
                 {invoiceTaskScope === 'custom' && (
-                  <FormControl fullWidth size="small">
-                    <Select
+                  <Box>
+                    <Autocomplete
                       multiple
-                      value={selectedInvoiceTaskIds}
-                      onChange={(e) => setSelectedInvoiceTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                      renderValue={(selected) => `${(selected as string[]).length} task(s) selected`}
-                    >
-                      {invoiceTaskOptions.map((task) => (
-                        <MenuItem key={task.id} value={task.id}>
-                          <Checkbox checked={selectedInvoiceTaskIds.includes(task.id)} />
-                          <ListItemText primary={task.label} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                      options={invoiceTaskOptions}
+                      getOptionLabel={(option) => option.label}
+                      value={invoiceTaskOptions.filter(opt => selectedInvoiceTaskIds.includes(opt.id))}
+                      onChange={(_, value) => setSelectedInvoiceTaskIds(value.map(v => v.id))}
+                      disableCloseOnSelect
+                      renderOption={(props, option, { selected }) => (
+                        <li {...props}>
+                          <Checkbox checked={selected} sx={{ mr: 1 }} />
+                          <ListItemText primary={option.label} />
+                        </li>
+                      )}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          size="small"
+                          placeholder="Search filtered tasks, then select..."
+                        />
+                      )}
+                    />
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
+                      Tasks are not preselected in custom mode.
+                    </Typography>
+                  </Box>
                 )}
               </Box>
 
