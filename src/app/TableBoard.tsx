@@ -896,6 +896,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [invoiceSummary, setInvoiceSummary] = useState("");
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
   const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [tableRowLimit, setTableRowLimit] = useState(200);
 
   // Load persistent AI chat history for this board
   useEffect(() => {
@@ -2511,6 +2512,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       return true;
     });
   }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);
+
+  const sortedColumns = React.useMemo(() => {
+    return [...columns].sort((a, b) => a.order - b.order);
+  }, [columns]);
+
+  const visibleFilteredRows = React.useMemo(() => {
+    return filteredRows.slice(0, tableRowLimit);
+  }, [filteredRows, tableRowLimit]);
+
+  const isTableTruncated = filteredRows.length > tableRowLimit;
+
+  useEffect(() => {
+    // Reset viewport window when filters/data change significantly.
+    setTableRowLimit(200);
+  }, [tableId, filterText, filterPerson, filterStatus]);
 
   const invoiceTaskOptions = React.useMemo(() => {
     const titleColId = columns[0]?.id;
@@ -5996,7 +6012,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             borderRight: `1px solid ${theme.palette.divider}`
                           }}
                         />
-                        {columns.sort((a, b) => a.order - b.order).map((col, index) => (
+                        {sortedColumns.map((col, index) => (
                           <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
                             {(provided, snapshot) => (
                               <TableCell
@@ -6136,11 +6152,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 <Droppable droppableId="rows-droppable" type="row">
                   {(provided) => {
                     // Find first status column for row coloring
-                    const firstStatusCol = [...columns].sort((a, b) => a.order - b.order).find(c => c.type === 'Status');
+                    const firstStatusCol = sortedColumns.find(c => c.type === 'Status');
 
                     return (
                       <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                        {filteredRows.map((row, index) => {
+                        {visibleFilteredRows.map((row, index) => {
                           // Calculate background color based on status
                           let rowBg = theme.palette.background.default;
                           let rowHoverBg = theme.palette.action.hover;
@@ -6158,7 +6174,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }
 
                           return (
-                            <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText}>
+                            <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText || isTableTruncated}>
                               {(provided, snapshot) => (
                                 <TableRow
                                   ref={provided.innerRef}
@@ -6582,7 +6598,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   </TableCell>
 
                                   {/* Render Cells */}
-                                  {columns.map((col, idx) => (
+                                  {sortedColumns.map((col, idx) => (
                                     <TableCell
                                       key={col.id}
                                       align="left"
@@ -6634,6 +6650,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Droppable>
               </Table >
             </TableContainer >
+            {(isTableTruncated || filteredRows.length > 300) && (
+              <Box sx={{ mt: 1.2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 0.5 }}>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Showing {visibleFilteredRows.length} of {filteredRows.length} tasks
+                  {isTableTruncated ? '. Drag reorder is temporarily disabled until all rows are loaded.' : ''}
+                </Typography>
+                {isTableTruncated && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setTableRowLimit((prev) => prev + 200)}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    Load 200 More
+                  </Button>
+                )}
+              </Box>
+            )}
           </DragDropContext >
         ) : workspaceView === 'kanban' ? (
           <Box sx={{
