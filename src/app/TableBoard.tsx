@@ -263,6 +263,7 @@ interface TableBoardProps {
   taskId?: string | null;
   initialTab?: string | null;
 }
+type InvoiceTemplate = 'classic' | 'modern' | 'minimal';
 
 const initialRows: Row[] = [
   {
@@ -888,10 +889,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [aiChatInput, setAiChatInput] = useState("");
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
-  const [invoicePrompt, setInvoicePrompt] = useState("Create a professional invoice from the currently filtered tasks.");
+  const [invoiceTaskScope, setInvoiceTaskScope] = useState<'filtered' | 'all' | 'custom'>('filtered');
+  const [selectedInvoiceTaskIds, setSelectedInvoiceTaskIds] = useState<string[]>([]);
+  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>('classic');
+  const [invoiceCompanyName, setInvoiceCompanyName] = useState("");
+  const [invoiceClientName, setInvoiceClientName] = useState("");
+  const [invoiceCurrency, setInvoiceCurrency] = useState("EUR");
+  const [invoiceTaxPercent, setInvoiceTaxPercent] = useState("0");
+  const [invoiceDueDays, setInvoiceDueDays] = useState("14");
+  const [invoiceStampText, setInvoiceStampText] = useState("PAID");
+  const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState<string | null>(null);
   const [invoiceDraft, setInvoiceDraft] = useState<any | null>(null);
   const [invoiceSummary, setInvoiceSummary] = useState("");
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
+  const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Load persistent AI chat history for this board
   useEffect(() => {
@@ -1041,6 +1052,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   };
 
+  const handleInvoiceLogoPick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : null;
+      setInvoiceLogoDataUrl(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleDownloadInvoicePdf = async (draft: any) => {
     if (!draft) return;
     try {
@@ -1051,13 +1073,36 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const pageWidth = doc.internal.pageSize.getWidth();
       const maxWidth = pageWidth - margin * 2;
       const lineHeight = 15;
-      let y = margin;
+      let y = margin + 90;
 
       const content = draft?.markdown || JSON.stringify(draft, null, 2);
       const lines = String(content).split('\n');
 
+      const template = draft?.template || 'classic';
+      const headerColor = template === 'modern' ? [33, 150, 243] : template === 'minimal' ? [245, 245, 245] : [60, 63, 78];
+      doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
+      doc.rect(0, 0, pageWidth, 75, 'F');
+
+      if (draft?.logoDataUrl) {
+        try {
+          doc.addImage(draft.logoDataUrl, 'PNG', pageWidth - margin - 60, 10, 50, 50);
+        } catch (e) {
+          console.error('Could not render logo in PDF:', e);
+        }
+      }
+
+      doc.setTextColor(template === 'minimal' ? 20 : 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text(String(draft?.companyName || invoiceCompanyName || boardTitle || 'Company'), margin, 32);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Invoice: ${String(draft?.invoiceNumber || 'Draft')}`, margin, 50);
+      doc.text(`Client: ${String(draft?.clientName || invoiceClientName || 'Client')}`, margin, 64);
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
+      doc.setTextColor(35, 35, 35);
 
       lines.forEach((line) => {
         const wrapped = doc.splitTextToSize(line, maxWidth) as string[];
@@ -1071,6 +1116,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         });
       });
 
+      if (draft?.stampText) {
+        doc.setTextColor(180, 25, 25);
+        doc.setFontSize(34);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(draft.stampText).toUpperCase(), pageWidth - margin - 140, pageHeight - margin - 20, { angle: -20 });
+      }
+
       const rawName = String(draft?.invoiceNumber || `invoice-${Date.now()}`);
       const safeName = rawName.replace(/[^a-z0-9-_]/gi, '_');
       doc.save(`${safeName}.pdf`);
@@ -1082,11 +1134,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   };
 
   const handleGenerateInvoice = async () => {
-    const input = invoicePrompt.trim();
-    if (!input) return;
+    const selectedRows = (invoiceTaskScope === 'all'
+      ? rows
+      : invoiceTaskScope === 'filtered'
+        ? filteredRows
+        : rows.filter(r => selectedInvoiceTaskIds.includes(r.id))
+    ).slice(0, 100);
+
+    if (selectedRows.length === 0) {
+      showNotification('No tasks selected for invoice generation', 'error');
+      return;
+    }
+
     setIsInvoiceGenerating(true);
     try {
-      const invoiceSourceRows = (filteredRows.length > 0 ? filteredRows : rows).slice(0, 100).map((r, i) => {
+      const invoiceSourceRows = selectedRows.map((r, i) => {
         const valuesByColumn = columns.reduce((acc, col) => {
           acc[col.name] = r.values[col.id] ?? "";
           return acc;
@@ -1095,21 +1157,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       });
 
       const systemPrompt = `
-        You are "Nexus Brain AI" in dedicated INVOICE MODE.
-        Convert board tasks into a professional invoice draft.
+        You are "Nexus Brain AI" invoice generator.
+        Build a professional invoice based only on selected tasks and provided invoice options.
 
         Board Title: ${boardTitle}
         Current User: ${currentUser?.name || "User"}
         Current Date: ${new Date().toISOString()}
         Board Schema: ${JSON.stringify(columns.map(c => ({ name: c.name, type: c.type })))}
-        Active Filters: ${JSON.stringify({ text: filterText, person: filterPerson, status: filterStatus })}
+        Selected Invoice Options: ${JSON.stringify({
+          template: invoiceTemplate,
+          companyName: invoiceCompanyName,
+          clientName: invoiceClientName,
+          currency: invoiceCurrency,
+          taxPercent: invoiceTaxPercent,
+          dueInDays: invoiceDueDays,
+          stampText: invoiceStampText
+        })}
         Tasks for Invoice Conversion (max 100): ${JSON.stringify(invoiceSourceRows)}
 
         Rules:
         - Do not invent tasks that are not provided.
         - Infer line items from task data (title, quantity, rate, amount, notes) when possible.
         - If key fields are missing, still provide a usable draft and mention assumptions.
-        - Return practical values, avoid fluff.
+        - Respect selected currency and tax percent.
+        - Keep concise and business-ready.
 
         Return JSON:
         {
@@ -1138,7 +1209,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          input,
+          input: "Generate invoice from selected tasks and options.",
           systemPrompt,
           messages: []
         })
@@ -1151,8 +1222,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       const data = await res.json();
       const aiResult = parseAiJson(data?.choices?.[0]?.message?.content || "");
+      const decoratedDraft = {
+        ...(aiResult?.invoiceDraft || {}),
+        companyName: invoiceCompanyName || boardTitle || aiResult?.invoiceDraft?.billFrom,
+        clientName: invoiceClientName || aiResult?.invoiceDraft?.billTo,
+        template: invoiceTemplate,
+        stampText: invoiceStampText,
+        logoDataUrl: invoiceLogoDataUrl,
+        currency: invoiceCurrency || aiResult?.invoiceDraft?.currency
+      };
       setInvoiceSummary(aiResult?.response || "Invoice draft generated.");
-      setInvoiceDraft(aiResult?.invoiceDraft || null);
+      setInvoiceDraft(decoratedDraft);
       showNotification('Invoice draft is ready', 'success');
     } catch (err) {
       console.error("Invoice Generation Error:", err);
@@ -2235,6 +2315,31 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       return true;
     });
   }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);
+
+  const invoiceTaskOptions = React.useMemo(() => {
+    const titleColId = columns[0]?.id;
+    return rows.map((row, index) => ({
+      id: row.id,
+      label: String(row.values[titleColId] || `Task ${index + 1}`)
+    }));
+  }, [rows, columns]);
+
+  useEffect(() => {
+    if (!invoiceCompanyName && boardTitle) {
+      setInvoiceCompanyName(boardTitle);
+    }
+  }, [boardTitle, invoiceCompanyName]);
+
+  useEffect(() => {
+    if (!isInvoiceDialogOpen) return;
+    if (invoiceTaskScope === 'all') {
+      setSelectedInvoiceTaskIds(rows.map(r => r.id));
+    } else if (invoiceTaskScope === 'filtered') {
+      setSelectedInvoiceTaskIds(filteredRows.map(r => r.id));
+    } else if (invoiceTaskScope === 'custom' && selectedInvoiceTaskIds.length === 0) {
+      setSelectedInvoiceTaskIds(filteredRows.map(r => r.id));
+    }
+  }, [isInvoiceDialogOpen, invoiceTaskScope, rows, filteredRows, selectedInvoiceTaskIds.length]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
@@ -5167,23 +5272,100 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             Invoice Builder
           </DialogTitle>
           <DialogContent sx={{ pt: 1 }}>
-            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-              Source: {filteredRows.length} filtered task(s)
-            </Typography>
-            <TextField
-              fullWidth
-              multiline
-              minRows={3}
-              value={invoicePrompt}
-              onChange={(e) => setInvoicePrompt(e.target.value)}
-              placeholder="Describe how the invoice should look (client, currency, due date, tax, notes...)"
-              sx={{ mt: 1.5 }}
-            />
-            <Box sx={{ mt: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Stack spacing={2}>
+              <Box sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.action.hover }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Task Selection</Typography>
+                <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                  {[
+                    { id: 'filtered', label: `Filtered (${filteredRows.length})` },
+                    { id: 'all', label: `All (${rows.length})` },
+                    { id: 'custom', label: 'Custom' }
+                  ].map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={opt.label}
+                      onClick={() => setInvoiceTaskScope(opt.id as 'filtered' | 'all' | 'custom')}
+                      sx={{
+                        fontWeight: 700,
+                        border: `1px solid ${theme.palette.divider}`,
+                        bgcolor: invoiceTaskScope === opt.id ? theme.palette.primary.main : 'transparent',
+                        color: invoiceTaskScope === opt.id ? '#fff' : theme.palette.text.secondary
+                      }}
+                    />
+                  ))}
+                </Stack>
+                {invoiceTaskScope === 'custom' && (
+                  <FormControl fullWidth size="small">
+                    <Select
+                      multiple
+                      value={selectedInvoiceTaskIds}
+                      onChange={(e) => setSelectedInvoiceTaskIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                      renderValue={(selected) => `${(selected as string[]).length} task(s) selected`}
+                    >
+                      {invoiceTaskOptions.map((task) => (
+                        <MenuItem key={task.id} value={task.id}>
+                          <Checkbox checked={selectedInvoiceTaskIds.includes(task.id)} />
+                          <ListItemText primary={task.label} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+              </Box>
+
+              <Box sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Invoice Design</Typography>
+                <Stack direction="row" spacing={1}>
+                  {(['classic', 'modern', 'minimal'] as InvoiceTemplate[]).map((fmt) => (
+                    <Chip
+                      key={fmt}
+                      label={fmt.charAt(0).toUpperCase() + fmt.slice(1)}
+                      onClick={() => setInvoiceTemplate(fmt)}
+                      sx={{
+                        fontWeight: 700,
+                        border: `1px solid ${theme.palette.divider}`,
+                        bgcolor: invoiceTemplate === fmt ? theme.palette.primary.main : 'transparent',
+                        color: invoiceTemplate === fmt ? '#fff' : theme.palette.text.secondary
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.2 }}>
+                <TextField size="small" label="Company Name" value={invoiceCompanyName} onChange={(e) => setInvoiceCompanyName(e.target.value)} />
+                <TextField size="small" label="Client Name" value={invoiceClientName} onChange={(e) => setInvoiceClientName(e.target.value)} />
+                <TextField size="small" label="Currency" value={invoiceCurrency} onChange={(e) => setInvoiceCurrency(e.target.value)} />
+                <TextField size="small" type="number" label="Tax %" value={invoiceTaxPercent} onChange={(e) => setInvoiceTaxPercent(e.target.value)} />
+                <TextField size="small" type="number" label="Due In (Days)" value={invoiceDueDays} onChange={(e) => setInvoiceDueDays(e.target.value)} />
+                <TextField size="small" label="Stamp Text" value={invoiceStampText} onChange={(e) => setInvoiceStampText(e.target.value)} />
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <input
+                  ref={invoiceLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleInvoiceLogoPick}
+                  style={{ display: 'none' }}
+                />
+                <Button variant="outlined" onClick={() => invoiceLogoInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                  Upload Logo
+                </Button>
+                {invoiceLogoDataUrl && (
+                  <>
+                    <Avatar src={invoiceLogoDataUrl} variant="rounded" sx={{ width: 34, height: 34 }} />
+                    <Button size="small" onClick={() => setInvoiceLogoDataUrl(null)} sx={{ textTransform: 'none' }}>Remove</Button>
+                  </>
+                )}
+              </Box>
+            </Stack>
+
+            <Box sx={{ mt: 2.2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               <Button
                 variant="contained"
                 onClick={handleGenerateInvoice}
-                disabled={isInvoiceGenerating || !invoicePrompt.trim()}
+                disabled={isInvoiceGenerating}
                 startIcon={isInvoiceGenerating ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeIcon fontSize="small" />}
                 sx={{ textTransform: 'none', fontWeight: 700 }}
               >
