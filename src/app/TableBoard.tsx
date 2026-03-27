@@ -896,7 +896,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [invoiceSummary, setInvoiceSummary] = useState("");
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
   const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
-  const [tableRowLimit, setTableRowLimit] = useState(8);
+  const [tableVirtualStart, setTableVirtualStart] = useState(0);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   // Load persistent AI chat history for this board
@@ -2518,26 +2518,36 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     return [...columns].sort((a, b) => a.order - b.order);
   }, [columns]);
 
-  const visibleFilteredRows = React.useMemo(() => {
-    return filteredRows.slice(0, tableRowLimit);
-  }, [filteredRows, tableRowLimit]);
+  const ROW_HEIGHT_ESTIMATE = isMobile ? 52 : 62;
+  const ROW_WINDOW_SIZE = 8;
+  const ROW_OVERSCAN = 8;
 
-  const isTableTruncated = filteredRows.length > tableRowLimit;
+  const tableVirtualEnd = Math.min(
+    filteredRows.length,
+    tableVirtualStart + ROW_WINDOW_SIZE + ROW_OVERSCAN * 2
+  );
+
+  const visibleFilteredRows = React.useMemo(() => {
+    return filteredRows.slice(tableVirtualStart, tableVirtualEnd);
+  }, [filteredRows, tableVirtualStart, tableVirtualEnd]);
+
+  const isTableVirtualized = filteredRows.length > ROW_WINDOW_SIZE;
+  const topSpacerHeight = tableVirtualStart * ROW_HEIGHT_ESTIMATE;
+  const bottomSpacerHeight = Math.max(0, (filteredRows.length - tableVirtualEnd) * ROW_HEIGHT_ESTIMATE);
 
   useEffect(() => {
     // Reset viewport window when filters/data change significantly.
-    setTableRowLimit(8);
+    setTableVirtualStart(0);
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = 0;
+    }
   }, [tableId, filterText, filterPerson, filterStatus]);
 
   const handleTableScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
-    if (!nearBottom) return;
-    setTableRowLimit(prev => {
-      if (prev >= filteredRows.length) return prev;
-      return Math.min(prev + 16, filteredRows.length);
-    });
-  }, [filteredRows.length]);
+    const nextStart = Math.max(0, Math.floor(el.scrollTop / ROW_HEIGHT_ESTIMATE) - ROW_OVERSCAN);
+    setTableVirtualStart(prev => (prev === nextStart ? prev : nextStart));
+  }, [ROW_HEIGHT_ESTIMATE, ROW_OVERSCAN]);
 
   const invoiceTaskOptions = React.useMemo(() => {
     const titleColId = columns[0]?.id;
@@ -6170,7 +6180,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                     return (
                       <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                        {topSpacerHeight > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={sortedColumns.length + 2} sx={{ p: 0, border: 0, height: `${topSpacerHeight}px` }} />
+                          </TableRow>
+                        )}
                         {visibleFilteredRows.map((row, index) => {
+                          const rowIndex = tableVirtualStart + index;
                           // Calculate background color based on status
                           let rowBg = theme.palette.background.default;
                           let rowHoverBg = theme.palette.action.hover;
@@ -6188,7 +6204,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }
 
                           return (
-                            <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={!!filterText || isTableTruncated}>
+                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={!!filterText || isTableVirtualized}>
                               {(provided, snapshot) => (
                                 <TableRow
                                   ref={provided.innerRef}
@@ -6266,7 +6282,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                         marginRight: 8
                                       }}>
                                         <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13, fontWeight: 600 }}>
-                                          {index + 1}
+                                          {rowIndex + 1}
                                         </Typography>
                                       </div>
                                       <TaskRowMenu
@@ -6657,6 +6673,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             </Draggable>
                           );
                         })}
+                        {bottomSpacerHeight > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={sortedColumns.length + 2} sx={{ p: 0, border: 0, height: `${bottomSpacerHeight}px` }} />
+                          </TableRow>
+                        )}
                         {provided.placeholder}
                       </TableBody>
                     )
@@ -6664,22 +6685,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Droppable>
               </Table >
             </TableContainer >
-            {(isTableTruncated || filteredRows.length > 300) && (
+            {(isTableVirtualized || filteredRows.length > 300) && (
               <Box sx={{ mt: 1.2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 0.5 }}>
                 <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                  Showing {visibleFilteredRows.length} of {filteredRows.length} tasks
-                  {isTableTruncated ? '. Drag reorder is temporarily disabled until all rows are loaded.' : ''}
+                  Rendering {visibleFilteredRows.length} visible tasks (virtualized) from {filteredRows.length} total.
+                  {isTableVirtualized ? ' Drag reorder is temporarily disabled while virtualized.' : ''}
                 </Typography>
-                {isTableTruncated && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => setTableRowLimit((prev) => prev + 16)}
-                    sx={{ textTransform: 'none', fontWeight: 700 }}
-                  >
-                    Load 16 More
-                  </Button>
-                )}
               </Box>
             )}
           </DragDropContext >
