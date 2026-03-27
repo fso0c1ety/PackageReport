@@ -231,7 +231,6 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SendIcon from "@mui/icons-material/Send";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -558,11 +557,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             }
 
             setBoardChatMessages(prev => {
-              // Compare content only to avoid unnecessary re-renders
-              if (JSON.stringify(prev) !== JSON.stringify(formattedData)) {
-                return formattedData;
-              }
-              return prev;
+              return areChatMessageListsEqual(prev, formattedData) ? prev : formattedData;
             });
           }
         })
@@ -808,7 +803,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           const rawMessages = updatedRow.values.message || [];
           const newMessages = rawMessages.map(formatChatMessage);
           setReviewTask(prev => {
-            if (prev && prev.id === reviewTask.id && JSON.stringify(prev.values.message) !== JSON.stringify(newMessages)) {
+            const prevMsgs = (prev?.values?.message || []) as any[];
+            if (prev && prev.id === reviewTask.id && !areChatMessageListsEqual(prevMsgs, newMessages)) {
               return { ...prev, values: { ...prev.values, message: newMessages } };
             }
             return prev;
@@ -822,7 +818,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     const intervalId = setInterval(pollTaskChat, 4000);
     return () => clearInterval(intervalId);
     // Add reviewTask.values.message to dependency array to trigger scroll on new messages
-  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId, JSON.stringify(reviewTask?.values?.message)]);
+  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId]);
 
   // Real-time polling for Task Chat (Discussion Popover)
   useEffect(() => {
@@ -836,10 +832,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           const rawMessages = updatedRow.values.message || [];
           const newMessages = rawMessages.map(formatChatMessage);
           setChatMessages(prev => {
-            if (JSON.stringify(prev) !== JSON.stringify(newMessages)) {
-              return newMessages;
-            }
-            return prev;
+            return areChatMessageListsEqual(prev, newMessages) ? prev : newMessages;
           });
         }
       } catch (err) {
@@ -920,9 +913,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Persist AI chat history on change
   useEffect(() => {
-    if (tableId && aiMessages.length > 0) {
-      localStorage.setItem(`ai_chat_${tableId}`, JSON.stringify(aiMessages));
-    }
+    if (!tableId || aiMessages.length === 0) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(`ai_chat_${tableId}`, JSON.stringify(aiMessages));
+      } catch (e) {
+        console.error('Failed to persist AI chat cache', e);
+      }
+    }, 400);
+    return () => clearTimeout(t);
   }, [aiMessages, tableId]);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isGlobalAiOpen, setIsGlobalAiOpen] = useState(false);
@@ -1125,6 +1124,25 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       borderColor: theme.palette.mode === 'dark' ? '#374151' : '#d1d5db',
       accent: '#111827'
     };
+  };
+
+  const areChatMessageListsEqual = (a: any[], b: any[]) => {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const ma = a[i];
+      const mb = b[i];
+      if (
+        ma?.id !== mb?.id ||
+        ma?.text !== mb?.text ||
+        ma?.timestamp !== mb?.timestamp ||
+        ma?.sender !== mb?.sender ||
+        ma?.attachment?.url !== mb?.attachment?.url
+      ) {
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleCopyInvoiceDraft = async (draft: any) => {
