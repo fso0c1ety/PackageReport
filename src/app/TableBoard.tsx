@@ -6692,27 +6692,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Droppable>
               </Table >
             </TableContainer >
-            {(isTableVirtualized || filteredRows.length > 300) && (
-              <Box sx={{ mt: 1.2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 0.5 }}>
-                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                  {isReorderMode
-                    ? `Reorder mode active. Rendering all ${filteredRows.length} tasks for drag-and-drop.`
-                    : `Rendering ${visibleFilteredRows.length} visible tasks (virtualized) from ${filteredRows.length} total.`}
-                  {isTableVirtualized && !isReorderMode ? ' Drag reorder is disabled until Reorder mode is enabled.' : ''}
-                </Typography>
-                {isTableVirtualized && (
-                  <Button
-                    size="small"
-                    variant={isReorderMode ? "contained" : "outlined"}
-                    onClick={() => setIsReorderMode(prev => !prev)}
-                    disabled={hasActiveFilters}
-                    sx={{ textTransform: 'none', fontWeight: 700 }}
-                  >
-                    {isReorderMode ? 'Exit Reorder Mode' : 'Enable Reorder Mode'}
-                  </Button>
-                )}
-              </Box>
-            )}
           </DragDropContext >
         ) : workspaceView === 'kanban' ? (
           <Box sx={{
