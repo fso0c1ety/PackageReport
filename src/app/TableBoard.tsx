@@ -380,6 +380,22 @@ function DateCellEditor({
   );
 }
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
+    // State për selektim të taskave
+    const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+
+    // Handler për selektim të një tasku
+    const handleSelectTask = (taskId: string) => {
+      setSelectedTaskIds(prev => prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]);
+    };
+
+    // Handler për selektim të të gjithave
+    const handleSelectAllTasks = (checked: boolean) => {
+      if (checked) {
+        setSelectedTaskIds(filteredRows.map(r => r.id));
+      } else {
+        setSelectedTaskIds([]);
+      }
+    };
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // --- Invoice Mode State ---
@@ -886,7 +902,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [showEmailAutomation, tableId]);
   const [actionType, setActionType] = useState<'email' | 'notification' | 'both'>('email');
   const [applyToAll, setApplyToAll] = useState(true);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   
   // AI Automation States
   const [automationTab, setAutomationTab] = useState<'list' | 'ai' | 'analytics'>('list');
@@ -5292,7 +5307,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             bgcolor: `${theme.palette.background.paper} !important`,
                             borderRight: `1px solid ${theme.palette.divider}`
                           }}
-                        />
+                        >
+                          <Checkbox
+                            indeterminate={selectedTaskIds.length > 0 && selectedTaskIds.length < filteredRows.length}
+                            checked={filteredRows.length > 0 && selectedTaskIds.length === filteredRows.length}
+                            onChange={e => handleSelectAllTasks(e.target.checked)}
+                            inputProps={{ 'aria-label': 'select all tasks' }}
+                          />
+                        </TableCell>
                         {columns.sort((a, b) => a.order - b.order).map((col, index) => (
                           <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
                             {(provided, snapshot) => (
@@ -5481,11 +5503,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     borderTopLeftRadius: 12,
                                     borderBottomLeftRadius: 12,
                                     borderLeft: row.created_by ? `6px solid ${stringToColor(row.created_by)}` : undefined,
-                                    position: 'relative', // Establish containing block for avatar
+                                    position: 'relative',
                                     ...(isMobile ? {
                                       position: 'sticky',
                                       left: 0,
-                                      zIndex: 105, // Highest z-index for the leftmost control column
+                                      zIndex: 105,
                                       bgcolor: theme.palette.background.paper,
                                       backgroundImage: snapshot.isDragging ? 'none' : `linear-gradient(${rowBg}, ${rowBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`,
                                       borderRight: `1px solid ${theme.palette.divider}`,
@@ -5497,6 +5519,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       zIndex: 1
                                     })
                                   }}>
+                                    <Checkbox
+                                      checked={selectedTaskIds.includes(row.id)}
+                                      onChange={() => handleSelectTask(row.id)}
+                                      inputProps={{ 'aria-label': `select task ${row.id}` }}
+                                      sx={{ ml: 0.5 }}
+                                    />
                                     {/* Creator Avatar on Highlighted Task */}
                                     {row.created_by && (() => {
                                       const creator = tableMembers.find(m => m.id === row.created_by);
