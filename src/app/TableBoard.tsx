@@ -1,5 +1,3 @@
-// --- Invoice Mode State ---
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
 import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch, getAvatarUrl } from "./apiUrl";
@@ -382,90 +380,13 @@ function DateCellEditor({
   );
 }
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
-    // Invoice mode state
-    const [invoiceMode, setInvoiceMode] = useState(false);
-    const [invoiceResult, setInvoiceResult] = useState<any>(null);
-    const [invoiceLoading, setInvoiceLoading] = useState(false);
-    const showNotification = useNotification();
-    // Konverto taskat në fatura me Nexus Brain
-    const handleConvertToInvoice = async () => {
-      setInvoiceLoading(true);
-      setInvoiceResult(null);
-      try {
-        // Përgatit taskat si array të thjeshtë për backend
-        const tasksForInvoice = rows.map(r => ({ id: r.id, ...r.values }));
-        const res = await authenticatedFetch(getApiUrl('/tasks/convert-to-invoice'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tasks: tasksForInvoice })
-        });
-        if (!res.ok) throw new Error('Konvertimi dështoi');
-        const data = await res.json();
-        setInvoiceResult(data);
-      } catch (err: any) {
-        showNotification('Konvertimi në faturë dështoi', 'error');
-      } finally {
-        setInvoiceLoading(false);
-      }
-    };
-    // --- UI: Butoni për Invoice Mode ---
-    const renderInvoiceButton = () => (
-      <Button
-        variant={invoiceMode ? 'contained' : 'outlined'}
-        color="secondary"
-        startIcon={<ReceiptLongIcon />}
-        sx={{ ml: 2 }}
-        onClick={() => {
-          setInvoiceMode(m => !m);
-          setInvoiceResult(null);
-        }}
-      >
-        {invoiceMode ? 'Shfaq Taskat' : 'Konverto në Faturë'}
-      </Button>
-    );
-    // --- UI: Shfaqja e Faturës ---
-    const renderInvoiceResult = () => (
-      <Box sx={{ mt: 3, mb: 3, p: 3, border: '1px solid #eee', borderRadius: 2, bgcolor: '#fafbfc' }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>Fatura e Gjeneruar</Typography>
-        {invoiceResult ? (
-          <>
-            <TableContainer component={Paper} sx={{ mb: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Përshkrimi</TableCell>
-                    <TableCell>Sasia</TableCell>
-                    <TableCell>Cmimi/Unit</TableCell>
-                    <TableCell>Total</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {invoiceResult.items?.map((item: any, idx: number) => (
-                    <TableRow key={idx}>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{item.unit_price}</TableCell>
-                      <TableCell>{item.total}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Box sx={{ textAlign: 'right', pr: 2 }}>
-              <Typography>Subtotal: <b>{invoiceResult.summary?.subtotal}</b></Typography>
-              <Typography>TVSH: <b>{invoiceResult.summary?.tax}</b></Typography>
-              <Typography>Totali: <b>{invoiceResult.summary?.grand_total}</b></Typography>
-            </Box>
-          </>
-        ) : invoiceLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}><CircularProgress size={24} /> <span>Duke gjeneruar faturën...</span></Box>
-        ) : (
-          <Button variant="contained" color="secondary" onClick={handleConvertToInvoice} startIcon={<ReceiptLongIcon />}>Konverto Taskat në Faturë</Button>
-        )}
-      </Box>
-    );
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // --- Invoice Mode State ---
+  const [invoiceMode, setInvoiceMode] = useState(false);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<any[]>([]);
   // Workspace view state
   const [workspaceView, setWorkspaceView] = useState<'table' | 'kanban' | 'gantt' | 'calendar' | 'doc' | 'gallery'>('table');
   const [filterText, setFilterText] = useState("");
@@ -598,16 +519,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const ts = isNaN(Number(msg.timestamp)) ? msg.timestamp : Number(msg.timestamp);
       formattedTime = dayjs(ts).format('MMM D, HH:mm');
     }
-    return (
-      <>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" sx={{ flex: 1 }}>{boardTitle || 'Table Board'}</Typography>
-          {renderInvoiceButton()}
-        </Box>
-        {invoiceMode ? renderInvoiceResult() : null}
-        {/* ...existing code... */}
-      </>
-    );
+    return {
+      ...msg,
+      time: formattedTime,
+      // Map sender_avatar (PostgreSQL snake_case) to senderAvatar (camelCase)
+      senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
     };
   };
 
@@ -4746,6 +4662,60 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         </MenuItem>
       </Menu >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
+        {/* Invoice Mode Button */}
+        <Button
+          variant={invoiceMode ? 'contained' : 'outlined'}
+          startIcon={<SmartToyIcon />}
+          onClick={async () => {
+            setInvoiceMode(true);
+            setInvoiceLoading(true);
+            setInvoiceError(null);
+            try {
+              const systemPrompt = `
+                You are Nexus Brain, an expert accountant. Convert the following project management tasks into professional invoices. For each task, extract: client name (if present), description, amount (estimate if missing), due date, and any relevant details. Return a JSON array of invoices with fields: client, description, amount, due_date, task_id. If info is missing, use placeholders and note them in a 'notes' field. Format amounts as EUR. Example:
+                [
+                  {"client": "Acme Corp", "description": "Website redesign", "amount": "1200 EUR", "due_date": "2024-05-01", "task_id": "123", "notes": "Amount estimated"}
+                ]
+              `;
+              const input = JSON.stringify(rows.map(r => ({ id: r.id, ...r.values })));
+              const res = await authenticatedFetch(getApiUrl('/nexus/chat'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  input,
+                  systemPrompt,
+                  messages: []
+                })
+              });
+              if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || 'Nexus Brain error');
+              }
+              const data = await res.json();
+              const invoices = JSON.parse(data.choices[0].message.content);
+              setInvoices(invoices);
+            } catch (err: any) {
+              setInvoiceError(err.message || 'Failed to generate invoices');
+              setInvoices([]);
+            } finally {
+              setInvoiceLoading(false);
+            }
+          }}
+          sx={{
+            bgcolor: invoiceMode ? '#6366f1' : 'transparent',
+            color: invoiceMode ? '#fff' : theme.palette.text.secondary,
+            borderColor: invoiceMode ? '#6366f1' : theme.palette.divider,
+            fontWeight: 600,
+            textTransform: 'none',
+            borderRadius: '8px',
+            px: 2.5,
+            height: 40,
+            boxShadow: invoiceMode ? '0 4px 12px rgba(99, 102, 241, 0.2)' : 'none',
+            '&:hover': { bgcolor: '#6366f1', color: '#fff' }
+          }}
+        >
+          Invoice Mode
+        </Button>
         <IconButton
           onClick={e => { e.stopPropagation(); setHeaderMenuAnchor(e.currentTarget); }}
           sx={{
@@ -5051,6 +5021,49 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
+        {/* Invoice Dialog */}
+        <Dialog open={invoiceMode} onClose={() => setInvoiceMode(false)} maxWidth="md" fullWidth>
+          <DialogTitle>Invoices Generated by Nexus Brain</DialogTitle>
+          <DialogContent>
+            {invoiceLoading && <Box sx={{ p: 3, textAlign: 'center' }}><CircularProgress /><Typography mt={2}>Generating invoices...</Typography></Box>}
+            {invoiceError && <Typography color="error">{invoiceError}</Typography>}
+            {!invoiceLoading && !invoiceError && invoices.length > 0 && (
+              <TableContainer component={Paper} sx={{ mt: 2 }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Client</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Amount</TableCell>
+                      <TableCell>Due Date</TableCell>
+                      <TableCell>Task ID</TableCell>
+                      <TableCell>Notes</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {invoices.map((inv: any, idx: number) => (
+                      <TableRow key={idx}>
+                        <TableCell>{inv.client}</TableCell>
+                        <TableCell>{inv.description}</TableCell>
+                        <TableCell>{inv.amount}</TableCell>
+                        <TableCell>{inv.due_date}</TableCell>
+                        <TableCell>{inv.task_id}</TableCell>
+                        <TableCell>{inv.notes}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+            {!invoiceLoading && !invoiceError && invoices.length === 0 && (
+              <Typography>No invoices generated.</Typography>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setInvoiceMode(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Column Selector - Dialog on Mobile, Popover on Desktop */}
         {showColSelector && (
           isMobile ? (
