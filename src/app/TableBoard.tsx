@@ -263,7 +263,6 @@ interface TableBoardProps {
   taskId?: string | null;
   initialTab?: string | null;
 }
-type AiMode = 'assistant' | 'invoice';
 
 const initialRows: Row[] = [
   {
@@ -888,7 +887,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [automationTab, setAutomationTab] = useState<'list' | 'ai' | 'analytics'>('list');
   const [aiChatInput, setAiChatInput] = useState("");
   const [aiMessages, setAiMessages] = useState<any[]>([]);
-  const [aiMode, setAiMode] = useState<AiMode>('assistant');
+  const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
+  const [invoicePrompt, setInvoicePrompt] = useState("Create a professional invoice from the currently filtered tasks.");
+  const [invoiceDraft, setInvoiceDraft] = useState<any | null>(null);
+  const [invoiceSummary, setInvoiceSummary] = useState("");
+  const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
 
   // Load persistent AI chat history for this board
   useEffect(() => {
@@ -901,7 +904,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           { role: 'assistant', text: "Hello! I'm your Nexus Brain. I can help you manage this board, send emails, or set up automations. What's on your mind?", timestamp: new Date().toISOString() }
         ]);
       }
-      setAiMode('assistant');
     }
   }, [tableId]);
 
@@ -1013,16 +1015,152 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   };
 
-  const handleCopyInvoiceDraft = async (invoiceDraft: any) => {
-    const contentToCopy = invoiceDraft?.markdown
-      || invoiceDraft?.text
-      || JSON.stringify(invoiceDraft, null, 2);
+  const parseAiJson = (rawContent: string) => {
+    const clean = rawContent
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```$/i, '')
+      .trim();
+    try {
+      return JSON.parse(clean);
+    } catch {
+      return { action: "none", params: {}, response: clean };
+    }
+  };
+
+  const handleCopyInvoiceDraft = async (draft: any) => {
+    const contentToCopy = draft?.markdown
+      || draft?.text
+      || JSON.stringify(draft, null, 2);
     try {
       await navigator.clipboard.writeText(contentToCopy);
       showNotification('Invoice draft copied to clipboard', 'success');
     } catch (err) {
       console.error('Copy invoice draft failed:', err);
       showNotification('Failed to copy invoice draft', 'error');
+    }
+  };
+
+  const handleDownloadInvoicePdf = async (draft: any) => {
+    if (!draft) return;
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const maxWidth = pageWidth - margin * 2;
+      const lineHeight = 15;
+      let y = margin;
+
+      const content = draft?.markdown || JSON.stringify(draft, null, 2);
+      const lines = String(content).split('\n');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+
+      lines.forEach((line) => {
+        const wrapped = doc.splitTextToSize(line, maxWidth) as string[];
+        wrapped.forEach((segment) => {
+          if (y > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(segment, margin, y);
+          y += lineHeight;
+        });
+      });
+
+      const rawName = String(draft?.invoiceNumber || `invoice-${Date.now()}`);
+      const safeName = rawName.replace(/[^a-z0-9-_]/gi, '_');
+      doc.save(`${safeName}.pdf`);
+      showNotification('Invoice PDF downloaded', 'success');
+    } catch (err) {
+      console.error('Invoice PDF export failed:', err);
+      showNotification('Failed to download invoice PDF', 'error');
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    const input = invoicePrompt.trim();
+    if (!input) return;
+    setIsInvoiceGenerating(true);
+    try {
+      const invoiceSourceRows = (filteredRows.length > 0 ? filteredRows : rows).slice(0, 100).map((r, i) => {
+        const valuesByColumn = columns.reduce((acc, col) => {
+          acc[col.name] = r.values[col.id] ?? "";
+          return acc;
+        }, {} as Record<string, any>);
+        return { index: i + 1, id: r.id, values: valuesByColumn };
+      });
+
+      const systemPrompt = `
+        You are "Nexus Brain AI" in dedicated INVOICE MODE.
+        Convert board tasks into a professional invoice draft.
+
+        Board Title: ${boardTitle}
+        Current User: ${currentUser?.name || "User"}
+        Current Date: ${new Date().toISOString()}
+        Board Schema: ${JSON.stringify(columns.map(c => ({ name: c.name, type: c.type })))}
+        Active Filters: ${JSON.stringify({ text: filterText, person: filterPerson, status: filterStatus })}
+        Tasks for Invoice Conversion (max 100): ${JSON.stringify(invoiceSourceRows)}
+
+        Rules:
+        - Do not invent tasks that are not provided.
+        - Infer line items from task data (title, quantity, rate, amount, notes) when possible.
+        - If key fields are missing, still provide a usable draft and mention assumptions.
+        - Return practical values, avoid fluff.
+
+        Return JSON:
+        {
+          "response": "short summary for the user",
+          "invoiceDraft": {
+            "invoiceNumber": "INV-XXXX",
+            "issueDate": "YYYY-MM-DD",
+            "dueDate": "YYYY-MM-DD",
+            "billFrom": "...",
+            "billTo": "...",
+            "currency": "EUR",
+            "subtotal": 0,
+            "taxPercent": 0,
+            "taxAmount": 0,
+            "total": 0,
+            "assumptions": ["..."],
+            "items": [
+              { "description": "...", "quantity": 1, "unitPrice": 0, "amount": 0 }
+            ],
+            "markdown": "full invoice as markdown ready to copy"
+          }
+        }
+      `;
+
+      const res = await authenticatedFetch(getApiUrl('/nexus/chat'), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input,
+          systemPrompt,
+          messages: []
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to generate invoice");
+      }
+
+      const data = await res.json();
+      const aiResult = parseAiJson(data?.choices?.[0]?.message?.content || "");
+      setInvoiceSummary(aiResult?.response || "Invoice draft generated.");
+      setInvoiceDraft(aiResult?.invoiceDraft || null);
+      showNotification('Invoice draft is ready', 'success');
+    } catch (err) {
+      console.error("Invoice Generation Error:", err);
+      setInvoiceSummary("I couldn't generate the invoice draft right now. Please try again.");
+      setInvoiceDraft(null);
+      showNotification('Failed to generate invoice draft', 'error');
+    } finally {
+      setIsInvoiceGenerating(false);
     }
   };
 
@@ -1041,40 +1179,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           content: m.text
         }));
 
-        const parseAiJson = (rawContent: string) => {
-          const clean = rawContent
-            .replace(/^```json\s*/i, '')
-            .replace(/^```\s*/i, '')
-            .replace(/```$/i, '')
-            .trim();
-          try {
-            return JSON.parse(clean);
-          } catch {
-            return { action: "none", params: {}, response: clean };
-          }
-        };
-
         const taskSnapshot = rows.slice(0, 100).map((r, i) => {
           const valuesByColumn = columns.reduce((acc, col) => {
             acc[col.name] = r.values[col.id] ?? "";
             return acc;
           }, {} as Record<string, any>);
 
-          return {
-            index: i + 1,
-            id: r.id,
-            values: valuesByColumn
-          };
-        });
-
-        const invoiceSourceRows = (selectedTaskIds.length > 0
-          ? rows.filter(r => selectedTaskIds.includes(r.id))
-          : rows
-        ).slice(0, 100).map((r, i) => {
-          const valuesByColumn = columns.reduce((acc, col) => {
-            acc[col.name] = r.values[col.id] ?? "";
-            return acc;
-          }, {} as Record<string, any>);
           return {
             index: i + 1,
             id: r.id,
@@ -1119,54 +1229,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           }
         `;
 
-        const invoiceSystemPrompt = `
-          You are "Nexus Brain AI" in INVOICE MODE.
-          Convert board tasks into a professional invoice draft.
-
-          Board Title: ${boardTitle}
-          Current User: ${currentUser?.name || "User"}
-          Current Date: ${new Date().toISOString()}
-          Board Schema: ${JSON.stringify(columns.map(c => ({ name: c.name, type: c.type })))}
-          Selected Task IDs: ${JSON.stringify(selectedTaskIds)}
-          Tasks for Invoice Conversion (max 100): ${JSON.stringify(invoiceSourceRows)}
-
-          Rules:
-          - Do not invent tasks that are not provided.
-          - Infer line items from task data (title, quantity, rate, amount, notes) when possible.
-          - If key fields are missing, still provide a usable draft and mention assumptions.
-          - Keep response concise and practical.
-
-          Return JSON:
-          {
-            "response": "short friendly summary for the user",
-            "action": "none",
-            "params": {},
-            "invoiceDraft": {
-              "invoiceNumber": "INV-XXXX",
-              "issueDate": "YYYY-MM-DD",
-              "dueDate": "YYYY-MM-DD",
-              "billFrom": "...",
-              "billTo": "...",
-              "currency": "EUR",
-              "subtotal": 0,
-              "taxPercent": 0,
-              "taxAmount": 0,
-              "total": 0,
-              "assumptions": ["..."],
-              "items": [
-                { "description": "...", "quantity": 1, "unitPrice": 0, "amount": 0 }
-              ],
-              "markdown": "full invoice as markdown ready to copy"
-            }
-          }
-        `;
-
         const res = await authenticatedFetch(getApiUrl('/nexus/chat'), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
              input,
-             systemPrompt: aiMode === 'invoice' ? invoiceSystemPrompt : assistantSystemPrompt,
+             systemPrompt: assistantSystemPrompt,
              messages: parsedHistory
           })
         });
@@ -1184,10 +1252,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
         setAiMessages(prev => [...prev, { 
           role: 'assistant', 
-          text: responseText || (aiMode === 'invoice' ? "I prepared an invoice draft based on your tasks." : "Done."), 
+          text: responseText || "Done.", 
           timestamp: new Date().toISOString(),
-          pendingAction: aiMode === 'assistant' && aiAction !== "none" ? { action: aiAction, params } : undefined,
-          invoiceDraft: aiMode === 'invoice' ? aiResult.invoiceDraft : undefined
+          pendingAction: aiAction !== "none" ? { action: aiAction, params } : undefined
         }]);
 
       } catch (err) {
@@ -5021,6 +5088,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               </Select>
             </FormControl>
 
+            <Tooltip title="Generate invoice from filtered tasks">
+              <Button
+                variant="outlined"
+                startIcon={<DescriptionIcon sx={{ fontSize: 16 }} />}
+                onClick={() => setIsInvoiceDialogOpen(true)}
+                sx={{
+                  bgcolor: theme.palette.action.hover,
+                  color: theme.palette.text.secondary,
+                  borderRadius: '8px',
+                  borderColor: theme.palette.divider,
+                  height: 36,
+                  textTransform: 'none',
+                  px: 1.5,
+                  minWidth: 'auto',
+                  flexShrink: 0,
+                  '&:hover': { bgcolor: theme.palette.action.selected, color: theme.palette.primary.main, borderColor: theme.palette.primary.main }
+                }}
+              >
+                Invoice
+              </Button>
+            </Tooltip>
+
             {/* Board Chat Button */}
             <Tooltip title="Board Chat">
               <IconButton
@@ -5060,6 +5149,88 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </Tooltip>
           </Box>
         </Box>
+        <Dialog
+          open={isInvoiceDialogOpen}
+          onClose={() => setIsInvoiceDialogOpen(false)}
+          fullWidth
+          maxWidth="md"
+          PaperProps={{
+            sx: {
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.divider}`
+            }
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
+            Invoice Builder
+          </DialogTitle>
+          <DialogContent sx={{ pt: 1 }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+              Source: {filteredRows.length} filtered task(s)
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              value={invoicePrompt}
+              onChange={(e) => setInvoicePrompt(e.target.value)}
+              placeholder="Describe how the invoice should look (client, currency, due date, tax, notes...)"
+              sx={{ mt: 1.5 }}
+            />
+            <Box sx={{ mt: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Button
+                variant="contained"
+                onClick={handleGenerateInvoice}
+                disabled={isInvoiceGenerating || !invoicePrompt.trim()}
+                startIcon={isInvoiceGenerating ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeIcon fontSize="small" />}
+                sx={{ textTransform: 'none', fontWeight: 700 }}
+              >
+                {isInvoiceGenerating ? 'Generating...' : 'Generate Invoice'}
+              </Button>
+              {invoiceDraft && (
+                <Button
+                  variant="outlined"
+                  onClick={() => handleCopyInvoiceDraft(invoiceDraft)}
+                  sx={{ textTransform: 'none', fontWeight: 700 }}
+                >
+                  Copy Draft
+                </Button>
+              )}
+              {invoiceDraft && (
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon fontSize="small" />}
+                  onClick={() => handleDownloadInvoicePdf(invoiceDraft)}
+                  sx={{ textTransform: 'none', fontWeight: 700 }}
+                >
+                  Download PDF
+                </Button>
+              )}
+            </Box>
+            {invoiceSummary && (
+              <Typography sx={{ mt: 2, color: theme.palette.text.secondary, fontSize: '0.9rem' }}>
+                {invoiceSummary}
+              </Typography>
+            )}
+            {invoiceDraft && (
+              <TextField
+                fullWidth
+                multiline
+                minRows={12}
+                value={invoiceDraft?.markdown || JSON.stringify(invoiceDraft, null, 2)}
+                sx={{ mt: 2, fontFamily: 'monospace' }}
+                InputProps={{ readOnly: true }}
+              />
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button onClick={() => setIsInvoiceDialogOpen(false)} sx={{ textTransform: 'none' }}>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
         <Box sx={{ flexGrow: 1 }} />
         {/* Column Selector - Dialog on Mobile, Popover on Desktop */}
         {showColSelector && (
@@ -8385,30 +8556,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(0,0,0,0.2)' : '0 4px 12px rgba(0,0,0,0.05)'
                           }}>
                             <Typography sx={{ fontSize: '0.925rem', lineHeight: 1.6, fontWeight: 450 }}>{msg.text}</Typography>
-                            {msg.invoiceDraft && (
-                              <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: theme.palette.action.hover, border: `1px solid ${theme.palette.divider}` }}>
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
-                                  INVOICE DRAFT
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.text.primary }}>
-                                  {msg.invoiceDraft.invoiceNumber || 'Draft Invoice'} • Total: {msg.invoiceDraft.total ?? 0} {msg.invoiceDraft.currency || 'EUR'}
-                                </Typography>
-                                {Array.isArray(msg.invoiceDraft.items) && msg.invoiceDraft.items.length > 0 && (
-                                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                                    {msg.invoiceDraft.items.length} line items
-                                  </Typography>
-                                )}
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{ mt: 1.2, textTransform: 'none', fontWeight: 700, borderRadius: 1.5 }}
-                                  onClick={() => handleCopyInvoiceDraft(msg.invoiceDraft)}
-                                >
-                                  Copy Invoice Draft
-                                </Button>
-                              </Box>
-                            )}
-                            
                             {msg.pendingAction && (
                               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                                 <Button 
@@ -8495,34 +8642,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       transition: 'all 0.2s',
                       '&:focus-within': { borderColor: theme.palette.primary.main, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }
                     }}>
-                      <Stack direction="row" spacing={1} sx={{ px: 1, pb: 0.5 }}>
-                        <Chip
-                          label="Assistant"
-                          size="small"
-                          onClick={() => setAiMode('assistant')}
-                          sx={{
-                            border: `1px solid ${theme.palette.divider}`,
-                            bgcolor: aiMode === 'assistant' ? theme.palette.primary.main : 'transparent',
-                            color: aiMode === 'assistant' ? '#fff' : theme.palette.text.secondary,
-                            fontWeight: 700
-                          }}
-                        />
-                        <Chip
-                          label="Invoice Mode"
-                          size="small"
-                          onClick={() => setAiMode('invoice')}
-                          sx={{
-                            border: `1px solid ${theme.palette.divider}`,
-                            bgcolor: aiMode === 'invoice' ? theme.palette.primary.main : 'transparent',
-                            color: aiMode === 'invoice' ? '#fff' : theme.palette.text.secondary,
-                            fontWeight: 700
-                          }}
-                        />
-                      </Stack>
                       <TextField
                         fullWidth
                         variant="standard"
-                        placeholder={aiMode === 'invoice' ? "e.g. 'Convert these tasks into an invoice for ACME'" : "e.g. 'Notify the team when status changes to Done'"}
+                        placeholder="e.g. 'Notify the team when status changes to Done'"
                         value={aiChatInput}
                         onChange={(e) => setAiChatInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -8733,21 +8856,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Box>
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="body1" sx={{ fontWeight: 900, color: theme.palette.mode === 'dark' ? '#fff' : '#1e1b4b', fontSize: '1.05rem', letterSpacing: '-0.02em' }}>Nexus Brain</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
-                    {aiMode === 'invoice' ? 'Invoice Mode' : 'Intelligence Engine'}
-                  </Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>Intelligence Engine</Typography>
                 </Box>
-                <Chip
-                  label={aiMode === 'invoice' ? 'Invoice' : 'Assistant'}
-                  size="small"
-                  onClick={() => setAiMode(prev => prev === 'assistant' ? 'invoice' : 'assistant')}
-                  sx={{
-                    border: `1px solid ${theme.palette.divider}`,
-                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.08)',
-                    color: theme.palette.primary.main,
-                    fontWeight: 800
-                  }}
-                />
                 <IconButton 
                   onClick={() => setIsGlobalAiOpen(false)} 
                   sx={{ 
@@ -8802,33 +8912,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       }}
                     >
                       <Typography sx={{ fontSize: '0.925rem', color: msg.role === 'user' ? '#fff' : theme.palette.text.primary, lineHeight: 1.6, fontWeight: 450 }}>{msg.text}</Typography>
-                      {msg.invoiceDraft && (
-                        <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: msg.role === 'user' ? 'rgba(255,255,255,0.15)' : theme.palette.action.hover, border: `1px solid ${theme.palette.divider}` }}>
-                          <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', mb: 0.5, color: msg.role === 'user' ? '#fff' : theme.palette.text.secondary }}>
-                            INVOICE DRAFT
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: msg.role === 'user' ? '#fff' : theme.palette.text.primary }}>
-                            {msg.invoiceDraft.invoiceNumber || 'Draft Invoice'} • Total: {msg.invoiceDraft.total ?? 0} {msg.invoiceDraft.currency || 'EUR'}
-                          </Typography>
-                          <Button
-                            size="small"
-                            fullWidth
-                            variant="outlined"
-                            onClick={() => handleCopyInvoiceDraft(msg.invoiceDraft)}
-                            sx={{
-                              mt: 1,
-                              textTransform: 'none',
-                              fontWeight: 700,
-                              borderRadius: 1.5,
-                              borderColor: msg.role === 'user' ? 'rgba(255,255,255,0.4)' : theme.palette.divider,
-                              color: msg.role === 'user' ? '#fff' : theme.palette.text.secondary
-                            }}
-                          >
-                            Copy Invoice Draft
-                          </Button>
-                        </Box>
-                      )}
-                      
                       {msg.pendingAction && (
                         <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
                           <Button 
@@ -8911,10 +8994,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               <Box sx={{ p: 2.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(20, 20, 25, 0.4)' : 'rgba(240, 240, 255, 0.4)', borderTop: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
                 {aiMessages.length < 3 && (
                   <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
-                    {(aiMode === 'invoice'
-                      ? ["Convert all tasks to invoice", "Create invoice for selected tasks", "Draft invoice email body"]
-                      : ["Add a task", "Send an email", "Change status"]
-                    ).map((suggestion) => (
+                    {["Add a task", "Send an email", "Change status"].map((suggestion) => (
                       <Chip 
                         key={suggestion}
                         label={suggestion} 
@@ -8949,7 +9029,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <TextField
                     fullWidth
                     variant="standard"
-                    placeholder={aiMode === 'invoice' ? "Ask the brain to build an invoice from your tasks..." : "Ask the brain anything..."}
+                    placeholder="Ask the brain anything..."
                     value={aiChatInput}
                     onChange={(e) => setAiChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAiChatSubmit(aiChatInput)}
