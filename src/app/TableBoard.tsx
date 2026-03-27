@@ -380,29 +380,8 @@ function DateCellEditor({
   );
 }
 export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
-    // State për selektim të taskave
-    const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-
-    // Handler për selektim të një tasku
-    const handleSelectTask = (taskId: string) => {
-      setSelectedTaskIds(prev => prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]);
-    };
-
-    // Handler për selektim të të gjithave
-    const handleSelectAllTasks = (checked: boolean) => {
-      if (checked) {
-        setSelectedTaskIds(filteredRows.map(r => r.id));
-      } else {
-        setSelectedTaskIds([]);
-      }
-    };
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  // --- Invoice Mode State ---
-  const [invoiceMode, setInvoiceMode] = useState(false);
-  const [invoiceLoading, setInvoiceLoading] = useState(false);
-  const [invoiceError, setInvoiceError] = useState<string | null>(null);
-  const [invoices, setInvoices] = useState<any[]>([]);
   // Workspace view state
   const [workspaceView, setWorkspaceView] = useState<'table' | 'kanban' | 'gantt' | 'calendar' | 'doc' | 'gallery'>('table');
   const [filterText, setFilterText] = useState("");
@@ -902,6 +881,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [showEmailAutomation, tableId]);
   const [actionType, setActionType] = useState<'email' | 'notification' | 'both'>('email');
   const [applyToAll, setApplyToAll] = useState(true);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   
   // AI Automation States
   const [automationTab, setAutomationTab] = useState<'list' | 'ai' | 'analytics'>('list');
@@ -4677,60 +4657,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         </MenuItem>
       </Menu >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
-        {/* Invoice Mode Button */}
-        <Button
-          variant={invoiceMode ? 'contained' : 'outlined'}
-          startIcon={<SmartToyIcon />}
-          onClick={async () => {
-            setInvoiceMode(true);
-            setInvoiceLoading(true);
-            setInvoiceError(null);
-            try {
-              const systemPrompt = `
-                You are Nexus Brain, an expert accountant. Convert the following project management tasks into professional invoices. For each task, extract: client name (if present), description, amount (estimate if missing), due date, and any relevant details. Return a JSON array of invoices with fields: client, description, amount, due_date, task_id. If info is missing, use placeholders and note them in a 'notes' field. Format amounts as EUR. Example:
-                [
-                  {"client": "Acme Corp", "description": "Website redesign", "amount": "1200 EUR", "due_date": "2024-05-01", "task_id": "123", "notes": "Amount estimated"}
-                ]
-              `;
-              const input = JSON.stringify(rows.map(r => ({ id: r.id, ...r.values })));
-              const res = await authenticatedFetch(getApiUrl('/nexus/chat'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  input,
-                  systemPrompt,
-                  messages: []
-                })
-              });
-              if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || 'Nexus Brain error');
-              }
-              const data = await res.json();
-              const invoices = JSON.parse(data.choices[0].message.content);
-              setInvoices(invoices);
-            } catch (err: any) {
-              setInvoiceError(err.message || 'Failed to generate invoices');
-              setInvoices([]);
-            } finally {
-              setInvoiceLoading(false);
-            }
-          }}
-          sx={{
-            bgcolor: invoiceMode ? '#6366f1' : 'transparent',
-            color: invoiceMode ? '#fff' : theme.palette.text.secondary,
-            borderColor: invoiceMode ? '#6366f1' : theme.palette.divider,
-            fontWeight: 600,
-            textTransform: 'none',
-            borderRadius: '8px',
-            px: 2.5,
-            height: 40,
-            boxShadow: invoiceMode ? '0 4px 12px rgba(99, 102, 241, 0.2)' : 'none',
-            '&:hover': { bgcolor: '#6366f1', color: '#fff' }
-          }}
-        >
-          Invoice Mode
-        </Button>
         <IconButton
           onClick={e => { e.stopPropagation(); setHeaderMenuAnchor(e.currentTarget); }}
           sx={{
@@ -5036,49 +4962,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
-        {/* Invoice Dialog */}
-        <Dialog open={invoiceMode} onClose={() => setInvoiceMode(false)} maxWidth="md" fullWidth>
-          <DialogTitle>Invoices Generated by Nexus Brain</DialogTitle>
-          <DialogContent>
-            {invoiceLoading && <Box sx={{ p: 3, textAlign: 'center' }}><CircularProgress /><Typography mt={2}>Generating invoices...</Typography></Box>}
-            {invoiceError && <Typography color="error">{invoiceError}</Typography>}
-            {!invoiceLoading && !invoiceError && invoices.length > 0 && (
-              <TableContainer component={Paper} sx={{ mt: 2 }}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Client</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Amount</TableCell>
-                      <TableCell>Due Date</TableCell>
-                      <TableCell>Task ID</TableCell>
-                      <TableCell>Notes</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {invoices.map((inv: any, idx: number) => (
-                      <TableRow key={idx}>
-                        <TableCell>{inv.client}</TableCell>
-                        <TableCell>{inv.description}</TableCell>
-                        <TableCell>{inv.amount}</TableCell>
-                        <TableCell>{inv.due_date}</TableCell>
-                        <TableCell>{inv.task_id}</TableCell>
-                        <TableCell>{inv.notes}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-            {!invoiceLoading && !invoiceError && invoices.length === 0 && (
-              <Typography>No invoices generated.</Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setInvoiceMode(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-
         {/* Column Selector - Dialog on Mobile, Popover on Desktop */}
         {showColSelector && (
           isMobile ? (
@@ -5307,14 +5190,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             bgcolor: `${theme.palette.background.paper} !important`,
                             borderRight: `1px solid ${theme.palette.divider}`
                           }}
-                        >
-                          <Checkbox
-                            indeterminate={selectedTaskIds.length > 0 && selectedTaskIds.length < filteredRows.length}
-                            checked={filteredRows.length > 0 && selectedTaskIds.length === filteredRows.length}
-                            onChange={e => handleSelectAllTasks(e.target.checked)}
-                            inputProps={{ 'aria-label': 'select all tasks' }}
-                          />
-                        </TableCell>
+                        />
                         {columns.sort((a, b) => a.order - b.order).map((col, index) => (
                           <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled={userPermission === 'read'}>
                             {(provided, snapshot) => (
@@ -5503,11 +5379,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     borderTopLeftRadius: 12,
                                     borderBottomLeftRadius: 12,
                                     borderLeft: row.created_by ? `6px solid ${stringToColor(row.created_by)}` : undefined,
-                                    position: 'relative',
+                                    position: 'relative', // Establish containing block for avatar
                                     ...(isMobile ? {
                                       position: 'sticky',
                                       left: 0,
-                                      zIndex: 105,
+                                      zIndex: 105, // Highest z-index for the leftmost control column
                                       bgcolor: theme.palette.background.paper,
                                       backgroundImage: snapshot.isDragging ? 'none' : `linear-gradient(${rowBg}, ${rowBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`,
                                       borderRight: `1px solid ${theme.palette.divider}`,
@@ -5519,12 +5395,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       zIndex: 1
                                     })
                                   }}>
-                                    <Checkbox
-                                      checked={selectedTaskIds.includes(row.id)}
-                                      onChange={() => handleSelectTask(row.id)}
-                                      inputProps={{ 'aria-label': `select task ${row.id}` }}
-                                      sx={{ ml: 0.5 }}
-                                    />
                                     {/* Creator Avatar on Highlighted Task */}
                                     {row.created_by && (() => {
                                       const creator = tableMembers.find(m => m.id === row.created_by);
