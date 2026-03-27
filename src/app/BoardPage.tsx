@@ -16,7 +16,6 @@ import { Tabs, Tab, IconButton, Tooltip, Box as MuiBox, Menu, MenuItem } from "@
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import BackupTableIcon from "@mui/icons-material/BackupTable";
 // Table menu for delete option
 function TableMenu({ onDelete }: { onDelete: () => void }) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -233,7 +232,7 @@ function BoardPage() {
           </IconButton>
         </Tooltip>
         <Tooltip title="Import from Excel">
-          <IconButton
+          <Button
             onClick={() => { setImportDialogOpen(true); }}
             size="small"
             sx={{
@@ -241,11 +240,14 @@ function BoardPage() {
               color: "#4f8ef7",
               background: "rgba(79,142,247,0.1)",
               borderRadius: 2,
+              textTransform: 'none',
+              minWidth: 0,
+              px: 1.2,
               "&:hover": { background: "rgba(79,142,247,0.2)" }
             }}
           >
-            <BackupTableIcon fontSize="small" />
-          </IconButton>
+            Import
+          </Button>
         </Tooltip>
       </Box>
 
