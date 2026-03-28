@@ -1,4 +1,7 @@
-// Frontend can live on Vercel while the API/files are served elsewhere.
+// Frontend lives on Vercel while the API/files can be served elsewhere.
+export const DEFAULT_FRONTEND_URL =
+  process.env.NEXT_PUBLIC_FRONTEND_URL || "https://package-report.vercel.app";
+
 export const DEFAULT_SERVER_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://packagereport.onrender.com";
 
@@ -7,6 +10,10 @@ export const DEFAULT_ASSET_URL =
 
 export function getServerUrl() {
   return DEFAULT_SERVER_URL;
+}
+
+export function getFrontendUrl() {
+  return DEFAULT_FRONTEND_URL;
 }
 
 export function getApiUrl(path: string) {
