@@ -20,6 +20,10 @@ import GroupIcon from '@mui/icons-material/Group';
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PeopleIcon from "@mui/icons-material/People";
+import SpaceDashboardIcon from "@mui/icons-material/SpaceDashboard";
+import TableChartIcon from "@mui/icons-material/TableChart";
+import DescriptionIcon from "@mui/icons-material/Description";
+import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
@@ -98,6 +102,11 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   };
   const handleClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleMenuNavigate = (path: string) => {
+    handleClose();
+    router.push(path);
   };
   
   const handleLogout = async () => {
@@ -437,15 +446,156 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             <Avatar src={getAvatarUrl(user?.avatar, user?.name)} sx={{ width: 36, height: 36, bgcolor: theme.palette.primary.main, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: `2px solid ${theme.palette.background.default}`, boxShadow: `0 0 0 2px ${theme.palette.primary.main}`, transition: "all 0.2s", "&:hover": { transform: "scale(1.05)" } }} />
           </IconButton>
         </Tooltip>
-        <Menu anchorEl={anchorEl} open={open} onClose={handleClose} onClick={handleClose} PaperProps={{ elevation: 0, sx: { overflow: 'visible', filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))', mt: 1.5, bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, '& .MuiAvatar-root': { width: 32, height: 32, ml: -0.5, mr: 1 }, '&:before': { content: '""', display: 'block', position: 'absolute', top: 0, right: 14, width: 10, height: 10, bgcolor: theme.palette.background.paper, transform: 'translateY(-50%) rotate(45deg)', zIndex: 0 } } }} transformOrigin={{ horizontal: 'right', vertical: 'top' }} anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
-          <MenuItem onClick={() => router.push('/settings?tab=profile')}><ListItemIcon><PersonIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Profile</MenuItem>
-          <MenuItem onClick={() => router.push('/settings?tab=appearance')}><ListItemIcon><PaletteIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Appearance</MenuItem>
-          <MenuItem onClick={() => router.push('/settings?tab=notifications')}><ListItemIcon><NotificationsNoneIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Notifications</MenuItem>
-          <MenuItem onClick={() => router.push('/settings?tab=security')}><ListItemIcon><SecurityIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Security</MenuItem>
-          <MenuItem onClick={() => router.push('/settings?tab=team')}><ListItemIcon><GroupIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Team</MenuItem>
-          <MenuItem onClick={() => router.push('/chat?tab=social')}><ListItemIcon><PeopleIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Friends</MenuItem>
-          <Divider />
-          <MenuItem onClick={handleLogout}><ListItemIcon><LogoutIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>Logout</MenuItem>
+        <Menu
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+          PaperProps={{
+            elevation: 0,
+            sx: {
+              overflow: 'visible',
+              mt: 1.5,
+              width: 340,
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 3,
+              boxShadow: '0 22px 48px rgba(0,0,0,0.28)',
+              '&:before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 18,
+                width: 12,
+                height: 12,
+                bgcolor: theme.palette.background.paper,
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+                borderTop: `1px solid ${theme.palette.divider}`,
+                borderLeft: `1px solid ${theme.palette.divider}`,
+              }
+            }
+          }}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        >
+          <Box sx={{ p: 2.25, pb: 1.75, background: theme.palette.mode === 'dark' ? 'linear-gradient(180deg, rgba(99,102,241,0.16) 0%, rgba(99,102,241,0.02) 100%)' : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.01) 100%)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar
+                src={getAvatarUrl(user?.avatar, user?.name)}
+                sx={{
+                  width: 48,
+                  height: 48,
+                  bgcolor: theme.palette.primary.main,
+                  border: `2px solid ${alpha(theme.palette.primary.main, 0.35)}`
+                }}
+              >
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </Avatar>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }} noWrap>{user?.name || 'Account'}</Typography>
+                <Typography sx={{ color: theme.palette.text.secondary, fontSize: 12.5, mt: 0.25 }} noWrap>{user?.email || 'Signed in'}</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<PersonIcon fontSize="small" />}
+                onClick={() => handleMenuNavigate('/settings?tab=profile')}
+                sx={{ textTransform: 'none', borderRadius: 999, px: 1.5, boxShadow: 'none' }}
+              >
+                Open Profile
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+                onClick={() => {
+                  handleClose();
+                  toggleTheme();
+                }}
+                sx={{ textTransform: 'none', borderRadius: 999, px: 1.5 }}
+              >
+                {mode === 'dark' ? 'Light' : 'Dark'}
+              </Button>
+            </Box>
+          </Box>
+
+          <Box sx={{ px: 1.25, py: 1 }}>
+            <Typography sx={{ px: 1.25, pb: 0.75, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+              Workspace
+            </Typography>
+            <MenuItem onClick={() => handleMenuNavigate('/dashboard')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><SpaceDashboardIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Dashboard
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/workspace')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><TableChartIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Workspaces
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/chat')} sx={{ borderRadius: 2 }}>
+              <ListItemIcon><MailOutlineIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Messages
+            </MenuItem>
+          </Box>
+
+          <Divider sx={{ my: 0.5 }} />
+
+          <Box sx={{ px: 1.25, py: 1 }}>
+            <Typography sx={{ px: 1.25, pb: 0.75, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+              Preferences
+            </Typography>
+            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=profile')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><PersonIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Profile
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=appearance')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><PaletteIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Appearance
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=notifications')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><NotificationsNoneIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Notifications
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=security')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><SecurityIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Security
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=team')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><GroupIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Team
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/chat?tab=social')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><PeopleIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Friends
+            </MenuItem>
+            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=security')} sx={{ borderRadius: 2 }}>
+              <ListItemIcon><SettingsSuggestIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Account Controls
+            </MenuItem>
+          </Box>
+
+          <Divider sx={{ my: 0.5 }} />
+
+          <Box sx={{ px: 1.25, py: 1 }}>
+            <MenuItem onClick={() => handleMenuNavigate('/dashboard')} sx={{ borderRadius: 2, mb: 0.5 }}>
+              <ListItemIcon><DescriptionIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+              Reports
+            </MenuItem>
+            <MenuItem
+              onClick={handleLogout}
+              sx={{
+                borderRadius: 2,
+                color: theme.palette.error.main,
+                '& .MuiListItemIcon-root': { color: theme.palette.error.main }
+              }}
+            >
+              <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
+              Logout
+            </MenuItem>
+          </Box>
         </Menu>
       </Box>
 

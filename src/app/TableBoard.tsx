@@ -2902,11 +2902,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }
 
       // Update Backend
-      await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+      const saveRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: row.id, values: updatedValues }),
       });
+      if (!saveRes.ok) {
+        throw new Error("Failed to save task comment");
+      }
 
       // Update Local State
       setChatMessages(prev => [...prev, newMsg]);
@@ -5006,7 +5009,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
-              href={previewFile?.url}
+              href={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
               download={previewFile?.name}
               target="_blank"
               startIcon={<Box component="span" sx={{ fontSize: 18 }}>⬇</Box>}
@@ -5042,13 +5045,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           {previewFile?.type.startsWith('image/') ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={previewFile.url}
+              src={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
               alt={previewFile.name}
               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
             />
           ) : (
             <iframe
-              src={previewFile?.url}
+              src={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
               title={previewFile?.name}
               style={{ width: '100%', height: '100%', border: 'none' }}
             />
@@ -6426,7 +6429,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                                   <Box
                                                                     onClick={(e) => {
                                                                       e.stopPropagation();
-                                                                      handleFileClick(msg.attachment, reviewTask.id, 'chat');
+                                                                      handleFileClick(msg.attachment, row.id, 'chat');
                                                                     }}
                                                                     sx={{
                                                                       display: 'flex', alignItems: 'center', gap: 1.5,
@@ -6608,7 +6611,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                     );
 
                                                     return uniqueFiles.map((f, i) => (
-                                                      <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, mb: 1.5, bgcolor: theme.palette.action.hover, borderRadius: 2, border: '1px solid #35365a' }}>
+                                                      <Box
+                                                        key={i}
+                                                        onClick={() => handleFileClick(f, row.id, 'chat')}
+                                                        sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, mb: 1.5, bgcolor: theme.palette.action.hover, borderRadius: 2, border: '1px solid #35365a', cursor: 'pointer', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' } }}
+                                                      >
                                                         <Box sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', p: 1, borderRadius: 1 }}>
                                                           <InsertDriveFileIcon sx={{ color: '#6366f1' }} />
                                                         </Box>
@@ -6616,7 +6623,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                           <Typography sx={{ color: theme.palette.text.primary, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }} title={f.name}>{f.name || f.originalName || 'File'}</Typography>
                                                           <Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>{f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString() : 'Unknown date'}</Typography>
                                                         </Box>
-                                                        <IconButton size="small" href={f.url} target="_blank" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }}>
+                                                        <IconButton
+                                                          size="small"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleFileClick(f, row.id, 'chat');
+                                                          }}
+                                                          sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }}
+                                                        >
                                                           <Box component="span" sx={{ fontSize: 18 }}>⬇</Box>
                                                         </IconButton>
                                                       </Box>

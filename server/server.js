@@ -1815,14 +1815,18 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                 const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
                 
                 // Format: "{Users Name} commented on the {Tasks name}: (The message)"
-                await sendNotification(
-                    'New Discussion', 
-                    `${userName} commented on the ${taskName}: ${lastMsg.text}`,
-                    'task_chat',
-                    { taskId: id },
-                    table,
-                    req.user ? req.user.id : null
-                );
+                try {
+                    await sendNotification(
+                        'New Discussion', 
+                        `${userName} commented on the ${taskName}: ${lastMsg.text}`,
+                        'task_chat',
+                        { taskId: id },
+                        table,
+                        req.user ? req.user.id : null
+                    );
+                } catch (notifyErr) {
+                    console.error('[Task Chat] Failed to send notification, continuing with task update:', notifyErr);
+                }
             }
         }
     }
@@ -1845,14 +1849,18 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
                             const fileName = nFile.name || 'File';
                             
                             // Format: "{Users Name} commented on the {file name}: (The Comment)"
-                            await sendNotification(
-                                'New File Comment',
-                                `${userName} commented on the ${fileName}: ${lastComment.text}`,
-                                'file_comment',
-                                { taskId: id },
-                                table,
-                                req.user ? req.user.id : null
-                            );
+                            try {
+                                await sendNotification(
+                                    'New File Comment',
+                                    `${userName} commented on the ${fileName}: ${lastComment.text}`,
+                                    'file_comment',
+                                    { taskId: id },
+                                    table,
+                                    req.user ? req.user.id : null
+                                );
+                            } catch (notifyErr) {
+                                console.error('[File Comment] Failed to send notification, continuing with task update:', notifyErr);
+                            }
                         }
                     }
                 }
