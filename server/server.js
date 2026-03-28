@@ -15,6 +15,11 @@ const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
 const { sendPushNotification } = require('./firebase');
 const { sendNotification } = require('./notificationHelper');
+const BUILD_COMMIT = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'edc8e7463386ac815cb01ca7bdaa24346ba30c97';
+const BUILD_DATE = '2026-03-28';
+
+console.log(`[Build] Commit: ${BUILD_COMMIT}`);
+console.log(`[Build] Date: ${BUILD_DATE}`);
 
 // --- Production Database Auto-Repair ---
 async function bootstrapProductionDb() {
@@ -308,6 +313,14 @@ app.use((req, res, next) => {
       console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
   }
   next();
+});
+
+app.get('/api/version', (req, res) => {
+  res.json({
+    commit: BUILD_COMMIT,
+    date: BUILD_DATE,
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Register people and automation routes at /api
