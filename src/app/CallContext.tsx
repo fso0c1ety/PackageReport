@@ -21,8 +21,8 @@ import MicOffIcon from "@mui/icons-material/MicOff";
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import { useRouter } from "next/navigation";
-import io from "socket.io-client";
-import { DEFAULT_SERVER_URL, getAvatarUrl, getApiUrl, authenticatedFetch } from "./apiUrl";
+import { getAvatarUrl, getApiUrl, authenticatedFetch } from "./apiUrl";
+import { supabase } from "../lib/supabase";
 
 type CallContextType = {
     startCall: (targetId: string, isVideo: boolean, otherUser?: any) => Promise<void>;
@@ -45,7 +45,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const [isDuplicateSession, setIsDuplicateSession] = useState(false);
 
     // Call state
-    const [socket, setSocket] = useState<any>(null);
+    const [signalingReady, setSignalingReady] = useState(false);
     const [incomingCall, setIncomingCall] = useState<any>(null);
     const [activeCall, setActiveCall] = useState<any>(null);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -93,6 +93,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const ringAudioRef = useRef<HTMLAudioElement | null>(null);
     const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const signalingChannelRef = useRef<any>(null);
 
     const processIceCandidatesQueue = async () => {
         if (!peerConnection.current || !peerConnection.current.remoteDescription) return;
@@ -130,83 +131,94 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, []);
 
-    // Effect for Socket.io signaling
+    const sendSignal = async (event: string, payload: any) => {
+        const channel = signalingChannelRef.current;
+        if (!channel) {
+            console.warn(`[CallContext] Signaling channel not ready for ${event}`);
+            return;
+        }
+
+        const result = await channel.send({
+            type: 'broadcast',
+            event,
+            payload
+        });
+
+        if (result !== 'ok') {
+            console.warn(`[CallContext] Failed to send ${event}`, result);
+        }
+    };
+
+    // Effect for Supabase Realtime signaling
     useEffect(() => {
         if (!currentUser) return;
-        const newSocket = io(DEFAULT_SERVER_URL, {
-            path: '/socket.io',
-            transports: ['websocket', 'polling']
-        });
 
-        newSocket.on('connect', () => {
-            console.log('[CallContext] Connected to socket, registering user:', currentUser.id);
-            newSocket.emit('register_user', currentUser.id);
-        });
+        const channel = supabase
+            .channel('webrtc-signaling', {
+                config: {
+                    broadcast: { self: false }
+                }
+            })
+            .on('broadcast', { event: 'call_offer' }, ({ payload }) => {
+                if (payload?.targetId !== currentUser.id) return;
+                console.log("Received call offer", payload);
+                setIncomingCall(payload);
+                iceCandidatesQueue.current = [];
+            })
+            .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
+                if (payload?.targetId !== currentUser.id) return;
+                console.log("Received call answer", payload);
+                setCallStatus('connected');
+                setConnectedAt(Date.now());
+                if (peerConnection.current) {
+                    try {
+                        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                        await processIceCandidatesQueue();
+                    } catch (e) { console.error("Error setting remote desc:", e); }
+                }
+            })
+            .on('broadcast', { event: 'call_ice_candidate' }, async ({ payload }) => {
+                if (payload?.targetId !== currentUser.id) return;
+                console.log("[WebRTC] Received ICE candidate");
+                if (peerConnection.current && peerConnection.current.remoteDescription) {
+                    try {
+                        await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                    } catch (e) { console.error("Error adding ice candidate:", e); }
+                } else {
+                    console.log("[WebRTC] Queuing ICE candidate (remoteDescription not set)");
+                    iceCandidatesQueue.current.push(payload.candidate);
+                }
+            })
+            .on('broadcast', { event: 'call_end' }, ({ payload }) => {
+                if (payload?.targetId !== currentUser.id) return;
+                endCallLocally();
+            })
+            .on('broadcast', { event: 'call_reject' }, ({ payload }) => {
+                if (payload?.targetId !== currentUser.id) return;
+                console.log("Call rejected by other user");
+                setIncomingCall(null);
+                setActiveCall(null);
+                setCallStatus(null);
+            });
 
-        newSocket.on('call_offer', (data) => {
-            console.log("Received call offer", data);
-            setIncomingCall(data);
-            iceCandidatesQueue.current = []; // Reset queue for new call
-        });
-
-        newSocket.on('call_answer', async (data) => {
-            console.log("Received call answer", data);
-            setCallStatus('connected');
-            setConnectedAt(Date.now());
-            if (peerConnection.current) {
-                try {
-                    await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    await processIceCandidatesQueue();
-                } catch (e) { console.error("Error setting remote desc:", e); }
+        signalingChannelRef.current = channel;
+        channel.subscribe((status: string) => {
+            const isReady = status === 'SUBSCRIBED';
+            setSignalingReady(isReady);
+            if (isReady) {
+                console.log('[CallContext] Connected to Supabase signaling, user:', currentUser.id);
             }
         });
 
-        newSocket.on('call_ice_candidate', async (data) => {
-            console.log("[WebRTC] Received ICE candidate");
-            if (peerConnection.current && peerConnection.current.remoteDescription) {
-                try {
-                    await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } catch (e) { console.error("Error adding ice candidate:", e); }
-            } else {
-                console.log("[WebRTC] Queuing ICE candidate (remoteDescription not set)");
-                iceCandidatesQueue.current.push(data.candidate);
-            }
-        });
-
-        const handleCallTerminated = () => {
-            endCallLocally();
-        };
-
-        newSocket.on('call_end', handleCallTerminated);
-        newSocket.on('call_reject', (data) => {
-            console.log("Call rejected by other user");
-            setIncomingCall(null);
-            setActiveCall(null);
-            setCallStatus(null);
-        });
-
-        newSocket.on('duplicate_session_check', () => {
-            console.log("[Socket] Duplicate session detected on server");
-            setIsDuplicateSession(true);
-        });
-
-        newSocket.on('force_logout', () => {
-            console.warn("[Socket] Forced logout by another device");
-            handleCancelTakeover(); // Re-use logout logic
-            alert("You have been signed out because you logged in on another device.");
-        });
-
-        setSocket(newSocket);
         return () => {
-            newSocket.disconnect();
+            setSignalingReady(false);
+            signalingChannelRef.current = null;
+            supabase.removeChannel(channel);
         };
     }, [currentUser]);
 
     const handleConfirmTakeover = () => {
-        if (socket && currentUser) {
-            socket.emit('confirm_takeover', currentUser.id);
-            setIsDuplicateSession(false);
-        }
+        setIsDuplicateSession(false);
     };
 
     const handleCancelTakeover = () => {
@@ -230,10 +242,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 console.log("[WebRTC] ICE Candidate generated");
-                setSocket((currentSocket: any) => {
-                    currentSocket?.emit('call_ice_candidate', { targetId: targetUserId, candidate: event.candidate });
-                    return currentSocket;
-                });
+                void sendSignal('call_ice_candidate', { targetId: targetUserId, candidate: event.candidate });
             }
         };
         pc.ontrack = (event) => {
@@ -313,7 +322,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const startCall = async (targetId: string, isVideo: boolean, otherUser?: any) => {
-        if (!targetId || !currentUser) return;
+        if (!targetId || !currentUser || !signalingReady) return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
             setLocalStream(stream);
@@ -343,7 +352,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            socket?.emit('call_offer', {
+            await sendSignal('call_offer', {
                 targetId: targetId,
                 callerId: currentUser.id,
                 callerName: currentUser.name,
@@ -382,7 +391,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            socket?.emit('call_answer', {
+            await sendSignal('call_answer', {
                 targetId: incomingCall.callerId,
                 answer
             });
@@ -395,8 +404,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const rejectCall = () => {
-        if (incomingCall && socket) {
-            socket.emit('call_reject', { targetId: incomingCall.callerId });
+        if (incomingCall) {
+            void sendSignal('call_reject', { targetId: incomingCall.callerId });
         }
         setIncomingCall(null);
     };
@@ -462,8 +471,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const endCall = () => {
-        if (activeCall && socket) {
-            socket.emit('call_end', { targetId: activeCall.userId });
+        if (activeCall) {
+            void sendSignal('call_end', { targetId: activeCall.userId });
         }
         endCallLocally();
     };
