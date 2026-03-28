@@ -531,26 +531,223 @@ export default function SettingsPage() {
     boxShadow: theme.palette.mode === "dark" ? "0 18px 40px rgba(0,0,0,0.22)" : "0 14px 30px rgba(15,23,42,0.07)"
   } as const;
 
-  return (
-    <Box sx={{ maxWidth: 800, mx: "auto", p: { xs: 2, md: 4 } }}>
-      <Typography variant="h4" fontWeight={800} sx={{ mb: 3 }}>
-        Account Settings
-      </Typography>
+  const tabItems = [
+    {
+      label: "Profile",
+      description: "Identity, contact info, and personal controls",
+      icon: <PersonIcon fontSize="small" />
+    },
+    {
+      label: "Appearance",
+      description: "Theme, density, language, and workspace feel",
+      icon: <PaletteIcon fontSize="small" />
+    },
+    {
+      label: "Notifications",
+      description: "Mentions, digests, reminders, and delivery rules",
+      icon: <NotificationsIcon fontSize="small" />
+    },
+    {
+      label: "Security",
+      description: "Password, sessions, and account protection",
+      icon: <SecurityIcon fontSize="small" />
+    },
+    {
+      label: "Team",
+      description: "Invites, access, and connected collaborators",
+      icon: <GroupIcon fontSize="small" />
+    }
+  ];
 
-      <Paper sx={{ mb: 4, overflow: 'hidden', borderRadius: 2 }}>
-        <Tabs 
-            value={tabValue} 
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        width: "100%",
+        px: { xs: 2, md: 3 },
+        py: { xs: 2, md: 3 },
+        bgcolor: "background.default",
+        backgroundImage: theme.palette.mode === "dark"
+          ? "radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 28%), radial-gradient(circle at top right, rgba(16,185,129,0.12), transparent 24%)"
+          : "radial-gradient(circle at top left, rgba(59,130,246,0.10), transparent 28%), radial-gradient(circle at top right, rgba(16,185,129,0.10), transparent 24%)"
+      }}
+    >
+      <Box
+        sx={{
+          mb: 3,
+          p: { xs: 2.5, md: 3.5 },
+          borderRadius: 5,
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.16)}`,
+          bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.92 : 0.9),
+          backdropFilter: "blur(10px)",
+          boxShadow: theme.palette.mode === "dark" ? "0 24px 60px rgba(0,0,0,0.28)" : "0 28px 60px rgba(15,23,42,0.10)"
+        }}
+      >
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "1.3fr 0.7fr" }, gap: 2.5, alignItems: "center" }}>
+          <Box>
+            <Chip
+              icon={<VerifiedUserIcon />}
+              label="Account Control Center"
+              size="small"
+              sx={{
+                mb: 1.5,
+                borderRadius: 999,
+                bgcolor: alpha(theme.palette.primary.main, 0.12),
+                color: theme.palette.primary.main,
+                fontWeight: 700
+              }}
+            />
+            <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: "-0.04em", fontSize: { xs: "2rem", md: "2.7rem" } }}>
+              Account Settings
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 760 }}>
+              A full-screen workspace for identity, notifications, security, and team access. Everything important now lives in one wider control surface.
+            </Typography>
+          </Box>
+
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.5 }}>
+            <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.08), border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}` }}>
+              <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Profile</Typography>
+              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.5 }}>{user?.name || "Your account"}</Typography>
+              <Typography variant="body2" color="text.secondary">Identity and workspace presence</Typography>
+            </Box>
+            <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.success.main, 0.08), border: `1px solid ${alpha(theme.palette.success.main, 0.14)}` }}>
+              <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Workspace</Typography>
+              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.5 }}>{teammates.length}</Typography>
+              <Typography variant="body2" color="text.secondary">Connected teammates</Typography>
+            </Box>
+            <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.warning.main, 0.08), border: `1px solid ${alpha(theme.palette.warning.main, 0.14)}` }}>
+              <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Theme</Typography>
+              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.5 }}>{mode === "dark" ? "Dark" : "Light"}</Typography>
+              <Typography variant="body2" color="text.secondary">Visual mode and density</Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "320px minmax(0, 1fr)" },
+          gap: 3,
+          alignItems: "start"
+        }}
+      >
+        <Paper
+          sx={{
+            p: 2,
+            borderRadius: 5,
+            position: { lg: "sticky" },
+            top: { lg: 24 },
+            border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
+            bgcolor: alpha(theme.palette.background.paper, 0.92),
+            backdropFilter: "blur(12px)",
+            boxShadow: theme.palette.mode === "dark" ? "0 20px 48px rgba(0,0,0,0.24)" : "0 18px 42px rgba(15,23,42,0.08)"
+          }}
+        >
+          <Box
+            sx={{
+              p: 2,
+              mb: 2,
+              borderRadius: 4,
+              backgroundImage: theme.palette.mode === "dark"
+                ? "linear-gradient(135deg, rgba(59,130,246,0.16), rgba(16,185,129,0.10))"
+                : "linear-gradient(135deg, rgba(59,130,246,0.10), rgba(16,185,129,0.08))",
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`
+            }}
+          >
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Avatar
+                src={getAvatarUrl(user?.avatar, user?.name)}
+                sx={{ width: 56, height: 56, boxShadow: `0 14px 26px ${alpha(theme.palette.primary.main, 0.18)}` }}
+              >
+                {user?.name?.[0]?.toUpperCase() || "U"}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" fontWeight={800} noWrap>{user?.name || "Workspace user"}</Typography>
+                <Typography variant="body2" color="text.secondary" noWrap>{user?.email || "user@example.com"}</Typography>
+              </Box>
+            </Stack>
+          </Box>
+
+          <Tabs
+            orientation="vertical"
+            value={tabValue}
+            onChange={handleTabChange}
+            variant="scrollable"
+            sx={{
+              display: { xs: "none", lg: "flex" },
+              minHeight: 0,
+              "& .MuiTabs-indicator": {
+                left: 10,
+                width: 4,
+                borderRadius: 999
+              }
+            }}
+          >
+            {tabItems.map((tab, index) => (
+              <Tab
+                key={tab.label}
+                id={`settings-tab-${index}`}
+                aria-controls={`settings-tabpanel-${index}`}
+                icon={tab.icon}
+                iconPosition="start"
+                label={
+                  <Box sx={{ textAlign: "left", py: 0.25 }}>
+                    <Typography variant="subtitle2" fontWeight={800}>{tab.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">{tab.description}</Typography>
+                  </Box>
+                }
+                sx={{
+                  alignItems: "flex-start",
+                  justifyContent: "flex-start",
+                  textAlign: "left",
+                  textTransform: "none",
+                  minHeight: 72,
+                  borderRadius: 3,
+                  mx: 1,
+                  mb: 0.75,
+                  "&.Mui-selected": {
+                    bgcolor: alpha(theme.palette.primary.main, 0.08)
+                  }
+                }}
+              />
+            ))}
+          </Tabs>
+
+          <Tabs
+            value={tabValue}
             onChange={handleTabChange}
             variant="scrollable"
             scrollButtons="auto"
-            sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
+            sx={{
+              display: { xs: "flex", lg: "none" },
+              "& .MuiTab-root": { textTransform: "none", minHeight: 52 }
+            }}
+          >
+            {tabItems.map((tab, index) => (
+              <Tab
+                key={tab.label}
+                id={`settings-mobile-tab-${index}`}
+                aria-controls={`settings-tabpanel-${index}`}
+                icon={tab.icon}
+                iconPosition="start"
+                label={tab.label}
+              />
+            ))}
+          </Tabs>
+        </Paper>
+
+        <Paper
+          sx={{
+            overflow: "hidden",
+            borderRadius: 5,
+            border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
+            bgcolor: alpha(theme.palette.background.paper, 0.96),
+            backdropFilter: "blur(12px)",
+            boxShadow: theme.palette.mode === "dark" ? "0 20px 48px rgba(0,0,0,0.24)" : "0 18px 42px rgba(15,23,42,0.08)"
+          }}
         >
-          <Tab icon={<PersonIcon />} iconPosition="start" label="Profile" />
-          <Tab icon={<PaletteIcon />} iconPosition="start" label="Appearance" />
-          <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
-          <Tab icon={<SecurityIcon />} iconPosition="start" label="Security" />
-          <Tab icon={<GroupIcon />} iconPosition="start" label="Team" />
-        </Tabs>
 
         {/* PROFILE TAB */}
         <TabPanel value={tabValue} index={0}>
@@ -1002,6 +1199,7 @@ export default function SettingsPage() {
         </TabPanel>
 
       </Paper>
+      </Box>
 
       {/* Invite Teammate Dialog */}
       <Dialog 

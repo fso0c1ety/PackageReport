@@ -8,7 +8,6 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import GroupNameModal from "./GroupNameModal";
-import ImportExcelDialog from "./ImportExcelDialog";
 
 import TableBoard from "./TableBoard";
 import TablesPage from "./TablesPage";
@@ -66,8 +65,6 @@ function BoardPage() {
   const [workspaceToDelete, setWorkspaceToDelete] = useState<string | null>(null);
   const [workspaceNameToDelete, setWorkspaceNameToDelete] = useState<string | null>(null);
   const [tableToDelete, setTableToDelete] = useState<{ id: string, name: string } | null>(null);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
 
   // Workspace delete dialog handlers
   const cancelWorkspaceDelete = () => {
@@ -168,33 +165,9 @@ function BoardPage() {
     await fetchTables();
   };
 
-  // Fetch workspaces for the import dialog
-  const fetchWorkspaces = async () => {
-    try {
-      const res = await authenticatedFetch(getApiUrl("/workspaces"));
-      const data = await res.json();
-      setWorkspaces(Array.isArray(data) ? data : []);
-    } catch {}
-  };
-
-  const handleImportSuccess = async () => {
-    await fetchTables();
-    // Select the last (newest) table after refetch - handled in fetchTables already selects first
-    // Actually select the newly imported one by fetching fresh and picking the last
-    const res = await authenticatedFetch(getApiUrl("/tables"));
-    const allTables: Table[] = await res.json();
-    if (allTables.length > 0) {
-      setTables(allTables);
-      // Pick the table with the highest created_at (most recently created)
-      const sorted = [...allTables].sort((a: any, b: any) => (b.created_at || 0) - (a.created_at || 0));
-      setSelectedTableId(sorted[0].id);
-    }
-  };
-
   // Fetch all tables on mount
   React.useEffect(() => {
     fetchTables();
-    fetchWorkspaces();
   }, []);
 
   return (
@@ -231,24 +204,6 @@ function BoardPage() {
             <AddIcon />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Import from Excel">
-          <Button
-            onClick={() => { setImportDialogOpen(true); }}
-            size="small"
-            sx={{
-              ml: 0.5,
-              color: "#4f8ef7",
-              background: "rgba(79,142,247,0.1)",
-              borderRadius: 2,
-              textTransform: 'none',
-              minWidth: 0,
-              px: 1.2,
-              "&:hover": { background: "rgba(79,142,247,0.2)" }
-            }}
-          >
-            Import
-          </Button>
-        </Tooltip>
       </Box>
 
       {/* Table delete confirmation dialog */}
@@ -274,13 +229,6 @@ function BoardPage() {
         </DialogActions>
       </Dialog>
       <GroupNameModal open={modalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} mode="create" />
-      <ImportExcelDialog
-        open={importDialogOpen}
-        onClose={() => setImportDialogOpen(false)}
-        onSuccess={handleImportSuccess}
-        workspaces={workspaces}
-        defaultWorkspaceId={workspaces[0]?.id}
-      />
       {showTables ? (
         <TablesPage />
       ) : (
