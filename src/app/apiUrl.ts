@@ -1,8 +1,8 @@
 // Utility to get API URL (adjust as needed for your environment)
-export const DEFAULT_SERVER_URL = "https://packagereport.onrender.com";
+export const DEFAULT_SERVER_URL = "https://package-report.vercel.app";
 
 export function getServerUrl() {
-  // Always use the Render backend, regardless of environment
+  // Always use the Vercel deployment backend, regardless of environment
   return DEFAULT_SERVER_URL;
 }
 
