@@ -32,28 +32,30 @@ self.addEventListener('activate', (event) => {
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
+
   try {
     const data = payload.data || {};
     const type = data.type || 'generic';
-    
+
     // Extract title and body from payload.notification OR payload.data (for data-only messages)
     const notificationTitle = payload.notification?.title || data.title || 'Incoming Call';
     const bodyText = payload.notification?.body || data.body || 'New message';
     const notificationOptions = {
-        body: bodyText,
-        icon: '/logo.png',
-        data: data,
-        tag: type === 'incoming_call' ? 'call-' + (data.callerId || Date.now()) : type,
-        actions: type === 'incoming_call' ? [
-        { action: 'answer', title: '✅ ACCEPT CALL' },
-        { action: 'reject', title: '❌ DECLINE' }
-        ] : [],
-        requireInteraction: true, // Crucial for calls - stays until user acts
-        renotify: true, // Triggers every time a fresh push arrives for the same tag
-        silent: false,
-        sound: type === 'incoming_call' ? './ringtone.wav' : undefined,
-        vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 1000] : [100],
+      body: bodyText,
+      icon: '/logo.png',
+      data,
+      tag: type === 'incoming_call' ? 'call-' + (data.callerId || Date.now()) : type,
+      actions: type === 'incoming_call'
+        ? [
+            { action: 'answer', title: 'Accept Call' },
+            { action: 'reject', title: 'Decline' }
+          ]
+        : [],
+      requireInteraction: type === 'incoming_call',
+      renotify: true,
+      silent: false,
+      sound: type === 'incoming_call' ? './ringtone.wav' : undefined,
+      vibrate: type === 'incoming_call' ? [500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 1000] : [100],
     };
 
     console.log('[firebase-messaging-sw.js] Showing notification:', notificationTitle, notificationOptions);
@@ -71,7 +73,6 @@ self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
   if (action === 'reject') {
-      // Logic to tell server call was rejected could go here via a fetch
       return;
   }
 
@@ -92,11 +93,18 @@ self.addEventListener('notificationclick', function(event) {
   }
 
   event.waitUntil(clients.matchAll({
-    type: "window"
+    type: 'window',
+    includeUncontrolled: true
   }).then((clientList) => {
     for (const client of clientList) {
-      if ((urlToOpen === '/' && client.url === self.registration.scope) || (urlToOpen !== '/' && client.url.includes(urlToOpen)) && 'focus' in client) {
-          return client.focus();
+      if ('postMessage' in client) {
+        client.postMessage({
+          type: 'incoming_call_click',
+          payload: data
+        });
+      }
+      if ('focus' in client) {
+        return client.focus();
       }
     }
     if (clients.openWindow) return clients.openWindow(urlToOpen);

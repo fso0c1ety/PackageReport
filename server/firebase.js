@@ -66,7 +66,7 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   // Only add Android notification settings if we are sending a notification or if it's a call
   // For calls, we still want to provide channel information for the background handler
   message.android.notification = {
-    channelId: isCall ? 'calls_v4' : 'chat_messages',
+    channelId: isCall ? 'calls_v5' : 'chat_messages',
     sound: isCall ? 'ringtone' : 'default',
     notificationPriority: isCall ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
     visibility: 'PUBLIC',

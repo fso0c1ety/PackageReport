@@ -24,6 +24,12 @@ const firebaseConfig = {
   measurementId: "G-LQKV5LJ37P"
 };
 
+const getNotificationType = (payload: any) => {
+    const data = payload?.data || {};
+    if (data.type) return data.type;
+    return payload?.notification?.title === 'Incoming Call' ? 'incoming_call' : 'generic';
+};
+
 // Initialize only if window is defined (client-side)
 let messaging: any = null;
 if (typeof window !== "undefined") {
@@ -77,10 +83,13 @@ const NotificationRequester = () => {
                     onMessage(messaging, (payload) => {
                         console.log('Foreground message received: ', payload);
                         const data = payload.data || {};
-                        const type = data.type || payload.notification?.title === 'Incoming Call' ? 'incoming_call' : 'generic';
+                        const type = getNotificationType(payload);
 
                         if (type === 'incoming_call') {
-                            showIncomingCall(data);
+                            showIncomingCall({
+                                ...data,
+                                callerName: data.callerName || payload.notification?.title || 'Incoming Call'
+                            });
                         } else {
                             const title = payload.notification?.title || 'Notification';
                             const body = payload.notification?.body || 'New message';
@@ -139,7 +148,7 @@ const NotificationRequester = () => {
                         });
 
                         await PushNotifications.createChannel({
-                            id: 'calls_v4',
+                            id: 'calls_v5',
                             name: 'Incoming Calls',
                             description: 'Notifications for incoming audio and video calls',
                             importance: 5,
@@ -270,6 +279,21 @@ const NotificationRequester = () => {
              clearTimeout(timer);
         };
     }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+        const handleServiceWorkerMessage = (event: MessageEvent) => {
+            const message = event.data;
+            if (!message || message.type !== 'incoming_call_click') return;
+            showIncomingCall(message.payload || {});
+        };
+
+        navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+        return () => {
+            navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+        };
+    }, [showIncomingCall]);
 
     if (!showPermissionPrompt) return null;
 

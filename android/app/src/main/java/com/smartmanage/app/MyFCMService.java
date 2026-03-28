@@ -21,7 +21,7 @@ import java.util.Map;
 
 public class MyFCMService extends FirebaseMessagingService {
     private static final String TAG = "MyFCMService";
-    private static final String CHANNEL_ID = "calls_v4";
+    private static final String CHANNEL_ID = "calls_v5";
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {

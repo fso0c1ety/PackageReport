@@ -196,7 +196,12 @@ io.on('connection', (socket) => {
             'Incoming Call',
             `${data.callerName || 'Someone'} is calling you via ${data.isVideo ? 'Video' : 'Audio'}.`,
             'incoming_call',
-            { callerId: data.callerId, isVideo: data.isVideo }
+            {
+                callerId: data.callerId,
+                callerName: data.callerName,
+                callerAvatar: data.callerAvatar,
+                isVideo: data.isVideo
+            }
         );
     } catch (err) {
         console.error('[Socket] Failed to send push notification for call_offer:', err);
