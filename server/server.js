@@ -2294,7 +2294,24 @@ app.get('/api/tables/:tableId/chat', async (req, res) => {
       WHERE tc.table_id = $1 
       ORDER BY tc.timestamp ASC
     `, [req.params.tableId]);
-    res.json(result.rows);
+    const normalizedRows = result.rows.map((row) => {
+      let attachment = row.attachment;
+
+      if (typeof attachment === 'string') {
+        try {
+          attachment = JSON.parse(attachment);
+        } catch {
+          attachment = null;
+        }
+      }
+
+      return {
+        ...row,
+        attachment: attachment && typeof attachment === 'object' ? attachment : null
+      };
+    });
+
+    res.json(normalizedRows);
   } catch (err) {
     console.error('Error fetching chat messages:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -2451,6 +2468,17 @@ const createInviteNotification = async (recipientId, senderId, tableId, tableNam
 
 app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   try {
+    const normalizedAttachment = req.body.attachment && typeof req.body.attachment === 'object'
+      ? {
+          name: req.body.attachment.name || null,
+          type: req.body.attachment.type || null,
+          url: req.body.attachment.url || null,
+          size: req.body.attachment.size || null,
+          originalName: req.body.attachment.originalName || null,
+          uploadedAt: req.body.attachment.uploadedAt || null
+        }
+      : null;
+
     const newMessage = {
       id: uuidv4(),
       table_id: req.params.tableId,
@@ -2458,12 +2486,20 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
       sender_id: req.user.id,
       text: req.body.text,
       timestamp: req.body.timestamp || Date.now(),
-      attachment: req.body.attachment || null
+      attachment: normalizedAttachment
     };
 
     await db.query(
       'INSERT INTO table_chats (id, table_id, sender, text, timestamp, attachment, sender_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [newMessage.id, newMessage.table_id, newMessage.sender, newMessage.text, newMessage.timestamp, newMessage.attachment, newMessage.sender_id]
+      [
+        newMessage.id,
+        newMessage.table_id,
+        newMessage.sender,
+        newMessage.text,
+        newMessage.timestamp,
+        newMessage.attachment ? JSON.stringify(newMessage.attachment) : null,
+        newMessage.sender_id
+      ]
     );
 
     // Fetch sender avatar for the socket event
