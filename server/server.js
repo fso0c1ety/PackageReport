@@ -22,7 +22,7 @@ async function bootstrapProductionDb() {
     try {
         // 1. users table: Add fcm_tokens and profile columns
         await db.query(`
-            ALTER TABLE users 
+            ALTER TABLE public.users 
             ADD COLUMN IF NOT EXISTS fcm_tokens JSONB DEFAULT '[]'::jsonb,
             ADD COLUMN IF NOT EXISTS phone TEXT,
             ADD COLUMN IF NOT EXISTS job_title TEXT,
@@ -248,10 +248,10 @@ io.on('connection', (socket) => {
     await db.query(`
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS status TEXT;
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_tokens JSONB DEFAULT '[]'::jsonb;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS fcm_tokens JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS phone TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS job_title TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company TEXT;
       ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS sender_id TEXT;
     `);
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;`);
@@ -2169,14 +2169,14 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
     console.log('User from token:', req.user);
     console.log('Token in body:', token);
     // 1. Update the singular field (for backward compatibility)
-    await db.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
+    await db.query('UPDATE public.users SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
     console.log('Updated fcm_token for user', req.user.id);
     // 2. Best-effort update of the plural array for multi-device support.
     // Older production databases may not have this column yet, so we avoid failing the whole request.
     let updatedPluralTokens = false;
     try {
       await db.query(`
-          UPDATE users
+          UPDATE public.users
           SET fcm_tokens = CASE
               WHEN fcm_tokens IS NULL THEN jsonb_build_array($1::text)
               WHEN jsonb_typeof(fcm_tokens) <> 'array' THEN jsonb_build_array($1::text)
@@ -2205,9 +2205,9 @@ app.put('/api/users/fcm', authenticateToken, async (req, res) => {
 
 app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
   try {
-    await db.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
+    await db.query('UPDATE public.users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
     try {
-      await db.query('UPDATE users SET fcm_tokens = \'[]\'::jsonb WHERE id = $1', [req.user.id]);
+      await db.query('UPDATE public.users SET fcm_tokens = \'[]\'::jsonb WHERE id = $1', [req.user.id]);
     } catch (pluralErr) {
       console.warn('[FCM] Non-fatal error clearing fcm_tokens:', pluralErr.message);
     }
