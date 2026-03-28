@@ -102,7 +102,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   
   const handleLogout = async () => {
     try {
-      await authenticatedFetch(getApiUrl('users/fcm'), { method: 'DELETE' });
+      await authenticatedFetch('/api/users/fcm', { method: 'DELETE' });
     } catch (e) {
       console.error("Failed to clear FCM token on server", e);
     }
