@@ -66,7 +66,8 @@ const NotificationRequester = () => {
                         if (response.ok) {
                             console.log('Web FCM Token sent to server successfully');
                         } else {
-                            console.error('Failed to send Web FCM token to server', response.status);
+                            const errorText = await response.text();
+                            console.error('Failed to send Web FCM token to server', response.status, errorText);
                         }
                     } else {
                         console.warn('No registration token available. Request permission to generate one.');
@@ -159,7 +160,8 @@ const NotificationRequester = () => {
                                 if (response.ok) {
                                     console.log('FCM Token sent to server successfully');
                                 } else {
-                                    console.error('Failed to send FCM token to server', response.status);
+                                    const errorText = await response.text();
+                                    console.error('Failed to send FCM token to server', response.status, errorText);
                                 }
                             } catch (err) {
                                 console.error('Error sending FCM token to server:', err);
