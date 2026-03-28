@@ -91,6 +91,7 @@ async function migrate() {
         sender TEXT,
         text TEXT,
         timestamp BIGINT,
+        attachment JSONB,
         sender_id TEXT
       );
     `);

@@ -2012,9 +2012,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setLoading(false);
   };
 
+  const handleBeforeDragStart = (start: any) => {
+    const dragType = start?.type;
+    if (!dragType || dragType === 'row' || dragType === 'default') {
+      setIsReorderMode(true);
+    }
+  };
+
   // Drag and drop handler
   const onDragEnd = async (result: any) => {
+    setIsReorderMode(false);
     if (!result.destination || userPermission === 'read') return;
+    if (
+      result.source?.droppableId === result.destination?.droppableId &&
+      result.source?.index === result.destination?.index
+    ) {
+      return;
+    }
     if ((filterText || filterPerson.length > 0 || filterStatus.length > 0) && (result.type === undefined || result.type === 'row' || result.type === 'default')) {
       showNotification('Clear filters before reordering tasks', 'info');
       return;
@@ -2837,8 +2851,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     setIsSending(true);
     let attachment = null;
-    const row = rows.find(r => r.id === targetId);
+    const row = rows.find(r => r.id === targetId) || (reviewTask && reviewTask.id === targetId ? reviewTask : null);
     if (!row) {
+      console.warn("Unable to send chat message because the target task was not found in local state", { targetId });
       setIsSending(false);
       return;
     }
@@ -5983,7 +5998,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       {
         workspaceView === 'table' ? (
-          <DragDropContext onDragEnd={onDragEnd}>
+          <DragDropContext onBeforeCapture={handleBeforeDragStart} onDragEnd={onDragEnd}>
             <TableContainer component={Paper} sx={{ 
               bgcolor: 'transparent', 
               boxShadow: 'none', 
@@ -6211,7 +6226,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }
 
                           return (
-                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={hasActiveFilters || (isTableVirtualized && !isReorderMode)}>
+                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={hasActiveFilters}>
                               {(provided, snapshot) => (
                                 <TableRow
                                   ref={provided.innerRef}
@@ -6408,8 +6423,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                                 position: 'relative'
                                                               }}>
                                                                 {msg.attachment && (
-                                                                  <Box component="a" href={msg.attachment.url} target="_blank"
-                                                                    onClick={(e) => e.stopPropagation()}
+                                                                  <Box
+                                                                    onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      handleFileClick(msg.attachment, reviewTask.id, 'chat');
+                                                                    }}
                                                                     sx={{
                                                                       display: 'flex', alignItems: 'center', gap: 1.5,
                                                                       bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)',
@@ -6418,6 +6436,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                                       width: '100%',
                                                                       transition: 'all 0.2s',
                                                                       border: `1px solid ${theme.palette.divider}`,
+                                                                      cursor: 'pointer',
                                                                       '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
                                                                     }}
                                                                   >
@@ -6514,7 +6533,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                           if (chatTaskId) handleTaskTyping(chatTaskId);
                                                         }}
                                                         placeholder="Type a message..."
-                                                        onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+                                                        onKeyDown={(e) => {
+                                                          if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            void handleSendChat();
+                                                          }
+                                                        }}
                                                         style={{
                                                           flex: 1,
                                                           backgroundColor: theme.palette.mode === 'dark' ? '#13141f' : '#f1f5f9',
@@ -6530,7 +6554,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                         onBlur={(e) => e.target.style.borderColor = theme.palette.mode === 'dark' ? '#2d2e3d' : '#e2e8f0'}
                                                       />
                                                       <IconButton
-                                                        onClick={() => handleSendChat()}
+                                                        onClick={() => { void handleSendChat(); }}
                                                         disabled={isSending || (!chatInput.trim() && !chatAttachment)}
                                                         size="small"
                                                         sx={{
@@ -7905,8 +7929,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 position: 'relative'
                               }}>
                                 {msg.attachment && (
-                                  <Box component="a" href={msg.attachment.url} target="_blank"
-                                    onClick={(e) => e.stopPropagation()}
+                                  <Box
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleFileClick(msg.attachment, reviewTask.id, 'chat');
+                                    }}
                                     sx={{
                                       display: 'flex', alignItems: 'center', gap: 1.5,
                                       bgcolor: isMe ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.25)',
@@ -7915,6 +7942,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       width: '100%',
                                       transition: 'all 0.2s',
                                       border: `1px solid ${theme.palette.divider}`,
+                                      cursor: 'pointer',
                                       '&:hover': { bgcolor: isMe ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)' }
                                     }}
                                   >
@@ -8011,7 +8039,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         placeholder="Write an update..."
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && (chatInput.trim() || chatAttachment) && reviewTask && !isSending) {
-                            handleSendChat(reviewTask.id);
+                            e.preventDefault();
+                            void handleSendChat(reviewTask.id);
                           }
                         }}
                         style={{
@@ -8029,9 +8058,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         onBlur={(e) => e.target.style.borderColor = '#2d2e3d'}
                       />
                       <IconButton
-                        onClick={async () => {
+                        onClick={() => {
                           if ((chatInput.trim() || chatAttachment) && reviewTask) {
-                            handleSendChat(reviewTask.id);
+                            void handleSendChat(reviewTask.id);
                           }
                         }}
                         disabled={isSending || (!chatInput.trim() && !chatAttachment)}

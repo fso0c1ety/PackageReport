@@ -1,6 +1,6 @@
 "use client";
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -185,17 +185,56 @@ const CHART_COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f59e0b", "#1
 
 // --- Helper Functions ---
 
-function getStatusColor(status: string) {
-  return STATUS_COLORS[status] || "#6161FF";
+function normalizeWorkspaceId(table: any) {
+  return table?.workspace_id || table?.workspaceId || "";
+}
+
+function getSortedColumns(table: any) {
+  return [...(table?.columns || [])].sort((a: any, b: any) => (a?.order ?? 0) - (b?.order ?? 0));
+}
+
+function getStatusColumn(table: any) {
+  return getSortedColumns(table).find((col: any) => col?.type === "Status");
+}
+
+function getPeopleColumn(table: any) {
+  return getSortedColumns(table).find((col: any) => col?.type === "People");
+}
+
+function getTaskName(task: any, table: any) {
+  if (!task?.values) return "Untitled";
+  const sortedColumns = getSortedColumns(table);
+  const primaryCol = sortedColumns.find((col: any) => !["Files", "People", "Doc", "Connect"].includes(col?.type)) || sortedColumns[0];
+  const primaryValue = primaryCol ? task.values?.[primaryCol.id] : undefined;
+
+  if (typeof primaryValue === "string" || typeof primaryValue === "number") {
+    return String(primaryValue);
+  }
+
+  const fallbackValue = Object.values(task.values).find((value: any) => typeof value === "string" || typeof value === "number");
+  return fallbackValue ? String(fallbackValue) : "Untitled";
 }
 
 function getStatusValue(task: any, table: any) {
-  if (!task || !table) return 'Unknown';
-  const statusCol = (table.columns || []).find((col: any) => col.type === 'Status');
-  if (statusCol && task.values && task.values[statusCol.id]) {
-    return task.values[statusCol.id];
+  const statusCol = getStatusColumn(table);
+  const statusValue = statusCol ? task?.values?.[statusCol.id] : undefined;
+  if (typeof statusValue === "string" && statusValue.trim()) {
+    return statusValue;
   }
-  return task.values?.status || task.values?.['83dabc09-ba5a-4e4b-84f4-e3892536aa8d'] || task.values?.['Statusi'] || 'Unknown';
+  return "Unknown";
+}
+
+function getStatusColor(task: any, table: any) {
+  const status = getStatusValue(task, table);
+  const statusCol = getStatusColumn(table);
+  const matchingOption = statusCol?.options?.find((option: any) => option?.value === status && option?.color);
+  return matchingOption?.color || STATUS_COLORS[status] || "#6161FF";
+}
+
+function getTaskAssignees(task: any, table: any) {
+  const peopleCol = getPeopleColumn(table);
+  const value = peopleCol ? task?.values?.[peopleCol.id] : undefined;
+  return Array.isArray(value) ? value.filter((person: any) => person && (person.name || person.email)) : [];
 }
 
 
@@ -212,6 +251,11 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const workspacesById = useMemo(
+    () => Object.fromEntries(workspaces.map((workspace: any) => [workspace.id, workspace])),
+    [workspaces]
+  );
 
   // Fetch Data
   useEffect(() => {
@@ -235,34 +279,55 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // Filter Logic
-  const filteredTables = selectedWorkspace
-    ? tables.filter(t => t.workspaceId === selectedWorkspace)
-    : tables;
+  const filteredTables = useMemo(() => {
+    return selectedWorkspace
+      ? tables.filter((table: any) => normalizeWorkspaceId(table) === selectedWorkspace)
+      : tables;
+  }, [tables, selectedWorkspace]);
 
-  let allTasks = filteredTables.flatMap(t => t.tasks?.map((task: any) => ({ ...task, _table: t })) || []);
+  const dashboardTasks = useMemo(() => {
+    const baseTasks = filteredTables.flatMap((table: any) =>
+      (table.tasks || [])
+        .filter((task: any) => task && task.id && task.values)
+        .map((task: any) => ({
+          ...task,
+          _table: table,
+          _workspaceId: normalizeWorkspaceId(table),
+          _workspaceName: workspacesById[normalizeWorkspaceId(table)]?.name || table.workspace_name || "Unknown Workspace",
+          _taskName: getTaskName(task, table),
+          _status: getStatusValue(task, table),
+          _statusColor: getStatusColor(task, table),
+          _assignees: getTaskAssignees(task, table),
+        }))
+    );
 
-  if (selectedPerson) {
-    allTasks = allTasks.filter(task => {
-      const peopleCol = Object.keys(task.values || {}).find(key => Array.isArray(task.values[key]) && task.values[key][0]?.email);
-      if (peopleCol) {
-        return task.values[peopleCol].some((p: any) => p.name === selectedPerson || p.email === selectedPerson);
-      }
-      return false;
+    return baseTasks.filter((task: any) => {
+      const matchesPerson = !selectedPerson || task._assignees.some((person: any) =>
+        person?.name === selectedPerson || person?.email === selectedPerson
+      );
+
+      const matchesSearch = !search || task._taskName.toLowerCase().includes(search.toLowerCase());
+
+      return matchesPerson && matchesSearch;
     });
-  }
+  }, [filteredTables, workspacesById, selectedPerson, search]);
 
-  if (search) {
-    allTasks = allTasks.filter(task => {
-      const taskName = task.values?.task || Object.values(task.values || {})[0] || '';
-      return String(taskName).toLowerCase().includes(search.toLowerCase());
-    });
-  }
+  const allPeople = useMemo(() => {
+    return Array.from(
+      new Set(
+        filteredTables.flatMap((table: any) =>
+          (table.tasks || []).flatMap((task: any) =>
+            getTaskAssignees(task, table).map((person: any) => person.name || person.email).filter(Boolean)
+          )
+        )
+      )
+    ).sort();
+  }, [filteredTables]);
 
   // Metrics
-  const totalTasks = allTasks.length;
-  const statusCounts = allTasks.reduce((acc: any, t) => {
-    const status = getStatusValue(t, t._table);
+  const totalTasks = dashboardTasks.length;
+  const statusCounts = dashboardTasks.reduce((acc: any, t) => {
+    const status = t._status;
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
@@ -278,14 +343,11 @@ export default function DashboardPage() {
   })).sort((a: any, b: any) => b.value - a.value);
 
   // Bar Data (People)
-  const peopleCounts = allTasks.reduce((acc: any, t) => {
-    const peopleCol = Object.keys(t.values || {}).find(key => Array.isArray(t.values[key]) && t.values[key][0]?.email);
-    if (peopleCol) {
-      t.values[peopleCol].forEach((p: any) => {
-        const name = p.name || p.email;
+  const peopleCounts = dashboardTasks.reduce((acc: any, t) => {
+    t._assignees.forEach((person: any) => {
+        const name = person.name || person.email;
         acc[name] = (acc[name] || 0) + 1;
-      });
-    }
+    });
     return acc;
   }, {});
 
@@ -294,16 +356,35 @@ export default function DashboardPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 8); // Top 8 only
 
-  // Extract all people for filter
-  const allPeople = Array.from(new Set(
-    allTasks.flatMap(task => {
-      const peopleCol = Object.keys(task.values || {}).find(key => Array.isArray(task.values[key]) && task.values[key][0]?.email);
-      if (peopleCol) {
-        return task.values[peopleCol].map((p: any) => p.name || p.email);
-      }
-      return [];
-    })
-  )).sort();
+  const handleExportReport = () => {
+    const rows = dashboardTasks.map((task: any) => ({
+      task: task._taskName,
+      workspace: task._workspaceName,
+      table: task._table?.name || "Unknown Table",
+      status: task._status,
+      assignees: task._assignees.map((person: any) => person.name || person.email).join(", ") || "Unassigned",
+    }));
+
+    const header = ["Task Name", "Workspace", "Table", "Status", "Assignees"];
+    const csv = [
+      header.join(","),
+      ...rows.map((row: any) => [
+        row.task,
+        row.workspace,
+        row.table,
+        row.status,
+        row.assignees,
+      ].map((value: string) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "dashboard-report.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <DashboardRoot>
@@ -319,6 +400,7 @@ export default function DashboardPage() {
         <Button
           variant="outlined"
           startIcon={<DownloadIcon />}
+          onClick={handleExportReport}
           sx={{
             color: 'text.primary',
             borderColor: "rgba(255,255,255,0.2)",
@@ -496,7 +578,11 @@ export default function DashboardPage() {
                       tooltipType="none"
                     >
                       {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={getStatusColor(String(entry.name))} strokeWidth={0} />
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={dashboardTasks.find((task: any) => task._status === entry.name)?._statusColor || STATUS_COLORS[String(entry.name)] || "#6161FF"}
+                          strokeWidth={0}
+                        />
                       ))}
                     </Pie>
                     <Tooltip
@@ -575,21 +661,18 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {allTasks.map((task, idx) => {
-                  const status = getStatusValue(task, task._table);
-                  const color = getStatusColor(status);
-                  const peopleCol = Object.keys(task.values || {}).find(key => Array.isArray(task.values[key]) && task.values[key][0]?.email);
+                {dashboardTasks.map((task, idx) => {
+                  const status = task._status;
+                  const color = task._statusColor;
+                  const assignees = task._assignees;
 
                   return (
                     <TableRow key={idx} hover sx={{ '&:hover': { bgcolor: "rgba(255,255,255,0.02)" } }}>
                       <TableCell sx={{ color: 'text.primary', borderBottom: "1px solid rgba(255,255,255,0.05)", fontWeight: 500 }}>
-                        {(() => {
-                          const taskName = task.values?.task || Object.values(task.values || {})[0];
-                          return (typeof taskName === 'string' || typeof taskName === 'number') ? taskName : (task.values?.task_name || 'Untitled');
-                        })()}
+                        {task._taskName}
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary', borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                        {task._table?.name}
+                        {task._workspaceName}
                       </TableCell>
                       <TableCell sx={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                         <Chip
@@ -607,8 +690,8 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell sx={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                         <Box display="flex" gap={0.5}>
-                          {peopleCol && Array.isArray(task.values[peopleCol]) ? (
-                            task.values[peopleCol].map((p: any, i: number) => (
+                          {assignees.length > 0 ? (
+                            assignees.map((p: any, i: number) => (
                               <MuiTooltip key={i} title={p.name || p.email}>
                                 <Avatar
                                   alt={p.name}

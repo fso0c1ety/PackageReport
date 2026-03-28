@@ -58,7 +58,8 @@ async function bootstrapProductionDb() {
         // 5. table_chats: Add sender_id
         await db.query(`
             ALTER TABLE table_chats 
-            ADD COLUMN IF NOT EXISTS sender_id TEXT;
+            ADD COLUMN IF NOT EXISTS sender_id TEXT,
+            ADD COLUMN IF NOT EXISTS attachment JSONB;
         `);
 
         console.log('[DB-BOOTSTRAP] Schema repair completed successfully.');
@@ -265,6 +266,7 @@ io.on('connection', (socket) => {
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS job_title TEXT;
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company TEXT;
       ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS sender_id TEXT;
+      ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS attachment JSONB;
     `);
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;`);
     await db.query(`UPDATE tables SET shared_users = '[]'::jsonb WHERE shared_users IS NULL;`);
