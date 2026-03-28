@@ -1,8 +1,11 @@
-// Utility to get API URL (adjust as needed for your environment)
-export const DEFAULT_SERVER_URL = "https://package-report.vercel.app";
+// Frontend can live on Vercel while the API/files are served elsewhere.
+export const DEFAULT_SERVER_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://packagereport.onrender.com";
+
+export const DEFAULT_ASSET_URL =
+  process.env.NEXT_PUBLIC_ASSET_URL || DEFAULT_SERVER_URL;
 
 export function getServerUrl() {
-  // Always use the Vercel deployment backend, regardless of environment
   return DEFAULT_SERVER_URL;
 }
 
@@ -44,7 +47,7 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
 
   // Handle relative local paths (e.g., /uploads/...)
   // We use the base server URL, NOT the /api prefix
-  const base = getServerUrl();
+  const base = DEFAULT_ASSET_URL;
   const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
   const cleanPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
   
