@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
+  Card,
+  CardContent,
   TextField,
   Button,
   IconButton,
@@ -26,10 +28,7 @@ import {
   DialogContent,
   Tooltip,
   Stack,
-  Autocomplete,
-  Chip,
-  FormControlLabel,
-  Checkbox
+  Autocomplete
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
@@ -50,13 +49,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
-import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
-import LanguageIcon from "@mui/icons-material/Language";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import DevicesIcon from "@mui/icons-material/Devices";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import InsightsIcon from "@mui/icons-material/Insights";
-import BoltIcon from "@mui/icons-material/Bolt";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -128,9 +120,6 @@ export default function SettingsPage() {
   // Notifications State
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
-  const [mentionNotifications, setMentionNotifications] = useState(true);
-  const [digestNotifications, setDigestNotifications] = useState(false);
-  const [taskReminderNotifications, setTaskReminderNotifications] = useState(true);
 
   // Security State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -138,15 +127,6 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [sessionAlertsEnabled, setSessionAlertsEnabled] = useState(true);
-
-  // Appearance State
-  const [compactMode, setCompactMode] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
-  const [showAvatarsInDenseViews, setShowAvatarsInDenseViews] = useState(true);
-  const [preferredLanguage, setPreferredLanguage] = useState("English");
-  const [preferredTimezone, setPreferredTimezone] = useState("Europe/Budapest");
 
   // Teammates State
   const [teammates, setTeammates] = useState<any[]>([]);
@@ -465,31 +445,7 @@ export default function SettingsPage() {
           const data = await res.json();
           // data.url is a relative path like /uploads/filename.jpg
           setEditAvatar(data.url);
-          setProfileError("");
-
-          const saveRes = await authenticatedFetch(getApiUrl('users/profile'), {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: editName,
-              avatar: data.url,
-              job_title: editJobTitle,
-              company: editCompany,
-              phone: editPhone
-            }),
-          });
-
-          if (!saveRes.ok) {
-            throw new Error("Failed to save uploaded image to profile");
-          }
-
-          const updatedUser = await saveRes.json();
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-          setUser(updatedUser);
-          setEditAvatar(updatedUser.avatar || data.url);
-          setProfileSaved(true);
-          setTimeout(() => setProfileSaved(false), 3000);
-
+          // Optionally notify immediately after avatar upload (before save)
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('profile-updated'));
           }
@@ -498,7 +454,7 @@ export default function SettingsPage() {
         }
       } catch (err) {
         console.error("Upload failed", err);
-        setProfileError(err instanceof Error ? err.message : "Error uploading image");
+        setProfileError("Error uploading image");
       }
     }
   };
@@ -520,549 +476,242 @@ export default function SettingsPage() {
       setTimeout(() => setPasswordSuccess(""), 3000);
   };
 
-  const settingsPanelSx = {
-    p: { xs: 2, md: 2.5 },
-    borderRadius: 4,
-    border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-    bgcolor: theme.palette.background.paper,
-    backgroundImage: theme.palette.mode === "dark"
-      ? "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.00) 100%)"
-      : "linear-gradient(180deg, rgba(99,102,241,0.04) 0%, rgba(99,102,241,0.00) 100%)",
-    boxShadow: theme.palette.mode === "dark" ? "0 18px 40px rgba(0,0,0,0.22)" : "0 14px 30px rgba(15,23,42,0.07)"
-  } as const;
-
-  const tabItems = [
-    {
-      label: "Profile",
-      description: "Identity, contact info, and personal controls",
-      icon: <PersonIcon fontSize="small" />
-    },
-    {
-      label: "Appearance",
-      description: "Theme, density, language, and workspace feel",
-      icon: <PaletteIcon fontSize="small" />
-    },
-    {
-      label: "Notifications",
-      description: "Mentions, digests, reminders, and delivery rules",
-      icon: <NotificationsIcon fontSize="small" />
-    },
-    {
-      label: "Security",
-      description: "Password, sessions, and account protection",
-      icon: <SecurityIcon fontSize="small" />
-    },
-    {
-      label: "Team",
-      description: "Invites, access, and connected collaborators",
-      icon: <GroupIcon fontSize="small" />
-    }
-  ];
-
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        width: "100%",
-        px: { xs: 1.5, md: 3 },
-        py: { xs: 1.5, md: 3 },
-        bgcolor: "background.default",
-        backgroundImage: theme.palette.mode === "dark"
-          ? "linear-gradient(180deg, rgba(8,15,32,0.96) 0%, rgba(11,18,36,0.92) 26%, rgba(15,23,42,0.84) 100%)"
-          : "linear-gradient(180deg, #f7fbff 0%, #eef5ff 38%, #f8fafc 100%)"
-      }}
-    >
-      <Box
-        sx={{
-          position: "relative",
-          overflow: "hidden",
-          mb: 3,
-          p: { xs: 2.25, md: 4 },
-          borderRadius: 6,
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
-          background: theme.palette.mode === "dark"
-            ? "linear-gradient(135deg, rgba(19,30,58,0.98) 0%, rgba(22,60,92,0.90) 48%, rgba(17,124,108,0.82) 100%)"
-            : "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(227,241,255,0.94) 55%, rgba(218,249,239,0.90) 100%)",
-          boxShadow: theme.palette.mode === "dark" ? "0 28px 70px rgba(0,0,0,0.34)" : "0 30px 70px rgba(15,23,42,0.12)"
-        }}
-      >
-        <Box
-          sx={{
-            position: "absolute",
-            top: -90,
-            right: -40,
-            width: 280,
-            height: 280,
-            borderRadius: "50%",
-            background: alpha(theme.palette.common.white, theme.palette.mode === "dark" ? 0.08 : 0.32),
-            filter: "blur(2px)"
-          }}
-        />
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: -110,
-            left: -40,
-            width: 240,
-            height: 240,
-            borderRadius: "50%",
-            background: alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.18 : 0.14)
-          }}
-        />
-        <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", xl: "1.1fr 0.9fr" }, gap: 3, alignItems: "end" }}>
-          <Box>
-            <Chip
-              icon={<VerifiedUserIcon />}
-              label="Personal Workspace"
-              size="small"
-              sx={{
-                mb: 1.5,
-                borderRadius: 999,
-                bgcolor: alpha(theme.palette.common.white, theme.palette.mode === "dark" ? 0.12 : 0.7),
-                color: theme.palette.mode === "dark" ? "#dbeafe" : theme.palette.primary.dark,
-                fontWeight: 700
-              }}
-            />
-            <Typography
-              variant="h3"
-              fontWeight={900}
-              sx={{
-                letterSpacing: "-0.05em",
-                fontSize: { xs: "2.1rem", md: "3.1rem" },
-                color: theme.palette.mode === "dark" ? "#f8fafc" : "#0f172a",
-                maxWidth: 680
-              }}
-            >
-              Account Settings
-            </Typography>
-            <Typography
-              variant="body1"
-              sx={{
-                mt: 1.25,
-                maxWidth: 720,
-                color: theme.palette.mode === "dark" ? "rgba(241,245,249,0.82)" : "rgba(15,23,42,0.72)"
-              }}
-            >
-              Tune your account like a control room: profile, visual preferences, notifications, security, and team access all sit in one broad, easier-to-scan surface.
-            </Typography>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ mt: 2.5 }}>
-              <Chip label={user?.job_title || "Workspace member"} icon={<WorkIcon />} sx={{ borderRadius: 999, bgcolor: alpha(theme.palette.common.white, theme.palette.mode === "dark" ? 0.10 : 0.66) }} />
-              <Chip label={preferredTimezone} icon={<ScheduleIcon />} sx={{ borderRadius: 999, bgcolor: alpha(theme.palette.common.white, theme.palette.mode === "dark" ? 0.10 : 0.66) }} />
-              <Chip label={mode === "dark" ? "Dark mode active" : "Light mode active"} icon={<PaletteIcon />} sx={{ borderRadius: 999, bgcolor: alpha(theme.palette.common.white, theme.palette.mode === "dark" ? 0.10 : 0.66) }} />
-            </Stack>
-          </Box>
+    <Box sx={{ maxWidth: 800, mx: "auto", p: { xs: 2, md: 4 } }}>
+      <Typography variant="h4" fontWeight={800} sx={{ mb: 3 }}>
+        Account Settings
+      </Typography>
 
-          <Box
-            sx={{
-              ml: { xl: "auto" },
-              p: { xs: 2, md: 2.5 },
-              borderRadius: 5,
-              border: `1px solid ${alpha(theme.palette.common.white, theme.palette.mode === "dark" ? 0.12 : 0.65)}`,
-              bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.18 : 0.74),
-              backdropFilter: "blur(14px)"
-            }}
-          >
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar
-                src={getAvatarUrl(user?.avatar, user?.name)}
-                sx={{
-                  width: 88,
-                  height: 88,
-                  fontSize: 32,
-                  border: `3px solid ${alpha(theme.palette.common.white, 0.45)}`,
-                  boxShadow: `0 20px 40px ${alpha(theme.palette.common.black, 0.18)}`
-                }}
-              >
-                {user?.name?.[0]?.toUpperCase() || "U"}
-              </Avatar>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h5" fontWeight={900} sx={{ color: theme.palette.mode === "dark" ? "#f8fafc" : "#0f172a" }}>
-                  {user?.name || "Your account"}
-                </Typography>
-                <Typography variant="body2" sx={{ color: theme.palette.mode === "dark" ? "rgba(241,245,249,0.78)" : "rgba(15,23,42,0.68)" }} noWrap>
-                  {user?.email || "user@example.com"}
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
-                  <Chip size="small" label={`${teammates.length} teammates`} sx={{ borderRadius: 999 }} />
-                  <Chip size="small" label={twoFactorEnabled ? "2FA enabled" : "2FA off"} sx={{ borderRadius: 999 }} />
-                </Stack>
-              </Box>
-            </Stack>
-          </Box>
-        </Box>
-      </Box>
-
-      <Paper
-        sx={{
-          mb: 2.5,
-          p: { xs: 1, md: 1.25 },
-          borderRadius: 5,
-          border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-          bgcolor: alpha(theme.palette.background.paper, 0.88),
-          backdropFilter: "blur(14px)",
-          boxShadow: theme.palette.mode === "dark" ? "0 18px 38px rgba(0,0,0,0.22)" : "0 18px 38px rgba(15,23,42,0.07)"
-        }}
-      >
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", xl: "1.1fr 0.9fr" },
-            gap: 1.5,
-            alignItems: "center"
-          }}
-        >
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.25 }}>
-            <Box sx={{ p: 1.6, borderRadius: 3.5, bgcolor: alpha(theme.palette.primary.main, 0.08), border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}` }}>
-              <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Profile</Typography>
-              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.35 }}>{user?.name || "Your account"}</Typography>
-              <Typography variant="body2" color="text.secondary">Identity and workspace presence</Typography>
-            </Box>
-            <Box sx={{ p: 1.6, borderRadius: 3.5, bgcolor: alpha(theme.palette.success.main, 0.08), border: `1px solid ${alpha(theme.palette.success.main, 0.14)}` }}>
-              <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Workspace</Typography>
-              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.35 }}>{teammates.length}</Typography>
-              <Typography variant="body2" color="text.secondary">Connected teammates</Typography>
-            </Box>
-            <Box sx={{ p: 1.6, borderRadius: 3.5, bgcolor: alpha(theme.palette.warning.main, 0.08), border: `1px solid ${alpha(theme.palette.warning.main, 0.14)}` }}>
-              <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Theme</Typography>
-              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.35 }}>{mode === "dark" ? "Dark" : "Light"}</Typography>
-              <Typography variant="body2" color="text.secondary">Visual mode and density</Typography>
-            </Box>
-          </Box>
-
-          <Tabs
-            value={tabValue}
+      <Paper sx={{ mb: 4, overflow: 'hidden', borderRadius: 2 }}>
+        <Tabs 
+            value={tabValue} 
             onChange={handleTabChange}
             variant="scrollable"
             scrollButtons="auto"
-            sx={{
-              minHeight: 0,
-              "& .MuiTabs-flexContainer": {
-                gap: 0.75
-              },
-              "& .MuiTabs-indicator": {
-                height: 3,
-                borderRadius: 999
-              }
-            }}
-          >
-            {tabItems.map((tab, index) => (
-              <Tab
-                key={tab.label}
-                id={`settings-tab-${index}`}
-                aria-controls={`settings-tabpanel-${index}`}
-                icon={tab.icon}
-                iconPosition="start"
-                label={
-                  <Box sx={{ textAlign: "left", py: 0.25 }}>
-                    <Typography variant="subtitle2" fontWeight={800}>{tab.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">{tab.description}</Typography>
-                  </Box>
-                }
-                sx={{
-                  textTransform: "none",
-                  minHeight: 64,
-                  borderRadius: 999,
-                  px: 1.25,
-                  alignItems: "center",
-                  bgcolor: alpha(theme.palette.background.default, 0.55),
-                  "&.Mui-selected": {
-                    bgcolor: alpha(theme.palette.primary.main, 0.08)
-                  }
-                }}
-              />
-            ))}
-          </Tabs>
-        </Box>
-      </Paper>
-
-      <Paper
-        sx={{
-          overflow: "hidden",
-          borderRadius: 6,
-          border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-          bgcolor: alpha(theme.palette.background.paper, 0.95),
-          backdropFilter: "blur(12px)",
-          boxShadow: theme.palette.mode === "dark" ? "0 24px 56px rgba(0,0,0,0.26)" : "0 22px 54px rgba(15,23,42,0.08)"
-        }}
-      >
+            sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
+        >
+          <Tab icon={<PersonIcon />} iconPosition="start" label="Profile" />
+          <Tab icon={<PaletteIcon />} iconPosition="start" label="Appearance" />
+          <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
+          <Tab icon={<SecurityIcon />} iconPosition="start" label="Security" />
+          <Tab icon={<GroupIcon />} iconPosition="start" label="Team" />
+        </Tabs>
 
         {/* PROFILE TAB */}
         <TabPanel value={tabValue} index={0}>
-            <Stack spacing={2.5}>
-              <Box
-                sx={{
-                  ...settingsPanelSx,
-                  p: { xs: 2.25, md: 3 },
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "auto 1fr auto" },
-                  gap: 3,
-                  alignItems: "center"
-                }}
-              >
-                <Box sx={{ position: 'relative', display: 'flex', justifyContent: { xs: 'center', md: 'flex-start' } }}>
-                  <Avatar
-                    src={getAvatarUrl(isEditing ? editAvatar : user?.avatar, user?.name)}
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'stretch', sm: 'center' },
+                mb: 4,
+                gap: { xs: 3, sm: 0 }
+              }}
+            >
+              <Box sx={{ position: 'relative', mb: { xs: 2, sm: 0 }, mr: { xs: 0, sm: 3 }, display: 'flex', justifyContent: 'center' }}>
+                <Avatar
+                  src={getAvatarUrl(isEditing ? editAvatar : user?.avatar, user?.name)}
+                  sx={{ width: 100, height: 100, fontSize: 40, mx: { xs: 'auto', sm: 0 } }}
+                >
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </Avatar>
+                {isEditing && (
+                  <IconButton
+                    component="label"
                     sx={{
-                      width: 110,
-                      height: 110,
-                      fontSize: 42,
-                      border: `3px solid ${alpha(theme.palette.primary.main, 0.28)}`,
-                      boxShadow: `0 18px 32px ${alpha(theme.palette.primary.main, 0.18)}`
+                      position: 'absolute',
+                      bottom: 0,
+                      right: { xs: 'calc(50% - 20px)', sm: 0 },
+                      bgcolor: 'background.paper',
+                      boxShadow: 2,
+                      '&:hover': { bgcolor: 'grey.100' }
                     }}
                   >
-                    {user?.name?.[0]?.toUpperCase() || 'U'}
-                  </Avatar>
-                  {isEditing && (
-                    <IconButton
-                      component="label"
-                      sx={{
-                        position: 'absolute',
-                        right: 2,
-                        bottom: 2,
-                        bgcolor: theme.palette.background.paper,
-                        border: `1px solid ${theme.palette.divider}`,
-                        boxShadow: 3,
-                        '&:hover': { bgcolor: theme.palette.action.hover }
-                      }}
-                    >
-                      <input hidden accept="image/*" type="file" onChange={handleAvatarSelect} />
-                      <PhotoCamera fontSize="small" color="primary" />
-                    </IconButton>
-                  )}
-                </Box>
-
-                <Box sx={{ textAlign: { xs: "center", md: "left" } }}>
-                  <Stack direction="row" spacing={1} justifyContent={{ xs: "center", md: "flex-start" }} sx={{ mb: 1.5, flexWrap: "wrap" }}>
-                    <Chip icon={<VerifiedUserIcon />} label="Verified account" size="small" sx={{ borderRadius: 999, bgcolor: alpha(theme.palette.success.main, 0.12), color: theme.palette.success.main, fontWeight: 700 }} />
-                    <Chip icon={<BoltIcon />} label="Active workspace member" size="small" sx={{ borderRadius: 999, bgcolor: alpha(theme.palette.primary.main, 0.12), color: theme.palette.primary.main, fontWeight: 700 }} />
-                  </Stack>
-                  <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: "-0.03em" }}>
-                    {user?.name || "User Name"}
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {user?.email || "user@example.com"}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1.5, color: theme.palette.text.secondary, maxWidth: 520, mx: { xs: "auto", md: 0 } }}>
-                    Manage your identity, communication preferences, and team access from one place.
-                  </Typography>
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ mt: 2, flexWrap: "wrap" }}>
-                    {user?.job_title && <Chip icon={<WorkIcon />} label={user.job_title} sx={{ borderRadius: 999 }} />}
-                    {user?.company && <Chip icon={<BusinessIcon />} label={user.company} sx={{ borderRadius: 999 }} />}
-                    {user?.phone && <Chip icon={<CallIcon />} label={user.phone} sx={{ borderRadius: 999 }} />}
-                  </Stack>
-                </Box>
-
-                <Box sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-end' }, gap: 1, flexWrap: "wrap" }}>
-                  {isEditing ? (
-                    <>
-                      <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveProfile} sx={{ borderRadius: 999, textTransform: "none", px: 2.25, boxShadow: "none" }}>
-                        Save changes
-                      </Button>
-                      <Button variant="outlined" color="inherit" startIcon={<CloseIcon />} onClick={() => { setIsEditing(false); setProfileError(""); }} sx={{ borderRadius: 999, textTransform: "none", px: 2.25 }}>
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} sx={{ borderRadius: 999, textTransform: "none", px: 2.25 }}>
-                        Edit profile
-                      </Button>
-                      <Button variant="text" startIcon={<InsightsIcon />} onClick={() => setTabValue(3)} sx={{ borderRadius: 999, textTransform: "none", px: 2 }}>
-                        Security
-                      </Button>
-                    </>
-                  )}
-                </Box>
+                    <input hidden accept="image/*" type="file" onChange={handleAvatarSelect} />
+                    <PhotoCamera fontSize="small" color="primary" />
+                  </IconButton>
+                )}
               </Box>
-
-              {profileError && <Alert severity="error">{profileError}</Alert>}
-              {profileSaved && <Alert severity="success">Profile updated successfully!</Alert>}
-
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Identity</Typography>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, mt: 1.5 }}>
-                  <TextField label="Full Name" value={editName} onChange={(e) => setEditName(e.target.value)} size="small" fullWidth disabled={!isEditing} />
-                  <TextField label="Email" value={editEmail} size="small" fullWidth disabled />
-                  <TextField label="Job Title" value={editJobTitle} onChange={(e) => setEditJobTitle(e.target.value)} size="small" fullWidth disabled={!isEditing} />
-                  <TextField label="Company" value={editCompany} onChange={(e) => setEditCompany(e.target.value)} size="small" fullWidth disabled={!isEditing} />
-                  <TextField label="Phone Number" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} size="small" fullWidth disabled={!isEditing} />
-                  <TextField label="Timezone" value={preferredTimezone} onChange={(e) => setPreferredTimezone(e.target.value)} size="small" fullWidth disabled={!isEditing} />
-                </Box>
+              <Box sx={{ flexGrow: 1, width: '100%' }}>
+                {isEditing ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600, mx: { xs: 'auto', sm: 0 } }}>
+                    <TextField
+                      label="Full Name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                    <TextField
+                      label="Email"
+                      value={editEmail}
+                      size="small"
+                      sx={{ width: '100%' }}
+                      disabled
+                    />
+                    <TextField
+                      label="Job Title"
+                      value={editJobTitle}
+                      onChange={(e) => setEditJobTitle(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                    <TextField
+                      label="Company"
+                      value={editCompany}
+                      onChange={(e) => setEditCompany(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                    <TextField
+                      label="Phone Number"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      size="small"
+                      sx={{ width: '100%' }}
+                    />
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
+                    <Typography variant="h5" fontWeight="bold">{user?.name || "User Name"}</Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>{user?.email || "user@example.com"}</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 2, mt: 1, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                      {user?.job_title && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                          <WorkIcon fontSize="small" />
+                          <Typography variant="body2">{user.job_title}</Typography>
+                        </Box>
+                      )}
+                      {user?.company && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                          <BusinessIcon fontSize="small" />
+                          <Typography variant="body2">{user.company}</Typography>
+                        </Box>
+                      )}
+                      {user?.phone && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                          <CallIcon fontSize="small" />
+                          <Typography variant="body2">{user.phone}</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                )}
               </Box>
-
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Quick Controls</Typography>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" }, gap: 1.5, mt: 1.5 }}>
-                  <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.08), border: `1px solid ${alpha(theme.palette.primary.main, 0.18)}` }}>
-                    <Typography variant="subtitle2" fontWeight={700}>Theme</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{mode === "dark" ? "Dark mode enabled" : "Light mode enabled"}</Typography>
+              <Box sx={{ mt: { xs: 2, sm: 0 }, display: 'flex', justifyContent: { xs: 'center', sm: 'flex-end' } }}>
+                {isEditing ? (
+                  <Box>
+                    <IconButton onClick={handleSaveProfile} color="primary"><SaveIcon /></IconButton>
+                    <IconButton onClick={() => { setIsEditing(false); setProfileError(""); }} color="error"><CloseIcon /></IconButton>
                   </Box>
-                  <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.success.main, 0.08), border: `1px solid ${alpha(theme.palette.success.main, 0.18)}` }}>
-                    <Typography variant="subtitle2" fontWeight={700}>Notifications</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{pushNotifications ? "Real-time alerts on" : "Push alerts paused"}</Typography>
-                  </Box>
-                  <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.warning.main, 0.08), border: `1px solid ${alpha(theme.palette.warning.main, 0.18)}` }}>
-                    <Typography variant="subtitle2" fontWeight={700}>Team Access</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{teammates.length} teammates connected</Typography>
-                  </Box>
-                </Box>
+                ) : (
+                  <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)}>
+                    Edit
+                  </Button>
+                )}
               </Box>
-            </Stack>
+            </Box>
+
+            {profileError && <Alert severity="error" sx={{ mb: 2 }}>{profileError}</Alert>}
+            {profileSaved && <Alert severity="success" sx={{ mb: 2 }}>Profile updated successfully!</Alert>}
         </TabPanel>
 
         {/* APPEARANCE TAB */}
         <TabPanel value={tabValue} index={1}>
-            <Stack spacing={2.5}>
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="h6" gutterBottom fontWeight={800}>Workspace Style</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-                  Personalize how PackageReport feels across boards, chats, and dashboards.
-                </Typography>
-                <List>
-                  <ListItem>
-                    <Box sx={{ mr: 2 }}>{mode === 'dark' ? <DarkModeIcon /> : <LightModeIcon />}</Box>
-                    <ListItemText primary="Dark Mode" secondary={mode === 'dark' ? "The app is currently using the darker workspace theme." : "The app is currently using the lighter workspace theme."} />
+            <Typography variant="h6" gutterBottom>Theme Preferences</Typography>
+            <List>
+                <ListItem>
+                    <Box sx={{ mr: 2 }}>
+                        {mode === 'dark' ? <DarkModeIcon /> : <LightModeIcon />}
+                    </Box>
+                    <ListItemText 
+                        primary="Dark Mode" 
+                        secondary={mode === 'dark' ? "App is currently in dark mode" : "App is currently in light mode"} 
+                    />
                     <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={toggleTheme} checked={mode === 'dark'} />
+                        <Switch 
+                            edge="end" 
+                            onChange={toggleTheme} 
+                            checked={mode === 'dark'} 
+                        />
                     </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <Box sx={{ mr: 2 }}><AutoAwesomeIcon /></Box>
-                    <ListItemText primary="Compact Layout" secondary="Reduce visual spacing to fit more information on screen." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setCompactMode(e.target.checked)} checked={compactMode} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <Box sx={{ mr: 2 }}><BoltIcon /></Box>
-                    <ListItemText primary="Reduced Motion" secondary="Minimize animation and transitions for a calmer interface." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setReducedMotion(e.target.checked)} checked={reducedMotion} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <Box sx={{ mr: 2 }}><PersonIcon /></Box>
-                    <ListItemText primary="Show Avatars In Dense Views" secondary="Keep profile avatars visible in compact tables and cards." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setShowAvatarsInDenseViews(e.target.checked)} checked={showAvatarsInDenseViews} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                </List>
-              </Box>
-
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Regional Preferences</Typography>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, mt: 1.5 }}>
-                  <TextField select label="Language" value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value)} size="small" SelectProps={{ native: true }}>
-                    <option value="English">English</option>
-                    <option value="German">German</option>
-                    <option value="Albanian">Albanian</option>
-                    <option value="Hungarian">Hungarian</option>
-                  </TextField>
-                  <TextField select label="Timezone" value={preferredTimezone} onChange={(e) => setPreferredTimezone(e.target.value)} size="small" SelectProps={{ native: true }}>
-                    <option value="Europe/Budapest">Europe/Budapest</option>
-                    <option value="Europe/Berlin">Europe/Berlin</option>
-                    <option value="Europe/London">Europe/London</option>
-                    <option value="America/New_York">America/New_York</option>
-                  </TextField>
-                </Box>
-              </Box>
-            </Stack>
+                </ListItem>
+            </List>
         </TabPanel>
 
         {/* NOTIFICATIONS TAB */}
         <TabPanel value={tabValue} index={2}>
-            <Stack spacing={2.5}>
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="h6" gutterBottom fontWeight={800}>Notification Settings</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Decide which updates deserve your attention and which ones can wait.
-                </Typography>
-                <List>
-                  <ListItem>
-                    <ListItemText primary="Email Notifications" secondary="Receive important updates via email." />
+            <Typography variant="h6" gutterBottom>Notification Settings</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Manage how you receive updates and alerts.
+            </Typography>
+            <List>
+                <ListItem>
+                    <ListItemText 
+                        primary="Email Notifications" 
+                        secondary="Receive updates via email" 
+                    />
                     <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setEmailNotifications(e.target.checked)} checked={emailNotifications} />
+                        <Switch 
+                            edge="end" 
+                            onChange={(e) => setEmailNotifications(e.target.checked)}
+                            checked={emailNotifications}
+                        />
                     </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <ListItemText primary="Push Notifications" secondary="Receive push notifications on your device." />
+                </ListItem>
+                <Divider />
+                <ListItem>
+                    <ListItemText 
+                        primary="Push Notifications" 
+                        secondary="Receive push notifications on your device" 
+                    />
                     <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setPushNotifications(e.target.checked)} checked={pushNotifications} />
+                        <Switch 
+                            edge="end" 
+                            onChange={(e) => setPushNotifications(e.target.checked)}
+                            checked={pushNotifications}
+                        />
                     </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <ListItemText primary="Mentions & Replies" secondary="Highlight comments and replies where you are directly involved." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setMentionNotifications(e.target.checked)} checked={mentionNotifications} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <ListItemText primary="Daily Digest" secondary="Receive a summary of board activity once per day." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setDigestNotifications(e.target.checked)} checked={digestNotifications} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <ListItemText primary="Task Reminders" secondary="Send reminders for scheduled messages and approaching due dates." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setTaskReminderNotifications(e.target.checked)} checked={taskReminderNotifications} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                </List>
-              </Box>
-            </Stack>
+                </ListItem>
+            </List>
         </TabPanel>
 
         {/* SECURITY TAB */}
         <TabPanel value={tabValue} index={3}>
-            <Stack spacing={2.5}>
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="h6" gutterBottom fontWeight={800}>Change Password</Typography>
-                <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 460, mt: 2 }}>
-                  <TextField label="Current Password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} fullWidth size="small" />
-                  <TextField label="New Password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} fullWidth size="small" />
-                  <TextField label="Confirm New Password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} fullWidth size="small" />
-                  {passwordError && <Alert severity="error">{passwordError}</Alert>}
-                  {passwordSuccess && <Alert severity="success">{passwordSuccess}</Alert>}
-                  <Button variant="contained" onClick={handleChangePassword} disabled={!currentPassword || !newPassword} sx={{ alignSelf: "flex-start", borderRadius: 999, textTransform: "none", px: 2.5, boxShadow: "none" }}>
-                    Update Password
-                  </Button>
-                </Box>
-              </Box>
+            <Typography variant="h6" gutterBottom>Change Password</Typography>
+            <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400, mt: 2 }}>
+                <TextField 
+                    label="Current Password" 
+                    type="password" 
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    fullWidth
+                    size="small"
+                />
+                <TextField 
+                    label="New Password" 
+                    type="password" 
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    fullWidth
+                    size="small"
+                />
+                <TextField 
+                    label="Confirm New Password" 
+                    type="password" 
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    fullWidth
+                    size="small"
+                />
+                
+                {passwordError && <Alert severity="error">{passwordError}</Alert>}
+                {passwordSuccess && <Alert severity="success">{passwordSuccess}</Alert>}
 
-              <Box sx={{ ...settingsPanelSx }}>
-                <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 1 }}>Protection</Typography>
-                <List sx={{ mt: 1 }}>
-                  <ListItem>
-                    <Box sx={{ mr: 2 }}><VerifiedUserIcon /></Box>
-                    <ListItemText primary="Two-Factor Authentication" secondary="Add an extra verification step when signing in." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setTwoFactorEnabled(e.target.checked)} checked={twoFactorEnabled} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                  <Divider />
-                  <ListItem>
-                    <Box sx={{ mr: 2 }}><DevicesIcon /></Box>
-                    <ListItemText primary="New Session Alerts" secondary="Get warned when your account is opened on a new browser or device." />
-                    <ListItemSecondaryAction>
-                      <Switch edge="end" onChange={(e) => setSessionAlertsEnabled(e.target.checked)} checked={sessionAlertsEnabled} />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                </List>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} sx={{ mt: 2 }}>
-                  <Chip icon={<ScheduleIcon />} label="Last password update: Today" sx={{ borderRadius: 999 }} />
-                  <Chip icon={<LanguageIcon />} label={`Primary timezone: ${preferredTimezone}`} sx={{ borderRadius: 999 }} />
-                </Stack>
-              </Box>
-            </Stack>
+                <Button variant="contained" onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>
+                    Update Password
+                </Button>
+            </Box>
         </TabPanel>
 
         {/* TEAM TAB */}
