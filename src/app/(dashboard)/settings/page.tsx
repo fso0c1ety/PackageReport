@@ -445,7 +445,31 @@ export default function SettingsPage() {
           const data = await res.json();
           // data.url is a relative path like /uploads/filename.jpg
           setEditAvatar(data.url);
-          // Optionally notify immediately after avatar upload (before save)
+          setProfileError("");
+
+          const saveRes = await authenticatedFetch(getApiUrl('users/profile'), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: editName,
+              avatar: data.url,
+              job_title: editJobTitle,
+              company: editCompany,
+              phone: editPhone
+            }),
+          });
+
+          if (!saveRes.ok) {
+            throw new Error("Failed to save uploaded image to profile");
+          }
+
+          const updatedUser = await saveRes.json();
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          setUser(updatedUser);
+          setEditAvatar(updatedUser.avatar || data.url);
+          setProfileSaved(true);
+          setTimeout(() => setProfileSaved(false), 3000);
+
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('profile-updated'));
           }
@@ -454,7 +478,7 @@ export default function SettingsPage() {
         }
       } catch (err) {
         console.error("Upload failed", err);
-        setProfileError("Error uploading image");
+        setProfileError(err instanceof Error ? err.message : "Error uploading image");
       }
     }
   };

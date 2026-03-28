@@ -84,6 +84,8 @@ if (dev) {
 }
 
 const app = express();
+const SHARED_UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const LEGACY_UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 // Root endpoint handled by Next.js
 // app.get('/', (req, res) => {
@@ -338,23 +340,29 @@ app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
 app.use('/api', friendsRoute);
 app.use('/api', chatsRoute);
-// Serve uploaded files statically - First try middleware, then fallback or specific handling
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files statically from the shared uploads directory first,
+// then fall back to the legacy server-local directory for older files.
+app.use('/uploads', express.static(SHARED_UPLOAD_DIR));
+app.use('/uploads', express.static(LEGACY_UPLOAD_DIR));
 // Explicitly handle file serving to debug or catch encoding issues
 app.get('/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
   // Decode filename just in case it's still encoded
   const decodedFilename = decodeURIComponent(filename);
-  const filepath = path.join(__dirname, 'uploads', decodedFilename);
-  const filepathEncoded = path.join(__dirname, 'uploads', filename);
+  const candidates = [
+    path.join(SHARED_UPLOAD_DIR, decodedFilename),
+    path.join(SHARED_UPLOAD_DIR, filename),
+    path.join(LEGACY_UPLOAD_DIR, decodedFilename),
+    path.join(LEGACY_UPLOAD_DIR, filename),
+  ];
 
-  if (fs.existsSync(filepath)) {
-    res.sendFile(filepath);
-  } else if (fs.existsSync(filepathEncoded)) {
-    res.sendFile(filepathEncoded);
-  } else {
-    res.status(404).json({ error: 'File not found' });
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return res.sendFile(candidate);
+    }
   }
+
+  res.status(404).json({ error: 'File not found' });
 });
 
 // Serve frontend static export if it exists
@@ -373,11 +381,10 @@ if (fs.existsSync(outDir)) {
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    if (!fs.existsSync(SHARED_UPLOAD_DIR)) {
+      fs.mkdirSync(SHARED_UPLOAD_DIR, { recursive: true });
     }
-    cb(null, uploadDir);
+    cb(null, SHARED_UPLOAD_DIR);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
