@@ -4430,7 +4430,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   color: theme.palette.text.primary,
                                   lineHeight: 1.2
                                 }}>
-                                  {msg.attachment.name || msg.attachment.originalName || 'File Attachment'}
+                                  {msg.attachment.name || (msg.attachment as any).originalName || 'File Attachment'}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
                                   {msg.attachment.size ? `${Math.round(msg.attachment.size / 1024)} KB` : 'Attachment'}
@@ -4780,7 +4780,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   color: theme.palette.text.primary,
                                   lineHeight: 1.2
                                 }}>
-                                  {msg.attachment.name || msg.attachment.originalName || 'File Attachment'}
+                                  {msg.attachment.name || (msg.attachment as any).originalName || 'File Attachment'}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
                                   {msg.attachment.size ? `${Math.round(msg.attachment.size / 1024)} KB` : 'Attachment'}

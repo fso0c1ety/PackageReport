@@ -13,9 +13,8 @@ async function main() {
     if (userResult.rowCount === 0) throw new Error('User not found');
     const userId = userResult.rows[0].id;
     
-    const wsResult = await db.query('SELECT id FROM workspaces WHERE owner_id = $1', [userId]);
-    if (wsResult.rowCount === 0) throw new Error('Workspace not found');
-    const workspaceId = wsResult.rows[0].id;
+    const workspaceId = uuidv4();
+    await db.query(`INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3)`, [workspaceId, 'AGS Transport Workspace', userId]);
 
     const tableId = uuidv4();
     const tableName = 'AGS Transport To-Do';
