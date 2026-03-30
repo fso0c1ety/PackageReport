@@ -397,6 +397,52 @@ app.get('/uploads/:filename', async (req, res) => {
   res.status(404).json({ error: 'File not found' });
 });
 
+// POST /api/upload - General purpose file upload (used by Board Chat and other components)
+app.post('/api/upload', authenticateToken, (req, res) => {
+  const memUpload = multer({ storage: multer.memoryStorage() });
+  memUpload.single('file')(req, res, async (err) => {
+    if (err) {
+      console.error('[Upload] Multer Error:', err);
+      return res.status(500).json({ error: 'Multer upload error' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    try {
+      const fileId = uuidv4();
+      const timestamp = Date.now();
+      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      const filename = `${timestamp}-${Math.round(Math.random() * 1E9)}-${safeName}`;
+      
+      // 1. Save to Filesystem (Shared Upload Directory)
+      const filePath = path.join(SHARED_UPLOAD_DIR, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      // 2. Save to PostgreSQL database
+      await db.query(
+        'INSERT INTO uploaded_files (id, filename, originalname, mimetype, size, data, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
+        [fileId, filename, req.file.originalname, req.file.mimetype, req.file.size, req.file.buffer]
+      );
+
+      console.log(`[Upload] File saved: ${filename} (${req.file.size} bytes)`);
+
+      // Return the expected metadata for the frontend
+      res.json({
+        id: fileId,
+        url: `/uploads/${encodeURIComponent(filename)}`,
+        name: req.file.originalname,
+        originalName: req.file.originalname,
+        type: req.file.mimetype,
+        size: req.file.size
+      });
+    } catch (dbErr) {
+      console.error('[Upload] Database Error:', dbErr);
+      res.status(500).json({ error: 'Failed to persist file data' });
+    }
+  });
+});
+
 // Get complete user profile
 app.get('/api/users/profile', authenticateToken, async (req, res) => {
   if (!req.user || !req.user.id) {
