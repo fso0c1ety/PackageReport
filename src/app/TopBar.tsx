@@ -456,146 +456,175 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
               overflow: 'visible',
               mt: 1.5,
               width: 340,
-              bgcolor: theme.palette.background.paper,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.65)' : 'rgba(255, 255, 255, 0.75)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
               color: theme.palette.text.primary,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 3,
-              boxShadow: '0 22px 48px rgba(0,0,0,0.28)',
+              border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
+              borderRadius: 4,
+              boxShadow: theme.palette.mode === 'dark' ? '0 32px 64px rgba(0,0,0,0.5)' : '0 32px 64px rgba(0,0,0,0.1)',
               '&:before': {
                 content: '""',
                 display: 'block',
                 position: 'absolute',
                 top: 0,
                 right: 18,
-                width: 12,
-                height: 12,
-                bgcolor: theme.palette.background.paper,
+                width: 14,
+                height: 14,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(10px)',
                 transform: 'translateY(-50%) rotate(45deg)',
                 zIndex: 0,
-                borderTop: `1px solid ${theme.palette.divider}`,
-                borderLeft: `1px solid ${theme.palette.divider}`,
+                borderTop: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
+                borderLeft: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
               }
             }
           }}
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-          <Box sx={{ p: 2.25, pb: 1.75, background: theme.palette.mode === 'dark' ? 'linear-gradient(180deg, rgba(99,102,241,0.16) 0%, rgba(99,102,241,0.02) 100%)' : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.01) 100%)' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {/* Header section */}
+          <Box sx={{ p: 2.5, position: 'relative', overflow: 'hidden' }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: -50,
+                right: -50,
+                width: 150,
+                height: 150,
+                background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.35)} 0%, transparent 70%)`,
+                zIndex: 0,
+                pointerEvents: 'none'
+              }}
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative', zIndex: 1 }}>
               <Avatar
                 src={getAvatarUrl(user?.avatar, user?.name)}
                 sx={{
-                  width: 48,
-                  height: 48,
+                  width: 56,
+                  height: 56,
                   bgcolor: theme.palette.primary.main,
-                  border: `2px solid ${alpha(theme.palette.primary.main, 0.35)}`
+                  border: `3px solid ${theme.palette.background.paper}`,
+                  boxShadow: `0 8px 16px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  fontSize: 22,
+                  fontWeight: 700
                 }}
               >
                 {user?.name?.[0]?.toUpperCase() || 'U'}
               </Avatar>
               <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }} noWrap>{user?.name || 'Account'}</Typography>
-                <Typography sx={{ color: theme.palette.text.secondary, fontSize: 12.5, mt: 0.25 }} noWrap>{user?.email || 'Signed in'}</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 16, lineHeight: 1.2, letterSpacing: '-0.3px', color: theme.palette.text.primary }} noWrap>{user?.name || 'Account'}</Typography>
+                <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13, mt: 0.5, fontWeight: 500 }} noWrap>{user?.email || 'Signed in'}</Typography>
               </Box>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+            <Box sx={{ display: 'flex', gap: 1.5, mt: 2.5, position: 'relative', zIndex: 1 }}>
               <Button
+                fullWidth
                 size="small"
                 variant="contained"
                 startIcon={<PersonIcon fontSize="small" />}
                 onClick={() => handleMenuNavigate('/settings?tab=profile')}
-                sx={{ textTransform: 'none', borderRadius: 999, px: 1.5, boxShadow: 'none' }}
+                sx={{ textTransform: 'none', borderRadius: 2, py: 0.75, boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`, fontWeight: 600 }}
               >
-                Open Profile
+                Profile
               </Button>
               <Button
+                fullWidth
                 size="small"
                 variant="outlined"
                 startIcon={mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-                onClick={() => {
-                  handleClose();
-                  toggleTheme();
-                }}
-                sx={{ textTransform: 'none', borderRadius: 999, px: 1.5 }}
+                onClick={() => { handleClose(); toggleTheme(); }}
+                sx={{ textTransform: 'none', borderRadius: 2, py: 0.75, borderColor: alpha(theme.palette.text.primary, 0.15), color: theme.palette.text.primary, fontWeight: 600, '&:hover': { borderColor: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.05) } }}
               >
                 {mode === 'dark' ? 'Light' : 'Dark'}
               </Button>
             </Box>
           </Box>
 
-          <Box sx={{ px: 1.25, py: 1 }}>
-            <Typography sx={{ px: 1.25, pb: 0.75, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+          <Divider sx={{ mx: 2, borderColor: alpha(theme.palette.divider, 0.5) }} />
+
+          <List sx={{ px: 1, py: 1.5 }}>
+            <Typography sx={{ px: 2, pb: 1, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
               Workspace
             </Typography>
-            <MenuItem onClick={() => handleMenuNavigate('/dashboard')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><SpaceDashboardIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Dashboard
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/workspace')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><TableChartIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Workspaces
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/chat')} sx={{ borderRadius: 2 }}>
-              <ListItemIcon><MailOutlineIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Messages
-            </MenuItem>
-          </Box>
+            {[
+              { label: 'Dashboard', icon: <SpaceDashboardIcon fontSize="small" />, path: '/dashboard' },
+              { label: 'Workspaces', icon: <TableChartIcon fontSize="small" />, path: '/workspace' },
+              { label: 'Messages', icon: <MailOutlineIcon fontSize="small" />, path: '/chat' },
+            ].map((item) => (
+              <MenuItem
+                key={item.label}
+                onClick={() => handleMenuNavigate(item.path)}
+                sx={{
+                  borderRadius: 2, mb: 0.5, mx: 1, px: 1.5, py: 1,
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'translateX(4px)', '& .MuiListItemIcon-root': { color: theme.palette.primary.main } }
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 36, color: theme.palette.text.secondary, transition: 'color 0.2s ease' }}>{item.icon}</ListItemIcon>
+                <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{item.label}</Typography>
+              </MenuItem>
+            ))}
+          </List>
 
-          <Divider sx={{ my: 0.5 }} />
+          <Divider sx={{ mx: 2, borderColor: alpha(theme.palette.divider, 0.5) }} />
 
-          <Box sx={{ px: 1.25, py: 1 }}>
-            <Typography sx={{ px: 1.25, pb: 0.75, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+          <List sx={{ px: 1, py: 1.5 }}>
+            <Typography sx={{ px: 2, pb: 1, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
               Preferences
             </Typography>
-            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=profile')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><PersonIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Profile
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=appearance')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><PaletteIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Appearance
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=notifications')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><NotificationsNoneIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Notifications
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=security')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><SecurityIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Security
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=team')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><GroupIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Team
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/chat?tab=social')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><PeopleIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Friends
-            </MenuItem>
-            <MenuItem onClick={() => handleMenuNavigate('/settings?tab=security')} sx={{ borderRadius: 2 }}>
-              <ListItemIcon><SettingsSuggestIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Account Controls
-            </MenuItem>
-          </Box>
+            {[
+              { label: 'Profile', icon: <PersonIcon fontSize="small" />, path: '/settings?tab=profile' },
+              { label: 'Appearance', icon: <PaletteIcon fontSize="small" />, path: '/settings?tab=appearance' },
+              { label: 'Notifications', icon: <NotificationsNoneIcon fontSize="small" />, path: '/settings?tab=notifications' },
+              { label: 'Security', icon: <SecurityIcon fontSize="small" />, path: '/settings?tab=security' },
+              { label: 'Team', icon: <GroupIcon fontSize="small" />, path: '/settings?tab=team' },
+              { label: 'Friends', icon: <PeopleIcon fontSize="small" />, path: '/chat?tab=social' },
+              { label: 'Account Controls', icon: <SettingsSuggestIcon fontSize="small" />, path: '/settings?tab=security' },
+            ].map((item) => (
+              <MenuItem
+                key={item.label}
+                onClick={() => handleMenuNavigate(item.path)}
+                sx={{
+                  borderRadius: 2, mb: 0.5, mx: 1, px: 1.5, py: 1,
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'translateX(4px)', '& .MuiListItemIcon-root': { color: theme.palette.primary.main } }
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 36, color: theme.palette.text.secondary, transition: 'color 0.2s ease' }}>{item.icon}</ListItemIcon>
+                <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{item.label}</Typography>
+              </MenuItem>
+            ))}
+          </List>
 
-          <Divider sx={{ my: 0.5 }} />
+          <Divider sx={{ mx: 2, borderColor: alpha(theme.palette.divider, 0.5) }} />
 
-          <Box sx={{ px: 1.25, py: 1 }}>
-            <MenuItem onClick={() => handleMenuNavigate('/dashboard')} sx={{ borderRadius: 2, mb: 0.5 }}>
-              <ListItemIcon><DescriptionIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-              Reports
+          <List sx={{ px: 1, py: 1.5 }}>
+            <MenuItem
+              onClick={() => handleMenuNavigate('/dashboard')}
+              sx={{
+                borderRadius: 2, mb: 0.5, mx: 1, px: 1.5, py: 1,
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'translateX(4px)', '& .MuiListItemIcon-root': { color: theme.palette.primary.main } }
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36, color: theme.palette.text.secondary, transition: 'color 0.2s ease' }}><DescriptionIcon fontSize="small" /></ListItemIcon>
+              <Typography sx={{ fontWeight: 500, fontSize: 14 }}>Reports</Typography>
             </MenuItem>
             <MenuItem
               onClick={handleLogout}
               sx={{
-                borderRadius: 2,
+                borderRadius: 2, mx: 1, px: 1.5, py: 1,
                 color: theme.palette.error.main,
-                '& .MuiListItemIcon-root': { color: theme.palette.error.main }
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.08), transform: 'translateX(4px)' },
+                '& .MuiListItemIcon-root': { color: theme.palette.error.main, minWidth: 36 }
               }}
             >
               <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
-              Logout
+              <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Logout</Typography>
             </MenuItem>
-          </Box>
+          </List>
         </Menu>
       </Box>
 

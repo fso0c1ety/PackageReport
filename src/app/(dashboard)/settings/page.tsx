@@ -477,24 +477,58 @@ export default function SettingsPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 800, mx: "auto", p: { xs: 2, md: 4 } }}>
-      <Typography variant="h4" fontWeight={800} sx={{ mb: 3 }}>
+    <Box sx={{ maxWidth: 1000, mx: "auto", p: { xs: 2, md: 4 } }}>
+      <Typography variant="h4" fontWeight={800} sx={{ mb: 4, letterSpacing: '-0.5px' }}>
         Account Settings
       </Typography>
 
-      <Paper sx={{ mb: 4, overflow: 'hidden', borderRadius: 2 }}>
+      <Paper sx={{ 
+        mb: 4, 
+        overflow: 'hidden', 
+        borderRadius: 4, 
+        bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
+        boxShadow: theme.palette.mode === 'dark' ? '0 24px 64px rgba(0,0,0,0.4)' : '0 24px 64px rgba(0,0,0,0.06)',
+      }}>
         <Tabs 
             value={tabValue} 
             onChange={handleTabChange}
             variant="scrollable"
             scrollButtons="auto"
-            sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
+            TabIndicatorProps={{ style: { display: "none" } }} // Hide the standard underline
+            sx={{ 
+              p: 1.5,
+              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, 
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.02)',
+              '& .MuiTab-root': {
+                minHeight: 44,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: 14,
+                borderRadius: 999,
+                margin: '0 4px',
+                padding: '8px 20px',
+                color: theme.palette.text.secondary,
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  color: theme.palette.text.primary,
+                  bgcolor: alpha(theme.palette.text.primary, 0.04),
+                },
+                '&.Mui-selected': {
+                  color: theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.dark,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.1),
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
+                }
+              }
+            }}
         >
-          <Tab icon={<PersonIcon />} iconPosition="start" label="Profile" />
-          <Tab icon={<PaletteIcon />} iconPosition="start" label="Appearance" />
-          <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
-          <Tab icon={<SecurityIcon />} iconPosition="start" label="Security" />
-          <Tab icon={<GroupIcon />} iconPosition="start" label="Team" />
+          <Tab icon={<PersonIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Profile" />
+          <Tab icon={<PaletteIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Appearance" />
+          <Tab icon={<NotificationsIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Notifications" />
+          <Tab icon={<SecurityIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Security" />
+          <Tab icon={<GroupIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Team" />
         </Tabs>
 
         {/* PROFILE TAB */}
@@ -505,13 +539,33 @@ export default function SettingsPage() {
                 flexDirection: { xs: 'column', sm: 'row' },
                 alignItems: { xs: 'stretch', sm: 'center' },
                 mb: 4,
-                gap: { xs: 3, sm: 0 }
+                gap: { xs: 4, sm: 5 },
+                p: { xs: 3, sm: 4 },
+                borderRadius: 4,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
+                border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
               }}
             >
-              <Box sx={{ position: 'relative', mb: { xs: 2, sm: 0 }, mr: { xs: 0, sm: 3 }, display: 'flex', justifyContent: 'center' }}>
+              <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', ml: { sm: 2 } }}>
+                <Box sx={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 150,
+                  height: 150,
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.3)} 0%, transparent 70%)`,
+                  zIndex: 0,
+                }} />
                 <Avatar
                   src={getAvatarUrl(isEditing ? editAvatar : user?.avatar, user?.name)}
-                  sx={{ width: 100, height: 100, fontSize: 40, mx: { xs: 'auto', sm: 0 } }}
+                  sx={{ 
+                    width: 110, height: 110, fontSize: 44, fontWeight: 700, 
+                    mx: { xs: 'auto', sm: 0 }, zIndex: 1, 
+                    border: `4px solid ${theme.palette.background.paper}`, 
+                    boxShadow: `0 12px 28px ${alpha(theme.palette.primary.main, 0.25)}` 
+                  }}
                 >
                   {user?.name?.[0]?.toUpperCase() || 'U'}
                 </Avatar>
@@ -520,93 +574,100 @@ export default function SettingsPage() {
                     component="label"
                     sx={{
                       position: 'absolute',
-                      bottom: 0,
-                      right: { xs: 'calc(50% - 20px)', sm: 0 },
-                      bgcolor: 'background.paper',
-                      boxShadow: 2,
-                      '&:hover': { bgcolor: 'grey.100' }
+                      bottom: -4,
+                      right: { xs: 'calc(50% - 30px)', sm: -8 },
+                      bgcolor: theme.palette.primary.main,
+                      color: '#fff',
+                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.5)}`,
+                      zIndex: 2,
+                      '&:hover': { bgcolor: theme.palette.primary.dark, transform: 'scale(1.05)' },
+                      transition: 'all 0.2s ease'
                     }}
                   >
                     <input hidden accept="image/*" type="file" onChange={handleAvatarSelect} />
-                    <PhotoCamera fontSize="small" color="primary" />
+                    <PhotoCamera fontSize="small" />
                   </IconButton>
                 )}
               </Box>
+              
               <Box sx={{ flexGrow: 1, width: '100%' }}>
                 {isEditing ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600, mx: { xs: 'auto', sm: 0 } }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 600, mx: { xs: 'auto', sm: 0 } }}>
                     <TextField
                       label="Full Name"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       size="small"
-                      sx={{ width: '100%' }}
+                      sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
                     />
                     <TextField
                       label="Email"
                       value={editEmail}
                       size="small"
-                      sx={{ width: '100%' }}
+                      sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
                       disabled
                     />
-                    <TextField
-                      label="Job Title"
-                      value={editJobTitle}
-                      onChange={(e) => setEditJobTitle(e.target.value)}
-                      size="small"
-                      sx={{ width: '100%' }}
-                    />
-                    <TextField
-                      label="Company"
-                      value={editCompany}
-                      onChange={(e) => setEditCompany(e.target.value)}
-                      size="small"
-                      sx={{ width: '100%' }}
-                    />
+                    <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', sm: 'row' } }}>
+                      <TextField
+                        label="Job Title"
+                        value={editJobTitle}
+                        onChange={(e) => setEditJobTitle(e.target.value)}
+                        size="small"
+                        sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                      />
+                      <TextField
+                        label="Company"
+                        value={editCompany}
+                        onChange={(e) => setEditCompany(e.target.value)}
+                        size="small"
+                        sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                      />
+                    </Box>
                     <TextField
                       label="Phone Number"
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
                       size="small"
-                      sx={{ width: '100%' }}
+                      sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
                     />
                   </Box>
                 ) : (
                   <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
-                    <Typography variant="h5" fontWeight="bold">{user?.name || "User Name"}</Typography>
-                    <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>{user?.email || "user@example.com"}</Typography>
+                    <Typography variant="h4" fontWeight="800" sx={{ letterSpacing: '-0.5px' }}>{user?.name || "User Name"}</Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 2, fontSize: 15, fontWeight: 500 }}>{user?.email || "user@example.com"}</Typography>
                     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 2, mt: 1, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
                       {user?.job_title && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 0.75, borderRadius: 999, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
                           <WorkIcon fontSize="small" />
-                          <Typography variant="body2">{user.job_title}</Typography>
+                          <Typography variant="body2" fontWeight={600}>{user.job_title}</Typography>
                         </Box>
                       )}
                       {user?.company && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 0.75, borderRadius: 999, bgcolor: alpha(theme.palette.secondary.main, 0.1), color: theme.palette.secondary.main }}>
                           <BusinessIcon fontSize="small" />
-                          <Typography variant="body2">{user.company}</Typography>
+                          <Typography variant="body2" fontWeight={600}>{user.company}</Typography>
                         </Box>
                       )}
                       {user?.phone && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 0.75, borderRadius: 999, bgcolor: alpha(theme.palette.success.main, 0.1), color: theme.palette.success.main }}>
                           <CallIcon fontSize="small" />
-                          <Typography variant="body2">{user.phone}</Typography>
+                          <Typography variant="body2" fontWeight={600}>{user.phone}</Typography>
                         </Box>
                       )}
                     </Box>
                   </Box>
                 )}
               </Box>
-              <Box sx={{ mt: { xs: 2, sm: 0 }, display: 'flex', justifyContent: { xs: 'center', sm: 'flex-end' } }}>
+              
+              <Box sx={{ mt: { xs: 2, sm: 0 }, display: 'flex', justifyContent: { xs: 'center', sm: 'flex-end' }, minWidth: 120 }}>
                 {isEditing ? (
-                  <Box>
-                    <IconButton onClick={handleSaveProfile} color="primary"><SaveIcon /></IconButton>
-                    <IconButton onClick={() => { setIsEditing(false); setProfileError(""); }} color="error"><CloseIcon /></IconButton>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button variant="outlined" onClick={() => { setIsEditing(false); setProfileError(""); }} color="inherit" sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
+                    <Button variant="contained" onClick={handleSaveProfile} color="primary" sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}` }}>Save</Button>
                   </Box>
                 ) : (
-                  <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)}>
-                    Edit
+                  <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: alpha(theme.palette.divider, 0.8), '&:hover': { bgcolor: theme.palette.action.hover } }}>
+                    Edit Profile
                   </Button>
                 )}
               </Box>
@@ -618,100 +679,122 @@ export default function SettingsPage() {
 
         {/* APPEARANCE TAB */}
         <TabPanel value={tabValue} index={1}>
-            <Typography variant="h6" gutterBottom>Theme Preferences</Typography>
-            <List>
-                <ListItem>
-                    <Box sx={{ mr: 2 }}>
-                        {mode === 'dark' ? <DarkModeIcon /> : <LightModeIcon />}
+            <Typography variant="h5" fontWeight="800" sx={{ mb: 1, letterSpacing: '-0.5px' }}>Theme Preferences</Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>Choose how the platform looks to you.</Typography>
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600 }}>
+                <Paper sx={{
+                  p: 2.5,
+                  borderRadius: 3,
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
+                  border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  transition: 'all 0.3s ease',
+                  '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.1)}` }
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, width: 44, height: 44 }}>
+                            {mode === 'dark' ? <DarkModeIcon /> : <LightModeIcon />}
+                        </Avatar>
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight={700}>Dark Mode</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {mode === 'dark' ? "App is currently in dark mode" : "App is currently in light mode"}
+                            </Typography>
+                        </Box>
                     </Box>
-                    <ListItemText 
-                        primary="Dark Mode" 
-                        secondary={mode === 'dark' ? "App is currently in dark mode" : "App is currently in light mode"} 
-                    />
-                    <ListItemSecondaryAction>
-                        <Switch 
-                            edge="end" 
-                            onChange={toggleTheme} 
-                            checked={mode === 'dark'} 
-                        />
-                    </ListItemSecondaryAction>
-                </ListItem>
-            </List>
+                    <Switch edge="end" onChange={toggleTheme} checked={mode === 'dark'} color="primary" />
+                </Paper>
+            </Box>
         </TabPanel>
 
         {/* NOTIFICATIONS TAB */}
         <TabPanel value={tabValue} index={2}>
-            <Typography variant="h6" gutterBottom>Notification Settings</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="h5" fontWeight="800" sx={{ mb: 1, letterSpacing: '-0.5px' }}>Notification Settings</Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                 Manage how you receive updates and alerts.
             </Typography>
-            <List>
-                <ListItem>
-                    <ListItemText 
-                        primary="Email Notifications" 
-                        secondary="Receive updates via email" 
-                    />
-                    <ListItemSecondaryAction>
-                        <Switch 
-                            edge="end" 
-                            onChange={(e) => setEmailNotifications(e.target.checked)}
-                            checked={emailNotifications}
-                        />
-                    </ListItemSecondaryAction>
-                </ListItem>
-                <Divider />
-                <ListItem>
-                    <ListItemText 
-                        primary="Push Notifications" 
-                        secondary="Receive push notifications on your device" 
-                    />
-                    <ListItemSecondaryAction>
-                        <Switch 
-                            edge="end" 
-                            onChange={(e) => setPushNotifications(e.target.checked)}
-                            checked={pushNotifications}
-                        />
-                    </ListItemSecondaryAction>
-                </ListItem>
-            </List>
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600 }}>
+                <Paper sx={{
+                  p: 2.5, borderRadius: 3,
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)', border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  transition: 'all 0.3s ease', '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.1)}` }
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: alpha(theme.palette.info.main, 0.1), color: theme.palette.info.main, width: 44, height: 44 }}>
+                            <NotificationsIcon />
+                        </Avatar>
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight={700}>Email Notifications</Typography>
+                            <Typography variant="body2" color="text.secondary">Receive updates via email</Typography>
+                        </Box>
+                    </Box>
+                    <Switch edge="end" onChange={(e) => setEmailNotifications(e.target.checked)} checked={emailNotifications} color="info" />
+                </Paper>
+                
+                <Paper sx={{
+                  p: 2.5, borderRadius: 3,
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)', border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  transition: 'all 0.3s ease', '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.1)}` }
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), color: theme.palette.warning.main, width: 44, height: 44 }}>
+                            <NotificationsIcon />
+                        </Avatar>
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight={700}>Push Notifications</Typography>
+                            <Typography variant="body2" color="text.secondary">Receive push notifications on your device</Typography>
+                        </Box>
+                    </Box>
+                    <Switch edge="end" onChange={(e) => setPushNotifications(e.target.checked)} checked={pushNotifications} color="warning" />
+                </Paper>
+            </Box>
         </TabPanel>
 
         {/* SECURITY TAB */}
         <TabPanel value={tabValue} index={3}>
-            <Typography variant="h6" gutterBottom>Change Password</Typography>
-            <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400, mt: 2 }}>
+            <Typography variant="h5" fontWeight="800" sx={{ mb: 1, letterSpacing: '-0.5px' }}>Change Password</Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>Ensure your account is using a long, random password to stay secure.</Typography>
+            
+            <Paper component="form" sx={{ 
+              p: { xs: 3, sm: 4 }, 
+              borderRadius: 4, 
+              display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 500,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
+              border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+            }}>
                 <TextField 
-                    label="Current Password" 
-                    type="password" 
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    fullWidth
-                    size="small"
+                    label="Current Password" type="password" 
+                    value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+                    fullWidth size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
                 />
                 <TextField 
-                    label="New Password" 
-                    type="password" 
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    fullWidth
-                    size="small"
+                    label="New Password" type="password" 
+                    value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                    fullWidth size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
                 />
                 <TextField 
-                    label="Confirm New Password" 
-                    type="password" 
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    fullWidth
-                    size="small"
+                    label="Confirm New Password" type="password" 
+                    value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                    fullWidth size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
                 />
                 
-                {passwordError && <Alert severity="error">{passwordError}</Alert>}
-                {passwordSuccess && <Alert severity="success">{passwordSuccess}</Alert>}
+                {passwordError && <Alert severity="error" sx={{ borderRadius: 2 }}>{passwordError}</Alert>}
+                {passwordSuccess && <Alert severity="success" sx={{ borderRadius: 2 }}>{passwordSuccess}</Alert>}
 
-                <Button variant="contained" onClick={handleChangePassword} disabled={!currentPassword || !newPassword}>
+                <Button 
+                  variant="contained" onClick={handleChangePassword} disabled={!currentPassword || !newPassword}
+                  sx={{ mt: 1, py: 1.5, borderRadius: 2, fontWeight: 700, textTransform: 'none', boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}` }}
+                >
                     Update Password
                 </Button>
-            </Box>
+            </Paper>
         </TabPanel>
 
         {/* TEAM TAB */}
@@ -721,15 +804,15 @@ export default function SettingsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                mb: 3,
+                mb: 4,
                 flexDirection: { xs: 'column', sm: 'row' },
                 gap: { xs: 2, sm: 0 },
                 textAlign: { xs: 'center', sm: 'left' }
               }}
             >
               <Box sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Team Members</Typography>
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, letterSpacing: '-0.5px' }}>Team Members</Typography>
+                <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
                   Manage who has access to your boards
                 </Typography>
               </Box>
@@ -741,11 +824,13 @@ export default function SettingsPage() {
                   fetchWorkspaces();
                 }}
                 sx={{
-                  borderRadius: 3,
+                  borderRadius: 2,
                   textTransform: 'none',
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  py: 1,
                   px: 3,
-                  width: { xs: '100%', sm: 'auto' }
+                  width: { xs: '100%', sm: 'auto' },
+                  boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}`
                 }}
               >
                 Invite Teammate
@@ -753,8 +838,8 @@ export default function SettingsPage() {
             </Box>
             
             {loadingTeammates ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                    <CircularProgress size={40} />
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 10 }}>
+                    <CircularProgress size={48} thickness={4} />
                 </Box>
             ) : teammates.length > 0 ? (
                 <List sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -768,83 +853,59 @@ export default function SettingsPage() {
                           }
                         }}
                         sx={{
-                          p: 2,
+                          p: { xs: 2.5, sm: 3 },
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          borderRadius: 3,
-                          border: `1px solid ${theme.palette.divider}`,
-                          transition: 'all 0.2s',
+                          borderRadius: 4,
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
+                          border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                           cursor: teammate.status === 'joined' ? 'pointer' : 'default',
                           flexDirection: { xs: 'column', sm: 'row' },
-                          gap: { xs: 2, sm: 0 },
+                          gap: { xs: 2.5, sm: 0 },
                           '&:hover': teammate.status === 'joined' ? {
                             borderColor: theme.palette.primary.main,
-                            boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
-                            transform: 'translateY(-2px)'
+                            boxShadow: `0 12px 32px ${alpha(theme.palette.primary.main, 0.15)}`,
+                            transform: 'translateY(-3px)'
                           } : {}
                         }}
                       >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
-                          <Avatar
-                            src={getAvatarUrl(teammate.avatar)}
-                            sx={{ width: 48, height: 48, border: teammate.status === 'pending' ? `2px solid #fdab3d` : 'none', mx: { xs: 'auto', sm: 0 } }}
-                          />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
+                          <Box sx={{ position: 'relative' }}>
+                            <Avatar
+                              src={getAvatarUrl(teammate.avatar)}
+                              sx={{ width: 56, height: 56, mx: { xs: 'auto', sm: 0 }, boxShadow: 1 }}
+                            />
+                            {teammate.status === 'pending' && (
+                              <Box sx={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', bgcolor: theme.palette.warning.main, border: `3px solid ${theme.palette.background.paper}` }} />
+                            )}
+                            {teammate.status === 'joined' && (
+                              <Box sx={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', bgcolor: theme.palette.success.main, border: `3px solid ${theme.palette.background.paper}` }} />
+                            )}
+                          </Box>
+                          
                           <Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
-                              <Typography variant="subtitle1" fontWeight={700}>{teammate.name}</Typography>
+                              <Typography variant="subtitle1" fontWeight={800} sx={{ letterSpacing: '-0.3px' }}>{teammate.name}</Typography>
                               {teammate.status === 'pending' && (
-                                <Box sx={{
-                                  bgcolor: 'rgba(253, 171, 61, 0.1)',
-                                  color: '#fdab3d',
-                                  px: 1,
-                                  py: 0.2,
-                                  borderRadius: 1,
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  textTransform: 'uppercase',
-                                  border: '1px solid rgba(253, 171, 61, 0.2)',
-                                  mt: { xs: 1, sm: 0 }
-                                }}>
-                                  Pending
-                                </Box>
+                                <Typography variant="caption" sx={{ bgcolor: alpha(theme.palette.warning.main, 0.15), color: theme.palette.warning.dark, px: 1.5, py: 0.25, borderRadius: 999, fontWeight: 800, textTransform: 'uppercase', mt: { xs: 1, sm: 0 } }}>
+                                  Pending Invite
+                                </Typography>
                               )}
                             </Box>
-                            <Typography variant="body2" color="text.secondary">{teammate.email}</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontWeight: 500 }}>{teammate.email}</Typography>
+                            
                             {teammate.status === 'joined' && (
-                              <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    bgcolor: alpha(theme.palette.success.main, 0.1),
-                                    color: theme.palette.success.main,
-                                    px: 1,
-                                    py: 0.2,
-                                    borderRadius: 1,
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                    mb: { xs: 1, sm: 0 }
-                                  }}
-                                >
-                                  Active
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                    color: theme.palette.primary.main,
-                                    px: 1,
-                                    py: 0.2,
-                                    borderRadius: 1,
-                                    fontWeight: 600
-                                  }}
-                                >
-                                  {teammate.access?.length || 0} boards
+                              <Box sx={{ display: 'flex', gap: 1, mt: 1, flexDirection: { xs: 'column', sm: 'row' }, textAlign: { xs: 'center', sm: 'left' } }}>
+                                <Typography variant="caption" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, px: 1.5, py: 0.5, borderRadius: 2, fontWeight: 700 }}>
+                                  Has access to {teammate.access?.length || 0} boards
                                 </Typography>
                               </Box>
                             )}
                           </Box>
                         </Box>
+                        
                         <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'center', sm: 'flex-end' }, mt: { xs: 2, sm: 0 } }}>
                           <Button
                             variant="outlined"
@@ -855,7 +916,7 @@ export default function SettingsPage() {
                               e.stopPropagation();
                               handleRemoveTeammate(teammate.id);
                             }}
-                            sx={{ borderRadius: 2, textTransform: 'none', width: { xs: '100%', sm: 'auto' } }}
+                            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, width: { xs: '100%', sm: 'auto' }, borderColor: alpha(theme.palette.error.main, 0.5), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) } }}
                           >
                             Remove
                           </Button>
@@ -864,22 +925,21 @@ export default function SettingsPage() {
                     ))}
                 </List>
             ) : (
-                <Box sx={{ p: 6, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 4, border: '1px dashed', borderColor: 'divider' }}>
-                    <GroupIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
-                    <Typography variant="h5" fontWeight={700} gutterBottom>Build Your Team</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 4, maxWidth: 450, mx: 'auto' }}>
+                <Box sx={{ p: 8, textAlign: 'center', bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.4)', borderRadius: 4, border: `2px dashed ${alpha(theme.palette.divider, 0.8)}` }}>
+                    <GroupIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2, opacity: 0.3 }} />
+                    <Typography variant="h5" fontWeight={800} gutterBottom sx={{ letterSpacing: '-0.3px' }}>Build Your Team</Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 450, mx: 'auto' }}>
                         You haven't added any teammates yet. Start collaborating by inviting members to your boards.
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-                        <Button 
-                            variant="contained" 
-                            startIcon={<PersonAddIcon />} 
-                            onClick={() => { setInviteDialogOpen(true); fetchWorkspaces(); }}
-                            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, px: 3 }}
-                        >
-                            Invite First Teammate
-                        </Button>
-                    </Box>
+                    <Button 
+                        variant="contained" 
+                        size="large"
+                        startIcon={<PersonAddIcon />} 
+                        onClick={() => { setInviteDialogOpen(true); fetchWorkspaces(); }}
+                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 4, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.4)}` }}
+                    >
+                        Invite First Teammate
+                    </Button>
                 </Box>
             )}
         </TabPanel>
@@ -892,22 +952,27 @@ export default function SettingsPage() {
         onClose={() => setInviteDialogOpen(false)}
         maxWidth="xs"
         fullWidth
+        slotProps={{
+            backdrop: { sx: { backdropFilter: 'blur(12px)', backgroundColor: 'rgba(0,0,0,0.4)' } }
+        }}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            bgcolor: 'background.paper',
-            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 4,
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(24px)',
+            border: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
+            boxShadow: `0 32px 64px ${alpha(theme.palette.common.black, 0.3)}`,
             backgroundImage: 'none'
           }
         }}
       >
-        <Box sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Invite Teammate</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Centralized teammate management: add members to any of your boards.
+        <Box sx={{ p: 4 }}>
+            <Typography variant="h5" fontWeight={800} sx={{ mb: 1, letterSpacing: '-0.3px' }}>Invite Teammate</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                Centralized teammate management: add members to any of your boards securely.
             </Typography>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <Autocomplete
                     fullWidth
                     options={peopleSuggestions}
@@ -917,9 +982,9 @@ export default function SettingsPage() {
                     onChange={(event, value) => setSelectedUser(value)}
                     renderOption={(props, option) => (
                         <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Avatar src={option.avatar} sx={{ width: 32, height: 32 }} />
+                            <Avatar src={getAvatarUrl(option.avatar)} sx={{ width: 32, height: 32 }} />
                             <Box>
-                                <Typography variant="body2" fontWeight={600}>{option.name}</Typography>
+                                <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
                                 <Typography variant="caption" color="text.secondary">{option.email}</Typography>
                             </Box>
                         </Box>
@@ -927,9 +992,10 @@ export default function SettingsPage() {
                     renderInput={(params) => (
                         <TextField
                             {...params}
-                            label="Teammate Name or Email"
+                            label="Search Name or Email"
                             placeholder="Type to search..."
                             size="small"
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             InputProps={{
                                 ...params.InputProps,
                                 endAdornment: (
@@ -954,6 +1020,7 @@ export default function SettingsPage() {
                     }}
                     SelectProps={{ native: true }}
                     size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 >
                     {inviteWorkspaces.map((ws) => (
                         <option key={ws.id} value={ws.id}>{ws.name}</option>
@@ -969,6 +1036,7 @@ export default function SettingsPage() {
                     SelectProps={{ native: true }}
                     size="small"
                     disabled={!selectedInviteWs || inviteTables.length === 0}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 >
                     {inviteTables.length > 0 ? (
                         inviteTables.map((t) => (
@@ -981,7 +1049,7 @@ export default function SettingsPage() {
 
                 {/* Permission Selection */}
                 <Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Permission Level
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1 }}>
@@ -990,13 +1058,12 @@ export default function SettingsPage() {
                       fullWidth
                       onClick={() => setInvitePermission('edit')}
                       sx={{
-                        bgcolor: invitePermission === 'edit' ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        bgcolor: invitePermission === 'edit' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
                         color: invitePermission === 'edit' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        border: `1px solid ${invitePermission === 'edit' ? theme.palette.primary.main : theme.palette.divider}`,
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                        border: `1px solid ${invitePermission === 'edit' ? theme.palette.primary.main : 'transparent'}`,
+                        borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
+                        boxShadow: invitePermission === 'edit' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
                       }}
                     >
                       Editable
@@ -1006,13 +1073,12 @@ export default function SettingsPage() {
                       fullWidth
                       onClick={() => setInvitePermission('read')}
                       sx={{
-                        bgcolor: invitePermission === 'read' ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        bgcolor: invitePermission === 'read' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
                         color: invitePermission === 'read' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        border: `1px solid ${invitePermission === 'read' ? theme.palette.primary.main : theme.palette.divider}`,
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                        border: `1px solid ${invitePermission === 'read' ? theme.palette.primary.main : 'transparent'}`,
+                        borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
+                        boxShadow: invitePermission === 'read' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
                       }}
                     >
                       Read-only
@@ -1022,13 +1088,12 @@ export default function SettingsPage() {
                       fullWidth
                       onClick={() => setInvitePermission('admin')}
                       sx={{
-                        bgcolor: invitePermission === 'admin' ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        bgcolor: invitePermission === 'admin' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
                         color: invitePermission === 'admin' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        border: `1px solid ${invitePermission === 'admin' ? theme.palette.primary.main : theme.palette.divider}`,
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                        border: `1px solid ${invitePermission === 'admin' ? theme.palette.primary.main : 'transparent'}`,
+                        borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
+                        boxShadow: invitePermission === 'admin' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
                       }}
                     >
                       Admin
@@ -1039,21 +1104,16 @@ export default function SettingsPage() {
                 {/* Invite Code Display */}
                 {selectedInviteTable && (
                   <Box sx={{
-                    mt: 1,
-                    p: 2,
-                    borderRadius: 2,
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                    mt: 1, p: 2.5, borderRadius: 3,
+                    bgcolor: alpha(theme.palette.primary.main, 0.04),
                     border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 1
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1
                   }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                      INVITE CODE FOR THIS BOARD
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.5px' }}>
+                      BOARD INVITE CODE
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Typography variant="h5" sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: 4 }}>
+                      <Typography variant="h4" sx={{ color: theme.palette.primary.main, fontWeight: 800, letterSpacing: 6 }}>
                         {currentTableInviteCode || "------"}
                       </Typography>
                       <Tooltip title="Copy Code">
@@ -1062,33 +1122,26 @@ export default function SettingsPage() {
                             navigator.clipboard.writeText(currentTableInviteCode);
                             showNotification("Code copied!", "success");
                           }
-                        }} sx={{ color: theme.palette.primary.main }}>
+                        }} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
                           <ContentCopyIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-                      Share this code with teammates so they can join this board.
-                    </Typography>
                   </Box>
                 )}
             </Box>
 
-            <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+            <Box sx={{ mt: 5, display: 'flex', gap: 2 }}>
                 <Button 
-                    variant="outlined" 
-                    fullWidth 
-                    onClick={() => setInviteDialogOpen(false)}
-                    sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600 }}
+                    variant="outlined" fullWidth onClick={() => setInviteDialogOpen(false)}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, py: 1.2 }}
                 >
                     Cancel
                 </Button>
                 <Button 
-                    variant="contained" 
-                    fullWidth 
-                    onClick={handleInviteTeammate}
+                    variant="contained" fullWidth onClick={handleInviteTeammate}
                     disabled={isInviting || !selectedUser || !selectedInviteTable}
-                    sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, py: 1.2, boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.3)}` }}
                 >
                     {isInviting ? <CircularProgress size={24} color="inherit" /> : "Send Invite"}
                 </Button>
@@ -1105,26 +1158,35 @@ export default function SettingsPage() {
         }}
         maxWidth="sm"
         fullWidth
+        slotProps={{
+            backdrop: { sx: { backdropFilter: 'blur(12px)', backgroundColor: 'rgba(0,0,0,0.4)' } }
+        }}
         PaperProps={{
-            sx: { borderRadius: 4, height: '80vh', display: 'flex', flexDirection: 'column' }
+            sx: { 
+                borderRadius: 4, height: '80vh', display: 'flex', flexDirection: 'column',
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)',
+                backdropFilter: 'blur(24px)', border: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
+                boxShadow: `0 32px 64px ${alpha(theme.palette.common.black, 0.3)}`,
+                backgroundImage: 'none'
+            }
         }}
       >
-        <DialogTitle sx={{ p: 3, pb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+        <DialogTitle sx={{ p: 4, pb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 1 }}>
                 <Avatar 
                     src={getAvatarUrl(selectedTeammateForAccess?.avatar)} 
-                    sx={{ width: 56, height: 56, border: `2px solid ${theme.palette.divider}` }} 
+                    sx={{ width: 64, height: 64, border: `3px solid ${theme.palette.background.paper}`, boxShadow: 1 }} 
                 />
                 <Box>
-                    <Typography variant="h6" fontWeight={800}>{selectedTeammateForAccess?.name}</Typography>
-                    <Typography variant="body2" color="text.secondary">{selectedTeammateForAccess?.email}</Typography>
+                    <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.5px' }}>{selectedTeammateForAccess?.name}</Typography>
+                    <Typography variant="body1" color="text.secondary">{selectedTeammateForAccess?.email}</Typography>
                 </Box>
             </Box>
-            <Divider sx={{ mt: 2 }} />
+            <Divider sx={{ mt: 3, opacity: 0.5 }} />
         </DialogTitle>
-        <DialogContent sx={{ p: 3, pt: 0, flex: 1, overflowY: 'auto' }}>
+        <DialogContent sx={{ p: 4, pt: 0, flex: 1, overflowY: 'auto' }}>
             <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 2, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                     Shared Access
                 </Typography>
                 <TextField
@@ -1137,12 +1199,12 @@ export default function SettingsPage() {
                         startAdornment: <SearchIcon sx={{ color: 'text.disabled', mr: 1, fontSize: 18 }} />
                     }}
                     sx={{
-                        '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: 'action.hover' }
+                        '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.5) }
                     }}
                 />
             </Box>
 
-            <List sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <List sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {selectedTeammateForAccess?.access?.filter((a: any) => 
                     a.tableName?.toLowerCase().includes(boardSearchQuery.toLowerCase()) || 
                     a.workspaceName?.toLowerCase().includes(boardSearchQuery.toLowerCase())
@@ -1150,13 +1212,13 @@ export default function SettingsPage() {
                     <Paper 
                         key={a.tableId} 
                         variant="outlined" 
-                        sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${theme.palette.divider}` }}
+                        sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${alpha(theme.palette.divider, 0.5)}`, bgcolor: 'transparent' }}
                     >
                         <Box>
-                            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', mb: 0.2 }}>
+                            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', mb: 0.5, letterSpacing: '0.5px' }}>
                                 {a.workspaceName}
                             </Typography>
-                            <Typography variant="subtitle2" fontWeight={700}>{a.tableName}</Typography>
+                            <Typography variant="subtitle1" fontWeight={800}>{a.tableName}</Typography>
                         </Box>
                         
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1167,8 +1229,8 @@ export default function SettingsPage() {
                                 onChange={(e) => handleUpdateGranularPermission(selectedTeammateForAccess.id, a.tableId, e.target.value)}
                                 SelectProps={{ native: true }}
                                 sx={{ 
-                                    minWidth: 100,
-                                    '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.8rem', fontWeight: 600 }
+                                    minWidth: 120,
+                                    '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.85rem', fontWeight: 700, bgcolor: alpha(theme.palette.background.paper, 0.5) }
                                 }}
                             >
                                 <option value="read">Read Only</option>
@@ -1180,12 +1242,12 @@ export default function SettingsPage() {
                 ))}
             </List>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
+        <DialogActions sx={{ p: 4, pt: 2 }}>
             <Button 
                 fullWidth 
                 variant="outlined" 
                 onClick={() => setAccessDialogOpen(false)}
-                sx={{ borderRadius: 3, py: 1.2, fontWeight: 700, textTransform: 'none' }}
+                sx={{ borderRadius: 2, py: 1.5, fontWeight: 800, textTransform: 'none' }}
             >
                 Close
             </Button>

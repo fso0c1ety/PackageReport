@@ -55,11 +55,47 @@ async function bootstrapProductionDb() {
             ADD COLUMN IF NOT EXISTS error_message TEXT;
         `);
 
+        `);
+
+        // 2. tables table: Add invite_code and shared_users
+        await db.query(`
+            ALTER TABLE tables 
+            ADD COLUMN IF NOT EXISTS invite_code TEXT,
+            ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;
+        `);
+
+        // 3. rows table: Add created_by and created_at
+        await db.query(`
+            ALTER TABLE rows 
+            ADD COLUMN IF NOT EXISTS created_by TEXT,
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+        `);
+
+        // 4. activity_logs: Add status and error_message
+        await db.query(`
+            ALTER TABLE activity_logs 
+            ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent',
+            ADD COLUMN IF NOT EXISTS error_message TEXT;
+        `);
+
         // 5. table_chats: Add sender_id
         await db.query(`
             ALTER TABLE table_chats 
             ADD COLUMN IF NOT EXISTS sender_id TEXT,
             ADD COLUMN IF NOT EXISTS attachment JSONB;
+        `);
+
+        // 6. uploaded_files table for persisting uploads
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS uploaded_files (
+                id TEXT PRIMARY KEY,
+                filename TEXT UNIQUE,
+                originalname TEXT,
+                mimetype TEXT,
+                size BIGINT,
+                data BYTEA,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
         `);
 
         console.log('[DB-BOOTSTRAP] Schema repair completed successfully.');
@@ -347,10 +383,25 @@ app.use('/api', chatsRoute);
 app.use('/uploads', express.static(SHARED_UPLOAD_DIR));
 app.use('/uploads', express.static(LEGACY_UPLOAD_DIR));
 // Explicitly handle file serving to debug or catch encoding issues
-app.get('/uploads/:filename', (req, res) => {
+app.get('/uploads/:filename', async (req, res) => {
   const filename = req.params.filename;
   // Decode filename just in case it's still encoded
   const decodedFilename = decodeURIComponent(filename);
+  
+  // 1. Check PostgreSQL database first
+  try {
+      const dbRes = await db.query('SELECT mimetype, data FROM uploaded_files WHERE filename = $1 OR filename = $2', [filename, decodedFilename]);
+      if (dbRes.rows.length > 0) {
+          const fileRecord = dbRes.rows[0];
+          res.setHeader('Content-Type', fileRecord.mimetype || 'application/octet-stream');
+          res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+          return res.send(fileRecord.data);
+      }
+  } catch (err) {
+      console.error('[Serve DB File Error]', err);
+  }
+
+  // 2. Fall back to disk (local files, if they exist)
   const candidates = [
     path.join(SHARED_UPLOAD_DIR, decodedFilename),
     path.join(SHARED_UPLOAD_DIR, filename),
@@ -366,61 +417,6 @@ app.get('/uploads/:filename', (req, res) => {
 
   res.status(404).json({ error: 'File not found' });
 });
-
-// Serve frontend static export if it exists
-const outDir = path.join(__dirname, '../out');
-if (fs.existsSync(outDir)) {
-  app.use(express.static(outDir));
-  // Handle SPA routing: serve index.html for unknown routes if it's a GET request
-  app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
-      return res.sendFile(path.join(outDir, 'index.html'));
-    }
-    next();
-  });
-}
-
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    if (!fs.existsSync(SHARED_UPLOAD_DIR)) {
-      fs.mkdirSync(SHARED_UPLOAD_DIR, { recursive: true });
-    }
-    cb(null, SHARED_UPLOAD_DIR);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    // Sanitize filename: replace spaces with underscores, remove special chars to prevent serving issues
-    const sanitizedName = file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-    cb(null, uniqueSuffix + '-' + sanitizedName);
-  }
-});
-const upload = multer({ storage: storage });
-
-// File Upload Endpoint with improved error handling
-app.post('/api/upload', (req, res) => {
-  upload.single('file')(req, res, function (err) {
-    if (err) {
-      console.error('[Upload Error]', err);
-      return res.status(500).json({ error: err.message });
-    }
-    
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // Return the URL to access the file
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({
-      url: fileUrl,
-      name: req.file.originalname,
-      type: req.file.mimetype,
-      size: req.file.size
-    });
-  });
-});
-
-// --- User Profile Endpoints ---
 
 // Get complete user profile
 app.get('/api/users/profile', authenticateToken, async (req, res) => {
