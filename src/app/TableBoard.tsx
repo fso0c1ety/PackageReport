@@ -657,6 +657,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
         attachment = {
           name: uploadData.name || pendingBoardFile.name || 'File',
+          originalName: uploadData.originalName || uploadData.name || pendingBoardFile.name || 'File',
           type: uploadData.type || pendingBoardFile.type || 'application/octet-stream',
           url: fileUrl,
           size: uploadData.size || pendingBoardFile.size
@@ -4399,7 +4400,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       }}>
                         {msg.attachment && (
                           <Box
-                            onClick={() => setPreviewFile({ ...msg.attachment!, type: msg.attachment!.type || 'image/png' })}
+                            onClick={() => {
+                                  // Infer type if missing or generic
+                                  const fileName = msg.attachment.name || (msg.attachment as any).originalName || '';
+                                  let inferredType = msg.attachment.type;
+                                  if (!inferredType || inferredType === 'Attachment' || inferredType === 'application/octet-stream') {
+                                    if (fileName.toLowerCase().endsWith('.pdf')) inferredType = 'application/pdf';
+                                    else if (/\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)) inferredType = 'image/png';
+                                  }
+                                  setPreviewFile({ ...msg.attachment, type: inferredType || 'image/png' });
+                                }}
                             sx={{
                               mb: msg.text ? 1.5 : 0,
                               p: 0,
@@ -4749,7 +4759,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       }}>
                         {msg.attachment && (
                           <Box
-                            onClick={() => setPreviewFile({ ...msg.attachment!, type: msg.attachment!.type || 'image/png' })}
+                            onClick={() => {
+                                  // Infer type if missing or generic
+                                  const fileName = msg.attachment.name || (msg.attachment as any).originalName || '';
+                                  let inferredType = msg.attachment.type;
+                                  if (!inferredType || inferredType === 'Attachment' || inferredType === 'application/octet-stream') {
+                                    if (fileName.toLowerCase().endsWith('.pdf')) inferredType = 'application/pdf';
+                                    else if (/\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)) inferredType = 'image/png';
+                                  }
+                                  setPreviewFile({ ...msg.attachment, type: inferredType || 'image/png' });
+                                }}
                             sx={{
                               mb: msg.text ? 1.5 : 0,
                               p: 0,
