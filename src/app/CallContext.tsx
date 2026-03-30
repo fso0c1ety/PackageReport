@@ -360,6 +360,21 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 isVideo,
                 offer
             });
+
+            // Trigger fallback push notification for devices not actively connected to Supabase RT
+            try {
+                void authenticatedFetch(getApiUrl(`chats/${targetId}/call-notification`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        callerName: currentUser.name,
+                        callerAvatar: currentUser.avatar,
+                        isVideo
+                    })
+                });
+            } catch (notifyErr) {
+                console.error("[WebRTC] Failed to send push notification alert", notifyErr);
+            }
         } catch (err) {
             console.error("Failed to start call", err);
             alert("Could not access camera/microphone.");

@@ -106,4 +106,31 @@ router.post('/chats/:userId', authenticateToken, async (req, res) => {
     }
 });
 
+// POST /api/chats/:userId/call-notification - Trigger push notification for incoming calls
+router.post('/chats/:userId/call-notification', authenticateToken, async (req, res) => {
+    const { sendDirectNotification } = require('../notificationHelper');
+    const myId = req.user.id;
+    const otherId = req.params.userId;
+    const { callerName, callerAvatar, isVideo } = req.body;
+
+    try {
+        await sendDirectNotification(
+            otherId,
+            'Incoming Call',
+            `${callerName || 'Someone'} is calling you via ${isVideo ? 'Video' : 'Audio'}.`,
+            'incoming_call',
+            {
+                callerId: myId,
+                callerName: callerName,
+                callerAvatar: callerAvatar,
+                isVideo: isVideo
+            }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error triggering call push notification:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 module.exports = router;
