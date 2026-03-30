@@ -57,11 +57,17 @@ async function bootstrapProductionDb() {
 
 
 
-        // 5. table_chats: Add sender_id
+        // 5. table_chats: Add sender_id and ensure attachment is JSONB
         await db.query(`
-            ALTER TABLE table_chats 
-            ADD COLUMN IF NOT EXISTS sender_id TEXT,
-            ADD COLUMN IF NOT EXISTS attachment JSONB;
+            ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS sender_id TEXT;
+            ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS attachment JSONB;
+            -- Ensure type is actually JSONB if it was already created as something else
+            DO $$ 
+            BEGIN 
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'table_chats' AND column_name = 'attachment' AND data_type <> 'jsonb') THEN
+                    ALTER TABLE table_chats ALTER COLUMN attachment TYPE JSONB USING attachment::jsonb;
+                END IF;
+            END $$;
         `);
 
         // 6. uploaded_files table for persisting uploads
@@ -432,7 +438,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
         id: fileId,
         url: `/uploads/${encodeURIComponent(filename)}`,
         name: req.file.originalname,
-        originalName: req.file.originalname,
+        originalName: req.file.originalname, // Fixed: ensure originalName is present
         type: req.file.mimetype,
         size: req.file.size
       });
