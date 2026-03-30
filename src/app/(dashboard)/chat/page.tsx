@@ -322,7 +322,7 @@ function ChatContent() {
                                             variant="dot"
                                             sx={{ '& .MuiBadge-dot': { bgcolor: '#10b981', border: `2px solid ${theme.palette.background.paper}`, width: 12, height: 12, borderRadius: '50%' } }}
                                         >
-                                            <Avatar src={conv.avatar} sx={{ mr: 2, width: 48, height: 48, border: `2px solid ${theme.palette.background.paper}`, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+                                            <Avatar src={getAvatarUrl(conv.avatar, conv.name)} sx={{ mr: 2, width: 48, height: 48, border: `2px solid ${theme.palette.background.paper}`, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
                                         </Badge>
                                         <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
@@ -349,7 +349,7 @@ function ChatContent() {
                                         {pendingRequests.map((req) => (
                                             <ListItem key={req.request_id} sx={{ px: 2, gap: 1, flexDirection: 'column', alignItems: 'flex-start', mb: 1, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', width: 1, mt: 1 }}>
-                                                    <Avatar src={req.avatar} sx={{ mr: 1, width: 32, height: 32 }} />
+                                                    <Avatar src={getAvatarUrl(req.avatar, req.name)} sx={{ mr: 1, width: 32, height: 32 }} />
                                                     <Box sx={{ overflow: 'hidden' }}>
                                                         <Typography variant="body2" fontWeight={600} noWrap>{req.name}</Typography>
                                                         <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{req.email}</Typography>
@@ -399,7 +399,7 @@ function ChatContent() {
                                                 '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.04) }
                                             }}
                                         >
-                                            <Avatar src={friend.avatar} sx={{ mr: 1.5, width: 36, height: 36 }} />
+                                            <Avatar src={getAvatarUrl(friend.avatar, friend.name)} sx={{ mr: 1.5, width: 36, height: 36 }} />
                                             <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
                                                 <Typography variant="body2" fontWeight={600} noWrap>{friend.name}</Typography>
                                             </Box>
@@ -473,7 +473,7 @@ function ChatContent() {
                                     variant="dot"
                                     sx={{ '& .MuiBadge-dot': { bgcolor: '#10b981', border: `2px solid ${theme.palette.background.paper}`, width: 12, height: 12, borderRadius: '50%' } }}
                                 >
-                                    <Avatar src={otherUser?.avatar} sx={{ width: 48, height: 48, border: `2px solid ${theme.palette.background.paper}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }} />
+                                    <Avatar src={getAvatarUrl(otherUser?.avatar, otherUser?.name)} sx={{ width: 48, height: 48, border: `2px solid ${theme.palette.background.paper}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }} />
                                 </Badge>
                                 <Box>
                                     <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>{otherUser?.name || "Loading..."}</Typography>
@@ -525,7 +525,7 @@ function ChatContent() {
                                                 mb: 0.5
                                             }}>
                                                 {!isMe && (
-                                                    <Avatar src={otherUser?.avatar} sx={{ width: 28, height: 28 }} />
+                                                    <Avatar src={getAvatarUrl(otherUser?.avatar, otherUser?.name)} sx={{ width: 28, height: 28 }} />
                                                 )}
                                                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
                                                     <Box sx={{
@@ -555,7 +555,7 @@ function ChatContent() {
                                                     </Typography>
                                                 </Box>
                                                 {isMe && (
-                                                    <Avatar src={currentUser?.avatar} sx={{ width: 28, height: 28 }} />
+                                                    <Avatar src={getAvatarUrl(currentUser?.avatar, currentUser?.name)} sx={{ width: 28, height: 28 }} />
                                                 )}
                                             </Box>
                                         );

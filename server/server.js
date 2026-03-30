@@ -55,28 +55,7 @@ async function bootstrapProductionDb() {
             ADD COLUMN IF NOT EXISTS error_message TEXT;
         `);
 
-        `);
 
-        // 2. tables table: Add invite_code and shared_users
-        await db.query(`
-            ALTER TABLE tables 
-            ADD COLUMN IF NOT EXISTS invite_code TEXT,
-            ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;
-        `);
-
-        // 3. rows table: Add created_by and created_at
-        await db.query(`
-            ALTER TABLE rows 
-            ADD COLUMN IF NOT EXISTS created_by TEXT,
-            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
-        `);
-
-        // 4. activity_logs: Add status and error_message
-        await db.query(`
-            ALTER TABLE activity_logs 
-            ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent',
-            ADD COLUMN IF NOT EXISTS error_message TEXT;
-        `);
 
         // 5. table_chats: Add sender_id
         await db.query(`

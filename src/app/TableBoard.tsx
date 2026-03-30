@@ -656,8 +656,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         const fileUrl = uploadData.url.startsWith('http') ? uploadData.url : (SERVER_URL + uploadData.url);
 
         attachment = {
-          name: uploadData.name,
-          type: uploadData.type,
+          name: uploadData.name || pendingBoardFile.name || 'File',
+          type: uploadData.type || pendingBoardFile.type || 'application/octet-stream',
           url: fileUrl,
           size: uploadData.size || pendingBoardFile.size
         };
@@ -2416,7 +2416,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     const currentRow = rows.find(r => r.id === rowId);
     if (!currentRow) return;
 
-    const currentFiles = Array.isArray(currentRow.values[colId]) ? currentRow.values[colId] : [];
+    let newValues = { ...currentRow.values };
+    let currentFiles: any[] = [];
+    if (colId === 'chat') {
+      const chatMessages = Array.isArray(currentRow.values.message) ? currentRow.values.message : [];
+      newValues.message = chatMessages.map((msg: any) => {
+        if (msg.attachment && (msg.attachment === targetFile || (msg.attachment.url && msg.attachment.url === targetFile.url))) {
+          updatedFile = { ...msg.attachment, comments: [...(msg.attachment.comments || []), newComment] };
+          return { ...msg, attachment: updatedFile };
+        }
+        return msg;
+      });
+    } else {
+      currentFiles = Array.isArray(currentRow.values[colId]) ? currentRow.values[colId] : [];
+    }
     const updatedFiles = currentFiles.map((f: any) => {
       // Find by reference or unique property (URL is good for uploads)
       if (f === targetFile || (f.url && f.url === targetFile.url)) {
@@ -2428,7 +2441,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     if (!updatedFile) return;
 
-    const newValues = { ...currentRow.values, [colId]: updatedFiles };
+    if (colId !== 'chat') {
+      newValues[colId] = updatedFiles;
+    }
 
     // Update local state
     setRows(prevRows => prevRows.map(r => r.id === rowId ? { ...r, values: newValues } : r));
@@ -5042,7 +5057,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: 0, flex: 1, bgcolor: theme.palette.background.default, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {previewFile?.type.startsWith('image/') ? (
+          {previewFile?.type?.startsWith('image/') ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
