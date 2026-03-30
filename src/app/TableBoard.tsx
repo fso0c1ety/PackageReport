@@ -4399,7 +4399,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       }}>
                         {msg.attachment && (
                           <Box
-                            onClick={() => setPreviewFile(msg.attachment!)}
+                            onClick={() => setPreviewFile({ ...msg.attachment!, type: msg.attachment!.type || 'image/png' })}
                             sx={{
                               mb: msg.text ? 1.5 : 0,
                               p: 0,
@@ -4430,7 +4430,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   color: theme.palette.text.primary,
                                   lineHeight: 1.2
                                 }}>
-                                  {msg.attachment.name}
+                                  {msg.attachment.name || msg.attachment.originalName || 'File Attachment'}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
                                   {msg.attachment.size ? `${Math.round(msg.attachment.size / 1024)} KB` : 'Attachment'}
@@ -4749,7 +4749,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       }}>
                         {msg.attachment && (
                           <Box
-                            onClick={() => setPreviewFile(msg.attachment!)}
+                            onClick={() => setPreviewFile({ ...msg.attachment!, type: msg.attachment!.type || 'image/png' })}
                             sx={{
                               mb: msg.text ? 1.5 : 0,
                               p: 0,
@@ -4780,7 +4780,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   color: theme.palette.text.primary,
                                   lineHeight: 1.2
                                 }}>
-                                  {msg.attachment.name}
+                                  {msg.attachment.name || msg.attachment.originalName || 'File Attachment'}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
                                   {msg.attachment.size ? `${Math.round(msg.attachment.size / 1024)} KB` : 'Attachment'}
@@ -6462,7 +6462,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                                                       <InsertDriveFileIcon sx={{ fontSize: 18, color: theme.palette.text.primary }} />
                                                                     </Box>
                                                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                                                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                                                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name || 'File Attachment'}</Typography>
                                                                       <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size / 1024).toFixed(0) + ' KB' : 'File')}</Typography>
                                                                     </Box>
                                                                   </Box>
@@ -7979,7 +7979,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       <InsertDriveFileIcon sx={{ fontSize: 18, color: theme.palette.text.primary }} />
                                     </Box>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name}</Typography>
+                                      <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{msg.attachment.name || 'File Attachment'}</Typography>
                                       <Typography sx={{ fontSize: 10, opacity: 0.8 }}>{(msg.attachment.size ? (msg.attachment.size / 1024).toFixed(0) + ' KB' : 'File')}</Typography>
                                     </Box>
                                   </Box>
