@@ -1,0 +1,13 @@
+      if (filterStatus.length > 0) {
+        const statusCols = columns.filter(c => c.type === 'Status');
+        const hasStatus = statusCols.some(col => {
+          const val = row.values[col.id];
+          return filterStatus.includes(val);
+        });
+        if (!hasStatus) return false;
+            return true;
+se;
+
+      return true;
+    });
+  }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);

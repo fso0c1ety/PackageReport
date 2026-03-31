@@ -851,6 +851,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [emailCols, setEmailCols] = useState<string[]>([]);
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
   const [automationEnabled, setAutomationEnabled] = useState(true);
+  const [popoverSearch, setPopoverSearch] = useState("");
+
 
   // New Automation States
   const [automations, setAutomations] = useState<any[]>([]);
@@ -2481,6 +2483,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Filter logic
   const filteredRows = React.useMemo(() => {
     if (!filterText && filterPerson.length === 0 && filterStatus.length === 0) return rows;
+    if (!filterText && filterPerson.length === 0 && filterStatus.length === 0 && !hasColumnFilters) return rows;
     const lowerFilter = filterText.toLowerCase();
 
     return rows.filter(row => {
@@ -6160,6 +6163,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     >
                                       {col.name}
                                     </Typography>
+                      )}
                                   </Box>
                                   {userPermission !== 'read' && (
                                     <IconButton
