@@ -153,7 +153,7 @@ import FirstPageIcon from '@mui/icons-material/FirstPage';
 import LastPageIcon from '@mui/icons-material/LastPage';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import TableViewIcon from '@mui/icons-material/TableView';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useDeferredValue } from "react";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import HistoryIcon from "@mui/icons-material/History";
@@ -851,8 +851,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [emailCols, setEmailCols] = useState<string[]>([]);
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
   const [automationEnabled, setAutomationEnabled] = useState(true);
-  const [popoverSearch, setPopoverSearch] = useState("");
-
 
   // New Automation States
   const [automations, setAutomations] = useState<any[]>([]);
@@ -1589,6 +1587,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const editValueRef = React.useRef(editValue);
   useEffect(() => { editValueRef.current = editValue; }, [editValue]);
   const [editAnchorEl, setEditAnchorEl] = useState<null | HTMLElement>(null);
+  const [textSuggestionFilter, setTextSuggestionFilter] = useState("");
+  const [textSuggestionOpen, setTextSuggestionOpen] = useState(false);
+  const textSuggestionAnchorRef = React.useRef<HTMLDivElement | null>(null);
+  const textSuggestionPopoverRef = React.useRef<HTMLDivElement | null>(null);
+  const [optionPopoverSearch, setOptionPopoverSearch] = useState("");
+  const deferredTextSuggestionFilter = useDeferredValue(textSuggestionFilter);
+  const deferredOptionPopoverSearch = useDeferredValue(optionPopoverSearch);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
   const [renameAnchorEl, setRenameAnchorEl] = useState<null | HTMLElement>(null);
@@ -2483,7 +2488,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Filter logic
   const filteredRows = React.useMemo(() => {
     if (!filterText && filterPerson.length === 0 && filterStatus.length === 0) return rows;
-    if (!filterText && filterPerson.length === 0 && filterStatus.length === 0 && !hasColumnFilters) return rows;
     const lowerFilter = filterText.toLowerCase();
 
     return rows.filter(row => {
@@ -2957,6 +2961,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     let value = row.values ? row.values[col.id] : "";
     if (effectiveCol.type === "Dropdown" && col.id !== "priority") {
       const options = effectiveCol.options || [];
+      const filteredOptions = options.filter((opt) =>
+        opt.value.toLowerCase().includes(deferredOptionPopoverSearch.toLowerCase())
+      );
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       const isLabelEditing = editingLabelsColId === effectiveCol.id;
       const valueStr = value || '-';
@@ -3020,6 +3027,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 setStatusAnchor(null);
                 setEditingCell(null);
                 setEditingLabelsColId(null); // Reset mode on close
+                setOptionPopoverSearch("");
               }}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
               transformOrigin={{ vertical: 'top', horizontal: 'left' }}
@@ -3039,12 +3047,34 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             >
               {!isLabelEditing ? (
                 // --- Simple Selection Mode ---
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 300, overflowY: 'auto' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Search options"
+                    value={optionPopoverSearch}
+                    onChange={(e) => setOptionPopoverSearch(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{
+                      mb: 0.5,
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#ffffff',
+                      }
+                    }}
+                  />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 260, overflowY: 'auto' }}>
                   <Box
                     onClick={() => {
                       handleCellSave(row.id, col.id, col.type, "");
                       setStatusAnchor(null);
                       setEditingCell(null);
+                      setOptionPopoverSearch("");
                     }}
                     sx={{
                       color: theme.palette.text.secondary,
@@ -3065,13 +3095,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     <Box component="span">(Blank)</Box>
                     {!value && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
                   </Box>
-                  {options.map((opt) => (
+                  {filteredOptions.map((opt) => (
                     <Box
                       key={opt.value}
                       onClick={() => {
                         handleCellSave(row.id, col.id, col.type, opt.value);
                         setStatusAnchor(null);
                         setEditingCell(null);
+                        setOptionPopoverSearch("");
                       }}
                       sx={{
                         color: theme.palette.text.primary,
@@ -3094,7 +3125,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       {value === opt.value && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
                     </Box>
                   ))}
-                  {options.length === 0 && <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', px: 1 }}>No options</Typography>}
+                  {filteredOptions.length === 0 && <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', px: 1 }}>No matching options</Typography>}
+                  </Box>
                   <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, mt: 0.5, pt: 0.5 }}>
                     <Button
                       size="small"
@@ -3196,6 +3228,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     // Status/Priority (Keep original colorful logic)
     if (effectiveCol.type === "Status" || effectiveCol.type === "Priority" || effectiveCol.id === "priority") {
       const options = effectiveCol.options || [];
+      const filteredOptions = options.filter((opt) =>
+        opt.value.toLowerCase().includes(deferredOptionPopoverSearch.toLowerCase())
+      );
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       const isLabelEditing = editingLabelsColId === effectiveCol.id;
       const currentOption = options.find(o => o.value === value) || { value: value || '-', color: '#e0e4ef' };
@@ -3248,6 +3283,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 setStatusAnchor(null);
                 setEditingCell(null);
                 setEditingLabelsColId(null);
+                setOptionPopoverSearch("");
               }}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
               transformOrigin={{ vertical: 'top', horizontal: 'center' }}
@@ -3271,11 +3307,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>
                     Select Status
                   </Typography>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Search options"
+                    value={optionPopoverSearch}
+                    onChange={(e) => setOptionPopoverSearch(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+                        </InputAdornment>
+                      )
+                    }}
+                  />
                   <Box
                     onClick={() => {
                       handleCellSave(row.id, col.id, col.type, "");
                       setStatusAnchor(null);
                       setEditingCell(null);
+                      setOptionPopoverSearch("");
                     }}
                     sx={{
                       bgcolor: theme.palette.background.paper,
@@ -3294,13 +3345,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   >
                     (Blank)
                   </Box>
-                  {options.map((opt) => (
+                  {filteredOptions.map((opt) => (
                     <Box
                       key={opt.value}
                       onClick={() => {
                         handleCellSave(row.id, col.id, col.type, opt.value);
                         setStatusAnchor(null);
                         setEditingCell(null);
+                        setOptionPopoverSearch("");
                       }}
                       sx={{
                         bgcolor: opt.color,
@@ -3321,6 +3373,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       {opt.value}
                     </Box>
                   ))}
+                  {filteredOptions.length === 0 && (
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', px: 1 }}>
+                      No matching options
+                    </Typography>
+                  )}
                   {true && (
                     <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, mt: 1, pt: 1, display: 'flex', justifyContent: 'center' }}>
                       <Button
@@ -3852,64 +3909,141 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       // Default: text input with autocomplete
       const uniqueOptions = Array.from(new Set(rows.map(r => r.values[col.id]).filter(v => v && typeof v === 'string' && v.trim() !== '')));
+      const filteredUniqueOptions = uniqueOptions.filter((option) =>
+        option.toLowerCase().includes(deferredTextSuggestionFilter.toLowerCase())
+      );
 
       return (
-        <Autocomplete
-          freeSolo
-          disableClearable
-          options={uniqueOptions as string[]}
-          value={editValue}
-          onInputChange={(event, newInputValue) => {
-            setEditValue(newInputValue);
-          }}
-          onChange={(event, newValue) => {
-            if (newValue) {
-              setEditValue(newValue);
-              handleCellSave(row.id, col.id, col.type, newValue);
-            }
-          }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              size="small"
-              autoFocus
-              onBlur={() => handleCellSave(row.id, col.id, col.type, editValue)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.stopPropagation();
-                  handleCellSave(row.id, col.id, col.type, editValue);
+        <Box ref={textSuggestionAnchorRef} sx={{ width: '100%' }}>
+          <TextField
+            value={editValue}
+            onChange={(e) => {
+              setEditValue(e.target.value);
+              setTextSuggestionOpen(true);
+            }}
+            onFocus={() => {
+              setTextSuggestionFilter("");
+              setTextSuggestionOpen(true);
+            }}
+            onBlur={() => {
+              window.setTimeout(() => {
+                const activeElement = document.activeElement;
+                const insideAnchor = !!(activeElement && textSuggestionAnchorRef.current?.contains(activeElement));
+                const insidePopover = !!(activeElement && textSuggestionPopoverRef.current?.contains(activeElement));
+                if (insideAnchor || insidePopover) {
+                  return;
                 }
-              }}
-              InputProps={{
-                ...params.InputProps,
-                style: { color: theme.palette.text.primary, padding: 0 },
-                sx: {
-                  '& .MuiOutlinedInput-root': { padding: '0 8px !important' },
-                  '& .MuiInputBase-input': { padding: '8px 0 !important' }
-                }
-              }}
-              sx={{
-                '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-              }}
-            />
-          )}
-          slotProps={{
-            paper: {
+                setTextSuggestionOpen(false);
+                handleCellSave(row.id, col.id, col.type, editValueRef.current);
+              }, 0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.stopPropagation();
+                setTextSuggestionOpen(false);
+                handleCellSave(row.id, col.id, col.type, editValue);
+              }
+            }}
+            size="small"
+            autoFocus
+            InputProps={{
+              style: { color: theme.palette.text.primary, padding: 0 },
               sx: {
+                '& .MuiOutlinedInput-root': { padding: '0 8px !important' },
+                '& .MuiInputBase-input': { padding: '8px 0 !important' }
+              }
+            }}
+            sx={{
+              width: '100%',
+              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+            }}
+          />
+          <Popover
+            open={textSuggestionOpen}
+            anchorEl={textSuggestionAnchorRef.current}
+            onClose={() => {
+              setTextSuggestionOpen(false);
+              setTextSuggestionFilter("");
+            }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            disableAutoFocus
+            disableEnforceFocus
+            PaperProps={{
+              ref: textSuggestionPopoverRef,
+              sx: {
+                width: textSuggestionAnchorRef.current?.clientWidth || 280,
                 bgcolor: theme.palette.background.default,
                 color: theme.palette.text.primary,
                 borderRadius: 2,
                 border: `1px solid ${theme.palette.divider}`,
                 mt: 1,
-                '& .MuiMenuItem-root': {
-                  '&:hover': { bgcolor: theme.palette.action.hover },
-                  '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
-                }
+                overflow: 'hidden',
+                boxShadow: theme.shadows[8]
               }
-            }
-          }}
-          sx={{ width: '100%' }}
-        />
+            }}
+          >
+            <Box sx={{ p: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <TextField
+                size="small"
+                fullWidth
+                placeholder="Search suggestions"
+                value={textSuggestionFilter}
+                onChange={(e) => setTextSuggestionFilter(e.target.value)}
+                onFocus={() => setTextSuggestionOpen(true)}
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    const activeElement = document.activeElement;
+                    const insideAnchor = !!(activeElement && textSuggestionAnchorRef.current?.contains(activeElement));
+                    const insidePopover = !!(activeElement && textSuggestionPopoverRef.current?.contains(activeElement));
+                    if (insideAnchor || insidePopover) {
+                      return;
+                    }
+                    setTextSuggestionOpen(false);
+                    handleCellSave(row.id, col.id, col.type, editValueRef.current);
+                  }, 0);
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+                    </InputAdornment>
+                  ),
+                  sx: {
+                    color: theme.palette.text.primary,
+                    bgcolor: theme.palette.background.paper,
+                  }
+                }}
+              />
+            </Box>
+            <Box sx={{ maxHeight: 240, overflowY: 'auto', py: 0.5 }}>
+              {filteredUniqueOptions.length > 0 ? (
+                filteredUniqueOptions.map((option) => (
+                  <MenuItem
+                    key={option}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setEditValue(option);
+                      setTextSuggestionOpen(false);
+                      handleCellSave(row.id, col.id, col.type, option);
+                    }}
+                    sx={{
+                      '&:hover': { bgcolor: theme.palette.action.hover },
+                      '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                    }}
+                  >
+                    {option}
+                  </MenuItem>
+                ))
+              ) : (
+                <Typography sx={{ px: 1.5, py: 1, color: theme.palette.text.secondary, fontSize: '0.875rem' }}>
+                  {textSuggestionFilter ? "No matching suggestions" : "No suggestions"}
+                </Typography>
+              )}
+            </Box>
+          </Popover>
+        </Box>
       );
     }
     // --- Read mode ---
@@ -6163,7 +6297,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                     >
                                       {col.name}
                                     </Typography>
-                      )}
                                   </Box>
                                   {userPermission !== 'read' && (
                                     <IconButton
