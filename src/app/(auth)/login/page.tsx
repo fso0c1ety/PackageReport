@@ -279,11 +279,22 @@ export default function LoginPage() {
     const endpoint = isLogin ? 'auth/login' : 'auth/register';
 
     try {
-      const response = await fetch(getApiUrl(endpoint), {
+      const primaryUrl = getApiUrl(endpoint);
+      let response = await fetch(primaryUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
+
+      // Some deployments expose auth routes without the /api prefix.
+      if (response.status === 404 && primaryUrl.includes('/api/')) {
+        const fallbackUrl = primaryUrl.replace('/api/', '/');
+        response = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+      }
 
       const responseText = await response.text();
       let data: Record<string, any>;

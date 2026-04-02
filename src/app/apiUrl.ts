@@ -18,11 +18,19 @@ export function getFrontendUrl() {
 
 export function getApiUrl(path: string) {
   // Use Express backend (LAN IP for mobile/desktop)
-  const base = getServerUrl();
+  const base = getServerUrl().trim();
 
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (!cleanBase) {
+    return `/api${cleanPath}`;
+  }
+
+  if (!cleanBase.startsWith('http://') && !cleanBase.startsWith('https://')) {
+    cleanBase = `https://${cleanBase}`;
+  }
 
   // Clean up if the base already includes /api, but prevent duplication logic
   if (cleanBase.endsWith('/api')) {
