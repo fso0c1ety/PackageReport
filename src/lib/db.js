@@ -2,6 +2,13 @@ import { Pool } from 'pg';
 
 const connectionString = process.env.DATABASE_URL;
 
+// Only use SSL for cloud/remote database connections, not for localhost
+const isLocalConnection =
+  connectionString &&
+  (connectionString.includes('localhost') || connectionString.includes('127.0.0.1'));
+
+const sslConfig = (!connectionString || isLocalConnection) ? false : { rejectUnauthorized: false };
+
 let pool;
 
 function getPool() {
@@ -11,7 +18,7 @@ function getPool() {
     }
     pool = new Pool({
       connectionString,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslConfig,
     });
     pool.on('error', (err) => {
       console.error('Unexpected error on idle pg client', err);

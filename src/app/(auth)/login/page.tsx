@@ -276,7 +276,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+    const endpoint = isLogin ? '/api/auth/login/' : '/api/auth/register/';
 
     try {
       const serverUrl = getServerUrl();
@@ -288,10 +288,11 @@ export default function LoginPage() {
 
       let data;
       try {
-        data = await response.json();
+        const responseText = await response.text();
+        data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('Failed to parse server response:', parseError);
-        throw new Error('Server returned an unexpected response. Please try again.');
+        console.error('Failed to parse server response:', parseError, 'Status:', response.status);
+        throw new Error(`Server returned an unexpected response (${response.status}). Please try again.`);
       }
 
       if (!response.ok) {
