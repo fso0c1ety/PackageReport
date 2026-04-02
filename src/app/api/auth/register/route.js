@@ -6,11 +6,11 @@ import db from '@/lib/db';
 export const runtime = 'nodejs';
 
 export async function POST(req) {
-  const { name, email, password } = await req.json();
-  if (!email || !password || !name) {
-    return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
-  }
   try {
+    const { name, email, password } = await req.json();
+    if (!email || !password || !name) {
+      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+    }
     const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     const existingUser = result.rows[0];
     const hashedPassword = await bcrypt.hash(password, 10);
