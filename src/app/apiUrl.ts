@@ -16,13 +16,26 @@ export function getFrontendUrl() {
   return DEFAULT_FRONTEND_URL;
 }
 
+function isNativeRuntime() {
+  if (typeof window === 'undefined') return false;
+  const maybeCapacitor = (window as any)?.Capacitor;
+  return Boolean(maybeCapacitor?.isNativePlatform?.());
+}
+
 export function getApiUrl(path: string) {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // In web browser deployments (including Vercel preview), use same-origin API routes
+  // to avoid CORS issues between preview and production domains.
+  if (typeof window !== 'undefined' && !isNativeRuntime()) {
+    return `/api${cleanPath}`;
+  }
+
   // Use Express backend (LAN IP for mobile/desktop)
   const base = getServerUrl().trim();
 
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
   if (!cleanBase) {
     return `/api${cleanPath}`;
