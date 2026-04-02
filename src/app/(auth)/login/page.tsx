@@ -285,13 +285,13 @@ export default function LoginPage() {
         body: JSON.stringify(formData),
       });
 
-      let data;
+      const responseText = await response.text();
+      let data: Record<string, any>;
       try {
-        const responseText = await response.text();
         data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse server response:', parseError, 'Status:', response.status);
-        throw new Error(`Server returned an unexpected response (${response.status}). Please try again.`);
+      } catch {
+        console.error('Failed to parse server response. Status:', response.status, 'Body:', responseText.slice(0, 200));
+        throw new Error('Server returned an invalid response. Please try again or contact support if the issue persists.');
       }
 
       if (!response.ok) {
