@@ -1,34 +1,8 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-import { Pool } from "pg";
+import { getAuthenticatedUser } from "@/lib/auth";
+import db from "@/lib/db";
 
 export const runtime = "nodejs";
-
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres";
-
-const SECRET_KEY = process.env.SECRET_KEY || "your_secret_key_here";
-
-const pool = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
-
-function getAuthenticatedUser(req) {
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.split(" ")[1];
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, SECRET_KEY);
-  } catch {
-    return null;
-  }
-}
 
 export async function PUT(req) {
   const user = getAuthenticatedUser(req);
@@ -44,14 +18,14 @@ export async function PUT(req) {
       return NextResponse.json({ error: "Token is required" }, { status: 400 });
     }
 
-    await pool.query("UPDATE public.users SET fcm_token = $1 WHERE id = $2", [
+    await db.query("UPDATE public.users SET fcm_token = $1 WHERE id = $2", [
       token,
       user.id,
     ]);
 
     let storedInArray = false;
     try {
-      await pool.query(
+      await db.query(
         `
           UPDATE public.users
           SET fcm_tokens = CASE
@@ -83,9 +57,9 @@ export async function DELETE(req) {
   }
 
   try {
-    await pool.query("UPDATE public.users SET fcm_token = NULL WHERE id = $1", [user.id]);
+    await db.query("UPDATE public.users SET fcm_token = NULL WHERE id = $1", [user.id]);
     try {
-      await pool.query("UPDATE public.users SET fcm_tokens = '[]'::jsonb WHERE id = $1", [
+      await db.query("UPDATE public.users SET fcm_tokens = '[]'::jsonb WHERE id = $1", [
         user.id,
       ]);
     } catch (pluralErr) {
