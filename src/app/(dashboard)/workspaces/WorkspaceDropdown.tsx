@@ -50,6 +50,10 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       })
       .then((data: Workspace[]) => {
         setWorkspaces(data);
+        const hasResolved = resolvedWorkspaceId && data.some((ws) => ws.id === resolvedWorkspaceId);
+        if (!hasResolved && data.length > 0) {
+          router.replace(`/workspace?id=${data[0].id}`);
+        }
         setSelected((prev) => {
           if (resolvedWorkspaceId && data.some((ws) => ws.id === resolvedWorkspaceId)) {
             return resolvedWorkspaceId;
@@ -78,7 +82,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
     return () => {
       window.removeEventListener('workspaceUpdated', handleUpdate);
     };
-  }, [resolvedWorkspaceId]);
+  }, [resolvedWorkspaceId, router]);
 
   useEffect(() => {
     setSelected((prev) => {
