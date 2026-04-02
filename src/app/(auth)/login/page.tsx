@@ -226,7 +226,7 @@ const MetricCard = styled(Box)(({ theme }) => ({
   },
 }));
 
-const SignalCard = styled(Box)(({ theme }) => ({
+const SignalCard = styled(motion.div)(({ theme }) => ({
   padding: theme.spacing(2),
   borderRadius: 20,
   border: `1px solid ${alpha(theme.palette.common.white, 0.08)}`,
@@ -404,7 +404,6 @@ export default function LoginPage() {
             {featurePoints.map((point, index) => (
               <SignalCard
                 key={point.title}
-                component={motion.div}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + index * 0.08, duration: 0.45 }}
