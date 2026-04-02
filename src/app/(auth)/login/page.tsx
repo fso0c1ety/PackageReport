@@ -402,12 +402,14 @@ export default function LoginPage() {
 
           <Stack spacing={1.5} sx={{ mt: { xs: 2.5, md: 8 } }}>
             {featurePoints.map((point, index) => (
-              <SignalCard
+              <motion.div
                 key={point.title}
-                component={motion.div}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + index * 0.08, duration: 0.45 }}
+                style={{ width: '100%' }}
+              >
+              <SignalCard
                 sx={{ display: { xs: index === 0 ? 'block' : 'none', sm: 'block' } }}
               >
                 <Stack direction="row" spacing={1.5} alignItems="flex-start">
@@ -430,6 +432,7 @@ export default function LoginPage() {
                   </Box>
                 </Stack>
               </SignalCard>
+              </motion.div>
             ))}
           </Stack>
         </HeroPanel>
