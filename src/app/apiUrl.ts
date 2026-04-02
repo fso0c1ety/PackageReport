@@ -54,6 +54,36 @@ export function getApiUrl(path: string) {
   return `${cleanBase}/api${cleanPath}`;
 }
 
+export function getAssetUrl(asset: string | null | undefined) {
+  if (!asset) return '';
+  const raw = String(asset).trim();
+  if (!raw) return '';
+
+  if (
+    raw.startsWith('http://') ||
+    raw.startsWith('https://') ||
+    raw.startsWith('data:') ||
+    raw.startsWith('blob:')
+  ) {
+    return raw;
+  }
+
+  let normalized = raw;
+  if (!normalized.startsWith('/')) {
+    // Legacy rows may store only a filename; uploaded files are served from /uploads.
+    normalized = normalized.startsWith('uploads/') ? `/${normalized}` : `/uploads/${normalized}`;
+  }
+
+  if (typeof window !== 'undefined' && !isNativeRuntime()) {
+    return normalized;
+  }
+
+  const base = DEFAULT_ASSET_URL.trim();
+  if (!base) return normalized;
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  return `${cleanBase}${normalized}`;
+}
+
 /**
  * Resolves an avatar URL consistently across the application.
  * Handles: null/undefined, absolute URLs, Base64 data URLs, and relative local paths.
@@ -62,24 +92,7 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   if (!avatar) {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
   }
-
-  // Handle absolute URLs (http:// or https://)
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-    return avatar;
-  }
-
-  // Handle Base64 data URLs (data:image/...)
-  if (avatar.startsWith('data:')) {
-    return avatar;
-  }
-
-  // Handle relative local paths (e.g., /uploads/...)
-  // We use the base server URL, NOT the /api prefix
-  const base = DEFAULT_ASSET_URL;
-  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-  const cleanPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
-  
-  return `${cleanBase}${cleanPath}`;
+  return getAssetUrl(avatar);
 }
 
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
@@ -113,13 +126,17 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     throw err;
   }
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token'); // Clear invalid token
       window.location.href = '/login';
       return new Promise(() => { }) as unknown as Response;
     }
-    throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");
+    throw new Error("Unauthorized");
+  }
+
+  if (response.status === 403) {
+    throw new Error("Forbidden");
   }
 
   return response;

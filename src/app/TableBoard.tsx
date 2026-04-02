@@ -1,6 +1,6 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
-import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch, getAvatarUrl } from "./apiUrl";
+import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch, getAvatarUrl, getAssetUrl } from "./apiUrl";
 import { io, Socket } from "socket.io-client";
 
 import { useTheme } from "@mui/material/styles";
@@ -654,7 +654,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         if (!uploadRes.ok) throw new Error('Upload failed');
 
         const uploadData = await uploadRes.json();
-        const fileUrl = uploadData.url.startsWith('http') ? uploadData.url : (SERVER_URL + uploadData.url);
+        const fileUrl = getAssetUrl(uploadData.url);
 
         attachment = {
           name: uploadData.name || pendingBoardFile.name || 'File',
@@ -5181,7 +5181,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
-              href={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
+              href={previewFile?.url ? getAssetUrl(previewFile.url) : undefined}
               download={previewFile?.name}
               target="_blank"
               startIcon={<Box component="span" sx={{ fontSize: 18 }}>⬇</Box>}
@@ -5217,13 +5217,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           {previewFile?.type?.startsWith('image/') ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
+              src={previewFile?.url ? getAssetUrl(previewFile.url) : undefined}
               alt={previewFile.name}
               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
             />
           ) : (
             <iframe
-              src={previewFile?.url ? (previewFile.url.startsWith('http') ? previewFile.url : `${SERVER_URL}${previewFile.url}`) : undefined}
+              src={previewFile?.url ? getAssetUrl(previewFile.url) : undefined}
               title={previewFile?.name}
               style={{ width: '100%', height: '100%', border: 'none' }}
             />
@@ -7429,7 +7429,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
                   return allFiles.map((item, idx) => {
                     const isImage = (item.file.type && item.file.type.startsWith('image/')) || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file.name);
-                    const fileUrl = item.file.url ? (item.file.url.startsWith('http') ? item.file.url : `${SERVER_URL}${item.file.url}`) : null;
+                    const fileUrl = item.file.url ? getAssetUrl(item.file.url) : null;
 
                     return (
                       <Paper
@@ -8316,7 +8316,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 2 }}>
                         {taskFiles.map((item, idx) => {
                           const isImage = (item.file.type && item.file.type.startsWith('image/')) || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file.name);
-                          const fileUrl = item.file.url ? (item.file.url.startsWith('http') ? item.file.url : `${SERVER_URL}${item.file.url}`) : null;
+                          const fileUrl = item.file.url ? getAssetUrl(item.file.url) : null;
                           return (
                             <Paper key={idx} sx={{ bgcolor: theme.palette.action.hover, borderRadius: 2, overflow: 'hidden', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', transform: 'translateY(-2px)' } }}>
                               <Box
@@ -8513,26 +8513,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <Box sx={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000' }}>
                     {(fileDialog.file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileDialog.file.name)) ? (
                       <img
-                        src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                        src={getAssetUrl(fileDialog.file.url)}
                         alt={fileDialog.file.name}
                         style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                       />
                     ) : (fileDialog.file.type === 'application/pdf' || /\.pdf$/i.test(fileDialog.file.name)) ? (
                       <iframe
-                        src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                        src={getAssetUrl(fileDialog.file.url)}
                         style={{ width: '100%', height: '100%', border: 'none' }}
                         title="PDF Preview"
                       />
                     ) : (fileDialog.file.type?.startsWith('video/') || /\.(mp4|webm|ogg)$/i.test(fileDialog.file.name)) ? (
                       <video
                         controls
-                        src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                        src={getAssetUrl(fileDialog.file.url)}
                         style={{ maxWidth: '100%', maxHeight: '100%' }}
                       />
                     ) : (fileDialog.file.type?.startsWith('audio/') || /\.(mp3|wav|ogg)$/i.test(fileDialog.file.name)) ? (
                       <audio
                         controls
-                        src={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                        src={getAssetUrl(fileDialog.file.url)}
                       />
                     ) : (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, p: 5 }}>
@@ -8541,7 +8541,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         <Button
                           variant="outlined"
                           component="a"
-                          href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                          href={getAssetUrl(fileDialog.file.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           sx={{ color: theme.palette.text.primary, borderColor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
@@ -8699,7 +8699,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               <Button
                 variant="contained"
                 component="a"
-                href={fileDialog.file.url.startsWith('http') ? fileDialog.file.url : `${SERVER_URL}${fileDialog.file.url}`}
+                href={getAssetUrl(fileDialog.file.url)}
                 download={fileDialog.file.name}
                 target="_blank"
                 rel="noopener noreferrer"
