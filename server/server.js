@@ -15,7 +15,7 @@ const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
 const { sendPushNotification } = require('./firebase');
 const { sendNotification } = require('./notificationHelper');
-const BUILD_COMMIT = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'edc8e7463386ac815cb01ca7bdaa24346ba30c97';
+const BUILD_COMMIT = process.env.VERCEL_GIT_COMMIT_SHA || process.env.COMMIT_SHA || 'edc8e7463386ac815cb01ca7bdaa24346ba30c97';
 const BUILD_DATE = '2026-03-28';
 
 console.log(`[Build] Commit: ${BUILD_COMMIT}`);
@@ -118,7 +118,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
-      "https://packagereport.onrender.com",
+      "https://package-report.vercel.app",
       "http://localhost:3000",
       "http://192.168.0.25:3000"
     ],
