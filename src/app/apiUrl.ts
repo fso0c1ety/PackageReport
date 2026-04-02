@@ -3,7 +3,7 @@ export const DEFAULT_FRONTEND_URL =
   process.env.NEXT_PUBLIC_FRONTEND_URL || "https://package-report.vercel.app";
 
 export const DEFAULT_SERVER_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://package-report.vercel.app";
+  process.env.NEXT_PUBLIC_API_URL || "";
 
 export const DEFAULT_ASSET_URL =
   process.env.NEXT_PUBLIC_ASSET_URL || DEFAULT_SERVER_URL;
