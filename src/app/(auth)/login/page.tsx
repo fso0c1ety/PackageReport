@@ -28,7 +28,7 @@ import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded';
 import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
-import { getServerUrl } from '../../apiUrl';
+import { getApiUrl } from '../../apiUrl';
 import smartManageLogo from '../../../../assets/icon.png';
 
 const LoginShell = styled(Box)(({ theme }) => ({
@@ -276,11 +276,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const endpoint = isLogin ? '/api/auth/login/' : '/api/auth/register/';
+    const endpoint = isLogin ? 'auth/login' : 'auth/register';
 
     try {
-      const serverUrl = getServerUrl();
-      const response = await fetch(`${serverUrl}${endpoint}`, {
+      const response = await fetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
