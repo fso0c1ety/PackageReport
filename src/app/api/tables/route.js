@@ -22,7 +22,18 @@ export async function GET(req) {
           COALESCE(json_agg(json_build_object('id', r.id, 'table_id', r.table_id, 'values', r.values)) FILTER (WHERE r.id IS NOT NULL), '[]') as tasks
         FROM tables t
         LEFT JOIN rows r ON t.id = r.table_id
-        WHERE t.workspace_id = $1 AND ($2 = $3 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $3))
+        WHERE t.workspace_id = $1 AND (
+          $2 = $3 OR EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(
+              CASE
+                WHEN jsonb_typeof(t.shared_users) = 'array' THEN t.shared_users
+                ELSE '[]'::jsonb
+              END
+            ) AS elem
+            WHERE elem->>'userId' = $3
+          )
+        )
         GROUP BY t.id
       `, [workspaceId, workspace.owner_id, user.id]);
       return NextResponse.json(tablesResult.rows);

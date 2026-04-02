@@ -12,13 +12,25 @@ export async function GET(req, { params }) {
       SELECT t.id, t.shared_users, w.owner_id
       FROM tables t
       JOIN workspaces w ON t.workspace_id = w.id
-      WHERE t.id = $1 AND (w.owner_id = $2 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $2))
+      WHERE t.id = $1 AND (
+        w.owner_id = $2 OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(t.shared_users) = 'array' THEN t.shared_users
+              ELSE '[]'::jsonb
+            END
+          ) AS elem
+          WHERE elem->>'userId' = $2
+        )
+      )
     `, [params.tableId, user.id]);
     if (accessRes.rows.length === 0) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
     const table = accessRes.rows[0];
     const ownerId = table.owner_id;
-    const sharedUserIds = (table.shared_users || []).map((u) => u.userId);
+    const safeSharedUsers = Array.isArray(table.shared_users) ? table.shared_users : [];
+    const sharedUserIds = safeSharedUsers.map((u) => u.userId);
     const memberIds = [...new Set([ownerId, ...sharedUserIds])];
 
     const usersRes = await db.query('SELECT id, name, email, avatar FROM users WHERE id = ANY($1)', [memberIds]);

@@ -19,12 +19,17 @@ export async function GET(req) {
         SELECT
           (elem->>'userId') as user_id,
           'joined' as status,
-          ot.id as table_id,
-          ot.table_name,
-          ot.workspace_name,
-          (elem->>'permission') as permission
+        ot.id as table_id,
+        ot.table_name,
+        ot.workspace_name,
+        (elem->>'permission') as permission
         FROM owned_tables ot
-        CROSS JOIN LATERAL jsonb_array_elements(ot.shared_users) AS elem
+        CROSS JOIN LATERAL jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(ot.shared_users) = 'array' THEN ot.shared_users
+            ELSE '[]'::jsonb
+          END
+        ) AS elem
         UNION ALL
         SELECT
           n.recipient_id::text as user_id,

@@ -12,7 +12,18 @@ export async function GET(req, { params }) {
       SELECT t.*, w.owner_id as workspace_owner_id, w.name as workspace_name
       FROM tables t
       JOIN workspaces w ON t.workspace_id = w.id
-      WHERE t.id = $1 AND (w.owner_id = $2 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $2))
+      WHERE t.id = $1 AND (
+        w.owner_id = $2 OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(t.shared_users) = 'array' THEN t.shared_users
+              ELSE '[]'::jsonb
+            END
+          ) AS elem
+          WHERE elem->>'userId' = $2
+        )
+      )
     `, [params.tableId, user.id]);
     if (!result.rows[0]) return NextResponse.json({ error: 'Table not found or forbidden' }, { status: 404 });
     return NextResponse.json(result.rows[0]);

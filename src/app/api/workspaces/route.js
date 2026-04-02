@@ -18,7 +18,12 @@ export async function GET(req) {
           SELECT jsonb_agg(jsonb_build_object('id', um.id, 'name', um.name, 'avatar', um.avatar))
           FROM (
             SELECT DISTINCT (elem->>'userId') as uid
-            FROM tables t2, jsonb_array_elements(t2.shared_users) elem
+            FROM tables t2, jsonb_array_elements(
+              CASE
+                WHEN jsonb_typeof(t2.shared_users) = 'array' THEN t2.shared_users
+                ELSE '[]'::jsonb
+              END
+            ) elem
             WHERE t2.workspace_id = w.id
           ) distinct_users
           JOIN users um ON um.id = distinct_users.uid
@@ -27,7 +32,16 @@ export async function GET(req) {
       FROM workspaces w
       JOIN users u ON w.owner_id = u.id
       LEFT JOIN tables t ON w.id = t.workspace_id
-      WHERE w.owner_id = $1 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $1)
+      WHERE w.owner_id = $1 OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(t.shared_users) = 'array' THEN t.shared_users
+            ELSE '[]'::jsonb
+          END
+        ) AS elem
+        WHERE elem->>'userId' = $1
+      )
     `, [user.id]);
     return NextResponse.json(result.rows);
   } catch (err) {

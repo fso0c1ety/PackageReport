@@ -15,7 +15,17 @@ export async function GET(req, { params }) {
 
     const isOwner = workspace.owner_id === user.id;
     const sharedCount = await db.query(
-      `SELECT COUNT(*) FROM tables WHERE workspace_id = $1 AND EXISTS (SELECT 1 FROM jsonb_array_elements(shared_users) AS elem WHERE elem->>'userId' = $2)`,
+      `SELECT COUNT(*) FROM tables
+       WHERE workspace_id = $1 AND EXISTS (
+         SELECT 1
+         FROM jsonb_array_elements(
+           CASE
+             WHEN jsonb_typeof(shared_users) = 'array' THEN shared_users
+             ELSE '[]'::jsonb
+           END
+         ) AS elem
+         WHERE elem->>'userId' = $2
+       )`,
       [params.workspaceId, user.id]
     );
     if (!isOwner && parseInt(sharedCount.rows[0].count) === 0) {
@@ -23,7 +33,19 @@ export async function GET(req, { params }) {
     }
 
     const tablesResult = await db.query(
-      `SELECT * FROM tables WHERE workspace_id = $1 AND ($2 = $3 OR EXISTS (SELECT 1 FROM jsonb_array_elements(shared_users) AS elem WHERE elem->>'userId' = $3))`,
+      `SELECT * FROM tables
+       WHERE workspace_id = $1 AND (
+         $2 = $3 OR EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements(
+             CASE
+               WHEN jsonb_typeof(shared_users) = 'array' THEN shared_users
+               ELSE '[]'::jsonb
+             END
+           ) AS elem
+           WHERE elem->>'userId' = $3
+         )
+       )`,
       [params.workspaceId, workspace.owner_id, user.id]
     );
     return NextResponse.json(tablesResult.rows);

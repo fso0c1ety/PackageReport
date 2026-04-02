@@ -12,7 +12,18 @@ export async function GET(req, { params }) {
       SELECT DISTINCT w.*
       FROM workspaces w
       LEFT JOIN tables t ON w.id = t.workspace_id
-      WHERE w.id = $1 AND (w.owner_id = $2 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $2))
+      WHERE w.id = $1 AND (
+        w.owner_id = $2 OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(t.shared_users) = 'array' THEN t.shared_users
+              ELSE '[]'::jsonb
+            END
+          ) AS elem
+          WHERE elem->>'userId' = $2
+        )
+      )
     `, [params.workspaceId, user.id]);
     if (!result.rows[0]) return NextResponse.json({ error: 'Workspace not found or forbidden' }, { status: 403 });
     return NextResponse.json(result.rows[0]);
