@@ -127,11 +127,6 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
   }
 
   if (response.status === 401) {
-    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-      localStorage.removeItem('token'); // Clear invalid token
-      window.location.href = '/login';
-      return new Promise(() => { }) as unknown as Response;
-    }
     throw new Error("Unauthorized");
   }
 
