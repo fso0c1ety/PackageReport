@@ -438,6 +438,30 @@ export default function HomeDashboard() {
         
         if (Array.isArray(wsData)) {
             setWorkspaces(wsData);
+            // Keep "Recently Visited" workspace in sync with accessible workspaces.
+            if (typeof window !== "undefined") {
+              const userJson = localStorage.getItem("user");
+              if (userJson) {
+                try {
+                  const user = JSON.parse(userJson);
+                  const userId = user?.id;
+                  if (userId) {
+                    const key = `lastWorkspace_${userId}`;
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                      const parsed = JSON.parse(raw);
+                      const isValid = wsData.some((ws: any) => ws?.id === parsed?.id);
+                      if (!isValid) {
+                        localStorage.removeItem(key);
+                        setLastWorkspace(null);
+                      } else {
+                        setLastWorkspace(parsed);
+                      }
+                    }
+                  }
+                } catch {}
+              }
+            }
             setError(null);
         } else {
             // If API returns an error object, treat it as an error, not empty array
