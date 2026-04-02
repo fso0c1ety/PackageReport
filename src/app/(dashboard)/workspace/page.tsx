@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -10,6 +10,7 @@ import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 function WorkspaceContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get('id');
   const tableIdParam = searchParams.get('tableId');
@@ -30,7 +31,7 @@ function WorkspaceContent() {
 
       // Try to get workspace name from API or fallback to id
       authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`))
-        .then(res => res.json())
+        .then(async (res) => (res.ok ? res.json() : null))
         .then(ws => {
           if (ws && ws.id) {
             localStorage.setItem(storageKey, JSON.stringify({ id: ws.id, name: ws.name || ws.id }));
@@ -113,12 +114,35 @@ function WorkspaceContent() {
   const fetchTables = async () => {
     if (!workspaceId) return;
     setLoading(true);
-    const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
-    const data = await res.json();
-    setTables(data);
-    // If no tab is selected, select the first one
-    if (!selected && data.length > 0) setSelected(data[0].id);
-    setLoading(false);
+    try {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
+
+      if (res.status === 403 || res.status === 404) {
+        const wsRes = await authenticatedFetch(getApiUrl("workspaces"));
+        if (wsRes.ok) {
+          const workspaces = await wsRes.json();
+          if (Array.isArray(workspaces) && workspaces.length > 0) {
+            router.replace(`/workspace?id=${workspaces[0].id}`);
+            return;
+          }
+        }
+        router.replace("/dashboard");
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch workspace tables: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setTables(Array.isArray(data) ? data : []);
+      if (!selected && Array.isArray(data) && data.length > 0) setSelected(data[0].id);
+    } catch (err) {
+      console.error("Failed to fetch tables", err);
+      setTables([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -133,7 +157,7 @@ function WorkspaceContent() {
     return () => {
       window.removeEventListener('workspaceUpdated', handleUpdate);
     };
-  }, [workspaceId]);
+  }, [workspaceId, router]);
 
   const handleAddTable = async () => {
     setCreating(true);

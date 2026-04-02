@@ -74,11 +74,18 @@ export function getAssetUrl(asset: string | null | undefined) {
     normalized = normalized.startsWith('uploads/') ? `/${normalized}` : `/uploads/${normalized}`;
   }
 
-  if (typeof window !== 'undefined' && !isNativeRuntime()) {
-    return normalized;
+  let base = DEFAULT_ASSET_URL.trim();
+  if (base && !base.startsWith('http://') && !base.startsWith('https://')) {
+    base = `https://${base}`;
   }
 
-  const base = DEFAULT_ASSET_URL.trim();
+  // Web should still use external asset host when configured (legacy /uploads are not on Vercel).
+  if (typeof window !== 'undefined' && !isNativeRuntime()) {
+    if (!base) return normalized;
+    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    return `${cleanBase}${normalized}`;
+  }
+
   if (!base) return normalized;
   const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
   return `${cleanBase}${normalized}`;
