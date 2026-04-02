@@ -276,7 +276,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const endpoint = isLogin ? '/api/login' : '/api/register';
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
 
     try {
       const serverUrl = getServerUrl();
