@@ -1,21 +1,22 @@
 import { Pool } from 'pg';
 
-const connectionString = process.env.DATABASE_URL;
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  console.warn('[Config] DATABASE_URL is not set — using the default connection string. Set DATABASE_URL in your Vercel environment variables for production.');
+}
+
+const connectionString = process.env.DATABASE_URL ||
+  'postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres';
 
 // Only use SSL for cloud/remote database connections, not for localhost
 const isLocalConnection =
-  connectionString &&
-  (connectionString.includes('localhost') || connectionString.includes('127.0.0.1'));
+  connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 
-const sslConfig = (!connectionString || isLocalConnection) ? false : { rejectUnauthorized: false };
+const sslConfig = isLocalConnection ? false : { rejectUnauthorized: false };
 
 let pool;
 
 function getPool() {
   if (!pool) {
-    if (!connectionString && process.env.NODE_ENV === 'production') {
-      throw new Error('DATABASE_URL environment variable is required in production');
-    }
     pool = new Pool({
       connectionString,
       ssl: sslConfig,
