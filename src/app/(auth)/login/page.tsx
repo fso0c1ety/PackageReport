@@ -286,7 +286,13 @@ export default function LoginPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Failed to parse server response:', parseError);
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Something went wrong');

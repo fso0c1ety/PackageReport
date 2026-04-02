@@ -357,7 +357,7 @@ const friendsRoute = require('./routes/friends');
 const chatsRoute = require('./routes/chats');
 
 // const tableTasksRoute = require('./routes/tableTasks');
-app.use('/api', authRoute);
+app.use('/api/auth', authRoute);
 app.use('/api', peopleRoute);
 app.use('/api', automationRoute);
 app.use('/api', emailerRoute);
