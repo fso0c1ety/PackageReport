@@ -133,13 +133,5 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     throw err;
   }
 
-  if (response.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (response.status === 403) {
-    throw new Error("Forbidden");
-  }
-
   return response;
 }

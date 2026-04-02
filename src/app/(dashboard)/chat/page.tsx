@@ -108,6 +108,8 @@ function ChatContent() {
             if (msgRes.ok) {
                 const data = await msgRes.json();
                 setMessages(data);
+            } else {
+                setMessages([]);
             }
 
             // Also get user info if not already set or mismatched
@@ -116,10 +118,18 @@ function ChatContent() {
                 if (res.ok) {
                     const user = await res.json();
                     setOtherUser(user);
+                } else {
+                    setOtherUser({
+                        id: otherUserId,
+                        name: "Unknown user",
+                        avatar: null,
+                        missing: true,
+                    });
                 }
             }
         } catch (err) {
             console.error("Failed to fetch messages", err);
+            setMessages([]);
         } finally {
             console.log("[Chat] Messages fetched for:", otherUserId, "count:", messages.length);
             setLoading(false);
