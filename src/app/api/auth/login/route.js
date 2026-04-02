@@ -8,11 +8,11 @@ export const runtime = 'nodejs';
 const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_here';
 
 export async function POST(req) {
-  const { email, password } = await req.json();
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
-  }
   try {
+    const { email, password } = await req.json();
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
     const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = result.rows[0];
     if (!user) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

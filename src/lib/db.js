@@ -2,16 +2,15 @@ import { Pool } from 'pg';
 
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString && process.env.NODE_ENV === 'production') {
-  throw new Error('DATABASE_URL environment variable is required in production');
-}
-
 let pool;
 
 function getPool() {
   if (!pool) {
+    if (!connectionString && process.env.NODE_ENV === 'production') {
+      throw new Error('DATABASE_URL environment variable is required in production');
+    }
     pool = new Pool({
-      connectionString: connectionString || 'postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres',
+      connectionString,
       ssl: { rejectUnauthorized: false },
     });
     pool.on('error', (err) => {
