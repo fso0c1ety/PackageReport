@@ -25,7 +25,7 @@ export async function GET(req, { params }) {
         )
       )
     `, [params.workspaceId, user.id]);
-    if (!result.rows[0]) return NextResponse.json({ error: 'Workspace not found or forbidden' }, { status: 403 });
+    if (!result.rows[0]) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
     return NextResponse.json(result.rows[0]);
   } catch (err) {
     console.error('Error fetching workspace:', err);
