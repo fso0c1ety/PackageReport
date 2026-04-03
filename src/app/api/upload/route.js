@@ -5,7 +5,13 @@ import { getAuthenticatedUser } from "../_lib/server";
 export const runtime = "nodejs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+  "";
 const bucketName = process.env.SUPABASE_STORAGE_BUCKET || "uploads";
 
 function sanitizeFilename(name) {
@@ -23,7 +29,10 @@ export async function POST(req) {
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     return NextResponse.json(
-      { error: "Missing Supabase Storage server credentials" },
+      {
+        error:
+          "Missing Supabase Storage server credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE).",
+      },
       { status: 500 }
     );
   }
@@ -55,7 +64,13 @@ export async function POST(req) {
 
     if (uploadError) {
       console.error("[UPLOAD][SUPABASE] Upload error:", uploadError);
-      return NextResponse.json({ error: "Failed to upload file" }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: "Failed to upload file",
+          details: uploadError.message || String(uploadError),
+        },
+        { status: 500 }
+      );
     }
 
     const { data: publicData } = supabase.storage
@@ -76,6 +91,9 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("[UPLOAD][POST] Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error", details: err?.message || String(err) },
+      { status: 500 }
+    );
   }
 }
