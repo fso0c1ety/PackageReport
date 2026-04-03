@@ -10,7 +10,6 @@ const supabaseServiceRoleKey =
   process.env.SUPABASE_SERVICE_ROLE ||
   process.env.SUPABASE_SERVICE_KEY ||
   process.env.SUPABASE_SECRET_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
   "";
 const bucketName = process.env.SUPABASE_STORAGE_BUCKET || "uploads";
 
@@ -57,6 +56,16 @@ export async function POST(req) {
       {
         error:
           "Missing Supabase Storage server credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE).",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (/^sb_publishable_/i.test(supabaseServiceRoleKey)) {
+    return NextResponse.json(
+      {
+        error:
+          "Invalid key for server upload. SUPABASE_SERVICE_ROLE_KEY must be the service role key, not a publishable key.",
       },
       { status: 500 }
     );
