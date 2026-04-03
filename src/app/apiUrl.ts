@@ -30,11 +30,11 @@ function getBrowserOrigin() {
 }
 
 export function getServerUrl() {
-  return normalizeBaseUrl(DEFAULT_SERVER_URL) || getFrontendUrl();
+  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_SERVER_URL) || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
 }
 
 export function getFrontendUrl() {
-  return normalizeBaseUrl(DEFAULT_FRONTEND_URL) || getBrowserOrigin();
+  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
 }
 
 export function getSocketUrl() {
@@ -78,7 +78,7 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
     return avatar;
   }
 
-  const base = normalizeBaseUrl(DEFAULT_ASSET_URL) || getServerUrl();
+  const base = getBrowserOrigin() || normalizeBaseUrl(DEFAULT_ASSET_URL) || getServerUrl();
   const normalizedPath = avatar.startsWith('/')
     ? avatar
     : avatar.startsWith('uploads/')
