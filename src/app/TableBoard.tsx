@@ -542,7 +542,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     let isMounted = true;
     const fetchChat = () => {
       authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch board chat (${res.status})`);
+          }
+          return res.json();
+        })
         .then((data) => {
           if (!isMounted) return;
           if (Array.isArray(data)) {
@@ -1939,7 +1944,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       .finally(() => setLoading(false));
 
     authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch table tasks (${res.status})`);
+        }
+        return res.json();
+      })
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           // Map messages in all rows
@@ -1964,6 +1974,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             }
           ]);
         }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch table tasks", err);
+        setRows([]);
       })
       .finally(() => setLoading(false));
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
@@ -2856,7 +2870,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setChatTaskId(rowId);
     // Always load messages from backend when opening
     authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Failed to load task chat (${res.status})`);
+        }
+        return res.json();
+      })
       .then(task => setChatMessages(task.values.message || []));
   };
   const handleCloseChat = () => {

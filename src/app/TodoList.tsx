@@ -25,8 +25,17 @@ export function TodoList({ columns, tableId }: TodoListProps) {
   useEffect(() => {
     setLoading(true);
     authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch tasks (${res.status})`);
+        }
+        return res.json();
+      })
       .then((data) => setTasks(data))
+      .catch((err) => {
+        console.error('Failed to fetch tasks:', err);
+        setTasks([]);
+      })
       .finally(() => setLoading(false));
   }, [tableId]);
 
@@ -40,8 +49,16 @@ export function TodoList({ columns, tableId }: TodoListProps) {
     });
     // Refetch tasks from backend after adding
     authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch tasks (${res.status})`);
+        }
+        return res.json();
+      })
       .then((data) => setTasks(data))
+      .catch((err) => {
+        console.error('Failed to refresh tasks:', err);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -58,8 +75,16 @@ export function TodoList({ columns, tableId }: TodoListProps) {
     }
     // Refetch tasks from backend after editing
     authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch tasks (${res.status})`);
+        }
+        return res.json();
+      })
       .then((data) => setTasks(data))
+      .catch((err) => {
+        console.error('Failed to refresh tasks:', err);
+      })
       .finally(() => {
         setEditingCell(null);
         setLoading(false);

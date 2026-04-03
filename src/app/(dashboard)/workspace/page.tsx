@@ -30,7 +30,12 @@ function WorkspaceContent() {
 
       // Try to get workspace name from API or fallback to id
       authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`))
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Workspace fetch failed (${res.status})`);
+          }
+          return res.json();
+        })
         .then(ws => {
           if (ws && ws.id) {
             localStorage.setItem(storageKey, JSON.stringify({ id: ws.id, name: ws.name || ws.id }));
@@ -114,6 +119,9 @@ function WorkspaceContent() {
     if (!workspaceId) return;
     setLoading(true);
     const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
+    if (!res.ok) {
+      throw new Error(`Failed to fetch tables (${res.status})`);
+    }
     const data = await res.json();
     setTables(data);
     // If no tab is selected, select the first one
@@ -122,12 +130,19 @@ function WorkspaceContent() {
   };
 
   useEffect(() => {
-    fetchTables();
+    fetchTables().catch(err => {
+      console.error('Failed to fetch workspace tables', err);
+      setTables([]);
+      setLoading(false);
+    });
     // Reset selected tab on workspace change
     setSelected(null);
 
     const handleUpdate = () => {
-      fetchTables();
+      fetchTables().catch(err => {
+        console.error('Failed to refresh workspace tables', err);
+        setLoading(false);
+      });
     };
     window.addEventListener('workspaceUpdated', handleUpdate);
     return () => {
