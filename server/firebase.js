@@ -3,7 +3,7 @@ const admin = require('firebase-admin');
 // Initialize Firebase Admin
 let serviceAccount;
 try {
-  // 1. Try to load from environment variable (Best for Production/Render)
+  // 1. Try to load from environment variable (Best for Production/Vercel)
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     console.log('[Firebase] Loaded credentials from environment variable.');

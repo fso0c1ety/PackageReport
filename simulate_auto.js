@@ -2,7 +2,7 @@ const { Pool } = require('pg');
 const { sendEmail } = require('./server/mailer');
 
 const pool = new Pool({
-    connectionString: 'postgresql://smartmanage_user:u0px8vQuENhbXmQtR3cLAUbJcSa39TSl@dpg-d6h1iucr85hc73978m90-a.oregon-postgres.render.com/smartmanage',
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres',
     ssl: { rejectUnauthorized: false }
 });
 
