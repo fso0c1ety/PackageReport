@@ -404,10 +404,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Initialize Socket Connection - depends on tableId
   useEffect(() => {
     if (!tableId) return;
+    if (!SERVER_URL) return; // No external backend configured — skip real-time Socket.io
 
-    console.log('Connecting socket to:', SERVER_URL || window.location.origin);
+    console.log('Connecting socket to:', SERVER_URL);
 
-    const newSocket = io(SERVER_URL || window.location.origin, {
+    const newSocket = io(SERVER_URL, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
