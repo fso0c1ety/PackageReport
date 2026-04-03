@@ -14,6 +14,31 @@ const supabaseServiceRoleKey =
   "";
 const bucketName = process.env.SUPABASE_STORAGE_BUCKET || "uploads";
 
+async function ensureBucketExists(supabase, bucket) {
+  const { data, error } = await supabase.storage.listBuckets();
+  if (error) {
+    console.error("[UPLOAD][SUPABASE] Failed to list buckets:", error);
+    return { ok: false, created: false, reason: error.message || String(error) };
+  }
+
+  const exists = Array.isArray(data) && data.some((b) => b.name === bucket);
+  if (exists) {
+    return { ok: true, created: false };
+  }
+
+  const { error: createErr } = await supabase.storage.createBucket(bucket, {
+    public: true,
+    fileSizeLimit: "50MB",
+  });
+
+  if (createErr) {
+    console.error("[UPLOAD][SUPABASE] Failed to create bucket:", createErr);
+    return { ok: false, created: false, reason: createErr.message || String(createErr) };
+  }
+
+  return { ok: true, created: true };
+}
+
 function sanitizeFilename(name) {
   return String(name || "file")
     .replace(/[^a-zA-Z0-9._-]/g, "_")
@@ -55,12 +80,31 @@ export async function POST(req) {
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-    const { error: uploadError } = await supabase.storage
+    const doUpload = () =>
+      supabase.storage
       .from(bucketName)
       .upload(objectPath, fileBuffer, {
         contentType: file.type || "application/octet-stream",
         upsert: false,
       });
+
+    let { error: uploadError } = await doUpload();
+
+    // Auto-heal if bucket is missing in production configuration.
+    if (uploadError && /bucket not found/i.test(uploadError.message || "")) {
+      const ensured = await ensureBucketExists(supabase, bucketName);
+      if (ensured.ok) {
+        ({ error: uploadError } = await doUpload());
+      } else {
+        return NextResponse.json(
+          {
+            error: "Failed to upload file",
+            details: `Bucket not found and auto-create failed: ${ensured.reason || "unknown"}`,
+          },
+          { status: 500 }
+        );
+      }
+    }
 
     if (uploadError) {
       console.error("[UPLOAD][SUPABASE] Upload error:", uploadError);
