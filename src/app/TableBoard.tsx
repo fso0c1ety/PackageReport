@@ -747,11 +747,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setReviewTask(null);
     setShowEmailAutomation(false);
     setMobileTab('details'); // Reset tab on close
+    
+    // Clear URL parameters to prevent auto-reopening
+    const params = new URLSearchParams(searchParams);
+    params.delete('taskId');
+    params.delete('tab');
+    const currentPath = window.location.pathname;
+    const newUrl = params.toString() ? `${currentPath}?${params.toString()}` : currentPath;
+    router.replace(newUrl);
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
 
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     const targetTaskId = taskId || searchParams.get('taskId');
