@@ -9,7 +9,8 @@ export async function DELETE(req, { params }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const teammateId = params?.teammateId;
+  const routeParams = await params;
+  const teammateId = routeParams?.teammateId;
   if (!teammateId) {
     return NextResponse.json({ error: "Missing teammateId" }, { status: 400 });
   }
