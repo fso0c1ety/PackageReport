@@ -1,52 +1,54 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image"; // Added Image import
+import { usePathname, useRouter } from "next/navigation";
 import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
 import {
-  Avatar,
   Box,
+  Typography,
+  IconButton,
+  Divider,
   Button,
   Dialog,
-  DialogActions,
-  DialogContent,
   DialogTitle,
-  Divider,
+  DialogContent,
+  TextField,
+  DialogActions,
+  Tooltip,
   Drawer,
-  IconButton,
+  List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  TextField,
-  Typography,
+  useTheme,
+  useMediaQuery,
+  Autocomplete,
+  FormControl,
+  Avatar,
   alpha,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
+import AddIcon from "@mui/icons-material/Add";
 import HomeIcon from "@mui/icons-material/Home";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import PsychologyIcon from "@mui/icons-material/Psychology";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import SettingsIcon from "@mui/icons-material/Settings";
+import SearchIcon from "@mui/icons-material/Search";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import PersonIcon from "@mui/icons-material/Person";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import EditIcon from "@mui/icons-material/Edit";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import GroupIcon from "@mui/icons-material/Group";
 import AddLinkIcon from "@mui/icons-material/AddLink";
-import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
-import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
-import DashboardCustomizeRoundedIcon from "@mui/icons-material/DashboardCustomizeRounded";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
 
 // --- Components ---
-
-interface CurrentUser {
-  name?: string;
-  avatar?: string;
-  job_title?: string;
-}
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -62,36 +64,19 @@ function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps)
     <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }} onClick={onClick}>
       <ListItemButton
         sx={{
-          py: 1.1,
-          px: 1.35,
-          borderRadius: 3.5,
-          width: "100%",
-          bgcolor: isActive
-            ? theme.palette.mode === "dark"
-              ? "rgba(255,255,255,0.06)"
-              : "rgba(15,23,42,0.04)"
-            : "transparent",
-          color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-          border: `1px solid ${isActive ? alpha(theme.palette.primary.main, 0.18) : "transparent"}`,
-          transition: "all 0.18s ease-in-out",
-          position: "relative",
-          overflow: "hidden",
-          "&::before": {
-            content: '""',
-            position: "absolute",
-            left: 0,
-            top: 10,
-            bottom: 10,
-            width: 3,
-            borderRadius: 999,
-            bgcolor: isActive ? theme.palette.primary.main : "transparent",
-          },
+          py: 1,
+          px: 2,
+          mx: 1,
+          mb: 0.5,
+          borderRadius: 2,
+          width: "auto",
+          bgcolor: isActive ? theme.palette.action.selected : "transparent",
+          color: isActive ? theme.palette.primary.main : theme.palette.text.secondary,
+          transition: "all 0.2s ease-in-out",
           "&:hover": {
-            bgcolor: isActive
-              ? alpha(theme.palette.primary.main, 0.12)
-              : alpha(theme.palette.text.primary, 0.045),
+            bgcolor: theme.palette.action.hover,
             color: theme.palette.text.primary,
-            transform: "translateX(3px)",
+            transform: "translateX(4px)",
           },
         }}
       >
@@ -99,11 +84,6 @@ function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps)
           sx={{
             minWidth: 36,
             color: isActive ? theme.palette.primary.main : "inherit",
-            "& > *": {
-              p: 0,
-              borderRadius: 0,
-              bgcolor: "transparent",
-            },
           }}
         >
           {icon}
@@ -112,54 +92,16 @@ function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps)
           primary={label}
           primaryTypographyProps={{
             fontSize: "0.9rem",
-            fontWeight: isActive ? 700 : 600,
-            letterSpacing: "-0.01em",
+            fontWeight: isActive ? 600 : 500,
+            letterSpacing: "0.01em",
           }}
         />
-        <CircleRoundedIcon sx={{ fontSize: 9, color: isActive ? theme.palette.primary.main : "transparent" }} />
       </ListItemButton>
     </Link>
   );
 }
 
-function InlineHeader({
-  label,
-  action,
-}: {
-  label: string;
-  action?: React.ReactNode;
-}) {
-  const theme = useTheme();
-
-  return (
-    <Box
-      sx={{
-        px: 0.2,
-        mb: 0.85,
-        mt: 1.2,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 1,
-      }}
-    >
-      <Typography
-        sx={{
-          color: theme.palette.text.secondary,
-          fontWeight: 800,
-          fontSize: "0.67rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.16em",
-        }}
-      >
-        {label}
-      </Typography>
-      {action}
-    </Box>
-  );
-}
-
-const drawerWidth = 296;
+const drawerWidth = 260;
 
 export default function Sidebar({
   mobileOpen,
@@ -170,14 +112,16 @@ export default function Sidebar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { showNotification } = useNotification();
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null); // Added state for user
 
 
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
@@ -187,7 +131,8 @@ export default function Sidebar({
   const [inviteCodeValue, setInviteCodeValue] = useState("");
 
 
-  const currentWorkspaceId = searchParams.get("id");
+  const currentWorkspaceId = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('id');
+
   // Fetch workspaces and user
   useEffect(() => {
     // Load local user immediately for fast render
@@ -197,8 +142,8 @@ export default function Sidebar({
       if (storedUserStr) {
         setCurrentUser(JSON.parse(storedUserStr));
       }
-    } catch (error) {
-      console.error("Failed to parse user from local storage", error);
+    } catch (e) {
+      console.error("Failed to parse user from local storage", e);
     }
 
     // Fetch fresh profile from API so avatar is always up-to-date
@@ -211,7 +156,7 @@ export default function Sidebar({
             try {
               const parsed = JSON.parse(storedUserStr);
               localStorage.setItem("user", JSON.stringify({ ...parsed, ...data }));
-            } catch {}
+            } catch (e) {}
           }
         }
       })
@@ -222,7 +167,9 @@ export default function Sidebar({
         if (!res.ok) throw new Error("Failed to fetch workspaces");
         return res.json();
       })
-      .then(() => {})
+      .then((data) => {
+        if (Array.isArray(data)) setWorkspaces(data);
+      })
       .catch((err) => console.error("Failed to fetch workspaces", err));
   }, []);
 
@@ -237,6 +184,8 @@ export default function Sidebar({
 
       if (!wsRes.ok) throw new Error("Failed to create workspace");
       const ws = await wsRes.json();
+      setWorkspaces((prev) => [...prev, ws]);
+
       // Auto-create table
       let table = null;
       let attempts = 0;
@@ -263,11 +212,10 @@ export default function Sidebar({
 
       setDialogOpen(false);
       setNewWorkspaceName("");
-      window.dispatchEvent(new CustomEvent("workspaceUpdated"));
       if (table && onClose) onClose(); // Close drawer on mobile if open
       if (table) router.push(`/workspace?id=${ws.id}`);
       showNotification("Workspace created successfully!", "success");
-    } catch {
+    } catch (err) {
       showNotification("Failed to create workspace. Please try again.", "error");
     }
   };
@@ -282,8 +230,11 @@ export default function Sidebar({
       });
 
       if (!res.ok) throw new Error("Failed to rename workspace");
-      await res.json();
+      const updated = await res.json();
 
+      setWorkspaces((prev) =>
+        prev.map((ws) => (ws.id === updated.id ? updated : ws))
+      );
       setRenameDialogOpen(false);
       setEditingWorkspace(null);
       // Trigger a refresh of the dropdown or reload if needed
@@ -291,10 +242,20 @@ export default function Sidebar({
       // Trigger a refresh of the dropdown or reload if needed
       window.dispatchEvent(new CustomEvent('workspaceUpdated'));
       showNotification("Workspace renamed successfully!", "success");
-    } catch {
+    } catch (err) {
       showNotification("Failed to rename workspace. Please try again.", "error");
     }
   };
+
+  const openRenameDialog = () => {
+    const currentWs = workspaces.find(ws => ws.id === currentWorkspaceId);
+    if (currentWs) {
+      setEditingWorkspace(currentWs);
+      setRenameValue(currentWs.name);
+      setRenameDialogOpen(true);
+    }
+  };
+
 
   const handleJoinBoard = async () => {
     if (!inviteCodeValue.trim()) return;
@@ -318,9 +279,8 @@ export default function Sidebar({
 
       // Redirect to the new workspace
       router.push(`/workspace?id=${data.workspaceId}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error joining board. Please check the code.";
-      showNotification(message, "error");
+    } catch (err: any) {
+      showNotification(err.message || "Error joining board. Please check the code.", "error");
     }
   };
 
@@ -330,204 +290,241 @@ export default function Sidebar({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        bgcolor: theme.palette.mode === "dark" ? "#0f1118" : "#f5f7fb",
+        bgcolor: theme.palette.background.paper, 
         color: theme.palette.text.primary,
+        borderRight: `1px solid ${theme.palette.divider}`,
         paddingTop: { xs: "env(safe-area-inset-top)", md: 0 },
       }}
     >
-      <Box sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
-        <Box sx={{ p: { xs: 2.1, md: 1.35 }, pb: { xs: 1.4, md: 0.9 } }}>
-          <Box
-            sx={{
-              p: { xs: 1.9, md: 1.25 },
-              borderRadius: 5,
-              border: `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.18 : 0.08)}`,
-              bgcolor: theme.palette.mode === "dark" ? "#151925" : "#ffffff",
-              boxShadow: theme.palette.mode === "dark" ? "0 24px 60px rgba(0,0,0,0.28)" : "0 20px 50px rgba(15,23,42,0.08)",
+      {/* Brand Header */}
+      <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 2 }}>
+        <Box
+          sx={{
+            width: 40,
+            height: 40,
+            position: 'relative',
+            borderRadius: "8px",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Image
+            src={appLogo}
+            alt="App Logo"
+            fill
+            style={{ objectFit: 'contain' }}
+            priority
+          />
+        </Box>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 800,
+            fontFamily: "var(--font-outfit)",
+            fontSize: "1.25rem",
+            letterSpacing: "-0.02em",
+            color: theme.palette.text.primary,
+          }}
+        >
+          Smart Manage
+        </Typography>
+      </Box>
+
+      {/* Search */}
+      <Box sx={{ px: 2, mb: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            bgcolor: alpha(theme.palette.text.primary, 0.05),
+            borderRadius: "8px",
+            px: 1.5,
+            py: 0.8,
+            border: "1px solid",
+            borderColor: searchFocused ? theme.palette.primary.main : "transparent",
+            transition: "all 0.2s",
+          }}
+        >
+          <SearchIcon sx={{ fontSize: 20, color: theme.palette.text.secondary, mr: 1 }} />
+          <input
+            placeholder="Search..."
+            style={{
+              background: "transparent",
+              border: "none",
+              color: theme.palette.text.primary,
+              fontSize: "0.875rem",
+              width: "100%",
+              outline: "none",
             }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1.35, md: 1.05 } }}>
-              <Box
-                sx={{
-                  width: { xs: 48, md: 42 },
-                  height: { xs: 48, md: 42 },
-                  position: "relative",
-                  borderRadius: { xs: "16px", md: "14px" },
-                  overflow: "hidden",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  bgcolor: theme.palette.mode === "dark" ? "#0d1320" : "#eef2ff",
-                  flexShrink: 0,
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
-                }}
-              >
-                <Image src={appLogo} alt="App Logo" fill style={{ objectFit: "contain" }} priority />
-              </Box>
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography sx={{ fontWeight: 900, fontSize: { xs: "1.2rem", md: "1.06rem" }, lineHeight: 1.05, letterSpacing: "-0.04em" }}>
-                  Smart Manage
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: { xs: 0.25, md: 0.1 },
-                    color: theme.palette.text.secondary,
-                    fontWeight: 800,
-                    fontSize: { xs: "0.68rem", md: "0.62rem" },
-                    lineHeight: 1.1,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.18em",
-                  }}
-                >
-                  Command center
-                </Typography>
-              </Box>
-              <Avatar
-                sx={{
-                  width: { xs: 30, md: 24 },
-                  height: { xs: 30, md: 24 },
-                  bgcolor: alpha(theme.palette.primary.main, 0.12),
-                  color: theme.palette.primary.main,
-                }}
-              >
-                <BoltRoundedIcon sx={{ fontSize: { xs: 16, md: 13 } }} />
-              </Avatar>
-            </Box>
-          </Box>
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+          />
+        </Box>
+      </Box>
+
+      {/* Main Navigation */}
+      <Box sx={{ flex: 1, overflowY: "auto", "::-webkit-scrollbar": { width: 0 } }}>
+        <Box sx={{ mb: 3 }}>
+          <SidebarItem
+            icon={<HomeIcon fontSize="small" />}
+            label="Home"
+            href="/home"
+            isActive={pathname === "/home" || pathname === "/"}
+            onClick={onClose}
+          />
+          <SidebarItem
+            icon={<ChatBubbleOutlineIcon fontSize="small" />}
+            label="Chat"
+            href="/chat"
+            isActive={pathname.startsWith("/chat")}
+            onClick={onClose}
+          />
+          <SidebarItem
+            icon={<GroupIcon fontSize="small" />}
+            label="Team"
+            href="#"
+            onClick={() => {
+              window.location.href = '/settings?tab=team';
+              if (onClose) onClose();
+            }}
+          />
+          <SidebarItem
+            icon={<SettingsIcon fontSize="small" />}
+            label="Settings"
+            href="/settings"
+            isActive={pathname === "/settings"}
+            onClick={onClose}
+          />
         </Box>
 
-        <Box sx={{ flex: 1, overflowY: "auto", px: 2.1, pb: 1.4 }}>
-          <InlineHeader label="Navigation" />
-          <Box sx={{ display: "grid", gap: 0.75 }}>
-            <SidebarItem
-              icon={<HomeIcon fontSize="small" />}
-              label="Home"
-              href="/home"
-              isActive={pathname === "/home" || pathname === "/"}
-              onClick={onClose}
-            />
-            <SidebarItem
-              icon={<ChatBubbleOutlineIcon fontSize="small" />}
-              label="Chat"
-              href="/chat"
-              isActive={pathname.startsWith("/chat")}
-              onClick={onClose}
-            />
-            <SidebarItem
-              icon={<GroupIcon fontSize="small" />}
-              label="Team"
-              href="#"
-              onClick={() => {
-                router.push("/settings?tab=team");
-                if (onClose) onClose();
-              }}
-            />
-            <SidebarItem
-              icon={<SettingsIcon fontSize="small" />}
-              label="Settings"
-              href="/settings"
-              isActive={pathname === "/settings"}
-              onClick={onClose}
-            />
-          </Box>
+        <Divider sx={{ borderColor: theme.palette.divider, mx: 3, mb: 3 }} />
 
-          <InlineHeader label="Workspace" />
-          <Box
+        {/* AI Tools Section */}
+        <Box sx={{ mb: 3 }}>
+          <Typography
+            variant="caption"
             sx={{
-              p: 0.55,
-              borderRadius: 4,
-              bgcolor: theme.palette.mode === "dark" ? "#0f131d" : "#f8fafc",
-              border: `1px solid ${theme.palette.divider}`,
+              px: 3,
+              mb: 1.5,
+              display: "block",
+              color: theme.palette.text.secondary,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              fontSize: "0.7rem",
+              letterSpacing: "0.05em",
             }}
           >
-            <WorkspaceDropdown currentId={currentWorkspaceId || undefined} />
+            Smart/Tools AI
+          </Typography>
+          <SidebarItem icon={<SmartToyIcon fontSize="small" />} label="AI Sidekick" href="#" />
+          <SidebarItem icon={<AutoAwesomeIcon fontSize="small" />} label="Vibe" href="#" />
+          <SidebarItem icon={<PsychologyIcon fontSize="small" />} label="Reflex" href="#" />
+          <SidebarItem
+            icon={<RecordVoiceOverIcon fontSize="small" />}
+            label="Notetaker"
+            href="#"
+          />
+        </Box>
+
+        {/* Workspaces Section */}
+        <Box sx={{ mb: 3 }}>
+          <Box
+            sx={{
+              px: 3,
+              mb: 1.5,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                color: theme.palette.text.secondary,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                fontSize: "0.7rem",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Workspaces
+            </Typography>
+            <Tooltip title="New Workspace">
+              <IconButton
+                size="small"
+                onClick={() => setDialogOpen(true)}
+                sx={{
+                  color: theme.palette.text.secondary,
+                  "&:hover": { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover },
+                }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
 
-          <Box sx={{ mt: 1.15 }}>
+          <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <WorkspaceDropdown />
+          </Box>
+          {/* Actions */}
+          <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+
             <Button
               fullWidth
-              variant="text"
+              variant="outlined"
               startIcon={<AddLinkIcon />}
               onClick={() => setJoinDialogOpen(true)}
               sx={{
-                justifyContent: "flex-start",
                 color: theme.palette.text.primary,
-                borderRadius: 3.5,
-                fontWeight: 800,
-                py: 1.1,
-                px: 1.2,
-                bgcolor: theme.palette.mode === "dark" ? "#0f131d" : "#f8fafc",
-                border: `1px solid ${theme.palette.divider}`,
-                "&:hover": { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                borderColor: theme.palette.divider,
+                '&:hover': { borderColor: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1) },
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                py: 1
               }}
             >
-              Join code
+              Join with Code
             </Button>
-          </Box>
 
-          <InlineHeader
-            label="Assist"
-            action={
-              <Avatar sx={{ width: 26, height: 26, bgcolor: alpha(theme.palette.primary.main, 0.12), color: theme.palette.primary.main }}>
-                <DashboardCustomizeRoundedIcon sx={{ fontSize: 14 }} />
-              </Avatar>
-            }
-          />
-          <Box sx={{ display: "grid", gap: 0.75 }}>
-            <SidebarItem icon={<SmartToyIcon fontSize="small" />} label="AI Sidekick" href="#" />
-            <SidebarItem icon={<AutoAwesomeIcon fontSize="small" />} label="Vibe" href="#" />
-            <SidebarItem icon={<PsychologyIcon fontSize="small" />} label="Reflex" href="#" />
-            <SidebarItem icon={<RecordVoiceOverIcon fontSize="small" />} label="Notetaker" href="#" />
           </Box>
         </Box>
+      </Box>
 
-        <Box sx={{ px: 2.1, pb: 2.1 }}>
-          <Divider sx={{ borderColor: theme.palette.divider, mb: 1.2 }} />
-          <Box
+      {/* Footer Profile */}
+      <Divider sx={{ borderColor: theme.palette.divider }} />
+      <Box sx={{ p: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            p: 1,
+            borderRadius: 2,
+            cursor: "pointer",
+            "&:hover": { bgcolor: theme.palette.action.hover },
+          }}
+        >
+          <Avatar
+            src={getAvatarUrl(currentUser?.avatar, currentUser?.name)}
+            alt={currentUser?.name || "User"}
             sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.4,
-              p: 1.25,
-              borderRadius: 4,
-              bgcolor: theme.palette.mode === "dark" ? "#141925" : "#ffffff",
-              border: `1px solid ${theme.palette.divider}`,
+              width: 32,
+              height: 32,
+              bgcolor: theme.palette.primary.main,
+              fontSize: "0.875rem",
+              fontWeight: 600,
             }}
-          >
-            <Avatar
-              src={getAvatarUrl(currentUser?.avatar, currentUser?.name)}
-              alt={currentUser?.name || "User"}
-              sx={{
-                width: 42,
-                height: 42,
-                bgcolor: theme.palette.primary.main,
-                fontSize: "0.95rem",
-                fontWeight: 700,
-              }}
-            />
-            <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }} noWrap>
-                {currentUser?.name || "Loading..."}
-              </Typography>
-              <Typography sx={{ color: theme.palette.text.secondary, fontSize: "0.75rem" }} noWrap>
-                {currentUser?.job_title || "Pro Plan"}
-              </Typography>
-            </Box>
-            <IconButton
-              size="small"
-              onClick={() => {
-                router.push("/settings?tab=profile");
-                if (onClose) onClose();
-              }}
-              sx={{
-                color: theme.palette.text.secondary,
-                bgcolor: theme.palette.mode === "dark" ? "#0f131d" : "#f8fafc",
-                border: `1px solid ${theme.palette.divider}`,
-                "&:hover": { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.05) },
-              }}
-            >
-              <ArrowOutwardIcon sx={{ fontSize: 18 }} />
-            </IconButton>
+          />
+          <Box sx={{ overflow: "hidden" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2, color: theme.palette.text.primary }}>
+              {currentUser?.name || "Loading..."}
+            </Typography>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+              {currentUser?.job_title || "Pro Plan"}
+            </Typography>
           </Box>
         </Box>
       </Box>
