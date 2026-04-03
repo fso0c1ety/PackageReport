@@ -8,6 +8,12 @@ export const DEFAULT_SERVER_URL =
 export const DEFAULT_ASSET_URL =
   process.env.NEXT_PUBLIC_ASSET_URL || "";
 
+export const DEFAULT_SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+
+export const DEFAULT_SUPABASE_STORAGE_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "uploads";
+
 export const DEFAULT_SOCKET_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL || "";
 
@@ -27,6 +33,25 @@ function normalizeBaseUrl(url: string) {
 
 function getBrowserOrigin() {
   return typeof window !== 'undefined' ? window.location.origin : '';
+}
+
+function resolveSupabaseStorageUrl(path: string) {
+  const supabaseBase = normalizeBaseUrl(DEFAULT_SUPABASE_URL);
+  if (!supabaseBase) {
+    return '';
+  }
+
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  if (!cleanPath.startsWith('uploads/')) {
+    return '';
+  }
+
+  const objectPath = cleanPath.replace(/^uploads\//, '');
+  if (!objectPath) {
+    return '';
+  }
+
+  return `${supabaseBase}/storage/v1/object/public/${DEFAULT_SUPABASE_STORAGE_BUCKET}/${objectPath}`;
 }
 
 function isPrivateDevHost(hostname: string) {
@@ -119,6 +144,11 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   // Handle Base64 data URLs (data:image/...)
   if (avatar.startsWith('data:')) {
     return avatar;
+  }
+
+  const supabaseStorageUrl = resolveSupabaseStorageUrl(avatar);
+  if (supabaseStorageUrl) {
+    return supabaseStorageUrl;
   }
 
   const base =
