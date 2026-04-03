@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Box,
   MenuItem,
@@ -29,9 +29,6 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const resolvedWorkspaceId = currentId || searchParams.get("id") || "";
 
   const fetchWorkspaces = () => {
     // Get current user id from localStorage to identify shared workspaces
@@ -50,19 +47,6 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       })
       .then((data: Workspace[]) => {
         setWorkspaces(data);
-        const hasResolved = resolvedWorkspaceId && data.some((ws) => ws.id === resolvedWorkspaceId);
-        if (!hasResolved && data.length > 0) {
-          router.replace(`/workspace?id=${data[0].id}`);
-        }
-        setSelected((prev) => {
-          if (resolvedWorkspaceId && data.some((ws) => ws.id === resolvedWorkspaceId)) {
-            return resolvedWorkspaceId;
-          }
-          if (prev && data.some((ws) => ws.id === prev)) {
-            return prev;
-          }
-          return data[0]?.id || "";
-        });
         setLoading(false);
       })
       .catch((err) => {
@@ -74,6 +58,11 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
   useEffect(() => {
     fetchWorkspaces();
 
+    // Initial selection
+    if (currentId) {
+      setSelected(currentId);
+    }
+
     const handleUpdate = () => {
       fetchWorkspaces();
     };
@@ -82,19 +71,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
     return () => {
       window.removeEventListener('workspaceUpdated', handleUpdate);
     };
-  }, [resolvedWorkspaceId, router]);
-
-  useEffect(() => {
-    setSelected((prev) => {
-      if (resolvedWorkspaceId && workspaces.some((ws) => ws.id === resolvedWorkspaceId)) {
-        return resolvedWorkspaceId;
-      }
-      if (prev && workspaces.some((ws) => ws.id === prev)) {
-        return prev;
-      }
-      return workspaces[0]?.id || "";
-    });
-  }, [resolvedWorkspaceId, workspaces]);
+  }, [currentId]);
 
   const handleChange = (event: SelectChangeEvent) => {
     const val = event.target.value;
@@ -118,21 +95,18 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       IconComponent={KeyboardArrowDownIcon}
       variant="outlined"
       MenuProps={{
-        disablePortal: true,
         PaperProps: {
           sx: {
             bgcolor: theme.palette.background.paper,
             color: theme.palette.text.primary,
             mt: 0.5,
-            border: 'none',
-            borderRadius: 3,
-            boxShadow: theme.shadows[8],
-            maxHeight: 320,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: theme.shadows[4],
             "& .MuiMenuItem-root": {
               fontSize: "0.875rem",
               mx: 0.5,
               my: 0.2,
-              borderRadius: 2,
+              borderRadius: 1,
               "&:hover": {
                 bgcolor: theme.palette.action.hover,
                 color: theme.palette.text.primary,
@@ -148,22 +122,20 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       }}
       sx={{
         width: "100%",
-        minWidth: 0,
-        flex: 1,
         height: 40,
-        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)',
+        bgcolor: theme.palette.action.hover,
         color: theme.palette.text.primary,
-        borderRadius: 2.5,
+        borderRadius: 2,
         fontSize: "0.9rem",
-        fontWeight: 600,
+        fontWeight: 500,
         ".MuiOutlinedInput-notchedOutline": {
-          border: "none",
+          borderColor: theme.palette.divider,
         },
         "&:hover .MuiOutlinedInput-notchedOutline": {
-          border: "none",
+          borderColor: theme.palette.text.secondary,
         },
         "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-          border: "none",
+          borderColor: theme.palette.primary.main,
         },
         "& .MuiSvgIcon-root": {
           color: theme.palette.text.secondary,
@@ -172,7 +144,6 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
           display: "flex",
           alignItems: "center",
           py: 1,
-          minWidth: 0,
         },
       }}
     >
@@ -197,6 +168,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
                     width: 20,
                     height: 20,
                     borderRadius: '50%',
+                    border: `1px solid ${theme.palette.divider}`,
                     ml: 'auto'
                   }}
                 />
