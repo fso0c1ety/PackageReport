@@ -162,7 +162,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             .on('broadcast', { event: 'call_offer' }, ({ payload }) => {
                 if (payload?.targetId !== currentUser.id) return;
                 console.log("Received call offer", payload);
-                setIncomingCall(payload);
+                setIncomingCall((prev: any) => ({
+                    ...(prev || {}),
+                    ...(payload || {}),
+                    // Never downgrade a previously valid offer with a missing one.
+                    offer: payload?.offer || prev?.offer || null,
+                }));
                 iceCandidatesQueue.current = [];
             })
             .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
@@ -172,6 +177,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 setConnectedAt(Date.now());
                 if (peerConnection.current) {
                     try {
+                        if (!payload?.answer?.type || !payload?.answer?.sdp) {
+                            console.warn("[WebRTC] Received invalid call answer payload", payload);
+                            return;
+                        }
                         await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
                         await processIceCandidatesQueue();
                     } catch (e) { console.error("Error setting remote desc:", e); }
@@ -384,6 +393,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const acceptCall = async () => {
         if (!incomingCall) return;
         try {
+            const offer = incomingCall?.offer;
+            const hasValidOffer = !!offer && typeof offer === 'object' && !!offer.type && !!offer.sdp;
+            if (!hasValidOffer) {
+                console.warn("[WebRTC] Cannot accept call yet: missing/invalid SDP offer", incomingCall);
+                alert("Call signal is still syncing. Please tap Accept again in a moment.");
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ video: incomingCall.isVideo, audio: true });
             setLocalStream(stream);
             setActiveCall({
@@ -400,7 +417,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setCallStatus('connected');
             setConnectedAt(Date.now());
 
-            await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
             await processIceCandidatesQueue();
             
             const answer = await pc.createAnswer();
@@ -428,13 +445,15 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const showIncomingCall = (data: any) => {
         if (!data || activeCallRef.current) return;
         console.log("[CallContext] Manual showIncomingCall triggered:", data);
-        setIncomingCall({
-            callerId: data.callerId,
-            callerName: data.callerName || 'Incoming Call',
-            callerAvatar: data.callerAvatar,
+        setIncomingCall((prev: any) => ({
+            ...(prev || {}),
+            callerId: data.callerId || prev?.callerId,
+            callerName: data.callerName || prev?.callerName || 'Incoming Call',
+            callerAvatar: data.callerAvatar || prev?.callerAvatar,
             isVideo: data.isVideo === 'true' || data.isVideo === true,
-            offer: data.offer || null // Might be null if just a push ping
-        });
+            // If push payload has no offer, keep any offer already received via realtime.
+            offer: data.offer || prev?.offer || null,
+        }));
     };
 
     useEffect(() => {
