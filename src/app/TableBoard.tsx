@@ -1,6 +1,6 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
-import { getApiUrl, DEFAULT_SERVER_URL as SERVER_URL, authenticatedFetch, getAvatarUrl } from "./apiUrl";
+import { getApiUrl, getSocketUrl, authenticatedFetch, getAvatarUrl } from "./apiUrl";
 import { io, Socket } from "socket.io-client";
 
 import { useTheme } from "@mui/material/styles";
@@ -405,9 +405,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
     if (!tableId) return;
 
-    console.log('Connecting socket to:', SERVER_URL || window.location.origin);
+    const socketUrl = getSocketUrl();
+    console.log('Connecting socket to:', socketUrl || window.location.origin);
 
-    const newSocket = io(SERVER_URL || window.location.origin, {
+    const newSocket = io(socketUrl || window.location.origin, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,

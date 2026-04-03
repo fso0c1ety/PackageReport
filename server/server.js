@@ -108,6 +108,12 @@ if (dev) {
 const app = express();
 const SHARED_UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 const LEGACY_UPLOAD_DIR = path.join(__dirname, 'uploads');
+const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://package-report.vercel.app';
+const corsOrigins = [
+  frontendUrl,
+  'http://localhost:3000',
+  'http://192.168.0.25:3000'
+];
 
 // Root endpoint handled by Next.js
 // app.get('/', (req, res) => {
@@ -117,11 +123,7 @@ const LEGACY_UPLOAD_DIR = path.join(__dirname, 'uploads');
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://packagereport.onrender.com",
-      "http://localhost:3000",
-      "http://192.168.0.25:3000"
-    ],
+    origin: corsOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },

@@ -22,7 +22,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import PersonIcon from '@mui/icons-material/Person';
 import LoginIcon from '@mui/icons-material/Login';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import { getServerUrl } from '../../apiUrl';
+import { getApiUrl } from '../../apiUrl';
 
 // --- Styled Components ---
 
@@ -132,11 +132,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const endpoint = isLogin ? '/api/login' : '/api/register';
+    const endpoint = isLogin ? 'login' : 'register';
 
     try {
-      const serverUrl = getServerUrl();
-      const response = await fetch(`${serverUrl}${endpoint}`, {
+      const response = await fetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -181,7 +180,11 @@ export default function LoginPage() {
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        background: `url("/login-bg.png") center/cover no-repeat`,
+        background: `
+          radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.28) 0%, transparent 32%),
+          radial-gradient(circle at 75% 30%, rgba(34, 197, 94, 0.18) 0%, transparent 30%),
+          linear-gradient(135deg, #020617 0%, #0f172a 45%, #1e293b 100%)
+        `,
         '&::after': {
           content: '""',
           position: 'absolute',

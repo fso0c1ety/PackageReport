@@ -1,35 +1,58 @@
-// Frontend lives on Vercel while the API/files can be served elsewhere.
+// Default to same-origin so the app can run entirely behind the Vercel host.
 export const DEFAULT_FRONTEND_URL =
-  process.env.NEXT_PUBLIC_FRONTEND_URL || "https://package-report.vercel.app";
+  process.env.NEXT_PUBLIC_FRONTEND_URL || "";
 
 export const DEFAULT_SERVER_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://packagereport.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "";
 
 export const DEFAULT_ASSET_URL =
-  process.env.NEXT_PUBLIC_ASSET_URL || DEFAULT_SERVER_URL;
+  process.env.NEXT_PUBLIC_ASSET_URL || "";
+
+function normalizeBaseUrl(url: string) {
+  const trimmed = url.trim();
+
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  return withProtocol.endsWith('/') ? withProtocol.slice(0, -1) : withProtocol;
+}
+
+function getBrowserOrigin() {
+  return typeof window !== 'undefined' ? window.location.origin : '';
+}
 
 export function getServerUrl() {
-  return DEFAULT_SERVER_URL;
+  return normalizeBaseUrl(DEFAULT_SERVER_URL) || getFrontendUrl();
 }
 
 export function getFrontendUrl() {
-  return DEFAULT_FRONTEND_URL;
+  return normalizeBaseUrl(DEFAULT_FRONTEND_URL) || getBrowserOrigin();
+}
+
+export function getSocketUrl() {
+  return getServerUrl() || getBrowserOrigin();
 }
 
 export function getApiUrl(path: string) {
-  // Use Express backend (LAN IP for mobile/desktop)
   const base = getServerUrl();
-
-  // Ensure no double slash issues
-  let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (!base) {
+    return `/api${cleanPath}`;
+  }
+
+  let cleanBase = normalizeBaseUrl(base);
 
   // Clean up if the base already includes /api, but prevent duplication logic
   if (cleanBase.endsWith('/api')) {
     cleanBase = cleanBase.slice(0, -4);
   }
 
-// Combine
   return `${cleanBase}/api${cleanPath}`;
 }
 
@@ -52,13 +75,14 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
     return avatar;
   }
 
-  // Handle relative local paths (e.g., /uploads/...)
-  // We use the base server URL, NOT the /api prefix
-  const base = DEFAULT_ASSET_URL;
-  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const base = normalizeBaseUrl(DEFAULT_ASSET_URL) || getServerUrl();
   const cleanPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
-  
-  return `${cleanBase}${cleanPath}`;
+
+  if (!base) {
+    return cleanPath;
+  }
+
+  return `${base}${cleanPath}`;
 }
 
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
