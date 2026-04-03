@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,13 @@ export async function POST(req, { params }) {
   try {
     const { userId } = await params;
     const body = await req.json();
+    const payload = {
+      callerId: user.id,
+      callerName: body?.callerName || "User",
+      callerAvatar: body?.callerAvatar || null,
+      isVideo: !!body?.isVideo,
+      type: "incoming_call",
+    };
 
     const notifId = uuidv4();
     await pool.query(
@@ -25,15 +33,38 @@ export async function POST(req, { params }) {
         userId,
         user.id,
         "incoming_call",
-        JSON.stringify({
-          callerId: user.id,
-          callerName: body?.callerName || "User",
-          callerAvatar: body?.callerAvatar || null,
-          isVideo: !!body?.isVideo,
-        }),
+        JSON.stringify(payload),
         false,
       ]
     );
+
+    try {
+      const recipientRes = await pool.query(
+        "SELECT fcm_token, fcm_tokens FROM users WHERE id = $1",
+        [userId]
+      );
+
+      const tokenSet = new Set();
+      const row = recipientRes.rows[0];
+      if (row?.fcm_token) tokenSet.add(row.fcm_token);
+      if (Array.isArray(row?.fcm_tokens)) {
+        row.fcm_tokens.forEach((t) => {
+          if (t) tokenSet.add(t);
+        });
+      }
+
+      const tokens = Array.from(tokenSet);
+      if (tokens.length > 0) {
+        await sendPushNotification(
+          tokens,
+          "Incoming Call",
+          `${payload.callerName} is calling you via ${payload.isVideo ? "Video" : "Audio"}.`,
+          payload
+        );
+      }
+    } catch (pushErr) {
+      console.error("[CHATS/:userId/call-notification][POST] Push notify failed:", pushErr);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

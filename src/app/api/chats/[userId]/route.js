@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { sendPushNotification } from "../../_lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -69,6 +70,51 @@ export async function POST(req, { params }) {
         message.read,
       ]
     );
+
+    const notifId = uuidv4();
+    await pool.query(
+      `
+        INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `,
+      [
+        notifId,
+        userId,
+        user.id,
+        "direct_message",
+        JSON.stringify({ text: message.text, senderId: user.id }),
+        false,
+      ]
+    );
+
+    try {
+      const recipientRes = await pool.query(
+        "SELECT fcm_token, fcm_tokens FROM users WHERE id = $1",
+        [userId]
+      );
+      const senderRes = await pool.query("SELECT name FROM users WHERE id = $1", [user.id]);
+
+      const senderName = senderRes.rows[0]?.name || "Someone";
+      const tokenSet = new Set();
+      const row = recipientRes.rows[0];
+
+      if (row?.fcm_token) tokenSet.add(row.fcm_token);
+      if (Array.isArray(row?.fcm_tokens)) {
+        row.fcm_tokens.forEach((t) => {
+          if (t) tokenSet.add(t);
+        });
+      }
+
+      const tokens = Array.from(tokenSet);
+      if (tokens.length > 0) {
+        await sendPushNotification(tokens, "New Message", `${senderName}: ${message.text}`, {
+          type: "direct_message",
+          senderId: user.id,
+        });
+      }
+    } catch (pushErr) {
+      console.error("[CHATS/:userId][POST] Push notify failed:", pushErr);
+    }
 
     return NextResponse.json(message);
   } catch (err) {
