@@ -6,102 +6,17 @@ import {
   Button,
   TextField,
   Typography,
-  Avatar,
+  Stack,
   Alert,
-  Paper,
-  InputAdornment,
-  useTheme,
-  alpha,
-  IconButton
+  CircularProgress,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import EmailIcon from '@mui/icons-material/Email';
-import LockIcon from '@mui/icons-material/Lock';
-import PersonIcon from '@mui/icons-material/Person';
-import LoginIcon from '@mui/icons-material/Login';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { getApiUrl } from '../apiUrl';
-
-// --- Styled Components ---
-
-const GlassCard = styled(motion(Paper))(({ theme }) => ({
-  backgroundColor: alpha(theme.palette.background.paper, 0.7),
-  backdropFilter: 'blur(34px) saturate(180%)',
-  borderRadius: '32px',
-  border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
-  padding: theme.spacing(6),
-  boxShadow: `0 24px 80px ${alpha(theme.palette.common.black, 0.4)}`,
-  width: '100%',
-  maxWidth: '480px',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  zIndex: 10,
-}));
-
-const StyledTextField = styled(TextField)(({ theme }) => ({
-  '& .MuiOutlinedInput-root': {
-    backgroundColor: alpha(theme.palette.common.white, 0.05),
-    borderRadius: '16px',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    '& fieldset': {
-      borderColor: alpha(theme.palette.divider, 0.1),
-    },
-    '&:hover fieldset': {
-      borderColor: alpha(theme.palette.primary.main, 0.3),
-    },
-    '&.Mui-focused fieldset': {
-      borderColor: theme.palette.primary.main,
-      borderWidth: '2px',
-    },
-    '&.Mui-focused': {
-      backgroundColor: alpha(theme.palette.common.white, 0.08),
-      transform: 'translateY(-2px)',
-      boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.2)}`,
-    },
-  },
-  '& .MuiInputLabel-root': {
-    color: theme.palette.text.secondary,
-    fontSize: '0.95rem',
-  },
-  '& .MuiInputBase-input': {
-    padding: '18px 14px',
-    fontWeight: 500,
-  },
-  marginBottom: '24px',
-}));
-
-const MainActionButton = styled(Button)(({ theme }) => ({
-  borderRadius: '18px',
-  padding: '16px',
-  fontSize: '1.1rem',
-  fontWeight: 700,
-  textTransform: 'none',
-  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-  color: '#fff',
-  boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.4)}`,
-  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&:hover': {
-    background: `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 100%)`,
-    transform: 'translateY(-4px) scale(1.02)',
-    boxShadow: `0 18px 45px ${alpha(theme.palette.primary.main, 0.5)}`,
-  },
-  '&:active': {
-    transform: 'translateY(0) scale(0.98)',
-  },
-  '&.Mui-disabled': {
-    opacity: 0.7,
-    background: theme.palette.action.disabledBackground,
-    color: theme.palette.action.disabled,
-  },
-}));
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const theme = useTheme();
   const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [formData, setFormData] = useState({
     name: '',
@@ -148,7 +63,7 @@ export function LoginForm() {
         if (typeof window !== 'undefined') {
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
-          window.location.href = '/';
+          window.location.href = '/home';
         }
       } else {
         setIsLogin(true);
@@ -163,132 +78,215 @@ export function LoginForm() {
 
   return (
     <AnimatePresence mode="wait">
-      <GlassCard
+      <motion.div
         key={isLogin ? 'login' : 'signup'}
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -20, scale: 0.95 }}
-        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
       >
-        <Avatar sx={{
-          width: 80,
-          height: 80,
-          mb: 3,
-          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
-          boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
-        }}>
-          <LoginIcon sx={{ fontSize: 40, color: '#fff' }} />
-        </Avatar>
-
-        <Typography variant="h4" fontWeight={900} sx={{
-          mb: 1,
-          textAlign: 'center',
-          letterSpacing: '-1px',
-          color: '#fff'
-        }}>
-          {isLogin ? 'Welcome Back' : 'Join Us'}
-        </Typography>
-
-        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.5)', mb: 5, textAlign: 'center' }}>
-          {isLogin ? 'Login to manage your workspace' : 'Create an account to get started'}
-        </Typography>
-
-        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
-          {!isLogin && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-              <StyledTextField
-                fullWidth
-                label="Full Name"
-                name="name"
-                required
-                value={formData.name}
-                onChange={handleChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon sx={{ color: theme.palette.primary.main }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </motion.div>
-          )}
-
-          <StyledTextField
-            fullWidth
-            label="Email Address"
-            name="email"
-            type="email"
-            required
-            value={formData.email}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <EmailIcon sx={{ color: theme.palette.primary.main }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          <StyledTextField
-            fullWidth
-            label="Password"
-            name="password"
-            type="password"
-            required
-            value={formData.password}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon sx={{ color: theme.palette.primary.main }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          {error && (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-              <Alert severity={error.includes('successful') ? 'success' : 'error'} sx={{ 
-                mb: 3, 
-                borderRadius: '16px',
-                bgcolor: alpha(error.includes('successful') ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                color: error.includes('successful') ? theme.palette.success.light : theme.palette.error.light,
-              }}>
-                {error}
-              </Alert>
-            </motion.div>
-          )}
-
-          <MainActionButton
-            type="submit"
-            fullWidth
-            disabled={loading}
-            endIcon={!loading && <ArrowForwardIcon />}
-          >
-            {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Get Started')}
-          </MainActionButton>
-
-          <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.4)', mb: 2 }}>
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
-            </Typography>
-            <Button
-              onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              sx={{ 
-                color: theme.palette.primary.main, 
-                fontWeight: 700,
-                textTransform: 'none',
-                fontSize: '1rem',
-                '&:hover': { background: 'transparent', textDecoration: 'underline' }
+        <Stack spacing={2}>
+          {/* Header */}
+          <Stack spacing={1} sx={{ mb: 2 }}>
+            <Typography
+              component="h1"
+              sx={{
+                fontSize: { xs: '1.8rem', md: '2.4rem' },
+                fontWeight: 900,
+                letterSpacing: '-0.02em',
               }}
             >
-              {isLogin ? 'Create Account' : 'Sign In'}
+              {isLogin ? 'Welcome Back' : 'Get Started'}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '1rem',
+                color: 'rgba(226, 232, 240, 0.72)',
+                lineHeight: 1.6,
+              }}
+            >
+              {isLogin
+                ? 'Log in to your account to access your workspace'
+                : 'Create your account to start managing packages'}
+            </Typography>
+          </Stack>
+
+          {/* Form */}
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {!isLogin && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <TextField
+                  fullWidth
+                  label="Full Name"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleChange}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#f8fafc',
+                      '& fieldset': {
+                        borderColor: 'rgba(241, 245, 249, 0.2)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(241, 245, 249, 0.35)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#10b981',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(226, 232, 240, 0.6)',
+                      '&.Mui-focused': {
+                        color: '#10b981',
+                      },
+                    },
+                  }}
+                />
+              </motion.div>
+            )}
+
+            <TextField
+              fullWidth
+              label="Email Address"
+              name="email"
+              type="email"
+              required
+              value={formData.email}
+              onChange={handleChange}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#f8fafc',
+                  '& fieldset': {
+                    borderColor: 'rgba(241, 245, 249, 0.2)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(241, 245, 249, 0.35)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#10b981',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'rgba(226, 232, 240, 0.6)',
+                  '&.Mui-focused': {
+                    color: '#10b981',
+                  },
+                },
+              }}
+            />
+
+            <TextField
+              fullWidth
+              label="Password"
+              name="password"
+              type="password"
+              required
+              value={formData.password}
+              onChange={handleChange}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#f8fafc',
+                  '& fieldset': {
+                    borderColor: 'rgba(241, 245, 249, 0.2)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(241, 245, 249, 0.35)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#10b981',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'rgba(226, 232, 240, 0.6)',
+                  '&.Mui-focused': {
+                    color: '#10b981',
+                  },
+                },
+              }}
+            />
+
+            {error && (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+                <Alert
+                  severity={error.includes('successful') ? 'success' : 'error'}
+                  sx={{
+                    backgroundColor: error.includes('successful')
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : 'rgba(239, 68, 68, 0.15)',
+                    color: error.includes('successful') ? '#86efac' : '#fca5a5',
+                    borderColor: error.includes('successful') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  {error}
+                </Alert>
+              </motion.div>
+            )}
+
+            <Button
+              type="submit"
+              fullWidth
+              disabled={loading}
+              sx={{
+                py: 1.5,
+                mt: 2,
+                borderRadius: 999,
+                fontWeight: 800,
+                textTransform: 'none',
+                fontSize: '1rem',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                boxShadow: '0 14px 34px rgba(16, 185, 129, 0.35)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #34d399, #10b981)',
+                  boxShadow: '0 20px 45px rgba(16, 185, 129, 0.4)',
+                },
+                '&:disabled': {
+                  background: 'rgba(241, 245, 249, 0.15)',
+                  color: 'rgba(241, 245, 249, 0.5)',
+                },
+              }}
+            >
+              {loading ? (
+                <CircularProgress size={24} sx={{ color: 'inherit' }} />
+              ) : isLogin ? (
+                'Sign In'
+              ) : (
+                'Create Account'
+              )}
             </Button>
           </Box>
-        </Box>
-      </GlassCard>
+
+          {/* Toggle Mode */}
+          <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: 3 }}>
+            <Typography sx={{ color: 'rgba(226, 232, 240, 0.6)', fontSize: '0.95rem' }}>
+              {isLogin ? "Don't have an account?" : 'Already have an account?'}
+            </Typography>
+            <Button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError('');
+              }}
+              sx={{
+                fontWeight: 800,
+                textTransform: 'none',
+                fontSize: '0.95rem',
+                color: '#fde68a',
+                p: 0,
+                '&:hover': {
+                  background: 'transparent',
+                  textDecoration: 'underline',
+                },
+              }}
+            >
+              {isLogin ? 'Sign Up' : 'Sign In'}
+            </Button>
+          </Stack>
+        </Stack>
+      </motion.div>
     </AnimatePresence>
   );
 }
