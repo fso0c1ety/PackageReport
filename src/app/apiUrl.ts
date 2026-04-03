@@ -8,6 +8,9 @@ export const DEFAULT_SERVER_URL =
 export const DEFAULT_ASSET_URL =
   process.env.NEXT_PUBLIC_ASSET_URL || "";
 
+export const DEFAULT_SOCKET_URL =
+  process.env.NEXT_PUBLIC_SOCKET_URL || "";
+
 function normalizeBaseUrl(url: string) {
   const trimmed = url.trim();
 
@@ -35,7 +38,7 @@ export function getFrontendUrl() {
 }
 
 export function getSocketUrl() {
-  return getServerUrl() || getBrowserOrigin();
+  return normalizeBaseUrl(DEFAULT_SOCKET_URL);
 }
 
 export function getApiUrl(path: string) {

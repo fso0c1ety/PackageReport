@@ -406,9 +406,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (!tableId) return;
 
     const socketUrl = getSocketUrl();
-    console.log('Connecting socket to:', socketUrl || window.location.origin);
+    if (!socketUrl) {
+      setSocket(null);
+      return;
+    }
 
-    const newSocket = io(socketUrl || window.location.origin, {
+    console.log('Connecting socket to:', socketUrl);
+
+    const newSocket = io(socketUrl, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
