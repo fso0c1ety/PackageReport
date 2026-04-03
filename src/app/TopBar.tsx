@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
-import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, ListItemIcon, Button, List, useTheme, Divider, alpha } from "@mui/material";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, Button, List, useTheme, alpha } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
@@ -47,7 +45,16 @@ const StyledIconButton = styled(IconButton)(({ theme }) => ({
 type Notification = {
     id: string;
     type: string;
-    data: any;
+    data: {
+      tableName?: string;
+      body?: string;
+      subject?: string;
+      tableId?: string;
+      workspaceId?: string;
+      taskId?: string;
+      senderId?: string;
+      requestId?: string;
+    } | null;
     read: boolean;
     created_at: string;
     sender_name?: string;
@@ -55,30 +62,49 @@ type Notification = {
     sender_id?: string;
 };
 
+type UserProfile = {
+  id?: string;
+  name?: string;
+  email?: string;
+  avatar?: string;
+};
+
+type SearchUser = {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
+};
+
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
   const theme = useTheme();
   const { toggleTheme, mode } = useThemeContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [user, setUser] = useState<null | any>(null);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (typeof window === "undefined") return null;
+
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return null;
+
+    try {
+      return JSON.parse(storedUser);
+    } catch (error) {
+      console.error("Failed to parse user from localStorage", error);
+      return null;
+    }
+  });
   const open = Boolean(anchorEl);
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const visibleSearchResults = searchQuery.trim() ? searchResults : [];
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error("Failed to parse user from localStorage", e);
-      }
-    }
     const fetchProfile = async () => {
       try {
         const res = await authenticatedFetch(getApiUrl('users/profile'));
@@ -90,7 +116,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             localStorage.setItem('user', JSON.stringify({ ...parsed, ...data }));
           }
         }
-      } catch (e) {}
+      } catch {}
     };
     fetchProfile();
     window.addEventListener('profile-updated', fetchProfile);
@@ -118,6 +144,38 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";
+  };
+
+  const workspaceLinks = [
+    { label: 'Dashboard', icon: <SpaceDashboardIcon fontSize="small" />, path: '/dashboard', accent: theme.palette.primary.main },
+    { label: 'Workspaces', icon: <TableChartIcon fontSize="small" />, path: '/workspace', accent: theme.palette.success.main },
+    { label: 'Messages', icon: <MailOutlineIcon fontSize="small" />, path: '/chat', accent: theme.palette.warning.main },
+  ];
+
+  const preferenceLinks = [
+    { label: 'Profile', icon: <PersonIcon fontSize="small" />, path: '/settings?tab=profile', accent: theme.palette.info.main },
+    { label: 'Appearance', icon: <PaletteIcon fontSize="small" />, path: '/settings?tab=appearance', accent: '#ec4899' },
+    { label: 'Notifications', icon: <NotificationsNoneIcon fontSize="small" />, path: '/settings?tab=notifications', accent: '#f59e0b' },
+    { label: 'Security', icon: <SecurityIcon fontSize="small" />, path: '/settings?tab=security', accent: '#ef4444' },
+    { label: 'Team', icon: <GroupIcon fontSize="small" />, path: '/settings?tab=team', accent: '#10b981' },
+    { label: 'Friends', icon: <PeopleIcon fontSize="small" />, path: '/chat?tab=social', accent: '#8b5cf6' },
+    { label: 'Account Controls', icon: <SettingsSuggestIcon fontSize="small" />, path: '/settings?tab=security', accent: theme.palette.text.secondary },
+  ];
+
+  const cardItemSx = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 1.5,
+    width: '100%',
+    px: 1.5,
+    py: 1.25,
+    borderRadius: 2.5,
+    cursor: 'pointer',
+    transition: 'all 0.18s ease',
+    '&:hover': {
+      bgcolor: alpha(theme.palette.primary.main, 0.08),
+      transform: 'translateX(3px)',
+    }
   };
 
   // Notification State
@@ -216,12 +274,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   };
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-        setSearchResults([]);
-        return;
-    }
+    if (!searchQuery.trim()) return;
+
     const timer = setTimeout(async () => {
-        setSearching(true);
         try {
             const res = await authenticatedFetch(getApiUrl(`people?q=${encodeURIComponent(searchQuery)}`));
             if (res.ok) {
@@ -230,14 +285,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             }
         } catch (err) {
             console.error("Search failed", err);
-        } finally {
-            setSearching(false);
         }
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleUserClick = (targetUser: any) => {
+  const handleUserClick = (targetUser: SearchUser) => {
       setSelectedUser(targetUser);
       setProfileOpen(true);
       setSearchQuery("");
@@ -371,10 +424,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             <SearchIcon sx={{ fontSize: 18, color: theme.palette.text.secondary, mr: 1 }} />
             <input placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ background: "transparent", border: "none", color: theme.palette.text.primary, fontSize: "0.8rem", width: "100%", outline: "none" }} />
           </Box>
-          {searchResults.length > 0 && (
+          {visibleSearchResults.length > 0 && (
             <Box sx={{ position: "absolute", top: "120%", left: 0, width: "100%", bgcolor: theme.palette.background.paper, boxShadow: theme.shadows[8], borderRadius: 2, border: `1px solid ${theme.palette.divider}`, zIndex: 1000, maxHeight: 300, overflowY: "auto" }}>
               <List sx={{ p: 0 }}>
-                {searchResults.map((result) => (
+                {visibleSearchResults.map((result) => (
                   <MenuItem key={result.id} onClick={() => handleUserClick(result)} sx={{ gap: 1.5, py: 1 }}>
                     <Avatar src={getAvatarUrl(result.avatar, result.name)} sx={{ width: 28, height: 28 }} />
                     <Box sx={{ overflow: "hidden" }}>
@@ -404,7 +457,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                 {notifications.length === 0 ? (
                     <Box sx={{ p: 4, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <NotificationsNoneIcon sx={{ color: theme.palette.text.disabled, fontSize: 40 }} />
-                        <Typography variant="body2" color="text.secondary">You're all caught up!</Typography>
+                        <Typography variant="body2" color="text.secondary">You&apos;re all caught up!</Typography>
                     </Box>
                 ) : (
                     notifications.map((notif) => (
@@ -450,181 +503,188 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           anchorEl={anchorEl}
           open={open}
           onClose={handleClose}
-          PaperProps={{
-            elevation: 0,
-            sx: {
-              overflow: 'visible',
-              mt: 1.5,
-              width: 340,
-              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.65)' : 'rgba(255, 255, 255, 0.75)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              color: theme.palette.text.primary,
-              border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
-              borderRadius: 4,
-              boxShadow: theme.palette.mode === 'dark' ? '0 32px 64px rgba(0,0,0,0.5)' : '0 32px 64px rgba(0,0,0,0.1)',
-              '&:before': {
-                content: '""',
-                display: 'block',
-                position: 'absolute',
-                top: 0,
-                right: 18,
-                width: 14,
-                height: 14,
-                bgcolor: theme.palette.mode === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(255, 255, 255, 0.9)',
-                backdropFilter: 'blur(10px)',
-                transform: 'translateY(-50%) rotate(45deg)',
-                zIndex: 0,
-                borderTop: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
-                borderLeft: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
+          slotProps={{
+            paper: {
+              sx: {
+                overflow: 'visible',
+                mt: 1.5,
+                width: { xs: 'calc(100vw - 24px)', sm: 340 },
+                maxWidth: 340,
+                maxHeight: { xs: 'calc(100vh - 88px)', sm: 'min(80vh, 720px)' },
+                mx: { xs: 1.5, sm: 0 },
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.65)' : 'rgba(255, 255, 255, 0.75)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+                color: theme.palette.text.primary,
+                borderRadius: 4,
+                boxShadow: theme.palette.mode === 'dark' ? '0 32px 64px rgba(0,0,0,0.5)' : '0 32px 64px rgba(0,0,0,0.1)',
+                overflowY: 'auto',
+                '&:before': {
+                  content: '""',
+                  display: { xs: 'none', sm: 'block' },
+                  position: 'absolute',
+                  top: 0,
+                  right: 18,
+                  width: 14,
+                  height: 14,
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+                  backdropFilter: 'blur(10px)',
+                  transform: 'translateY(-50%) rotate(45deg)',
+                  zIndex: 0,
+                }
               }
             }
           }}
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-          {/* Header section */}
-          <Box sx={{ p: 2.5, position: 'relative', overflow: 'hidden' }}>
-            <Box
-              sx={{
-                position: 'absolute',
-                top: -50,
-                right: -50,
-                width: 150,
-                height: 150,
-                background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.35)} 0%, transparent 70%)`,
-                zIndex: 0,
-                pointerEvents: 'none'
-              }}
-            />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative', zIndex: 1 }}>
-              <Avatar
-                src={getAvatarUrl(user?.avatar, user?.name)}
+          <Box sx={{ p: { xs: 1.5, sm: 2.5 }, position: 'relative', overflow: 'hidden', bgcolor: 'transparent' }}>
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 } }}>
+                <Avatar
+                  src={getAvatarUrl(user?.avatar, user?.name)}
+                  sx={{
+                    width: { xs: 48, sm: 58 },
+                    height: { xs: 48, sm: 58 },
+                    bgcolor: theme.palette.primary.main,
+                    border: `3px solid ${alpha(theme.palette.background.paper, 0.9)}`,
+                    boxShadow: `0 10px 24px ${alpha(theme.palette.primary.main, 0.28)}`,
+                    fontSize: { xs: 18, sm: 22 },
+                    fontWeight: 700
+                  }}
+                >
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </Avatar>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography sx={{ fontWeight: 900, fontSize: { xs: 15, sm: 17 }, lineHeight: 1.15, letterSpacing: '-0.4px', color: theme.palette.text.primary }} noWrap>{user?.name || 'Account'}</Typography>
+                  <Typography sx={{ color: theme.palette.text.secondary, fontSize: { xs: 12, sm: 13 }, mt: 0.5, fontWeight: 500 }} noWrap>{user?.email || 'Signed in'}</Typography>
+                  <Typography sx={{ color: theme.palette.primary.main, fontSize: 11, mt: 0.75, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                    Personal Hub
+                  </Typography>
+                </Box>
+              </Box>
+              <Box
                 sx={{
-                  width: 56,
-                  height: 56,
-                  bgcolor: theme.palette.primary.main,
-                  border: `3px solid ${theme.palette.background.paper}`,
-                  boxShadow: `0 8px 16px ${alpha(theme.palette.primary.main, 0.3)}`,
-                  fontSize: 22,
-                  fontWeight: 700
+                  mt: 2.25,
+                  p: 1,
+                  borderRadius: 3,
+                  bgcolor: 'transparent',
+                  backdropFilter: 'none',
+                  boxShadow: 'none'
                 }}
               >
-                {user?.name?.[0]?.toUpperCase() || 'U'}
-              </Avatar>
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography sx={{ fontWeight: 800, fontSize: 16, lineHeight: 1.2, letterSpacing: '-0.3px', color: theme.palette.text.primary }} noWrap>{user?.name || 'Account'}</Typography>
-                <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13, mt: 0.5, fontWeight: 500 }} noWrap>{user?.email || 'Signed in'}</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                  <Button
+                    fullWidth
+                    size="small"
+                    variant="contained"
+                    startIcon={<PersonIcon fontSize="small" />}
+                    onClick={() => handleMenuNavigate('/settings?tab=profile')}
+                    sx={{ textTransform: 'none', borderRadius: 2.5, py: 1, boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.28)}`, fontWeight: 700 }}
+                  >
+                    Profile
+                  </Button>
+                  <Button
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    startIcon={mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+                    onClick={() => { handleClose(); toggleTheme(); }}
+                    sx={{ textTransform: 'none', borderRadius: 2.5, py: 1, borderColor: 'transparent', color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.06), fontWeight: 700, '&:hover': { borderColor: 'transparent', bgcolor: alpha(theme.palette.text.primary, 0.1) } }}
+                  >
+                    {mode === 'dark' ? 'Light' : 'Dark'}
+                  </Button>
+                </Box>
               </Box>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1.5, mt: 2.5, position: 'relative', zIndex: 1 }}>
-              <Button
-                fullWidth
-                size="small"
-                variant="contained"
-                startIcon={<PersonIcon fontSize="small" />}
-                onClick={() => handleMenuNavigate('/settings?tab=profile')}
-                sx={{ textTransform: 'none', borderRadius: 2, py: 0.75, boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`, fontWeight: 600 }}
-              >
-                Profile
-              </Button>
-              <Button
-                fullWidth
-                size="small"
-                variant="outlined"
-                startIcon={mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-                onClick={() => { handleClose(); toggleTheme(); }}
-                sx={{ textTransform: 'none', borderRadius: 2, py: 0.75, borderColor: alpha(theme.palette.text.primary, 0.15), color: theme.palette.text.primary, fontWeight: 600, '&:hover': { borderColor: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.05) } }}
-              >
-                {mode === 'dark' ? 'Light' : 'Dark'}
-              </Button>
             </Box>
           </Box>
 
-          <Divider sx={{ mx: 2, borderColor: alpha(theme.palette.divider, 0.5) }} />
-
-          <List sx={{ px: 1, py: 1.5 }}>
-            <Typography sx={{ px: 2, pb: 1, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
-              Workspace
-            </Typography>
-            {[
-              { label: 'Dashboard', icon: <SpaceDashboardIcon fontSize="small" />, path: '/dashboard' },
-              { label: 'Workspaces', icon: <TableChartIcon fontSize="small" />, path: '/workspace' },
-              { label: 'Messages', icon: <MailOutlineIcon fontSize="small" />, path: '/chat' },
-            ].map((item) => (
-              <MenuItem
-                key={item.label}
-                onClick={() => handleMenuNavigate(item.path)}
-                sx={{
-                  borderRadius: 2, mb: 0.5, mx: 1, px: 1.5, py: 1,
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'translateX(4px)', '& .MuiListItemIcon-root': { color: theme.palette.primary.main } }
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: theme.palette.text.secondary, transition: 'color 0.2s ease' }}>{item.icon}</ListItemIcon>
-                <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{item.label}</Typography>
-              </MenuItem>
-            ))}
-          </List>
-
-          <Divider sx={{ mx: 2, borderColor: alpha(theme.palette.divider, 0.5) }} />
-
-          <List sx={{ px: 1, py: 1.5 }}>
-            <Typography sx={{ px: 2, pb: 1, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
-              Preferences
-            </Typography>
-            {[
-              { label: 'Profile', icon: <PersonIcon fontSize="small" />, path: '/settings?tab=profile' },
-              { label: 'Appearance', icon: <PaletteIcon fontSize="small" />, path: '/settings?tab=appearance' },
-              { label: 'Notifications', icon: <NotificationsNoneIcon fontSize="small" />, path: '/settings?tab=notifications' },
-              { label: 'Security', icon: <SecurityIcon fontSize="small" />, path: '/settings?tab=security' },
-              { label: 'Team', icon: <GroupIcon fontSize="small" />, path: '/settings?tab=team' },
-              { label: 'Friends', icon: <PeopleIcon fontSize="small" />, path: '/chat?tab=social' },
-              { label: 'Account Controls', icon: <SettingsSuggestIcon fontSize="small" />, path: '/settings?tab=security' },
-            ].map((item) => (
-              <MenuItem
-                key={item.label}
-                onClick={() => handleMenuNavigate(item.path)}
-                sx={{
-                  borderRadius: 2, mb: 0.5, mx: 1, px: 1.5, py: 1,
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'translateX(4px)', '& .MuiListItemIcon-root': { color: theme.palette.primary.main } }
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: theme.palette.text.secondary, transition: 'color 0.2s ease' }}>{item.icon}</ListItemIcon>
-                <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{item.label}</Typography>
-              </MenuItem>
-            ))}
-          </List>
-
-          <Divider sx={{ mx: 2, borderColor: alpha(theme.palette.divider, 0.5) }} />
-
-          <List sx={{ px: 1, py: 1.5 }}>
-            <MenuItem
-              onClick={() => handleMenuNavigate('/dashboard')}
+          <Box sx={{ px: { xs: 1.5, sm: 2 }, pb: { xs: 1.5, sm: 2.25 }, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box
               sx={{
-                borderRadius: 2, mb: 0.5, mx: 1, px: 1.5, py: 1,
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'translateX(4px)', '& .MuiListItemIcon-root': { color: theme.palette.primary.main } }
+                p: 1.25,
+                borderRadius: 3,
+                bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.72),
+                boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, theme.palette.mode === 'dark' ? 0.03 : 0.18)}`,
               }}
             >
-              <ListItemIcon sx={{ minWidth: 36, color: theme.palette.text.secondary, transition: 'color 0.2s ease' }}><DescriptionIcon fontSize="small" /></ListItemIcon>
-              <Typography sx={{ fontWeight: 500, fontSize: 14 }}>Reports</Typography>
-            </MenuItem>
-            <MenuItem
-              onClick={handleLogout}
+              <Typography sx={{ px: 1, pb: 1, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+                Workspace
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0.5 }}>
+                {workspaceLinks.map((item) => (
+                  <Box key={item.label} onClick={() => handleMenuNavigate(item.path)} sx={cardItemSx}>
+                    <Box sx={{ width: 34, height: 34, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.accent, bgcolor: alpha(item.accent, 0.14), flexShrink: 0 }}>
+                      {item.icon}
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14.5, color: theme.palette.text.primary }}>{item.label}</Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+
+            <Box
               sx={{
-                borderRadius: 2, mx: 1, px: 1.5, py: 1,
-                color: theme.palette.error.main,
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.08), transform: 'translateX(4px)' },
-                '& .MuiListItemIcon-root': { color: theme.palette.error.main, minWidth: 36 }
+                p: 1.25,
+                borderRadius: 3,
+                bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.72),
+                boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, theme.palette.mode === 'dark' ? 0.03 : 0.18)}`,
               }}
             >
-              <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
-              <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Logout</Typography>
-            </MenuItem>
-          </List>
+              <Typography sx={{ px: 1, pb: 1, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+                Preferences
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
+                {preferenceLinks.map((item) => (
+                  <Box key={item.label} onClick={() => handleMenuNavigate(item.path)} sx={{ ...cardItemSx, px: 1.25, py: 1 }}>
+                    <Box sx={{ width: 30, height: 30, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.accent, bgcolor: alpha(item.accent, 0.14), flexShrink: 0 }}>
+                      {item.icon}
+                    </Box>
+                    <Typography sx={{ fontWeight: 600, fontSize: 13, color: theme.palette.text.primary, lineHeight: 1.2 }}>
+                      {item.label}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+              <Button
+                onClick={() => handleMenuNavigate('/dashboard')}
+                startIcon={<DescriptionIcon fontSize="small" />}
+                sx={{
+                  justifyContent: 'flex-start',
+                  textTransform: 'none',
+                  borderRadius: 2.5,
+                  px: 1.5,
+                  py: 1.1,
+                  color: theme.palette.text.primary,
+                  bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.72),
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }
+                }}
+              >
+                Reports
+              </Button>
+              <Button
+                onClick={handleLogout}
+                startIcon={<LogoutIcon fontSize="small" />}
+                sx={{
+                  justifyContent: 'flex-start',
+                  textTransform: 'none',
+                  borderRadius: 2.5,
+                  px: 1.5,
+                  py: 1.1,
+                  color: theme.palette.error.main,
+                  bgcolor: alpha(theme.palette.error.main, 0.06),
+                  '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.11) }
+                }}
+              >
+                Logout
+              </Button>
+            </Box>
+          </Box>
         </Menu>
       </Box>
 
