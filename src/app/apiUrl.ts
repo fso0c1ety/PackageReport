@@ -76,13 +76,19 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   }
 
   const base = normalizeBaseUrl(DEFAULT_ASSET_URL) || getServerUrl();
-  const cleanPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
+  const normalizedPath = avatar.startsWith('/')
+    ? avatar
+    : avatar.startsWith('uploads/')
+      ? `/${avatar}`
+      : avatar.includes('/')
+        ? `/${avatar}`
+        : `/uploads/${avatar}`;
 
   if (!base) {
-    return cleanPath;
+    return normalizedPath;
   }
 
-  return `${base}${cleanPath}`;
+  return `${base}${normalizedPath}`;
 }
 
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
