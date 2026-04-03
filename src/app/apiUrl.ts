@@ -29,8 +29,51 @@ function getBrowserOrigin() {
   return typeof window !== 'undefined' ? window.location.origin : '';
 }
 
+function isPrivateDevHost(hostname: string) {
+  const host = hostname.toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+    return true;
+  }
+
+  // Match common private network ranges for LAN testing.
+  if (/^192\.168\./.test(host) || /^10\./.test(host)) {
+    return true;
+  }
+
+  const match172 = host.match(/^172\.(\d{1,3})\./);
+  if (match172) {
+    const secondOctet = Number(match172[1]);
+    return secondOctet >= 16 && secondOctet <= 31;
+  }
+
+  return false;
+}
+
+function getLocalDevServerUrl() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const { protocol, hostname } = window.location;
+  if (!isPrivateDevHost(hostname)) {
+    return '';
+  }
+
+  return `${protocol}//${hostname}:4000`;
+}
+
 export function getServerUrl() {
-  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_SERVER_URL) || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+  const configuredServer = normalizeBaseUrl(DEFAULT_SERVER_URL);
+  if (configuredServer) {
+    return configuredServer;
+  }
+
+  const localDevServer = normalizeBaseUrl(getLocalDevServerUrl());
+  if (localDevServer) {
+    return localDevServer;
+  }
+
+  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
 }
 
 export function getFrontendUrl() {
@@ -78,7 +121,10 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
     return avatar;
   }
 
-  const base = getBrowserOrigin() || normalizeBaseUrl(DEFAULT_ASSET_URL) || getServerUrl();
+  const base =
+    normalizeBaseUrl(DEFAULT_ASSET_URL) ||
+    getServerUrl() ||
+    getBrowserOrigin();
   const normalizedPath = avatar.startsWith('/')
     ? avatar
     : avatar.startsWith('uploads/')

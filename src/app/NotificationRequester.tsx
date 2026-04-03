@@ -275,7 +275,9 @@ const NotificationRequester = () => {
         }, 1000); // Small delay to ensure mount
 
         return () => {
-             PushNotifications.removeAllListeners();
+             if (Capacitor.isNativePlatform()) {
+                 PushNotifications.removeAllListeners();
+             }
              clearTimeout(timer);
         };
     }, []);
