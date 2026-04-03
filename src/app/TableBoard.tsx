@@ -661,7 +661,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           body: formData
         });
 
-        if (!uploadRes.ok) throw new Error('Upload failed');
+        if (!uploadRes.ok) {
+          let details = '';
+          try {
+            const errJson = await uploadRes.json();
+            details = errJson?.details || errJson?.error || '';
+          } catch {
+            details = await uploadRes.text();
+          }
+          throw new Error(`Upload failed (${uploadRes.status})${details ? `: ${details}` : ''}`);
+        }
 
         const uploadData = await uploadRes.json();
         const fileUrl = getAvatarUrl(uploadData.url, uploadData.name || pendingBoardFile.name || 'File');
@@ -675,7 +684,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         };
       } catch (err) {
         console.error("Failed to upload file", err);
-        showNotification("Failed to upload file. Please try again.", "error");
+        const msg = err instanceof Error ? err.message : 'Unknown upload error';
+        showNotification(`Failed to upload file: ${msg}`, "error");
         return;
       }
     }
@@ -2336,7 +2346,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           });
 
           if (!res.ok) {
-            console.error('Upload failed for file:', file.name);
+            let details = '';
+            try {
+              const errJson = await res.json();
+              details = errJson?.details || errJson?.error || '';
+            } catch {
+              details = await res.text();
+            }
+            console.error('Upload failed for file:', file.name, `(${res.status})`, details);
             return null;
           }
 
@@ -2933,17 +2950,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         formData.append('file', chatAttachment);
 
         const res = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
-        if (res.ok) {
-          const data = await res.json();
-          attachment = {
-            name: data.name || chatAttachment.name,
-            url: data.url,
-            type: chatAttachment.type,
-            size: chatAttachment.size,
-            originalName: data.originalName,
-            uploadedAt: new Date().toISOString()
-          };
+        if (!res.ok) {
+          let details = '';
+          try {
+            const errJson = await res.json();
+            details = errJson?.details || errJson?.error || '';
+          } catch {
+            details = await res.text();
+          }
+          throw new Error(`Upload failed (${res.status})${details ? `: ${details}` : ''}`);
         }
+
+        const data = await res.json();
+        attachment = {
+          name: data.name || chatAttachment.name,
+          url: data.url,
+          type: chatAttachment.type,
+          size: chatAttachment.size,
+          originalName: data.originalName,
+          uploadedAt: new Date().toISOString()
+        };
       }
 
       const newMsg = formatChatMessage({
