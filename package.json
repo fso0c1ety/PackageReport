@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "set TURBOPACK=0 && next dev",
-    "build": "next build",
+    "build": "next build && node scripts/prepare-capacitor-webdir.js",
     "start": "node server/server.js",
-    "start-server": "node server/server.js",
+    "start-server": "set NODE_ENV=production&& node server/server.js",
     "lint": "eslint"
   },
   "dependencies": {
