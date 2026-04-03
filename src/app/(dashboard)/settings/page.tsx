@@ -476,6 +476,22 @@ export default function SettingsPage() {
       setTimeout(() => setPasswordSuccess(""), 3000);
   };
 
+  const surfaceBg = theme.palette.mode === 'dark' ? 'rgba(20, 20, 20, 0.42)' : 'rgba(255, 255, 255, 0.68)';
+  const panelBg = theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.5)';
+  const inputBg = theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)';
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 2.5,
+      bgcolor: inputBg,
+      boxShadow: theme.palette.mode === 'dark'
+        ? 'inset 0 1px 0 rgba(255,255,255,0.03)'
+        : 'inset 0 1px 0 rgba(255,255,255,0.7)',
+      '& fieldset': { border: 'none' },
+      '&:hover fieldset': { border: 'none' },
+      '&.Mui-focused fieldset': { border: 'none' },
+    }
+  };
+
   return (
     <Box sx={{ maxWidth: 1000, mx: "auto", p: { xs: 2, md: 4 } }}>
       <Typography variant="h4" fontWeight={800} sx={{ mb: 4, letterSpacing: '-0.5px' }}>
@@ -486,11 +502,14 @@ export default function SettingsPage() {
         mb: 4, 
         overflow: 'hidden', 
         borderRadius: 4, 
-        bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+        bgcolor: surfaceBg,
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
-        border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
         boxShadow: theme.palette.mode === 'dark' ? '0 24px 64px rgba(0,0,0,0.4)' : '0 24px 64px rgba(0,0,0,0.06)',
+        backgroundImage: 'none',
+        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+        '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+        '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
       }}>
         <Tabs 
             value={tabValue} 
@@ -500,8 +519,7 @@ export default function SettingsPage() {
             TabIndicatorProps={{ style: { display: "none" } }} // Hide the standard underline
             sx={{ 
               p: 1.5,
-              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, 
-              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.02)',
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.18)',
               '& .MuiTab-root': {
                 minHeight: 44,
                 textTransform: 'none',
@@ -542,8 +560,8 @@ export default function SettingsPage() {
                 gap: { xs: 4, sm: 5 },
                 p: { xs: 3, sm: 4 },
                 borderRadius: 4,
-                bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
-                border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                bgcolor: panelBg,
+                boxShadow: theme.palette.mode === 'dark' ? 'inset 0 1px 0 rgba(255,255,255,0.03)' : 'inset 0 1px 0 rgba(255,255,255,0.55)',
               }}
             >
               <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', ml: { sm: 2 } }}>
@@ -563,7 +581,6 @@ export default function SettingsPage() {
                   sx={{ 
                     width: 110, height: 110, fontSize: 44, fontWeight: 700, 
                     mx: { xs: 'auto', sm: 0 }, zIndex: 1, 
-                    border: `4px solid ${theme.palette.background.paper}`, 
                     boxShadow: `0 12px 28px ${alpha(theme.palette.primary.main, 0.25)}` 
                   }}
                 >
@@ -598,13 +615,13 @@ export default function SettingsPage() {
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       size="small"
-                      sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                      sx={{ width: '100%', ...fieldSx }}
                     />
                     <TextField
                       label="Email"
                       value={editEmail}
                       size="small"
-                      sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                      sx={{ width: '100%', ...fieldSx }}
                       disabled
                     />
                     <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -613,14 +630,14 @@ export default function SettingsPage() {
                         value={editJobTitle}
                         onChange={(e) => setEditJobTitle(e.target.value)}
                         size="small"
-                        sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                        sx={{ width: '100%', ...fieldSx }}
                       />
                       <TextField
                         label="Company"
                         value={editCompany}
                         onChange={(e) => setEditCompany(e.target.value)}
                         size="small"
-                        sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                        sx={{ width: '100%', ...fieldSx }}
                       />
                     </Box>
                     <TextField
@@ -628,7 +645,7 @@ export default function SettingsPage() {
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
                       size="small"
-                      sx={{ width: '100%', '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                      sx={{ width: '100%', ...fieldSx }}
                     />
                   </Box>
                 ) : (
@@ -662,11 +679,11 @@ export default function SettingsPage() {
               <Box sx={{ mt: { xs: 2, sm: 0 }, display: 'flex', justifyContent: { xs: 'center', sm: 'flex-end' }, minWidth: 120 }}>
                 {isEditing ? (
                   <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button variant="outlined" onClick={() => { setIsEditing(false); setProfileError(""); }} color="inherit" sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
+                    <Button variant="outlined" onClick={() => { setIsEditing(false); setProfileError(""); }} color="inherit" sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: 'transparent', bgcolor: alpha(theme.palette.text.primary, 0.06) }}>Cancel</Button>
                     <Button variant="contained" onClick={handleSaveProfile} color="primary" sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}` }}>Save</Button>
                   </Box>
                 ) : (
-                  <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: alpha(theme.palette.divider, 0.8), '&:hover': { bgcolor: theme.palette.action.hover } }}>
+                  <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: 'transparent', bgcolor: alpha(theme.palette.text.primary, 0.06), '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.1) } }}>
                     Edit Profile
                   </Button>
                 )}
@@ -686,8 +703,7 @@ export default function SettingsPage() {
                 <Paper sx={{
                   p: 2.5,
                   borderRadius: 3,
-                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
-                  border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  bgcolor: panelBg,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   transition: 'all 0.3s ease',
                   '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.1)}` }
@@ -718,7 +734,7 @@ export default function SettingsPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600 }}>
                 <Paper sx={{
                   p: 2.5, borderRadius: 3,
-                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)', border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  bgcolor: panelBg,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   transition: 'all 0.3s ease', '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.1)}` }
                 }}>
@@ -736,7 +752,7 @@ export default function SettingsPage() {
                 
                 <Paper sx={{
                   p: 2.5, borderRadius: 3,
-                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)', border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  bgcolor: panelBg,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   transition: 'all 0.3s ease', '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.1)}` }
                 }}>
@@ -763,26 +779,25 @@ export default function SettingsPage() {
               p: { xs: 3, sm: 4 }, 
               borderRadius: 4, 
               display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 500,
-              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
-              border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+              bgcolor: panelBg,
             }}>
                 <TextField 
                     label="Current Password" type="password" 
                     value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
                     fullWidth size="small"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                    sx={fieldSx}
                 />
                 <TextField 
                     label="New Password" type="password" 
                     value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                     fullWidth size="small"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                    sx={fieldSx}
                 />
                 <TextField 
                     label="Confirm New Password" type="password" 
                     value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                     fullWidth size="small"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)' } }}
+                    sx={fieldSx}
                 />
                 
                 {passwordError && <Alert severity="error" sx={{ borderRadius: 2 }}>{passwordError}</Alert>}
@@ -858,14 +873,12 @@ export default function SettingsPage() {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           borderRadius: 4,
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)',
-                          border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                          bgcolor: panelBg,
                           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                           cursor: teammate.status === 'joined' ? 'pointer' : 'default',
                           flexDirection: { xs: 'column', sm: 'row' },
                           gap: { xs: 2.5, sm: 0 },
                           '&:hover': teammate.status === 'joined' ? {
-                            borderColor: theme.palette.primary.main,
                             boxShadow: `0 12px 32px ${alpha(theme.palette.primary.main, 0.15)}`,
                             transform: 'translateY(-3px)'
                           } : {}
@@ -878,10 +891,10 @@ export default function SettingsPage() {
                               sx={{ width: 56, height: 56, mx: { xs: 'auto', sm: 0 }, boxShadow: 1 }}
                             />
                             {teammate.status === 'pending' && (
-                              <Box sx={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', bgcolor: theme.palette.warning.main, border: `3px solid ${theme.palette.background.paper}` }} />
+                              <Box sx={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', bgcolor: theme.palette.warning.main }} />
                             )}
                             {teammate.status === 'joined' && (
-                              <Box sx={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', bgcolor: theme.palette.success.main, border: `3px solid ${theme.palette.background.paper}` }} />
+                              <Box sx={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', bgcolor: theme.palette.success.main }} />
                             )}
                           </Box>
                           
@@ -916,7 +929,7 @@ export default function SettingsPage() {
                               e.stopPropagation();
                               handleRemoveTeammate(teammate.id);
                             }}
-                            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, width: { xs: '100%', sm: 'auto' }, borderColor: alpha(theme.palette.error.main, 0.5), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) } }}
+                            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, width: { xs: '100%', sm: 'auto' }, borderColor: 'transparent', bgcolor: alpha(theme.palette.error.main, 0.08), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.14) } }}
                           >
                             Remove
                           </Button>
@@ -925,7 +938,7 @@ export default function SettingsPage() {
                     ))}
                 </List>
             ) : (
-                <Box sx={{ p: 8, textAlign: 'center', bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.4)', borderRadius: 4, border: `2px dashed ${alpha(theme.palette.divider, 0.8)}` }}>
+                <Box sx={{ p: 8, textAlign: 'center', bgcolor: panelBg, borderRadius: 4, boxShadow: theme.palette.mode === 'dark' ? 'inset 0 1px 0 rgba(255,255,255,0.03)' : 'inset 0 1px 0 rgba(255,255,255,0.55)' }}>
                     <GroupIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2, opacity: 0.3 }} />
                     <Typography variant="h5" fontWeight={800} gutterBottom sx={{ letterSpacing: '-0.3px' }}>Build Your Team</Typography>
                     <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 450, mx: 'auto' }}>
@@ -958,11 +971,13 @@ export default function SettingsPage() {
         PaperProps={{
           sx: {
             borderRadius: 4,
-            bgcolor: theme.palette.mode === 'dark' ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)',
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(24,24,24,0.9)' : 'rgba(255,255,255,0.92)',
             backdropFilter: 'blur(24px)',
-            border: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
             boxShadow: `0 32px 64px ${alpha(theme.palette.common.black, 0.3)}`,
-            backgroundImage: 'none'
+            backgroundImage: 'none',
+            '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+            '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
           }
         }}
       >
@@ -995,7 +1010,7 @@ export default function SettingsPage() {
                             label="Search Name or Email"
                             placeholder="Type to search..."
                             size="small"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                            sx={fieldSx}
                             InputProps={{
                                 ...params.InputProps,
                                 endAdornment: (
@@ -1020,7 +1035,7 @@ export default function SettingsPage() {
                     }}
                     SelectProps={{ native: true }}
                     size="small"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    sx={fieldSx}
                 >
                     {inviteWorkspaces.map((ws) => (
                         <option key={ws.id} value={ws.id}>{ws.name}</option>
@@ -1036,7 +1051,7 @@ export default function SettingsPage() {
                     SelectProps={{ native: true }}
                     size="small"
                     disabled={!selectedInviteWs || inviteTables.length === 0}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    sx={fieldSx}
                 >
                     {inviteTables.length > 0 ? (
                         inviteTables.map((t) => (
@@ -1060,7 +1075,6 @@ export default function SettingsPage() {
                       sx={{
                         bgcolor: invitePermission === 'edit' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
                         color: invitePermission === 'edit' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        border: `1px solid ${invitePermission === 'edit' ? theme.palette.primary.main : 'transparent'}`,
                         borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
                         '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
                         boxShadow: invitePermission === 'edit' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
@@ -1075,7 +1089,6 @@ export default function SettingsPage() {
                       sx={{
                         bgcolor: invitePermission === 'read' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
                         color: invitePermission === 'read' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        border: `1px solid ${invitePermission === 'read' ? theme.palette.primary.main : 'transparent'}`,
                         borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
                         '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
                         boxShadow: invitePermission === 'read' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
@@ -1090,7 +1103,6 @@ export default function SettingsPage() {
                       sx={{
                         bgcolor: invitePermission === 'admin' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
                         color: invitePermission === 'admin' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        border: `1px solid ${invitePermission === 'admin' ? theme.palette.primary.main : 'transparent'}`,
                         borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
                         '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
                         boxShadow: invitePermission === 'admin' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
@@ -1106,7 +1118,6 @@ export default function SettingsPage() {
                   <Box sx={{
                     mt: 1, p: 2.5, borderRadius: 3,
                     bgcolor: alpha(theme.palette.primary.main, 0.04),
-                    border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1
                   }}>
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.5px' }}>
@@ -1134,7 +1145,7 @@ export default function SettingsPage() {
             <Box sx={{ mt: 5, display: 'flex', gap: 2 }}>
                 <Button 
                     variant="outlined" fullWidth onClick={() => setInviteDialogOpen(false)}
-                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, py: 1.2 }}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, py: 1.2, borderColor: 'transparent', bgcolor: alpha(theme.palette.text.primary, 0.06) }}
                 >
                     Cancel
                 </Button>
@@ -1164,10 +1175,13 @@ export default function SettingsPage() {
         PaperProps={{
             sx: { 
                 borderRadius: 4, height: '80vh', display: 'flex', flexDirection: 'column',
-                bgcolor: theme.palette.mode === 'dark' ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)',
-                backdropFilter: 'blur(24px)', border: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(24,24,24,0.9)' : 'rgba(255,255,255,0.92)',
+                backdropFilter: 'blur(24px)',
                 boxShadow: `0 32px 64px ${alpha(theme.palette.common.black, 0.3)}`,
-                backgroundImage: 'none'
+                backgroundImage: 'none',
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
             }
         }}
       >
@@ -1175,7 +1189,7 @@ export default function SettingsPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 1 }}>
                 <Avatar 
                     src={getAvatarUrl(selectedTeammateForAccess?.avatar)} 
-                    sx={{ width: 64, height: 64, border: `3px solid ${theme.palette.background.paper}`, boxShadow: 1 }} 
+                    sx={{ width: 64, height: 64, boxShadow: 1 }} 
                 />
                 <Box>
                     <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.5px' }}>{selectedTeammateForAccess?.name}</Typography>
@@ -1198,9 +1212,7 @@ export default function SettingsPage() {
                     InputProps={{
                         startAdornment: <SearchIcon sx={{ color: 'text.disabled', mr: 1, fontSize: 18 }} />
                     }}
-                    sx={{
-                        '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.5) }
-                    }}
+                    sx={fieldSx}
                 />
             </Box>
 
@@ -1212,7 +1224,7 @@ export default function SettingsPage() {
                     <Paper 
                         key={a.tableId} 
                         variant="outlined" 
-                        sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${alpha(theme.palette.divider, 0.5)}`, bgcolor: 'transparent' }}
+                        sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: panelBg, boxShadow: 'none' }}
                     >
                         <Box>
                             <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', mb: 0.5, letterSpacing: '0.5px' }}>
@@ -1230,7 +1242,7 @@ export default function SettingsPage() {
                                 SelectProps={{ native: true }}
                                 sx={{ 
                                     minWidth: 120,
-                                    '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.85rem', fontWeight: 700, bgcolor: alpha(theme.palette.background.paper, 0.5) }
+                                    '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.85rem', fontWeight: 700, bgcolor: inputBg, '& fieldset': { border: 'none' }, '&:hover fieldset': { border: 'none' }, '&.Mui-focused fieldset': { border: 'none' } }
                                 }}
                             >
                                 <option value="read">Read Only</option>
@@ -1247,7 +1259,7 @@ export default function SettingsPage() {
                 fullWidth 
                 variant="outlined" 
                 onClick={() => setAccessDialogOpen(false)}
-                sx={{ borderRadius: 2, py: 1.5, fontWeight: 800, textTransform: 'none' }}
+                sx={{ borderRadius: 2, py: 1.5, fontWeight: 800, textTransform: 'none', borderColor: 'transparent', bgcolor: alpha(theme.palette.text.primary, 0.06) }}
             >
                 Close
             </Button>
