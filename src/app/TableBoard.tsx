@@ -2009,35 +2009,45 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const handleAddTask = async () => {
     if (userPermission === 'read') return;
     setLoading(true);
-    // Initialize values for all columns
-    const values: Record<string, any> = {};
-    columns.forEach((col, idx) => {
-      if (col.type === "Status") {
-        values[col.id] = filterStatus.length > 0 ? filterStatus[0] : "";
-      } else if (col.type === "Dropdown") {
-        values[col.id] = ""; // Blank by default
-      } else if (col.type === "Date") {
-        values[col.id] = "";
-      } else if (col.type === "Checkbox") {
-        values[col.id] = false;
-      } else if (col.type === "People") {
-        values[col.id] = filterPerson.length > 0 ? tableMembers.filter((m: any) => filterPerson.includes(m.name)) : [];
-      } else if (idx === 0) {
-        // Pre-fill primary text column with the current text filter if present
-        values[col.id] = filterText ? filterText.trim() : "";
-      } else {
-        values[col.id] = "";
+    try {
+      // Initialize values for all columns
+      const values: Record<string, any> = {};
+      columns.forEach((col, idx) => {
+        if (col.type === "Status") {
+          values[col.id] = filterStatus.length > 0 ? filterStatus[0] : "";
+        } else if (col.type === "Dropdown") {
+          values[col.id] = ""; // Blank by default
+        } else if (col.type === "Date") {
+          values[col.id] = "";
+        } else if (col.type === "Checkbox") {
+          values[col.id] = false;
+        } else if (col.type === "People") {
+          values[col.id] = filterPerson.length > 0 ? tableMembers.filter((m: any) => filterPerson.includes(m.name)) : [];
+        } else if (idx === 0) {
+          // Pre-fill primary text column with the current text filter if present
+          values[col.id] = filterText ? filterText.trim() : "";
+        } else {
+          values[col.id] = "";
+        }
+      });
+      const newTask = { values };
+      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTask),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to create task (${res.status})`);
       }
-    });
-    const newTask = { values };
-    const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newTask),
-    });
-    const created = await res.json();
-    setRows((prev) => [created, ...prev]);
-    setLoading(false);
+
+      const created = await res.json();
+      setRows((prev) => [created, ...prev]);
+    } catch (err) {
+      console.error("Failed to add task", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBeforeDragStart = (start: any) => {
@@ -2245,25 +2255,35 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     // If editing the placeholder row, treat as new task
     if (rowId === 'placeholder') {
       setLoading(true);
-      // Create a new task with the edited value
-      const values: Record<string, any> = { ...editValue };
-      columns.forEach(col => {
-        if (!(col.id in values)) {
-          values[col.id] = col.type === 'People' ? [] : '';
+      try {
+        // Create a new task with the edited value
+        const values: Record<string, any> = { ...editValue };
+        columns.forEach(col => {
+          if (!(col.id in values)) {
+            values[col.id] = col.type === 'People' ? [] : '';
+          }
+        });
+        values[colId] = valueOverride !== undefined ? valueOverride : editValue;
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ values }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to create task (${res.status})`);
         }
-      });
-      values[colId] = valueOverride !== undefined ? valueOverride : editValue;
-      const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values }),
-      });
-      const created = await res.json();
-      // Remove placeholder and add real task
-      setRows([created]);
-      setEditingCell(null);
-      setEditValue("");
-      setLoading(false);
+
+        const created = await res.json();
+        // Remove placeholder and add real task
+        setRows([created]);
+        setEditingCell(null);
+        setEditValue("");
+      } catch (err) {
+        console.error("Failed to create task from placeholder", err);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     // Persist to backend for real rows
@@ -7170,6 +7190,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               setRows(prev => [...prev, createdTask]);
                               // Open detailed view for immediate editing
                               setReviewTask(createdTask);
+                            } else {
+                              console.error(`Failed to create task (${res.status})`);
                             }
                           } catch (e) {
                             console.error("Failed to create task", e);
