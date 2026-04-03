@@ -7,7 +7,7 @@ const connectionString = process.env.DATABASE_URL || 'postgresql://postgres.gxzv
 const pool = new Pool({
     connectionString: connectionString,
     ssl: {
-        rejectUnauthorized: false // Required for Supabase
+        rejectUnauthorized: false // Required for Supabase and Render
     }
 });
 

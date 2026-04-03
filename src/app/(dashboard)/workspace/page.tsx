@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -10,7 +10,6 @@ import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 function WorkspaceContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get('id');
   const tableIdParam = searchParams.get('tableId');
@@ -29,16 +28,17 @@ function WorkspaceContent() {
 
       const storageKey = `lastWorkspace_${userId}`;
 
-      // Validate against accessible workspaces list to avoid stale-id 403/404 loops.
-      authenticatedFetch(getApiUrl("workspaces"))
-        .then(async (res) => (res.ok ? res.json() : []))
-        .then((list) => {
-          const ws = Array.isArray(list) ? list.find((item: any) => item?.id === workspaceId) : null;
-          if (ws?.id) {
+      // Try to get workspace name from API or fallback to id
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`))
+        .then(res => res.json())
+        .then(ws => {
+          if (ws && ws.id) {
             localStorage.setItem(storageKey, JSON.stringify({ id: ws.id, name: ws.name || ws.id }));
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          localStorage.setItem(storageKey, JSON.stringify({ id: workspaceId, name: workspaceId }));
+        });
     }
   }, [workspaceId]);
   const [tables, setTables] = useState<any[]>([]);
@@ -113,49 +113,12 @@ function WorkspaceContent() {
   const fetchTables = async () => {
     if (!workspaceId) return;
     setLoading(true);
-    try {
-      // First validate the requested workspace id against accessible workspaces.
-      const wsRes = await authenticatedFetch(getApiUrl("workspaces"));
-      if (!wsRes.ok) {
-        throw new Error(`Failed to fetch workspaces: ${wsRes.status}`);
-      }
-      const workspaces = await wsRes.json();
-      const hasRequestedWorkspace = Array.isArray(workspaces)
-        && workspaces.some((ws: any) => ws?.id === workspaceId);
-
-      if (!hasRequestedWorkspace) {
-        if (Array.isArray(workspaces) && workspaces.length > 0) {
-          router.replace(`/workspace?id=${workspaces[0].id}`);
-          return;
-        }
-        router.replace("/dashboard");
-        return;
-      }
-
-      const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
-
-      if (res.status === 403 || res.status === 404) {
-        if (Array.isArray(workspaces) && workspaces.length > 0) {
-          router.replace(`/workspace?id=${workspaces[0].id}`);
-          return;
-        }
-        router.replace("/dashboard");
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error(`Failed to fetch workspace tables: ${res.status}`);
-      }
-
-      const data = await res.json();
-      setTables(Array.isArray(data) ? data : []);
-      if (!selected && Array.isArray(data) && data.length > 0) setSelected(data[0].id);
-    } catch (err) {
-      console.error("Failed to fetch tables", err);
-      setTables([]);
-    } finally {
-      setLoading(false);
-    }
+    const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
+    const data = await res.json();
+    setTables(data);
+    // If no tab is selected, select the first one
+    if (!selected && data.length > 0) setSelected(data[0].id);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -170,7 +133,7 @@ function WorkspaceContent() {
     return () => {
       window.removeEventListener('workspaceUpdated', handleUpdate);
     };
-  }, [workspaceId, router]);
+  }, [workspaceId]);
 
   const handleAddTable = async () => {
     setCreating(true);

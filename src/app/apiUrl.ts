@@ -3,7 +3,7 @@ export const DEFAULT_FRONTEND_URL =
   process.env.NEXT_PUBLIC_FRONTEND_URL || "https://package-report.vercel.app";
 
 export const DEFAULT_SERVER_URL =
-  process.env.NEXT_PUBLIC_API_URL || "";
+  process.env.NEXT_PUBLIC_API_URL || "https://packagereport.onrender.com";
 
 export const DEFAULT_ASSET_URL =
   process.env.NEXT_PUBLIC_ASSET_URL || DEFAULT_SERVER_URL;
@@ -16,34 +16,13 @@ export function getFrontendUrl() {
   return DEFAULT_FRONTEND_URL;
 }
 
-function isNativeRuntime() {
-  if (typeof window === 'undefined') return false;
-  const maybeCapacitor = (window as any)?.Capacitor;
-  return Boolean(maybeCapacitor?.isNativePlatform?.());
-}
-
 export function getApiUrl(path: string) {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-
-  // In web browser deployments (including Vercel preview), use same-origin API routes
-  // to avoid CORS issues between preview and production domains.
-  if (typeof window !== 'undefined' && !isNativeRuntime()) {
-    return `/api${cleanPath}`;
-  }
-
   // Use Express backend (LAN IP for mobile/desktop)
-  const base = getServerUrl().trim();
+  const base = getServerUrl();
 
   // Ensure no double slash issues
   let cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-
-  if (!cleanBase) {
-    return `/api${cleanPath}`;
-  }
-
-  if (!cleanBase.startsWith('http://') && !cleanBase.startsWith('https://')) {
-    cleanBase = `https://${cleanBase}`;
-  }
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
   // Clean up if the base already includes /api, but prevent duplication logic
   if (cleanBase.endsWith('/api')) {
@@ -54,43 +33,6 @@ export function getApiUrl(path: string) {
   return `${cleanBase}/api${cleanPath}`;
 }
 
-export function getAssetUrl(asset: string | null | undefined) {
-  if (!asset) return '';
-  const raw = String(asset).trim();
-  if (!raw) return '';
-
-  if (
-    raw.startsWith('http://') ||
-    raw.startsWith('https://') ||
-    raw.startsWith('data:') ||
-    raw.startsWith('blob:')
-  ) {
-    return raw;
-  }
-
-  let normalized = raw;
-  if (!normalized.startsWith('/')) {
-    // Legacy rows may store only a filename; uploaded files are served from /uploads.
-    normalized = normalized.startsWith('uploads/') ? `/${normalized}` : `/uploads/${normalized}`;
-  }
-
-  let base = DEFAULT_ASSET_URL.trim();
-  if (base && !base.startsWith('http://') && !base.startsWith('https://')) {
-    base = `https://${base}`;
-  }
-
-  // Web should still use external asset host when configured (legacy /uploads are not on Vercel).
-  if (typeof window !== 'undefined' && !isNativeRuntime()) {
-    if (!base) return normalized;
-    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-    return `${cleanBase}${normalized}`;
-  }
-
-  if (!base) return normalized;
-  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-  return `${cleanBase}${normalized}`;
-}
-
 /**
  * Resolves an avatar URL consistently across the application.
  * Handles: null/undefined, absolute URLs, Base64 data URLs, and relative local paths.
@@ -99,7 +41,24 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   if (!avatar) {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
   }
-  return getAssetUrl(avatar);
+
+  // Handle absolute URLs (http:// or https://)
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+
+  // Handle Base64 data URLs (data:image/...)
+  if (avatar.startsWith('data:')) {
+    return avatar;
+  }
+
+  // Handle relative local paths (e.g., /uploads/...)
+  // We use the base server URL, NOT the /api prefix
+  const base = DEFAULT_ASSET_URL;
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const cleanPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
+  
+  return `${cleanBase}${cleanPath}`;
 }
 
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
@@ -131,6 +90,15 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
         console.error(`[Fetch Failed] ${url}`, err);
     }
     throw err;
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      localStorage.removeItem('token'); // Clear invalid token
+      window.location.href = '/login';
+      return new Promise(() => { }) as unknown as Response;
+    }
+    throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");
   }
 
   return response;
