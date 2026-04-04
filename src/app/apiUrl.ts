@@ -274,10 +274,6 @@ function normalizeRequestUrl(url: string) {
       }
 
       const normalizedUrl = parsed.toString();
-      if (shouldUseElectronApiProxy(normalizedUrl)) {
-        return toElectronProxyUrl(normalizedUrl);
-      }
-
       return normalizedUrl;
     } catch {
       return trimmed;
@@ -438,9 +434,7 @@ export function getSocketUrl() {
 
 export function getApiUrl(path: string) {
   const cleanPath = normalizeApiPath(path);
-  const preferredBase =
-    (isElectronRuntime() ? getBrowserOrigin() : '') ||
-    getServerUrl();
+  const preferredBase = getServerUrl();
 
   // Ensure 'base' is an absolute URL.
   // If getServerUrl somehow returns empty, use the production fallback to prevent
@@ -480,7 +474,6 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   }
 
   const base =
-    (isElectronRuntime() ? getBrowserOrigin() : '') ||
     normalizeBaseUrl(DEFAULT_ASSET_URL) ||
     getServerUrl() ||
     getBrowserOrigin();

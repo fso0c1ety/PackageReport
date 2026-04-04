@@ -86,10 +86,33 @@ app.whenReady().then(() => {
 
     if (isProxiedPath) {
       const upstreamUrl = `${remoteOrigin}${url.pathname}${url.search}`;
-      return net.fetch(upstreamUrl, {
+      const headers = Object.fromEntries(request.headers.entries());
+      delete headers.host;
+      delete headers.origin;
+      delete headers["content-length"];
+
+      const fetchOptions = {
         method: request.method,
-        headers: request.headers,
-        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+        headers,
+      };
+
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        fetchOptions.body = request.body;
+        fetchOptions.duplex = "half";
+      }
+
+      return net.fetch(upstreamUrl, fetchOptions).catch((error) => {
+        console.error("[app protocol proxy] Failed request:", request.method, upstreamUrl, error);
+        return new Response(
+          JSON.stringify({ error: "Proxy request failed", details: error?.message || String(error) }),
+          {
+            status: 502,
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+        );
       });
     }
 
