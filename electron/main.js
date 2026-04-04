@@ -17,18 +17,47 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+function resolveWindowIcon() {
+  const candidates = [
+    path.join(app.getAppPath(), "out", "icon.png"),
+    path.join(app.getAppPath(), "src", "app", "icon.png"),
+    path.join(__dirname, "..", "src", "app", "icon.png"),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
 function createMainWindow() {
+  const iconPath = resolveWindowIcon();
+
   const win = new BrowserWindow({
     width: 1366,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
+    show: false,
+    title: "Smar Manage",
+    backgroundColor: "#0b1220",
     autoHideMenuBar: true,
+    titleBarStyle: process.platform === "win32" ? "hidden" : "default",
+    titleBarOverlay:
+      process.platform === "win32"
+        ? {
+            color: "#111827",
+            symbolColor: "#ffffff",
+            height: 46,
+          }
+        : false,
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  win.once("ready-to-show", () => {
+    win.show();
   });
 
   win.loadURL("app://localhost/index.html");
@@ -40,6 +69,8 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  app.setName("Smar Manage");
+
   // Serve the static out/ directory under app://localhost/
   const outDir = path.join(app.getAppPath(), "out");
   const rawRemoteOrigin = process.env.NEXT_PUBLIC_FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL || "https://package-report.vercel.app";

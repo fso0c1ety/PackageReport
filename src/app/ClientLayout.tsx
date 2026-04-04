@@ -5,6 +5,7 @@ import ThemeRegistry from "./ThemeRegistry";
 import NotificationRequester from "./NotificationRequester";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
+import DesktopWindowBar from "./DesktopWindowBar";
 import Box from "@mui/material/Box";
 import PageTransition from "./PageTransition";
 import { usePathname, useRouter } from "next/navigation";
@@ -51,6 +52,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
           overflow: 'hidden',
         }}
       >
+        <DesktopWindowBar />
         <TopBar onMenuClick={() => setMobileSidebarOpen(true)} />
         <Box
           component="main"

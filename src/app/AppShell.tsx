@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material"; // Added
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
+import DesktopWindowBar from "./DesktopWindowBar";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -39,6 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           bgcolor: theme.palette.background.default, // ensure background coverage
         }}
       >
+        <DesktopWindowBar />
         <TopBar onMenuClick={() => setMobileSidebarOpen(true)} />
 
         <Box

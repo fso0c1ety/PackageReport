@@ -1,4 +1,5 @@
 
+import type { Metadata } from "next";
 import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +17,16 @@ const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
 });
+
+export const metadata: Metadata = {
+  title: "Smar Manage",
+  applicationName: "Smar Manage",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
+};
 
 export const viewport = {
   width: "device-width",

@@ -9,8 +9,8 @@
     "start": "node server/server.js",
     "start-server": "set NODE_ENV=production&& node server/server.js",
     "lint": "eslint",
-    "desktop:build": "npm run build && electron-builder --win nsis --publish never",
-    "desktop:pack": "npm run build && electron-builder --win --dir --publish never"
+    "desktop:build": "npm run build && npx electron-builder --win nsis --publish never",
+    "desktop:pack": "npm run build && npx electron-builder --win --dir --publish never"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -60,7 +60,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/multer": "^2.0.0",
     "babel-plugin-react-compiler": "1.0.0",
-    "electron": "^37.7.1",
+    "electron": "37.7.1",
     "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "16.1.5",
@@ -68,7 +68,8 @@
   },
   "build": {
     "appId": "com.packagereport.desktop",
-    "productName": "PackageReport",
+    "productName": "Smar Manage",
+    "icon": "src/app/icon.png",
     "directories": {
       "output": "dist-electron"
     },
@@ -80,6 +81,7 @@
     "asar": true,
     "win": {
       "signAndEditExecutable": false,
+      "icon": "src/app/icon.png",
       "target": [
         {
           "target": "nsis",
