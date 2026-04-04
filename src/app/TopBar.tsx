@@ -137,7 +137,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   
   const handleLogout = async () => {
     try {
-      await authenticatedFetch('/api/users/fcm', {
+      await authenticatedFetch(getApiUrl('users/fcm'), {
         method: 'DELETE',
         suppressNativeErrorAlert: true,
       });

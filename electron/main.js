@@ -37,15 +37,15 @@ function createMainWindow() {
     minHeight: 700,
     show: false,
     title: "Smar Manage",
-    backgroundColor: "#0b1220",
+    backgroundColor: "#eef3f8",
     autoHideMenuBar: true,
     titleBarStyle: process.platform === "win32" ? "hidden" : "default",
     titleBarOverlay:
       process.platform === "win32"
         ? {
-            color: "#111827",
-            symbolColor: "#ffffff",
-            height: 46,
+            color: "#eef3f8",
+            symbolColor: "#1f2937",
+            height: 74,
           }
         : false,
     ...(iconPath ? { icon: iconPath } : {}),
@@ -78,8 +78,13 @@ app.whenReady().then(() => {
 
   protocol.handle("app", (request) => {
     const url = new URL(request.url);
+    const isProxiedPath =
+      url.pathname === "/api" ||
+      url.pathname.startsWith("/api/") ||
+      url.pathname === "/uploads" ||
+      url.pathname.startsWith("/uploads/");
 
-    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) {
+    if (isProxiedPath) {
       const upstreamUrl = `${remoteOrigin}${url.pathname}${url.search}`;
       return net.fetch(upstreamUrl, {
         method: request.method,

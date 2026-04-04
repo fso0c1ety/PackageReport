@@ -65,7 +65,7 @@ const NotificationRequester = () => {
                     if (currentToken) {
                         console.log('Web FCM Token obtained:', currentToken);
                         // Send token to backend
-                        const response = await authenticatedFetch('/api/users/fcm', {
+                        const response = await authenticatedFetch(getApiUrl('users/fcm'), {
                             method: 'PUT',
                             body: JSON.stringify({ token: currentToken }),
                             suppressNativeErrorAlert: true,
@@ -163,7 +163,7 @@ const NotificationRequester = () => {
                         await PushNotifications.addListener('registration', async (token) => {
                             console.log('Push Registration Token: ', token.value);
                             try {
-                                const response = await authenticatedFetch('/api/users/fcm', {
+                                const response = await authenticatedFetch(getApiUrl('users/fcm'), {
                                     method: 'PUT',
                                     body: JSON.stringify({ token: token.value }),
                                     suppressNativeErrorAlert: true,

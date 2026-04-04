@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Paper,
   Box,
@@ -40,6 +40,8 @@ export function LoginForm() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -68,10 +70,19 @@ export function LoginForm() {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
+        const authError = new Error(
+          data?.error || (response.status === 401 ? 'Invalid credentials' : 'Something went wrong')
+        ) as Error & { status?: number };
+        authError.status = response.status;
+        throw authError;
       }
 
       if (isLogin) {
@@ -83,11 +94,23 @@ export function LoginForm() {
       } else {
         setIsLogin(true);
         setError('Registration successful! Please log in.');
+        window.setTimeout(() => emailInputRef.current?.focus(), 0);
       }
     } catch (err: any) {
-      const errorMsg = err.message || 'Unknown error';
+      const status = typeof err?.status === 'number' ? err.status : 0;
+      const errorMsg = err?.message || 'Unknown error';
       setError(errorMsg);
-      if (typeof window !== 'undefined' && isNativeStaticRuntime()) {
+
+      if (isLogin) {
+        setFormData((prev) => ({ ...prev, password: '' }));
+        window.setTimeout(() => passwordInputRef.current?.focus(), 0);
+      }
+
+      if (
+        typeof window !== 'undefined' &&
+        isNativeStaticRuntime() &&
+        ![400, 401, 403].includes(status)
+      ) {
         alert(`Login/Register Failed!\nURL: ${getApiUrl(endpoint)}\nError: ${errorMsg}`);
       }
     } finally {
@@ -185,6 +208,7 @@ export function LoginForm() {
               name="email"
               type="email"
               required
+              inputRef={emailInputRef}
               value={formData.email}
               onChange={handleChange}
               sx={{
@@ -209,6 +233,7 @@ export function LoginForm() {
               name="password"
               type="password"
               required
+              inputRef={passwordInputRef}
               value={formData.password}
               onChange={handleChange}
               sx={{

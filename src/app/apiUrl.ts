@@ -199,7 +199,7 @@ function normalizeBaseUrl(url: string) {
     return trimmed;
   }
 
-  const withProtocol = /^https?:\/\//i.test(trimmed)
+  const withProtocol = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)
     ? trimmed
     : `https://${trimmed}`;
 
@@ -266,7 +266,7 @@ function normalizeRequestUrl(url: string) {
     return trimmed;
   }
 
-  if (/^https?:\/\//i.test(trimmed)) {
+  if (/^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)) {
     try {
       const parsed = new URL(trimmed);
       if (parsed.pathname === '/api' || parsed.pathname.startsWith('/api/')) {
@@ -286,7 +286,7 @@ function normalizeRequestUrl(url: string) {
 
   const apiMatch = trimmed.match(/^\/?api(?=\/|$|\?|#)(.*)$/i);
   if (apiMatch) {
-    return getApiUrl(apiMatch[1] || '/');
+    return normalizeRequestUrl(getApiUrl(apiMatch[1] || '/'));
   }
 
   return trimmed;
@@ -437,13 +437,15 @@ export function getSocketUrl() {
 }
 
 export function getApiUrl(path: string) {
-  const base = getServerUrl();
   const cleanPath = normalizeApiPath(path);
+  const preferredBase =
+    (isElectronRuntime() ? getBrowserOrigin() : '') ||
+    getServerUrl();
 
   // Ensure 'base' is an absolute URL.
   // If getServerUrl somehow returns empty, use the production fallback to prevent
   // the app from trying to hit relative routes on the user's device.
-  let cleanBase = normalizeBaseUrl(base || NATIVE_PRODUCTION_FALLBACK_URL);
+  let cleanBase = normalizeBaseUrl(preferredBase || NATIVE_PRODUCTION_FALLBACK_URL);
 
   // Clean up if the base already includes /api, but prevent duplication logic
   if (cleanBase.endsWith('/api')) {
@@ -478,6 +480,7 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   }
 
   const base =
+    (isElectronRuntime() ? getBrowserOrigin() : '') ||
     normalizeBaseUrl(DEFAULT_ASSET_URL) ||
     getServerUrl() ||
     getBrowserOrigin();
