@@ -746,8 +746,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Handler to close the review dialog
   const handleCloseReview = () => {
-    reviewCloseGuardRef.current = Date.now() + 300;
-    dismissedTaskIdRef.current = reviewTask?.id ?? null;
+    if (!reviewTask) return;
+    reviewCloseGuardRef.current = Date.now() + 1000;
+    dismissedTaskIdRef.current = reviewTask.id;
     blurFocusedElement();
     setReviewTask(null);
     setShowEmailAutomation(false);
@@ -773,11 +774,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, []);
 
   const openReviewTask = React.useCallback((task: Row | null, source: 'user' | 'url' = 'user') => {
-    if (!task || Date.now() < reviewCloseGuardRef.current) {
-      return;
-    }
-
-    if (source === 'url' && dismissedTaskIdRef.current === task.id) {
+    if (!task || (source === 'url' && dismissedTaskIdRef.current === task.id) || Date.now() < reviewCloseGuardRef.current) {
       return;
     }
 
