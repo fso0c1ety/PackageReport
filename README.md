@@ -25,3 +25,20 @@ This is a Next.js app with a dynamic todo list. You can add tasks and edit colum
 ## Notes
 - Data is not persisted after server restart (in-memory only).
 - You can extend columns and backend logic as needed.
+
+## Desktop EXE Build
+
+This repo now includes Electron packaging for Windows.
+
+- Local unpacked desktop app: `npm run desktop:pack`
+- Local Windows installer `.exe`: `npm run desktop:build`
+
+### GitHub Actions
+
+- Workflow: `.github/workflows/desktop-exe.yml`
+- Runner: `windows-latest`
+- Artifact output: `dist-electron/*.exe`
+
+Set this repository secret for CI builds:
+
+- `NEXT_PUBLIC_API_URL`

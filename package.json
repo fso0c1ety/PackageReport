@@ -2,12 +2,15 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack && node scripts/prepare-capacitor-webdir.js",
     "start": "node server/server.js",
     "start-server": "set NODE_ENV=production&& node server/server.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop:build": "npm run build && electron-builder --win nsis",
+    "desktop:pack": "npm run build && electron-builder --win --dir"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -57,8 +60,39 @@
     "@tailwindcss/postcss": "^4",
     "@types/multer": "^2.0.0",
     "babel-plugin-react-compiler": "1.0.0",
+    "electron": "^37.7.1",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "16.1.5",
     "tailwindcss": "^4"
+  },
+  "build": {
+    "appId": "com.packagereport.desktop",
+    "productName": "PackageReport",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
