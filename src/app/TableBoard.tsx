@@ -747,24 +747,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setReviewTask(null);
     setShowEmailAutomation(false);
     setMobileTab('details'); // Reset tab on close
-    
+
     // Clear URL parameters to prevent auto-reopening
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(window.location.search);
     params.delete('taskId');
     params.delete('tab');
     const currentPath = window.location.pathname;
     const newUrl = params.toString() ? `${currentPath}?${params.toString()}` : currentPath;
-    router.replace(newUrl);
+    router.replace(newUrl, { scroll: false });
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
+  const taskIdFromQuery = searchParams.get('taskId');
+  const tabFromQuery = searchParams.get('tab');
 
   useEffect(() => {
-    const targetTaskId = taskId || searchParams.get('taskId');
-    const targetTab = initialTab || searchParams.get('tab');
+    const targetTaskId = taskId || taskIdFromQuery;
+    const targetTab = initialTab || tabFromQuery;
 
     if (targetTaskId && tableId) {
       // Fetch task
@@ -787,7 +789,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         })
         .catch(err => console.error("Failed to load task from URL", err));
     }
-  }, [tableId, taskId, initialTab, searchParams, isMobile]);
+  }, [tableId, taskId, initialTab, taskIdFromQuery, tabFromQuery, isMobile]);
 
   const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'team' | 'files' | 'activity'>('details');
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'team' | 'files' | 'activity'>('chat');
@@ -7650,7 +7652,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Button>
               ))}
             </Box>
-            <IconButton onClick={handleCloseReview} size="small" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)' } }}>
+            <IconButton
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleCloseReview();
+              }}
+              size="small"
+              sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)' } }}
+            >
               <span style={{ fontSize: 24, lineHeight: 1 }}>×</span>
             </IconButton>
           </Box>

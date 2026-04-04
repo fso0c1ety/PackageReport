@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -20,6 +20,7 @@ import { motion } from "framer-motion";
 export default function LandingPage() {
   const router = useRouter();
   const theme = useTheme();
+  const [showWebLanding, setShowWebLanding] = useState(false);
   const isDark = false;
 
   const serviceItems = [
@@ -68,15 +69,19 @@ export default function LandingPage() {
   };
 
   useEffect(() => {
+    const hasToken = typeof window !== "undefined" && !!localStorage.getItem("token");
+
     if (Capacitor.isNativePlatform()) {
-      router.replace("/home");
-    } else {
-      // On web, redirect to home if user is already logged in
-      const hasToken = !!localStorage.getItem("token");
-      if (hasToken) {
-        router.replace("/home");
-      }
+      router.replace(hasToken ? "/home" : "/login");
+      return;
     }
+
+    if (hasToken) {
+      router.replace("/home");
+      return;
+    }
+
+    setShowWebLanding(true);
   }, [router]);
 
   const handleGetStarted = () => {
@@ -88,7 +93,7 @@ export default function LandingPage() {
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  if (Capacitor.isNativePlatform()) {
+  if (!showWebLanding) {
     return null;
   }
 

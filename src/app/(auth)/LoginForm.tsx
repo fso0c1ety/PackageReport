@@ -92,9 +92,9 @@ export function LoginForm() {
           sx={{
             p: { xs: 2.2, md: 3.2 },
             borderRadius: 4,
-            border: 'none',
+            border: '1px solid rgba(15, 23, 42, 0.06)',
             background: '#ffffff',
-            boxShadow: '0 20px 50px rgba(15,23,42,0.08)',
+            boxShadow: { xs: 'none', md: '0 20px 50px rgba(15,23,42,0.08)' },
           }}
         >
           <Stack spacing={2}>
