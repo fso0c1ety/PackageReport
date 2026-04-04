@@ -112,7 +112,7 @@ export const darkTheme = createTheme({
   },
 });
 
-export const getTheme = () => lightTheme;
-const defaultTheme = lightTheme; 
+export const getTheme = (_mode: 'light' | 'dark') => lightTheme;
+const defaultTheme = lightTheme;
 export default defaultTheme; // Fallback export
 
