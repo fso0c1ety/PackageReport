@@ -37,15 +37,15 @@ function createMainWindow() {
     minHeight: 700,
     show: false,
     title: "Smar Manage",
-    backgroundColor: "#eef3f8",
+    backgroundColor: "#F8FAFC",
     autoHideMenuBar: true,
     titleBarStyle: process.platform === "win32" ? "hidden" : "default",
     titleBarOverlay:
       process.platform === "win32"
         ? {
-            color: "#eef3f8",
-            symbolColor: "#1f2937",
-            height: 74,
+            color: "#F8FAFC",
+            symbolColor: "#0F172A",
+            height: 48,
           }
         : false,
     ...(iconPath ? { icon: iconPath } : {}),

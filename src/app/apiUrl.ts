@@ -391,11 +391,8 @@ export function getServerUrl() {
     return configuredServer;
   }
 
-  // Handle local development access from physical devices (LAN)
-  // IMPORTANT: In native builds, 'localhost' is the app itself, not the backend.
-  // So we ONLY treat a local host as a dev server if it's a real LAN IP (192.168.x.x, etc.)
-  // OR if we are explicitly on localhost:3000 in a browser.
-  if (typeof window !== 'undefined') {
+  // Handle local development access from physical devices (LAN) ONLY on web browsers
+  if (typeof window !== 'undefined' && !isNativeStaticRuntime()) {
     const host = window.location.hostname.toLowerCase();
     const port = window.location.port;
     const isLanIp = /^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
@@ -406,19 +403,9 @@ export function getServerUrl() {
     }
   }
 
-  // Fall back to production Vercel for all other cases (including Native .exe/.apk and hosted Web)
+  // Fall back to production Vercel for all other cases (including Native .exe/.apk)
   const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
   const finalUrl = configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
-  
-  if (typeof window !== 'undefined' && isNativeStaticRuntime()) {
-    console.log('[DEBUG] Native build detected. Using getServerUrl:', finalUrl);
-  }
-  
-  return finalUrl;
-}
-
-export function getFrontendUrl() {
-  const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
   if (configuredFrontend) return configuredFrontend;
 
   if (isNativeStaticRuntime()) {
@@ -494,13 +481,20 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
 
 type AuthenticatedFetchOptions = RequestInit & {
   suppressNativeErrorAlert?: boolean;
+  includeAuthToken?: boolean;
+  handleAuthErrors?: boolean;
 };
 
 export async function authenticatedFetch(url: string, options: AuthenticatedFetchOptions = {}) {
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const requestUrl = normalizeRequestUrl(url);
-  const { suppressNativeErrorAlert = false, ...requestOptions } = options;
+  const {
+    suppressNativeErrorAlert = false,
+    includeAuthToken = true,
+    handleAuthErrors = true,
+    ...requestOptions
+  } = options;
 
   const headers = { ...((requestOptions.headers as any) || {}) } as any;
 
@@ -510,7 +504,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     headers['Content-Type'] = 'application/json';
   }
 
-  if (token) {
+  if (token && includeAuthToken) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -523,6 +517,11 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     /^https?:\/\//i.test(requestUrl) &&
     !(typeof FormData !== 'undefined' && requestOptions.body instanceof FormData);
 
+  const canUseElectronProxyFallback =
+    typeof window !== 'undefined' &&
+    isElectronRuntime() &&
+    shouldUseElectronApiProxy(requestUrl);
+
   let response;
   try {
     response = await fetch(requestUrl, {
@@ -530,7 +529,21 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
       headers,
     });
   } catch (err: any) {
-    if (canUseNativeHttpFallback) {
+    if (!response && canUseElectronProxyFallback) {
+      try {
+        const proxyUrl = toElectronProxyUrl(requestUrl);
+        if (proxyUrl !== requestUrl) {
+          response = await fetch(proxyUrl, {
+            ...requestOptions,
+            headers,
+          });
+        }
+      } catch (electronErr: any) {
+        err = electronErr;
+      }
+    }
+
+    if (!response && canUseNativeHttpFallback) {
       try {
         response = await nativeHttpRequest(requestUrl, requestOptions, headers as Record<string, string>);
       } catch (nativeErr: any) {
@@ -550,7 +563,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     }
   }
 
-  if (response.status === 401 || response.status === 403) {
+  if (handleAuthErrors && (response.status === 401 || response.status === 403)) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token'); // Clear invalid token
       redirectToAppRoute('/login');
@@ -560,4 +573,12 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   }
 
   return response;
+}
+
+export function publicFetch(url: string, options: AuthenticatedFetchOptions = {}) {
+  return authenticatedFetch(url, {
+    ...options,
+    includeAuthToken: false,
+    handleAuthErrors: false,
+  });
 }

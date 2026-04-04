@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getApiUrl, redirectToAppRoute, isNativeStaticRuntime } from '../apiUrl';
+import { getApiUrl, redirectToAppRoute, isNativeStaticRuntime, publicFetch } from '../apiUrl';
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -64,7 +64,7 @@ export function LoginForm() {
     const endpoint = isLogin ? 'login' : 'register';
 
     try {
-      const response = await fetch(getApiUrl(endpoint), {
+      const response = await publicFetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
