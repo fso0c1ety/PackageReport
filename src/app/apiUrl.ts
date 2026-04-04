@@ -1,3 +1,5 @@
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
+
 const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
 
 // Default to same-origin on web, but provide a safe hosted fallback for Capacitor builds.
@@ -230,6 +232,34 @@ function normalizeApiPath(path: string) {
   return `${ensureTrailingSlash(normalizedPath)}${suffix}`;
 }
 
+function shouldUseElectronApiProxy(requestUrl: string) {
+  if (typeof window === 'undefined' || !isElectronRuntime()) {
+    return false;
+  }
+
+  if (!/^https?:\/\//i.test(requestUrl)) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(requestUrl);
+    const serverOrigin = new URL(getServerUrl()).origin;
+    const fallbackOrigin = new URL(NATIVE_PRODUCTION_FALLBACK_URL).origin;
+    return parsed.origin === serverOrigin || parsed.origin === fallbackOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function toElectronProxyUrl(requestUrl: string) {
+  try {
+    const parsed = new URL(requestUrl);
+    return `${getBrowserOrigin()}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return requestUrl;
+  }
+}
+
 function normalizeRequestUrl(url: string) {
   const trimmed = url.trim();
   if (!trimmed) {
@@ -241,13 +271,17 @@ function normalizeRequestUrl(url: string) {
       const parsed = new URL(trimmed);
       if (parsed.pathname === '/api' || parsed.pathname.startsWith('/api/')) {
         parsed.pathname = ensureTrailingSlash(parsed.pathname);
-        return parsed.toString();
       }
+
+      const normalizedUrl = parsed.toString();
+      if (shouldUseElectronApiProxy(normalizedUrl)) {
+        return toElectronProxyUrl(normalizedUrl);
+      }
+
+      return normalizedUrl;
     } catch {
       return trimmed;
     }
-
-    return trimmed;
   }
 
   const apiMatch = trimmed.match(/^\/?api(?=\/|$|\?|#)(.*)$/i);
@@ -256,6 +290,51 @@ function normalizeRequestUrl(url: string) {
   }
 
   return trimmed;
+}
+
+async function nativeHttpRequest(
+  requestUrl: string,
+  requestOptions: RequestInit,
+  headers: Record<string, string>,
+) {
+  const method = (requestOptions.method || 'GET').toUpperCase();
+  const rawBody = requestOptions.body;
+  let data: any;
+
+  if (typeof rawBody === 'string') {
+    if ((headers['Content-Type'] || headers['content-type'] || '').includes('application/json')) {
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = rawBody;
+      }
+    } else {
+      data = rawBody;
+    }
+  } else if (typeof URLSearchParams !== 'undefined' && rawBody instanceof URLSearchParams) {
+    data = rawBody.toString();
+  }
+
+  const nativeResponse = await CapacitorHttp.request({
+    url: requestUrl,
+    method,
+    headers,
+    data,
+    responseType: 'text',
+    connectTimeout: 30000,
+    readTimeout: 30000,
+  });
+
+  const responseHeaders = new Headers(nativeResponse.headers || {});
+  const responseBody =
+    typeof nativeResponse.data === 'string'
+      ? nativeResponse.data
+      : JSON.stringify(nativeResponse.data ?? '');
+
+  return new Response(responseBody, {
+    status: nativeResponse.status,
+    headers: responseHeaders,
+  });
 }
 
 function resolveSupabaseStorageUrl(path: string) {
@@ -441,6 +520,13 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
 
   // console.log(`[Fetch] ${requestUrl}`); // Debug
 
+  const canUseNativeHttpFallback =
+    typeof window !== 'undefined' &&
+    Capacitor.isNativePlatform() &&
+    !isElectronRuntime() &&
+    /^https?:\/\//i.test(requestUrl) &&
+    !(typeof FormData !== 'undefined' && requestOptions.body instanceof FormData);
+
   let response;
   try {
     response = await fetch(requestUrl, {
@@ -448,14 +534,24 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
       headers,
     });
   } catch (err: any) {
-    if (typeof window !== 'undefined') {
-        const errorMsg = `[Fetch Failed] ${requestUrl}\nError: ${err?.message || 'Unknown error'}`;
-        console.error(errorMsg, err);
-        if (isNativeStaticRuntime() && !suppressNativeErrorAlert) {
-          alert(errorMsg);
-        }
+    if (canUseNativeHttpFallback) {
+      try {
+        response = await nativeHttpRequest(requestUrl, requestOptions, headers as Record<string, string>);
+      } catch (nativeErr: any) {
+        err = nativeErr;
+      }
     }
-    throw err;
+
+    if (!response) {
+      if (typeof window !== 'undefined') {
+          const errorMsg = `[Fetch Failed] ${requestUrl}\nError: ${err?.message || 'Unknown error'}`;
+          console.error(errorMsg, err);
+          if (isNativeStaticRuntime() && !suppressNativeErrorAlert) {
+            alert(errorMsg);
+          }
+      }
+      throw err;
+    }
   }
 
   if (response.status === 401 || response.status === 403) {

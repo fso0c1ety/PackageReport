@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, protocol, net } = require("electron");
+const fs = require("fs");
 const path = require("path");
 
 // Register custom protocol BEFORE app is ready so it can be used as a
@@ -41,9 +42,31 @@ function createMainWindow() {
 app.whenReady().then(() => {
   // Serve the static out/ directory under app://localhost/
   const outDir = path.join(app.getAppPath(), "out");
+  const rawRemoteOrigin = process.env.NEXT_PUBLIC_FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL || "https://package-report.vercel.app";
+  const remoteOrigin = rawRemoteOrigin.replace(/\/api\/?$/i, "").replace(/\/$/, "");
+
   protocol.handle("app", (request) => {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) {
+      const upstreamUrl = `${remoteOrigin}${url.pathname}${url.search}`;
+      return net.fetch(upstreamUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+      });
+    }
+
     let filePath = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
+
+    if (filePath && !path.extname(filePath)) {
+      const htmlCandidate = `${filePath}.html`;
+      const htmlPath = path.join(outDir, htmlCandidate);
+      if (fs.existsSync(htmlPath)) {
+        filePath = htmlCandidate;
+      }
+    }
+
     return net.fetch("file://" + path.join(outDir, filePath));
   });
   createMainWindow();
