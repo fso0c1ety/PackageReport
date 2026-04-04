@@ -1,19 +1,17 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Box, Container, useTheme } from '@mui/material';
+import { Box, Container } from '@mui/material';
 import { LoginForm } from '../LoginForm';
 
-export default function LoginPage() {
-  const theme = useTheme();
 
+export default function LoginPage() {
+  // Always light mode — never affected by dark/light theme setting.
   return (
     <Box
       sx={{
         minHeight: '100vh',
-        background: theme.palette.mode === 'dark'
-          ? 'linear-gradient(180deg, #090b11 0%, #111827 100%)'
-          : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -46,7 +44,7 @@ export default function LoginPage() {
               minHeight: 620,
               overflow: 'hidden',
               borderRadius: 4,
-              background: theme.palette.mode === 'dark' ? 'rgba(18, 18, 30, 0.82)' : '#ffffff',
+              background: '#ffffff',
             }}
           >
             <Box

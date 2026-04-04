@@ -12,17 +12,24 @@ import {
   Stack,
   Toolbar,
   Typography,
-  alpha,
-  useTheme,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { redirectToAppRoute } from "./apiUrl";
 
 export default function LandingPage() {
   const router = useRouter();
-  const theme = useTheme();
   const [showWebLanding, setShowWebLanding] = useState(false);
-  const isDark = false;
+  // Landing page is always light — never affected by dark/light mode setting.
+  const LIGHT = {
+    bg: '#ffffff',
+    text: '#0f172a',
+    textSecondary: '#64748b',
+    textMuted: '#475569',
+    primary: '#6366f1',
+    primaryDark: '#4f46e5',
+    border: 'rgba(15, 23, 42, 0.08)',
+    chip: 'rgba(99, 102, 241, 0.35)',
+  };
 
   const serviceItems = [
     {
@@ -57,7 +64,7 @@ export default function LandingPage() {
   ];
 
   const navButtonSx = {
-    color: theme.palette.text.secondary,
+    color: LIGHT.textSecondary,
     textTransform: "none",
     fontSize: "0.96rem",
     fontWeight: 600,
@@ -65,7 +72,7 @@ export default function LandingPage() {
     minWidth: "auto",
     "&:hover": {
       backgroundColor: "transparent",
-      color: theme.palette.text.primary,
+      color: LIGHT.text,
     },
   };
 
@@ -101,23 +108,10 @@ export default function LandingPage() {
 
   if (!showWebLanding) {
     return (
-      <Box
-        sx={{
-          minHeight: "100vh",
-          bgcolor: "#ffffff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          px: 3,
-        }}
-      >
+      <Box sx={{ minHeight: "100vh", bgcolor: LIGHT.bg, display: "flex", alignItems: "center", justifyContent: "center", px: 3 }}>
         <Stack spacing={1.25} sx={{ alignItems: "center", textAlign: "center" }}>
-          <Typography sx={{ fontSize: "1.15rem", fontWeight: 800, color: theme.palette.text.primary }}>
-            Opening Smart Manage...
-          </Typography>
-          <Typography sx={{ color: theme.palette.text.secondary, maxWidth: 320 }}>
-            Preparing your workspace for mobile.
-          </Typography>
+          <Typography sx={{ fontSize: "1.15rem", fontWeight: 800, color: LIGHT.text }}>Opening Smart Manage...</Typography>
+          <Typography sx={{ color: LIGHT.textSecondary, maxWidth: 320 }}>Preparing your workspace for mobile.</Typography>
         </Stack>
       </Box>
     );
@@ -128,8 +122,8 @@ export default function LandingPage() {
       id="top"
       sx={{
         minHeight: "100vh",
-        color: theme.palette.text.primary,
-        background: "#ffffff",
+        color: LIGHT.text,
+        background: LIGHT.bg,
         display: "flex",
         flexDirection: "column",
       }}
@@ -177,7 +171,7 @@ export default function LandingPage() {
                   fontSize: "1.15rem",
                   fontWeight: 800,
                   letterSpacing: "-0.02em",
-                  color: theme.palette.text.primary,
+                  color: LIGHT.text,
                 }}
               >
                 Smart Manage
@@ -209,10 +203,8 @@ export default function LandingPage() {
                   py: 0.8,
                   textTransform: "none",
                   fontWeight: 700,
-                  backgroundColor: theme.palette.primary.main,
-                  "&:hover": {
-                    backgroundColor: theme.palette.primary.dark,
-                  },
+                  backgroundColor: LIGHT.primary,
+                  "&:hover": { backgroundColor: LIGHT.primaryDark },
                 }}
               >
                 Login
@@ -226,12 +218,9 @@ export default function LandingPage() {
                   py: 0.9,
                   fontWeight: 700,
                   textTransform: "none",
-                  background: theme.palette.primary.main,
+                  background: LIGHT.primary,
                   boxShadow: "none",
-                  "&:hover": {
-                    background: theme.palette.primary.dark,
-                    boxShadow: "none",
-                  },
+                  "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                 }}
               >
                 Sign Up
@@ -265,7 +254,7 @@ export default function LandingPage() {
                     fontSize: { xs: "0.9rem", md: "1rem" },
                     letterSpacing: "0.2em",
                     textTransform: "uppercase",
-                    color: theme.palette.text.secondary,
+                    color: LIGHT.textSecondary,
                     fontWeight: 700,
                   }}
                 >
@@ -287,7 +276,7 @@ export default function LandingPage() {
                 <Typography
                   sx={{
                     fontSize: { xs: "1rem", md: "1.2rem" },
-                    color: alpha(theme.palette.text.primary, 0.82),
+                    color: 'rgba(15,23,42,0.82)',
                     lineHeight: 1.7,
                   }}
                 >
@@ -296,9 +285,9 @@ export default function LandingPage() {
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
-                  <Chip label="Task Boards" variant="outlined" sx={{ borderColor: alpha(theme.palette.secondary.main, 0.4) }} />
-                  <Chip label="Live Collaboration" variant="outlined" sx={{ borderColor: alpha(theme.palette.secondary.main, 0.4) }} />
-                  <Chip label="Automations" variant="outlined" sx={{ borderColor: alpha(theme.palette.secondary.main, 0.4) }} />
+                  <Chip label="Task Boards" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Live Collaboration" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Automations" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
                 </Stack>
 
                 <Stack
@@ -311,17 +300,9 @@ export default function LandingPage() {
                     size="large"
                     onClick={() => router.push("/login")}
                     sx={{
-                      borderRadius: 999,
-                      px: 4,
-                      py: 1.4,
-                      fontWeight: 800,
-                      textTransform: "none",
-                      background: theme.palette.primary.main,
-                      boxShadow: "none",
-                      "&:hover": {
-                        background: theme.palette.primary.dark,
-                        boxShadow: "none",
-                      },
+                      borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
+                      textTransform: "none", background: LIGHT.primary, boxShadow: "none",
+                      "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
                     Login
@@ -332,17 +313,9 @@ export default function LandingPage() {
                     size="large"
                     onClick={() => router.push("/login?mode=signup")}
                     sx={{
-                      borderRadius: 999,
-                      px: 4,
-                      py: 1.4,
-                      fontWeight: 800,
-                      textTransform: "none",
-                      background: theme.palette.primary.main,
-                      boxShadow: "none",
-                      "&:hover": {
-                        background: theme.palette.primary.dark,
-                        boxShadow: "none",
-                      },
+                      borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
+                      textTransform: "none", background: LIGHT.primary, boxShadow: "none",
+                      "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
                     Sign Up
@@ -353,12 +326,8 @@ export default function LandingPage() {
                     size="large"
                     onClick={handleGetStarted}
                     sx={{
-                      borderRadius: 999,
-                      px: 3,
-                      py: 1.4,
-                      fontWeight: 900,
-                      textTransform: "none",
-                      color: isDark ? "#fde68a" : "#9a6d00",
+                      borderRadius: 999, px: 3, py: 1.4, fontWeight: 900,
+                      textTransform: "none", color: "#9a6d00",
                     }}
                   >
                     Get Started

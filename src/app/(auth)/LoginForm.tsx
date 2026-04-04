@@ -10,8 +10,6 @@ import {
   Stack,
   Alert,
   CircularProgress,
-  alpha,
-  useTheme,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -20,7 +18,20 @@ import { getApiUrl, redirectToAppRoute } from '../apiUrl';
 export function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const theme = useTheme();
+  // Always light mode — never affected by dark/light theme setting.
+  const LIGHT = {
+    bg: '#ffffff',
+    text: '#0f172a',
+    textMuted: 'rgba(15,23,42,0.75)',
+    inputBg: '#f8fafc',
+    primary: '#6366f1',
+    primaryDark: '#4f46e5',
+    secondary: '#6366f1',
+    divider: 'rgba(15,23,42,0.10)',
+    labelMuted: 'rgba(15,23,42,0.62)',
+    disabledBg: 'rgba(15,23,42,0.08)',
+    disabledText: 'rgba(15,23,42,0.38)',
+  };
   const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [formData, setFormData] = useState({
     name: '',
@@ -93,10 +104,10 @@ export function LoginForm() {
           sx={{
             p: { xs: 2.2, md: 3.2 },
             borderRadius: 4,
-            border: `1px solid ${theme.palette.divider}`,
-            background: theme.palette.mode === 'dark' ? 'rgba(18, 18, 30, 0.92)' : '#ffffff',
-            color: theme.palette.text.primary,
-            boxShadow: { xs: 'none', md: theme.palette.mode === 'dark' ? '0 20px 50px rgba(0,0,0,0.35)' : '0 20px 50px rgba(15,23,42,0.08)' },
+            border: `1px solid ${LIGHT.divider}`,
+            background: LIGHT.bg,
+            color: LIGHT.text,
+            boxShadow: { xs: 'none', md: '0 20px 50px rgba(15,23,42,0.08)' },
           }}
         >
           <Stack spacing={2}>
@@ -120,7 +131,7 @@ export function LoginForm() {
                 <Typography
                   sx={{
                     fontSize: '0.95rem',
-                    color: alpha(theme.palette.text.primary, 0.75),
+                    color: LIGHT.textMuted,
                     lineHeight: 1.6,
                   }}
                 >
@@ -148,24 +159,16 @@ export function LoginForm() {
                   onChange={handleChange}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      color: theme.palette.text.primary,
-                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+                      color: LIGHT.text,
+                      backgroundColor: LIGHT.inputBg,
                       borderRadius: 3,
-                      '& fieldset': {
-                        borderColor: 'transparent',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: 'transparent',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: 'transparent',
-                      },
+                      '& fieldset': { borderColor: 'transparent' },
+                      '&:hover fieldset': { borderColor: 'transparent' },
+                      '&.Mui-focused fieldset': { borderColor: 'transparent' },
                     },
                     '& .MuiInputLabel-root': {
-                      color: alpha(theme.palette.text.primary, 0.62),
-                      '&.Mui-focused': {
-                        color: theme.palette.secondary.main,
-                      },
+                      color: LIGHT.labelMuted,
+                      '&.Mui-focused': { color: LIGHT.secondary },
                     },
                   }}
                 />
@@ -182,24 +185,16 @@ export function LoginForm() {
               onChange={handleChange}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  color: theme.palette.text.primary,
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+                  color: LIGHT.text,
+                  backgroundColor: LIGHT.inputBg,
                   borderRadius: 3,
-                  '& fieldset': {
-                    borderColor: 'transparent',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'transparent',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'transparent',
-                  },
+                  '& fieldset': { borderColor: 'transparent' },
+                  '&:hover fieldset': { borderColor: 'transparent' },
+                  '&.Mui-focused fieldset': { borderColor: 'transparent' },
                 },
                 '& .MuiInputLabel-root': {
-                  color: alpha(theme.palette.text.primary, 0.62),
-                  '&.Mui-focused': {
-                    color: theme.palette.secondary.main,
-                  },
+                  color: LIGHT.labelMuted,
+                  '&.Mui-focused': { color: LIGHT.secondary },
                 },
               }}
             />
@@ -214,24 +209,16 @@ export function LoginForm() {
               onChange={handleChange}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  color: theme.palette.text.primary,
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+                  color: LIGHT.text,
+                  backgroundColor: LIGHT.inputBg,
                   borderRadius: 3,
-                  '& fieldset': {
-                    borderColor: 'transparent',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'transparent',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'transparent',
-                  },
+                  '& fieldset': { borderColor: 'transparent' },
+                  '&:hover fieldset': { borderColor: 'transparent' },
+                  '&.Mui-focused fieldset': { borderColor: 'transparent' },
                 },
                 '& .MuiInputLabel-root': {
-                  color: alpha(theme.palette.text.primary, 0.62),
-                  '&.Mui-focused': {
-                    color: theme.palette.secondary.main,
-                  },
+                  color: LIGHT.labelMuted,
+                  '&.Mui-focused': { color: LIGHT.secondary },
                 },
               }}
             />
@@ -241,11 +228,9 @@ export function LoginForm() {
                 <Alert
                   severity={error.includes('successful') ? 'success' : 'error'}
                   sx={{
-                    backgroundColor: error.includes('successful')
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : 'rgba(239, 68, 68, 0.15)',
-                    color: theme.palette.text.primary,
-                    borderColor: error.includes('successful') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                    backgroundColor: error.includes('successful') ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                    color: LIGHT.text,
+                    borderColor: error.includes('successful') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)',
                   }}
                 >
                   {error}
@@ -259,23 +244,11 @@ export function LoginForm() {
               fullWidth
               disabled={loading}
               sx={{
-                py: 1.5,
-                mt: 2,
-                borderRadius: 999,
-                fontWeight: 800,
-                textTransform: 'none',
-                fontSize: '1rem',
-                color: '#fff',
-                background: theme.palette.primary.main,
-                boxShadow: 'none',
-                '&:hover': {
-                  background: theme.palette.primary.dark,
-                  boxShadow: 'none',
-                },
-                '&:disabled': {
-                  background: alpha(theme.palette.action.disabledBackground, 0.6),
-                  color: theme.palette.action.disabled,
-                },
+                py: 1.5, mt: 2, borderRadius: 999, fontWeight: 800,
+                textTransform: 'none', fontSize: '1rem', color: '#fff',
+                background: LIGHT.primary, boxShadow: 'none',
+                '&:hover': { background: LIGHT.primaryDark, boxShadow: 'none' },
+                '&:disabled': { background: LIGHT.disabledBg, color: LIGHT.disabledText },
               }}
             >
               {loading ? (
@@ -290,24 +263,15 @@ export function LoginForm() {
 
             {/* Toggle Mode */}
             <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: 3 }}>
-              <Typography sx={{ color: alpha(theme.palette.text.primary, 0.72), fontSize: '0.95rem' }}>
+              <Typography sx={{ color: LIGHT.textMuted, fontSize: '0.95rem' }}>
               {isLogin ? "Don't have an account?" : 'Already have an account?'}
               </Typography>
               <Button
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                }}
+                onClick={() => { setIsLogin(!isLogin); setError(''); }}
                 sx={{
-                  fontWeight: 800,
-                  textTransform: 'none',
-                  fontSize: '0.95rem',
-                  color: theme.palette.secondary.main,
-                  p: 0,
-                  '&:hover': {
-                    background: 'transparent',
-                    textDecoration: 'underline',
-                  },
+                  fontWeight: 800, textTransform: 'none', fontSize: '0.95rem',
+                  color: LIGHT.secondary, p: 0,
+                  '&:hover': { background: 'transparent', textDecoration: 'underline' },
                 }}
               >
                 {isLogin ? 'Sign Up' : 'Sign In'}
