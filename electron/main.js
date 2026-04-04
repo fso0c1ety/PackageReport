@@ -60,7 +60,6 @@ function createMainWindow() {
 
   win.once("ready-to-show", () => {
     win.show();
-    win.webContents.openDevTools();
   });
 
   win.loadURL("app://localhost/index.html");
