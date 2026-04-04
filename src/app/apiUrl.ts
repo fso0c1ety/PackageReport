@@ -1,4 +1,6 @@
-// Default to same-origin so the app can run entirely behind the Vercel host.
+const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
+
+// Default to same-origin on web, but provide a safe hosted fallback for Capacitor builds.
 export const DEFAULT_FRONTEND_URL =
   process.env.NEXT_PUBLIC_FRONTEND_URL || "";
 
@@ -137,6 +139,12 @@ export function getServerUrl() {
     return configuredServer;
   }
 
+  // In native APK builds, `window.location.origin` is usually `http://localhost`,
+  // which is only the embedded WebView and not the real backend.
+  if (isNativeStaticRuntime()) {
+    return normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
+  }
+
   const localDevServer = normalizeBaseUrl(getLocalDevServerUrl());
   if (localDevServer) {
     return localDevServer;
@@ -146,6 +154,10 @@ export function getServerUrl() {
 }
 
 export function getFrontendUrl() {
+  if (isNativeStaticRuntime()) {
+    return normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
+  }
+
   return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
 }
 

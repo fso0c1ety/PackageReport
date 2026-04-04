@@ -93,9 +93,10 @@ export function LoginForm() {
           sx={{
             p: { xs: 2.2, md: 3.2 },
             borderRadius: 4,
-            border: '1px solid rgba(15, 23, 42, 0.06)',
-            background: '#ffffff',
-            boxShadow: { xs: 'none', md: '0 20px 50px rgba(15,23,42,0.08)' },
+            border: `1px solid ${theme.palette.divider}`,
+            background: theme.palette.mode === 'dark' ? 'rgba(18, 18, 30, 0.92)' : '#ffffff',
+            color: theme.palette.text.primary,
+            boxShadow: { xs: 'none', md: theme.palette.mode === 'dark' ? '0 20px 50px rgba(0,0,0,0.35)' : '0 20px 50px rgba(15,23,42,0.08)' },
           }}
         >
           <Stack spacing={2}>
@@ -103,7 +104,7 @@ export function LoginForm() {
             <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1.5 }}>
               <Stack spacing={1}>
                 <Stack direction="row" spacing={1.2} alignItems="center">
-                  <Box component="img" src="/icon.png" alt="PackageReport" sx={{ width: 32, height: 32, borderRadius: 1.2 }} />
+                  <Box component="img" src="/logo.png" alt="PackageReport" sx={{ width: 32, height: 32, borderRadius: 1.2, objectFit: 'contain' }} />
                   <Typography fontWeight={800} fontSize="1rem">PackageReport</Typography>
                 </Stack>
                 <Typography
@@ -148,7 +149,7 @@ export function LoginForm() {
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       color: theme.palette.text.primary,
-                      backgroundColor: '#f8fafc',
+                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
                       borderRadius: 3,
                       '& fieldset': {
                         borderColor: 'transparent',
@@ -182,7 +183,7 @@ export function LoginForm() {
               sx={{
                 '& .MuiOutlinedInput-root': {
                   color: theme.palette.text.primary,
-                  backgroundColor: '#f8fafc',
+                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
                   borderRadius: 3,
                   '& fieldset': {
                     borderColor: 'transparent',
@@ -214,7 +215,7 @@ export function LoginForm() {
               sx={{
                 '& .MuiOutlinedInput-root': {
                   color: theme.palette.text.primary,
-                  backgroundColor: '#f8fafc',
+                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
                   borderRadius: 3,
                   '& fieldset': {
                     borderColor: 'transparent',
