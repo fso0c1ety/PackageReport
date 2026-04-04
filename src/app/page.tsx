@@ -14,7 +14,7 @@ import {
   Typography,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import { redirectToAppRoute } from "./apiUrl";
+import { redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -83,7 +83,7 @@ export default function LandingPage() {
 
     const hasToken = !!localStorage.getItem("token");
 
-    if (Capacitor.isNativePlatform()) {
+    if (Capacitor.isNativePlatform() || isElectronRuntime()) {
       const target = hasToken ? "/home" : "/login";
       redirectToAppRoute(target);
       return;

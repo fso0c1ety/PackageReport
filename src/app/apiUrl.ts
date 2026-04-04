@@ -4,9 +4,20 @@ const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
 export const DEFAULT_FRONTEND_URL =
   process.env.NEXT_PUBLIC_FRONTEND_URL || "";
 
+export function isElectronRuntime(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return /electron/i.test(navigator.userAgent);
+}
+
 function isNativeStaticRuntime() {
   if (typeof window === 'undefined') {
     return false;
+  }
+
+  if (isElectronRuntime()) {
+    return true;
   }
 
   const capacitor = (window as typeof window & {

@@ -1,5 +1,15 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, protocol, net } = require("electron");
 const path = require("path");
+
+// Register custom protocol BEFORE app is ready so it can be used as a
+// secure origin (allows absolute paths like /home.html to resolve correctly,
+// the same way Capacitor uses http://localhost/).
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "app",
+    privileges: { secure: true, standard: true, supportFetchAPI: true },
+  },
+]);
 
 function createMainWindow() {
   const win = new BrowserWindow({
@@ -15,8 +25,7 @@ function createMainWindow() {
     },
   });
 
-  const indexPath = path.join(app.getAppPath(), "out", "index.html");
-  win.loadFile(indexPath);
+  win.loadURL("app://localhost/index.html");
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -25,6 +34,13 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  // Serve the static out/ directory under app://localhost/
+  const outDir = path.join(app.getAppPath(), "out");
+  protocol.handle("app", (request) => {
+    const url = new URL(request.url);
+    let filePath = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
+    return net.fetch("file://" + path.join(outDir, filePath));
+  });
   createMainWindow();
 
   app.on("activate", () => {
