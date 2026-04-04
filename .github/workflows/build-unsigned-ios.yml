@@ -20,10 +20,7 @@ jobs:
           node-version: 'lts/*' 
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Ensure Capacitor iOS package
-        run: npm install --no-save @capacitor/ios@^8.1.0
+        run: npm ci
 
       - name: Build Web Assets
         run: npm run build
@@ -34,10 +31,6 @@ jobs:
             npx cap add ios
           fi
           npx cap sync ios
-
-      - name: Install CocoaPods dependencies
-        working-directory: ios/App
-        run: pod install --repo-update
 
       - name: Build Unsigned iOS App
         working-directory: ios/App
