@@ -159,19 +159,15 @@ export function getServerUrl() {
   // In native APK builds, `window.location.origin` is usually `http://localhost`,
   // which is only the embedded WebView and not the real backend.
   if (isNativeStaticRuntime()) {
-    // Check if we are on a LAN IP through the WebView's location (less likely in static mode but possible)
+    // If running on a LAN dev IP (e.g. developer's phone on same network), hit local server.
     if (typeof window !== 'undefined' && isPrivateDevHost(window.location.hostname)) {
         return `${window.location.protocol}//${window.location.hostname}:4000`;
     }
 
-    // Default to the computer's last known LAN IP if we're in dev mode or no frontend URL is provided
+    // Use the explicitly configured frontend URL (baked in at build time via NEXT_PUBLIC_FRONTEND_URL),
+    // otherwise fall back to the production Vercel deployment.
     const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
-    if (!configuredFrontend) {
-        // Safe developmental fallback for common LAN testing setup
-        return 'http://192.168.0.28:4000';
-    }
-    
-    return configuredFrontend;
+    return configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
   }
 
   return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
