@@ -30,23 +30,37 @@ jobs:
 
       - name: Prepare Capacitor iOS
         run: |
-          if [ -d ios/App ]; then
-            npx cap sync ios
-          else
+          if [ ! -d ios/App ]; then
             npx cap add ios
           fi
+          npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install --repo-update
 
       - name: Build Unsigned iOS App
         working-directory: ios/App
         run: |
-          xcodebuild -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -sdk iphoneos \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build CONFIGURATION_BUILD_DIR=$PWD/build
+          if [ -f App.xcworkspace ]; then
+            xcodebuild -workspace App.xcworkspace \
+              -scheme App \
+              -configuration Release \
+              -sdk iphoneos \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build CONFIGURATION_BUILD_DIR=$PWD/build
+          else
+            xcodebuild -project App.xcodeproj \
+              -scheme App \
+              -configuration Release \
+              -sdk iphoneos \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build CONFIGURATION_BUILD_DIR=$PWD/build
+          fi
 
       - name: Package into unsigned .ipa
         working-directory: ios/App
