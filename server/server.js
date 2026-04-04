@@ -112,7 +112,12 @@ const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://package-rep
 const corsOrigins = [
   frontendUrl,
   'http://localhost:3000',
-  'http://192.168.0.25:3000'
+  'http://localhost:4000',
+  'http://localhost',          // Default Android Capacitor origin
+  'capacitor://localhost',      // Default iOS Capacitor origin
+  'http://192.168.0.25:3000',
+  'http://192.168.0.28:3000',   // Android Dev IP from Capacitor config
+  'http://192.168.0.28:4000'    // Android Dev Backend IP
 ];
 
 // Root endpoint handled by Next.js

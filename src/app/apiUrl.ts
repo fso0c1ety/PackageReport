@@ -139,18 +139,31 @@ export function getServerUrl() {
     return configuredServer;
   }
 
-  // In native APK builds, `window.location.origin` is usually `http://localhost`,
-  // which is only the embedded WebView and not the real backend.
-  if (isNativeStaticRuntime()) {
-    return normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
-  }
-
+  // Handle local development access from physical devices (LAN)
   const localDevServer = normalizeBaseUrl(getLocalDevServerUrl());
   if (localDevServer) {
     return localDevServer;
   }
 
-  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+  // In native APK builds, `window.location.origin` is usually `http://localhost`,
+  // which is only the embedded WebView and not the real backend.
+  if (isNativeStaticRuntime()) {
+    // Check if we are on a LAN IP through the WebView's location (less likely in static mode but possible)
+    if (typeof window !== 'undefined' && isPrivateDevHost(window.location.hostname)) {
+        return `${window.location.protocol}//${window.location.hostname}:4000`;
+    }
+
+    // Default to the computer's last known LAN IP if we're in dev mode or no frontend URL is provided
+    const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+    if (!configuredFrontend) {
+        // Safe developmental fallback for common LAN testing setup
+        return 'http://192.168.0.28:4000';
+    }
+    
+    return configuredFrontend;
+  }
+
+  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
 }
 
 export function getFrontendUrl() {
