@@ -92,6 +92,56 @@ function getBrowserOrigin() {
   return typeof window !== 'undefined' ? window.location.origin : '';
 }
 
+function ensureTrailingSlash(pathname: string) {
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+
+  return pathname.endsWith('/') ? pathname : `${pathname}/`;
+}
+
+function normalizeApiPath(path: string) {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return '/';
+  }
+
+  const match = trimmed.match(/^([^?#]*)(.*)$/);
+  const rawPath = match?.[1] || trimmed;
+  const suffix = match?.[2] || '';
+  const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+
+  return `${ensureTrailingSlash(normalizedPath)}${suffix}`;
+}
+
+function normalizeRequestUrl(url: string) {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.pathname === '/api' || parsed.pathname.startsWith('/api/')) {
+        parsed.pathname = ensureTrailingSlash(parsed.pathname);
+        return parsed.toString();
+      }
+    } catch {
+      return trimmed;
+    }
+
+    return trimmed;
+  }
+
+  const apiMatch = trimmed.match(/^\/?api(?=\/|$|\?|#)(.*)$/i);
+  if (apiMatch) {
+    return getApiUrl(apiMatch[1] || '/');
+  }
+
+  return trimmed;
+}
+
 function resolveSupabaseStorageUrl(path: string) {
   const supabaseBase = normalizeBaseUrl(DEFAULT_SUPABASE_URL);
   if (!supabaseBase) {
@@ -188,15 +238,15 @@ export function getFrontendUrl() {
 }
 
 export function getSocketUrl() {
-  return normalizeBaseUrl(DEFAULT_SOCKET_URL);
+  return normalizeBaseUrl(DEFAULT_SOCKET_URL) || getServerUrl();
 }
 
 export function getApiUrl(path: string) {
   const base = getServerUrl();
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const cleanPath = normalizeApiPath(path);
 
-  // Ensure 'base' is an absolute URL. 
-  // If getServerUrl somehow returns empty, use the production fallback to prevent 
+  // Ensure 'base' is an absolute URL.
+  // If getServerUrl somehow returns empty, use the production fallback to prevent
   // the app from trying to hit relative routes on the user's device.
   let cleanBase = normalizeBaseUrl(base || NATIVE_PRODUCTION_FALLBACK_URL);
 
@@ -254,6 +304,7 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const requestUrl = normalizeRequestUrl(url);
 
   const headers = { ...((options.headers as any) || {}) } as any;
 
@@ -267,17 +318,17 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // console.log(`[Fetch] ${url}`); // Debug
+  // console.log(`[Fetch] ${requestUrl}`); // Debug
 
   let response;
   try {
-    response = await fetch(url, {
+    response = await fetch(requestUrl, {
       ...options,
       headers,
     });
   } catch (err: any) {
     if (typeof window !== 'undefined') {
-        const errorMsg = `[Fetch Failed] ${url}\nError: ${err?.message || 'Unknown error'}`;
+        const errorMsg = `[Fetch Failed] ${requestUrl}\nError: ${err?.message || 'Unknown error'}`;
         console.error(errorMsg, err);
         if (isNativeStaticRuntime()) {
           alert(errorMsg);

@@ -7,7 +7,12 @@ const path = require("path");
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "app",
-    privileges: { secure: true, standard: true, supportFetchAPI: true },
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
   },
 ]);
 

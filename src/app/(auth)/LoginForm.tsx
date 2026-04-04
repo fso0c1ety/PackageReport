@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getApiUrl, redirectToAppRoute } from '../apiUrl';
+import { getApiUrl, redirectToAppRoute, isNativeStaticRuntime } from '../apiUrl';
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -85,7 +85,11 @@ export function LoginForm() {
         setError('Registration successful! Please log in.');
       }
     } catch (err: any) {
-      setError(err.message);
+      const errorMsg = err.message || 'Unknown error';
+      setError(errorMsg);
+      if (typeof window !== 'undefined' && isNativeStaticRuntime()) {
+        alert(`Login/Register Failed!\nURL: ${getApiUrl(endpoint)}\nError: ${errorMsg}`);
+      }
     } finally {
       setLoading(false);
     }
