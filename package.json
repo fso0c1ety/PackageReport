@@ -9,8 +9,8 @@
     "start": "node server/server.js",
     "start-server": "set NODE_ENV=production&& node server/server.js",
     "lint": "eslint",
-    "desktop:build": "npm run build && electron-builder --win nsis",
-    "desktop:pack": "npm run build && electron-builder --win --dir"
+    "desktop:build": "npm run build && electron-builder --win nsis --publish never",
+    "desktop:pack": "npm run build && electron-builder --win --dir --publish never"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
