@@ -160,8 +160,15 @@ export function getServerUrl() {
   // which is only the embedded WebView and not the real backend.
   if (isNativeStaticRuntime()) {
     // If running on a LAN dev IP (e.g. developer's phone on same network), hit local server.
-    if (typeof window !== 'undefined' && isPrivateDevHost(window.location.hostname)) {
-        return `${window.location.protocol}//${window.location.hostname}:4000`;
+    // IMPORTANT: In native builds, 'localhost' is the app itself, not the backend.
+    // So we ONLY fall back to port 4000 if it's a real LAN IP (192.168.x.x, etc.)
+    if (typeof window !== 'undefined') {
+        const host = window.location.hostname.toLowerCase();
+        const isLanIp = /^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
+        
+        if (isLanIp) {
+            return `${window.location.protocol}//${window.location.hostname}:4000`;
+        }
     }
 
     // Use the explicitly configured frontend URL (baked in at build time via NEXT_PUBLIC_FRONTEND_URL),
