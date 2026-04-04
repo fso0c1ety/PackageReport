@@ -11,7 +11,7 @@ export function isElectronRuntime(): boolean {
   return /electron/i.test(navigator.userAgent);
 }
 
-function isNativeStaticRuntime() {
+export function isNativeStaticRuntime() {
   if (typeof window === 'undefined') {
     return false;
   }
@@ -167,7 +167,13 @@ export function getServerUrl() {
 
   // Fall back to production Vercel for all other cases (including Native .exe/.apk and hosted Web)
   const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
-  return configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
+  const finalUrl = configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
+  
+  if (typeof window !== 'undefined' && isNativeStaticRuntime()) {
+    console.log('[DEBUG] Native build detected. Using getServerUrl:', finalUrl);
+  }
+  
+  return finalUrl;
 }
 
 export function getFrontendUrl() {
@@ -269,9 +275,13 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
       ...options,
       headers,
     });
-  } catch (err) {
+  } catch (err: any) {
     if (typeof window !== 'undefined') {
-        console.error(`[Fetch Failed] ${url}`, err);
+        const errorMsg = `[Fetch Failed] ${url}\nError: ${err?.message || 'Unknown error'}`;
+        console.error(errorMsg, err);
+        if (isNativeStaticRuntime()) {
+          alert(errorMsg);
+        }
     }
     throw err;
   }
