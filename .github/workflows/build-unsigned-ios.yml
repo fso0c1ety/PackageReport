@@ -22,12 +22,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Ensure Capacitor iOS package
+        run: npm install --no-save @capacitor/ios@^8.1.0
+
       - name: Build Web Assets
         run: npm run build
 
-      - name: Sync Capacitor iOS
-        # Adds the iOS platform if missing, or syncs if it exists
-        run: npx cap add ios || npx cap sync ios
+      - name: Prepare Capacitor iOS
+        run: |
+          if [ -d ios/App ]; then
+            npx cap sync ios
+          else
+            npx cap add ios
+          fi
 
       - name: Build Unsigned iOS App
         working-directory: ios/App
