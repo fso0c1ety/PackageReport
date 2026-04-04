@@ -21,7 +21,7 @@ import MicOffIcon from "@mui/icons-material/MicOff";
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import { useRouter } from "next/navigation";
-import { getAvatarUrl, getApiUrl, authenticatedFetch } from "./apiUrl";
+import { getAvatarUrl, getApiUrl, authenticatedFetch, navigateToAppRoute } from "./apiUrl";
 import { supabase } from "../lib/supabase";
 
 type CallContextType = {
@@ -235,7 +235,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("user");
         setCurrentUser(null);
         setIsDuplicateSession(false);
-        router.push("/login");
+        navigateToAppRoute("/login", router);
     };
 
     const iceServers = {

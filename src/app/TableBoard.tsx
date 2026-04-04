@@ -1,6 +1,6 @@
 "use client";
 // Task row menu component (must be top-level, not inside JSX)
-import { getApiUrl, getSocketUrl, authenticatedFetch, getAvatarUrl } from "./apiUrl";
+import { getApiUrl, getSocketUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import { io, Socket } from "socket.io-client";
 
 import { useTheme } from "@mui/material/styles";
@@ -767,7 +767,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     params.delete('tab');
     const currentPath = window.location.pathname;
     const newUrl = params.toString() ? `${currentPath}?${params.toString()}` : currentPath;
-    router.replace(newUrl, { scroll: false });
+    navigateToAppRoute(newUrl, router, true, { scroll: false });
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);

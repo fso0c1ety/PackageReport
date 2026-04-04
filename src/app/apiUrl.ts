@@ -65,6 +65,7 @@ type AppRouterLike = {
 };
 
 let nativeHistoryRoutingPatched = false;
+let nativeAnchorRoutingPatched = false;
 
 export function getAppHref(path: string) {
   if (!path || path === '#') {
@@ -112,24 +113,66 @@ function normalizeHistoryUrl(url: string | URL | null | undefined) {
 export function ensureNativeHistoryRouting() {
   if (
     typeof window === 'undefined' ||
-    !isNativeStaticRuntime() ||
-    nativeHistoryRoutingPatched
+    !isNativeStaticRuntime()
   ) {
     return;
   }
 
-  nativeHistoryRoutingPatched = true;
+  if (!nativeHistoryRoutingPatched) {
+    nativeHistoryRoutingPatched = true;
 
-  const originalPushState = window.history.pushState.bind(window.history);
-  const originalReplaceState = window.history.replaceState.bind(window.history);
+    const originalPushState = window.history.pushState.bind(window.history);
+    const originalReplaceState = window.history.replaceState.bind(window.history);
 
-  window.history.pushState = function pushState(data, unused, url) {
-    return originalPushState(data, unused, normalizeHistoryUrl(url));
-  };
+    window.history.pushState = function pushState(data, unused, url) {
+      return originalPushState(data, unused, normalizeHistoryUrl(url));
+    };
 
-  window.history.replaceState = function replaceState(data, unused, url) {
-    return originalReplaceState(data, unused, normalizeHistoryUrl(url));
-  };
+    window.history.replaceState = function replaceState(data, unused, url) {
+      return originalReplaceState(data, unused, normalizeHistoryUrl(url));
+    };
+  }
+
+  if (!nativeAnchorRoutingPatched && typeof document !== 'undefined') {
+    nativeAnchorRoutingPatched = true;
+
+    document.addEventListener('click', (event) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const mouseEvent = event as MouseEvent;
+      if (mouseEvent.button !== 0 || mouseEvent.metaKey || mouseEvent.ctrlKey || mouseEvent.shiftKey || mouseEvent.altKey) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) {
+        return;
+      }
+
+      const href = anchor.getAttribute('href') || '';
+      if (!href || href.startsWith('#') || anchor.target === '_blank' || anchor.hasAttribute('download')) {
+        return;
+      }
+
+      if (/^([a-z][a-z\d+\-.]*:)?\/\//i.test(href) && !href.startsWith(window.location.origin)) {
+        return;
+      }
+
+      if (href.startsWith('/api') || href.startsWith('/_next')) {
+        return;
+      }
+
+      event.preventDefault();
+      window.location.assign(getAppHref(href));
+    }, true);
+  }
 }
 
 export const DEFAULT_SERVER_URL =

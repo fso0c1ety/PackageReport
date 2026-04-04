@@ -14,7 +14,7 @@ import {
   Typography,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import { redirectToAppRoute, isElectronRuntime } from "./apiUrl";
+import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -90,7 +90,7 @@ export default function LandingPage() {
     }
 
     if (hasToken) {
-      router.replace("/home");
+      navigateToAppRoute("/home", router, true);
       return;
     }
 
@@ -98,7 +98,7 @@ export default function LandingPage() {
   }, [router]);
 
   const handleGetStarted = () => {
-    router.push("/login?mode=signup");
+    navigateToAppRoute("/login?mode=signup", router);
   };
 
   const scrollToSection = (sectionId: string) => {
@@ -153,7 +153,7 @@ export default function LandingPage() {
               direction="row"
               spacing={1.25}
               sx={{ alignItems: "center", cursor: "pointer", minWidth: 0 }}
-              onClick={() => router.push("/")}
+              onClick={() => navigateToAppRoute("/", router)}
             >
               <Box
                 component="img"
@@ -194,7 +194,7 @@ export default function LandingPage() {
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
               <Button
-                onClick={() => router.push("/login")}
+                onClick={() => navigateToAppRoute("/login", router)}
                 sx={{
                   display: { xs: "none", sm: "inline-flex" },
                   color: "#fff",
@@ -211,7 +211,7 @@ export default function LandingPage() {
               </Button>
               <Button
                 variant="contained"
-                onClick={() => router.push("/login?mode=signup")}
+                onClick={() => navigateToAppRoute("/login?mode=signup", router)}
                 sx={{
                   borderRadius: 999,
                   px: 2.2,
@@ -298,7 +298,7 @@ export default function LandingPage() {
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={() => router.push("/login")}
+                    onClick={() => navigateToAppRoute("/login", router)}
                     sx={{
                       borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
                       textTransform: "none", background: LIGHT.primary, boxShadow: "none",
@@ -311,7 +311,7 @@ export default function LandingPage() {
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={() => router.push("/login?mode=signup")}
+                    onClick={() => navigateToAppRoute("/login?mode=signup", router)}
                     sx={{
                       borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
                       textTransform: "none", background: LIGHT.primary, boxShadow: "none",

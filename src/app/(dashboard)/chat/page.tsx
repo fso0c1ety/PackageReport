@@ -18,7 +18,7 @@ import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import Dialog from "@mui/material/Dialog";
-import { authenticatedFetch, getApiUrl, getAvatarUrl } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useCallContext } from "../../CallContext";
 import dayjs from "dayjs";
 
@@ -295,7 +295,7 @@ function ChatContent() {
                                 conversations.map((conv) => (
                                     <ListItem
                                         key={conv.id}
-                                        onClick={() => router.push(`/chat?userId=${conv.id}`)}
+                                        onClick={() => navigateToAppRoute(`/chat?userId=${conv.id}`, router)}
                                         sx={{
                                             px: 3, py: 2,
                                             cursor: 'pointer',
@@ -404,7 +404,7 @@ function ChatContent() {
                                                 <Typography variant="body2" fontWeight={600} noWrap>{friend.name}</Typography>
                                             </Box>
                                             <Tooltip title="Message">
-                                                <IconButton size="small" onClick={() => router.push(`/chat/?userId=${friend.id}`)}>
+                                                <IconButton size="small" onClick={() => navigateToAppRoute(`/chat/?userId=${friend.id}`, router)}>
                                                     <MarkChatUnreadIcon fontSize="small" sx={{ color: theme.palette.primary.main }} />
                                                 </IconButton>
                                             </Tooltip>
@@ -464,7 +464,7 @@ function ChatContent() {
                                 zIndex: 10,
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
                             }} elevation={0}>
-                                <IconButton sx={{ display: { xs: 'flex', sm: 'none' }, bgcolor: alpha(theme.palette.text.primary, 0.05) }} onClick={() => router.push('/chat')}>
+                                <IconButton sx={{ display: { xs: 'flex', sm: 'none' }, bgcolor: alpha(theme.palette.text.primary, 0.05) }} onClick={() => navigateToAppRoute('/chat', router)}>
                                     <ArrowBackIcon />
                                 </IconButton>
                                 <Badge

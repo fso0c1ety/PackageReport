@@ -29,7 +29,7 @@ import {
 import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { authenticatedFetch, getApiUrl, getAvatarUrl } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, getAppHref, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { v4 as uuidv4 } from "uuid";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
@@ -297,7 +297,7 @@ export default function HomeDashboard() {
 
       if (res.ok) {
         const newTable = await res.json();
-        router.push(`/board/${newTable.id}`);
+        navigateToAppRoute(`/board/${newTable.id}`, router);
       } else {
         console.error("Failed to create template table");
       }
@@ -511,7 +511,7 @@ export default function HomeDashboard() {
             <Grid container spacing={3} alignItems="stretch">
               {/* Dashboard Card - Takes 12 on mobile, 6 on desktop (half width) */}
               <Grid size={{ xs: 12, sm: 6, md: 6 }} sx={{ display: 'flex' }}>
-                <Link href="/dashboard" style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
+                <Link href={getAppHref('/dashboard')} style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
                   <RecentCard sx={{ width: '100%' }}>
                     <Box
                       sx={{
@@ -567,7 +567,7 @@ export default function HomeDashboard() {
               {/* Last Workspace Card - Takes 12 on mobile, 6 on desktop (half width) */}
               {lastWorkspace && (
                 <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex' }}>
-                  <Link href={`/workspace?id=${lastWorkspace.id}`} style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
+                  <Link href={getAppHref(`/workspace?id=${lastWorkspace.id}`)} style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
                     <RecentCard sx={{ width: '100%' }}>
                       <Box
                         sx={{
@@ -707,7 +707,7 @@ export default function HomeDashboard() {
                   return (
                   <Grid size={{ xs: 6, sm: 6, md: 6 }} key={ws.id}>
                     <WorkspaceCard 
-                        onClick={() => router.push(`/workspace?id=${ws.id}`)} 
+                        onClick={() => navigateToAppRoute(`/workspace?id=${ws.id}`, router)} 
                         sx={{ 
                             position: "relative",
                             border: isShared ? '1px dashed rgba(99, 102, 241, 0.5)' : undefined,
