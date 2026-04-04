@@ -747,6 +747,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Handler to close the review dialog
   const handleCloseReview = () => {
     reviewCloseGuardRef.current = Date.now() + 300;
+    dismissedTaskIdRef.current = reviewTask?.id ?? null;
     blurFocusedElement();
     setReviewTask(null);
     setShowEmailAutomation(false);
@@ -763,6 +764,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
   const reviewCloseGuardRef = React.useRef(0);
+  const dismissedTaskIdRef = React.useRef<string | null>(null);
 
   const blurFocusedElement = React.useCallback(() => {
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
@@ -770,9 +772,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   }, []);
 
-  const openReviewTask = React.useCallback((task: Row | null) => {
+  const openReviewTask = React.useCallback((task: Row | null, source: 'user' | 'url' = 'user') => {
     if (!task || Date.now() < reviewCloseGuardRef.current) {
       return;
+    }
+
+    if (source === 'url' && dismissedTaskIdRef.current === task.id) {
+      return;
+    }
+
+    if (source === 'user') {
+      dismissedTaskIdRef.current = null;
     }
 
     blurFocusedElement();
@@ -786,31 +796,47 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const tabFromQuery = searchParams.get('tab');
 
   useEffect(() => {
+    if (!taskId && !taskIdFromQuery) {
+      dismissedTaskIdRef.current = null;
+    }
+  }, [taskId, taskIdFromQuery]);
+
+  useEffect(() => {
     const targetTaskId = taskId || taskIdFromQuery;
     const targetTab = initialTab || tabFromQuery;
 
-    if (targetTaskId && tableId) {
-      // Fetch task
-      authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${targetTaskId}`))
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data && (data.task || data.id)) {
-            const task = data.task || data;
-            // Map messages if present
-            if (task.values && task.values.message) {
-              task.values.message = task.values.message.map(formatChatMessage);
-            }
-            setReviewTask(task);
-
-            if (targetTab === 'chat' || targetTab === 'files' || targetTab === 'activity') {
-              if (isMobile) setMobileTab(targetTab as any);
-              else setRightPanelTab(targetTab as any);
-            }
-          }
-        })
-        .catch(err => console.error("Failed to load task from URL", err));
+    if (!targetTaskId || !tableId || dismissedTaskIdRef.current === targetTaskId) {
+      return;
     }
-  }, [tableId, taskId, initialTab, taskIdFromQuery, tabFromQuery, isMobile]);
+
+    let isCancelled = false;
+
+    authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${targetTaskId}`))
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (isCancelled || !data || !(data.task || data.id)) {
+          return;
+        }
+
+        const task = data.task || data;
+
+        if (task.values && task.values.message) {
+          task.values.message = task.values.message.map(formatChatMessage);
+        }
+
+        openReviewTask(task, 'url');
+
+        if (targetTab === 'chat' || targetTab === 'files' || targetTab === 'activity') {
+          if (isMobile) setMobileTab(targetTab as any);
+          else setRightPanelTab(targetTab as any);
+        }
+      })
+      .catch(err => console.error("Failed to load task from URL", err));
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [tableId, taskId, initialTab, taskIdFromQuery, tabFromQuery, isMobile, openReviewTask]);
 
   const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'team' | 'files' | 'activity'>('details');
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'team' | 'files' | 'activity'>('chat');
