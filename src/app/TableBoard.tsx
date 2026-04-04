@@ -787,26 +787,36 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setReviewTask(task);
   }, [blurFocusedElement]);
 
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const taskIdFromQuery = searchParams.get('taskId');
-  const tabFromQuery = searchParams.get('tab');
 
+  // Clear the dismissed guard only when a DIFFERENT task is navigated to via props.
+  // We intentionally do NOT read searchParams here — reading from both props and
+  // searchParams creates a race condition where Next.js's async URL update fires
+  // the effect with the stale taskId right after close, causing the re-open.
   useEffect(() => {
-    const targetTaskId = taskId || taskIdFromQuery;
-
-    // Keep the just-dismissed task blocked until a different task is requested.
-    // This prevents the details view from reopening during URL/search-param sync.
-    if (targetTaskId && dismissedTaskIdRef.current && dismissedTaskIdRef.current !== targetTaskId) {
+    if (taskId && dismissedTaskIdRef.current && dismissedTaskIdRef.current !== taskId) {
       dismissedTaskIdRef.current = null;
     }
-  }, [taskId, taskIdFromQuery]);
+  }, [taskId]);
 
   useEffect(() => {
-    const targetTaskId = taskId || taskIdFromQuery;
-    const targetTab = initialTab || tabFromQuery;
+    // Only use the prop-based taskId — NOT searchParams.
+    // The parent already reads the URL and passes taskId as a prop.
+    // Monitoring searchParams here would cause a double-fire race condition on close.
+    const targetTaskId = taskId;
+    const targetTab = initialTab;
 
-    if (!targetTaskId || !tableId || dismissedTaskIdRef.current === targetTaskId) {
+    if (!targetTaskId || !tableId) {
+      return;
+    }
+
+    // If this task was just dismissed, block it.
+    if (dismissedTaskIdRef.current === targetTaskId) {
+      return;
+    }
+
+    // If this task is already open, don't re-fetch.
+    if (reviewTask && reviewTask.id === targetTaskId) {
       return;
     }
 
@@ -816,6 +826,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (isCancelled || !data || !(data.task || data.id)) {
+          return;
+        }
+
+        // Final guard: check dismissed state again after async fetch completes
+        if (dismissedTaskIdRef.current === targetTaskId || Date.now() < reviewCloseGuardRef.current) {
           return;
         }
 
@@ -837,7 +852,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     return () => {
       isCancelled = true;
     };
-  }, [tableId, taskId, initialTab, taskIdFromQuery, tabFromQuery, isMobile, openReviewTask]);
+  }, [tableId, taskId, initialTab, isMobile, openReviewTask, reviewTask]);
 
   const [mobileTab, setMobileTab] = useState<'details' | 'chat' | 'team' | 'files' | 'activity'>('details');
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'team' | 'files' | 'activity'>('chat');
