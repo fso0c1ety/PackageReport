@@ -68,7 +68,7 @@
   },
   "build": {
     "appId": "com.packagereport.desktop",
-    "productName": "Smar Manage",
+    "productName": "SMART MANAGE",
     "icon": "src/app/icon.png",
     "directories": {
       "output": "dist-electron"
@@ -80,7 +80,6 @@
     ],
     "asar": true,
     "win": {
-      "signAndEditExecutable": false,
       "icon": "src/app/icon.png",
       "target": [
         {

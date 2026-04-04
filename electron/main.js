@@ -13,6 +13,8 @@ protocol.registerSchemesAsPrivileged([
       standard: true,
       supportFetchAPI: true,
       corsEnabled: true,
+      allowServiceWorkers: true,
+      bypassCSP: true,
     },
   },
 ]);
@@ -36,7 +38,7 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 700,
     show: false,
-    title: "Smar Manage",
+    title: "SMART MANAGE",
     backgroundColor: "#F8FAFC",
     autoHideMenuBar: true,
     titleBarStyle: process.platform === "win32" ? "hidden" : "default",
@@ -69,7 +71,18 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
-  app.setName("Smar Manage");
+  app.setName("SMART MANAGE");
+
+  const { session } = require("electron");
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    // Automatically grant media and notification permissions for the app:// protocol
+    const allowedPermissions = ['media', 'mediaKeySystem', 'display-capture', 'notifications', 'fullscreen'];
+    if (allowedPermissions.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
 
   // Serve the static out/ directory under app://localhost/
   const outDir = path.join(app.getAppPath(), "out");
@@ -126,7 +139,13 @@ app.whenReady().then(() => {
       }
     }
 
-    return net.fetch("file://" + path.join(outDir, filePath));
+    const { pathToFileURL } = require("url");
+    const fullPath = path.join(outDir, filePath);
+    const fetchOptions = {
+        headers: request.headers,
+        method: request.method,
+    };
+    return net.fetch(pathToFileURL(fullPath).toString(), fetchOptions);
   });
   createMainWindow();
 
