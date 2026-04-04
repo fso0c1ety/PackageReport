@@ -18,7 +18,7 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import { useRouter } from "next/navigation";
-import { getAvatarUrl, authenticatedFetch, getApiUrl } from "./apiUrl";
+import { getAvatarUrl, authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
 import { useNotification } from "./NotificationContext";
 import InviteToTableDialog from "./InviteToTableDialog";
 import CheckIcon from "@mui/icons-material/Check";
@@ -75,7 +75,7 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
 
   const handleMessage = () => {
     onClose();
-    router.push(`/chat?userId=${user.id}`);
+    navigateToAppRoute(`/chat?userId=${user.id}`, router);
   };
 
   return (

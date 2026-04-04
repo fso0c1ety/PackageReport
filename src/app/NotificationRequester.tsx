@@ -6,7 +6,7 @@ import { Snackbar, Button, Alert } from "@mui/material"; // Added UI components
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
-import { authenticatedFetch, getApiUrl } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
 import { useNotification } from "./NotificationContext";
 
 // WEB: To use Push Notifications on Web, you must initialize Firebase here.
@@ -67,7 +67,8 @@ const NotificationRequester = () => {
                         // Send token to backend
                         const response = await authenticatedFetch('/api/users/fcm', {
                             method: 'PUT',
-                            body: JSON.stringify({ token: currentToken })
+                            body: JSON.stringify({ token: currentToken }),
+                            suppressNativeErrorAlert: true,
                         });
                         if (response.ok) {
                             console.log('Web FCM Token sent to server successfully');
@@ -164,7 +165,8 @@ const NotificationRequester = () => {
                             try {
                                 const response = await authenticatedFetch('/api/users/fcm', {
                                     method: 'PUT',
-                                    body: JSON.stringify({ token: token.value })
+                                    body: JSON.stringify({ token: token.value }),
+                                    suppressNativeErrorAlert: true,
                                 });
                                 if (response.ok) {
                                     console.log('FCM Token sent to server successfully');
@@ -224,7 +226,6 @@ const NotificationRequester = () => {
                                 if (data.tableId) {
                                     url += `&tableId=${data.tableId}`;
                                 }
-                                router.push(url);
                             } else if (data.type === 'incoming_call') {
                                 // For background tap on call, we show the UI immediately
                                 showIncomingCall(data);
@@ -241,7 +242,7 @@ const NotificationRequester = () => {
                                     url += `&tab=files`;
                                 }
                                 
-                                router.push(url);
+                                navigateToAppRoute(url, router);
                             }
                         };
 

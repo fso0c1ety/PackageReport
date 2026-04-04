@@ -12,7 +12,7 @@ import {
   useTheme
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { authenticatedFetch, getApiUrl, getAvatarUrl } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 
 interface Workspace {
   id: string;
@@ -95,7 +95,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
   const handleChange = (event: SelectChangeEvent) => {
     const val = event.target.value;
     setSelected(val);
-    router.push(`/workspace?id=${val}`);
+    navigateToAppRoute(`/workspace?id=${val}`, router);
   };
 
   if (loading) {

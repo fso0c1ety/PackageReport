@@ -10,7 +10,7 @@ import PageTransition from "./PageTransition";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@mui/material/styles"; // Added
 import { CallProvider } from "./CallContext"; // Added
-import { redirectToAppRoute } from "./apiUrl";
+import { ensureNativeHistoryRouting, redirectToAppRoute } from "./apiUrl";
 
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -84,6 +84,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     // If we are in ClientLayout, it means we are inside (dashboard).
     // So we just check if token exists.
     if (typeof window === 'undefined') return;
+
+    ensureNativeHistoryRouting();
 
     const token = localStorage.getItem('token');
     

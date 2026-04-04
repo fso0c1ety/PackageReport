@@ -59,6 +59,79 @@ export function redirectToAppRoute(path: string, replace = true) {
   }
 }
 
+type AppRouterLike = {
+  push?: (href: string, options?: { scroll?: boolean }) => void;
+  replace?: (href: string, options?: { scroll?: boolean }) => void;
+};
+
+let nativeHistoryRoutingPatched = false;
+
+export function getAppHref(path: string) {
+  if (!path || path === '#') {
+    return path;
+  }
+
+  return getAppRoute(path);
+}
+
+export function navigateToAppRoute(
+  path: string,
+  router?: AppRouterLike,
+  replace = false,
+  options?: { scroll?: boolean },
+) {
+  if (isNativeStaticRuntime() || !router) {
+    redirectToAppRoute(path, replace);
+    return;
+  }
+
+  if (replace) {
+    router.replace?.(path, options);
+  } else {
+    router.push?.(path, options);
+  }
+}
+
+function normalizeHistoryUrl(url: string | URL | null | undefined) {
+  if (!url || typeof url !== 'string') {
+    return url;
+  }
+
+  if (
+    url.startsWith('#') ||
+    /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url) ||
+    url.startsWith('/api') ||
+    url.startsWith('/_next')
+  ) {
+    return url;
+  }
+
+  return getAppRoute(url);
+}
+
+export function ensureNativeHistoryRouting() {
+  if (
+    typeof window === 'undefined' ||
+    !isNativeStaticRuntime() ||
+    nativeHistoryRoutingPatched
+  ) {
+    return;
+  }
+
+  nativeHistoryRoutingPatched = true;
+
+  const originalPushState = window.history.pushState.bind(window.history);
+  const originalReplaceState = window.history.replaceState.bind(window.history);
+
+  window.history.pushState = function pushState(data, unused, url) {
+    return originalPushState(data, unused, normalizeHistoryUrl(url));
+  };
+
+  window.history.replaceState = function replaceState(data, unused, url) {
+    return originalReplaceState(data, unused, normalizeHistoryUrl(url));
+  };
+}
+
 export const DEFAULT_SERVER_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -301,16 +374,21 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
   return `${base}${normalizedPath}`;
 }
 
-export async function authenticatedFetch(url: string, options: RequestInit = {}) {
+type AuthenticatedFetchOptions = RequestInit & {
+  suppressNativeErrorAlert?: boolean;
+};
+
+export async function authenticatedFetch(url: string, options: AuthenticatedFetchOptions = {}) {
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const requestUrl = normalizeRequestUrl(url);
+  const { suppressNativeErrorAlert = false, ...requestOptions } = options;
 
-  const headers = { ...((options.headers as any) || {}) } as any;
+  const headers = { ...((requestOptions.headers as any) || {}) } as any;
 
   // Set default Content-Type to application/json if not provided and body is not FormData
-  if (!headers['Content-Type'] && 
-      !(typeof FormData !== 'undefined' && options.body instanceof FormData)) {
+  if (!headers['Content-Type'] &&
+      !(typeof FormData !== 'undefined' && requestOptions.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -323,14 +401,14 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
   let response;
   try {
     response = await fetch(requestUrl, {
-      ...options,
+      ...requestOptions,
       headers,
     });
   } catch (err: any) {
     if (typeof window !== 'undefined') {
         const errorMsg = `[Fetch Failed] ${requestUrl}\nError: ${err?.message || 'Unknown error'}`;
         console.error(errorMsg, err);
-        if (isNativeStaticRuntime()) {
+        if (isNativeStaticRuntime() && !suppressNativeErrorAlert) {
           alert(errorMsg);
         }
     }

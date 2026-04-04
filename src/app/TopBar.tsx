@@ -24,7 +24,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
-import { authenticatedFetch, getApiUrl, getAvatarUrl, redirectToAppRoute } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute, redirectToAppRoute } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
 import UserProfileDialog from "./UserProfileDialog";
 
@@ -132,12 +132,15 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
   const handleMenuNavigate = (path: string) => {
     handleClose();
-    router.push(path);
+    navigateToAppRoute(path, router);
   };
   
   const handleLogout = async () => {
     try {
-      await authenticatedFetch('/api/users/fcm', { method: 'DELETE' });
+      await authenticatedFetch('/api/users/fcm', {
+        method: 'DELETE',
+        suppressNativeErrorAlert: true,
+      });
     } catch (e) {
       console.error("Failed to clear FCM token on server", e);
     }
@@ -256,7 +259,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
       if (type === 'friend_request' || type === 'friend_accepted' || type === 'direct_message') {
           const targetUserId = type === 'direct_message' ? (data.senderId || notif.sender_id) : null;
-          router.push(targetUserId ? `/chat?userId=${targetUserId}` : '/chat');
+          navigateToAppRoute(targetUserId ? `/chat?userId=${targetUserId}` : '/chat', router);
           return;
       }
 
@@ -269,7 +272,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           if (data.taskId) url += `&taskId=${data.taskId}`;
           if (type === 'chat_message' || type === 'task_chat') url += `&tab=chat`;
           else if (type === 'file_comment') url += `&tab=files`;
-          router.push(url);
+          navigateToAppRoute(url, router);
       }
   };
 
@@ -487,7 +490,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </Menu>
 
         <Tooltip title="Messages">
-          <StyledIconButton size="small" onClick={() => router.push('/chat')}>
+          <StyledIconButton size="small" onClick={() => navigateToAppRoute('/chat', router)}>
             <MailOutlineIcon fontSize="small" />
           </StyledIconButton>
         </Tooltip>

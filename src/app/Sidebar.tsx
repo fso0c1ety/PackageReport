@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, getAppHref, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import {
   Avatar,
   Box,
@@ -58,8 +58,10 @@ interface SidebarItemProps {
 
 function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps) {
   const theme = useTheme();
+  const resolvedHref = getAppHref(href);
+
   return (
-    <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }} onClick={onClick}>
+    <Link href={resolvedHref} style={{ textDecoration: "none", display: "block", width: "100%" }} onClick={onClick}>
       <ListItemButton
         sx={{
           py: 1.1,
@@ -265,7 +267,7 @@ export default function Sidebar({
       setNewWorkspaceName("");
       window.dispatchEvent(new CustomEvent("workspaceUpdated"));
       if (table && onClose) onClose(); // Close drawer on mobile if open
-      if (table) router.push(`/workspace?id=${ws.id}`);
+      if (table) navigateToAppRoute(`/workspace?id=${ws.id}`, router);
       showNotification("Workspace created successfully!", "success");
     } catch {
       showNotification("Failed to create workspace. Please try again.", "error");
@@ -317,7 +319,7 @@ export default function Sidebar({
       window.dispatchEvent(new CustomEvent('workspaceUpdated'));
 
       // Redirect to the new workspace
-      router.push(`/workspace?id=${data.workspaceId}`);
+      navigateToAppRoute(`/workspace?id=${data.workspaceId}`, router);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error joining board. Please check the code.";
       showNotification(message, "error");
@@ -418,7 +420,7 @@ export default function Sidebar({
               label="Team"
               href="#"
               onClick={() => {
-                router.push("/settings?tab=team");
+                navigateToAppRoute("/settings?tab=team", router);
                 if (onClose) onClose();
               }}
             />
@@ -516,7 +518,7 @@ export default function Sidebar({
             <IconButton
               size="small"
               onClick={() => {
-                router.push("/settings?tab=profile");
+                navigateToAppRoute("/settings?tab=profile", router);
                 if (onClose) onClose();
               }}
               sx={{

@@ -50,7 +50,7 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 
-import { getApiUrl, authenticatedFetch, getAvatarUrl } from "../../apiUrl";
+import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
 import { useNotification } from "../../NotificationContext";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -425,7 +425,7 @@ export default function SettingsPage() {
     setTabValue(newValue);
     const tabName = Object.keys(tabMap).find(key => tabMap[key] === newValue);
     if (tabName) {
-      router.push(`/settings?tab=${tabName}`, { scroll: false });
+      navigateToAppRoute(`/settings?tab=${tabName}`, router, false, { scroll: false });
     }
   };
 
