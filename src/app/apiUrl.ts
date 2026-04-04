@@ -151,41 +151,34 @@ export function getServerUrl() {
   }
 
   // Handle local development access from physical devices (LAN)
-  const localDevServer = normalizeBaseUrl(getLocalDevServerUrl());
-  if (localDevServer) {
-    return localDevServer;
-  }
+  // IMPORTANT: In native builds, 'localhost' is the app itself, not the backend.
+  // So we ONLY treat a local host as a dev server if it's a real LAN IP (192.168.x.x, etc.)
+  // OR if we are explicitly on localhost:3000 in a browser.
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    const port = window.location.port;
+    const isLanIp = /^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
+    const isLocalWebDev = (host === 'localhost' || host === '127.0.0.1') && port === '3000';
 
-  // In native APK builds, `window.location.origin` is usually `http://localhost`,
-  // which is only the embedded WebView and not the real backend.
-  if (isNativeStaticRuntime()) {
-    // If running on a LAN dev IP (e.g. developer's phone on same network), hit local server.
-    // IMPORTANT: In native builds, 'localhost' is the app itself, not the backend.
-    // So we ONLY fall back to port 4000 if it's a real LAN IP (192.168.x.x, etc.)
-    if (typeof window !== 'undefined') {
-        const host = window.location.hostname.toLowerCase();
-        const isLanIp = /^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
-        
-        if (isLanIp) {
-            return `${window.location.protocol}//${window.location.hostname}:4000`;
-        }
+    if (isLanIp || isLocalWebDev) {
+      return `${window.location.protocol}//${host}:4000`;
     }
-
-    // Use the explicitly configured frontend URL (baked in at build time via NEXT_PUBLIC_FRONTEND_URL),
-    // otherwise fall back to the production Vercel deployment.
-    const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
-    return configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
   }
 
-  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
+  // Fall back to production Vercel for all other cases (including Native .exe/.apk and hosted Web)
+  const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+  return configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
 }
 
 export function getFrontendUrl() {
+  const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+  if (configuredFrontend) return configuredFrontend;
+
   if (isNativeStaticRuntime()) {
-    return normalizeBaseUrl(DEFAULT_FRONTEND_URL) || NATIVE_PRODUCTION_FALLBACK_URL;
+    return NATIVE_PRODUCTION_FALLBACK_URL;
   }
 
-  return getBrowserOrigin() || normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+  return getBrowserOrigin() || NATIVE_PRODUCTION_FALLBACK_URL;
 }
 
 export function getSocketUrl() {
@@ -196,11 +189,10 @@ export function getApiUrl(path: string) {
   const base = getServerUrl();
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-  if (!base) {
-    return `/api${cleanPath}`;
-  }
-
-  let cleanBase = normalizeBaseUrl(base);
+  // Ensure 'base' is an absolute URL. 
+  // If getServerUrl somehow returns empty, use the production fallback to prevent 
+  // the app from trying to hit relative routes on the user's device.
+  let cleanBase = normalizeBaseUrl(base || NATIVE_PRODUCTION_FALLBACK_URL);
 
   // Clean up if the base already includes /api, but prevent duplication logic
   if (cleanBase.endsWith('/api')) {
