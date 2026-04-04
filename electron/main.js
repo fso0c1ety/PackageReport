@@ -60,6 +60,7 @@ function createMainWindow() {
 
   win.once("ready-to-show", () => {
     win.show();
+    win.webContents.openDevTools();
   });
 
   win.loadURL("app://localhost/index.html");
@@ -141,6 +142,45 @@ app.whenReady().then(() => {
 
     const { pathToFileURL } = require("url");
     const fullPath = path.join(outDir, filePath);
+
+    if (fullPath.endsWith('.mp4') && fs.existsSync(fullPath)) {
+      const { size } = fs.statSync(fullPath);
+      const range = request.headers.get('Range') || request.headers.get('range') || '';
+      
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : size - 1;
+        const chunksize = (end - start) + 1;
+        
+        const file = fs.createReadStream(fullPath, { start, end });
+        // @ts-ignore
+        const nodeStream = require('stream').Readable.toWeb(file);
+        
+        return new Response(nodeStream, {
+          status: 206,
+          headers: {
+            'Content-Range': `bytes ${start}-${end}/${size}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize.toString(),
+            'Content-Type': 'video/mp4'
+          }
+        });
+      } else {
+        const file = fs.createReadStream(fullPath);
+        // @ts-ignore
+        const nodeStream = require('stream').Readable.toWeb(file);
+        
+        return new Response(nodeStream, {
+          status: 200,
+          headers: {
+            'Content-Length': size.toString(),
+            'Content-Type': 'video/mp4'
+          }
+        });
+      }
+    }
+
     const fetchOptions = {
         headers: request.headers,
         method: request.method,
