@@ -796,7 +796,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const tabFromQuery = searchParams.get('tab');
 
   useEffect(() => {
-    if (!taskId && !taskIdFromQuery) {
+    const targetTaskId = taskId || taskIdFromQuery;
+
+    // Keep the just-dismissed task blocked until a different task is requested.
+    // This prevents the details view from reopening during URL/search-param sync.
+    if (targetTaskId && dismissedTaskIdRef.current && dismissedTaskIdRef.current !== targetTaskId) {
       dismissedTaskIdRef.current = null;
     }
   }, [taskId, taskIdFromQuery]);
