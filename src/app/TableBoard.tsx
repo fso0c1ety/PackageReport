@@ -33,11 +33,13 @@ function TaskRowMenu({
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
   const handleView = () => {
-    if (typeof window !== 'undefined' && document && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
     handleClose();
-    onView();
+    window.requestAnimationFrame(() => {
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      onView();
+    });
   };
 
   const menuSx = {
@@ -744,6 +746,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Handler to close the review dialog
   const handleCloseReview = () => {
+    reviewCloseGuardRef.current = Date.now() + 300;
+    blurFocusedElement();
     setReviewTask(null);
     setShowEmailAutomation(false);
     setMobileTab('details'); // Reset tab on close
@@ -758,6 +762,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   };
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
+  const reviewCloseGuardRef = React.useRef(0);
+
+  const blurFocusedElement = React.useCallback(() => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
+
+  const openReviewTask = React.useCallback((task: Row | null) => {
+    if (!task || Date.now() < reviewCloseGuardRef.current) {
+      return;
+    }
+
+    blurFocusedElement();
+    setShowEmailAutomation(false);
+    setReviewTask(task);
+  }, [blurFocusedElement]);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -2196,7 +2217,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (isMobile && columns.length > 0 && columns[0].id === colId) {
       const row = rows.find(r => r.id === rowId);
       if (row) {
-        setReviewTask(row);
+        openReviewTask(row);
         return;
       }
     }
@@ -6565,7 +6586,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                       </div>
                                       <TaskRowMenu
                                         row={row}
-                                        onView={() => { setReviewTask(row); setShowEmailAutomation(false); }}
+                                        onView={() => openReviewTask(row)}
                                         onMoveUp={() => handleMoveRow(row.id, 'up')}
                                         onMoveDown={() => handleMoveRow(row.id, 'down')}
                                         onMoveTop={() => handleMoveRow(row.id, 'top')}
@@ -7095,7 +7116,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               borderLeft: task.created_by ? `4px solid ${stringToColor(task.created_by)}` : undefined
                             }
                           }}
-                          onClick={() => setReviewTask(task)}
+                          onClick={() => openReviewTask(task)}
                         >
                           {/* Creator Avatar Badge */}
                           {task.created_by && (() => {
@@ -7226,7 +7247,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               const createdTask = await res.json();
                               setRows(prev => [...prev, createdTask]);
                               // Open detailed view for immediate editing
-                              setReviewTask(createdTask);
+                              openReviewTask(createdTask);
                             } else {
                               console.error(`Failed to create task (${res.status})`);
                             }
@@ -7373,7 +7394,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                         }}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setReviewTask(task);
+                                          openReviewTask(task);
                                         }}
                                       >
                                         <Typography noWrap sx={{ fontSize: '0.75rem', color: theme.palette.text.primary }}>
@@ -7587,6 +7608,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       <Dialog
         open={!!reviewTask}
         onClose={handleCloseReview}
+        disableRestoreFocus
         maxWidth="lg"
         fullWidth
         PaperProps={{

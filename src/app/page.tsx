@@ -69,11 +69,23 @@ export default function LandingPage() {
   };
 
   useEffect(() => {
-    const hasToken = typeof window !== "undefined" && !!localStorage.getItem("token");
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const hasToken = !!localStorage.getItem("token");
 
     if (Capacitor.isNativePlatform()) {
-      router.replace(hasToken ? "/home" : "/login");
-      return;
+      const target = hasToken ? "/home" : "/login";
+      router.replace(target);
+
+      const retryTimer = window.setTimeout(() => {
+        if (window.location.pathname === "/" || window.location.pathname === "") {
+          router.replace(target);
+        }
+      }, 600);
+
+      return () => window.clearTimeout(retryTimer);
     }
 
     if (hasToken) {
@@ -94,7 +106,27 @@ export default function LandingPage() {
   };
 
   if (!showWebLanding) {
-    return null;
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          px: 3,
+        }}
+      >
+        <Stack spacing={1.25} sx={{ alignItems: "center", textAlign: "center" }}>
+          <Typography sx={{ fontSize: "1.15rem", fontWeight: 800, color: theme.palette.text.primary }}>
+            Opening Smart Manage...
+          </Typography>
+          <Typography sx={{ color: theme.palette.text.secondary, maxWidth: 320 }}>
+            Preparing your workspace for mobile.
+          </Typography>
+        </Stack>
+      </Box>
+    );
   }
 
   return (

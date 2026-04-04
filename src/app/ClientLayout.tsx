@@ -14,6 +14,13 @@ import { CallProvider } from "./CallContext"; // Added
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const theme = useTheme(); 
+
+  const handleCloseMobileSidebar = () => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setMobileSidebarOpen(false);
+  };
   
   return (
     <Box
@@ -30,7 +37,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
     >
       <Sidebar
         mobileOpen={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
+        onClose={handleCloseMobileSidebar}
       />
 
       <Box

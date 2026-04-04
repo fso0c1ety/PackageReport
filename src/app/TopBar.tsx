@@ -143,7 +143,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    window.location.href = "/login";
+    router.replace("/login");
   };
 
   const workspaceLinks = [

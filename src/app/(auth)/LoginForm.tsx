@@ -14,11 +14,12 @@ import {
   useTheme,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getApiUrl } from '../apiUrl';
 
 export function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const theme = useTheme();
   const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [formData, setFormData] = useState({
@@ -66,7 +67,7 @@ export function LoginForm() {
         if (typeof window !== 'undefined') {
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
-          window.location.href = '/home';
+          router.replace('/home');
         }
       } else {
         setIsLogin(true);

@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "set TURBOPACK=0 && next dev",
-    "build": "next build && node scripts/prepare-capacitor-webdir.js",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack && node scripts/prepare-capacitor-webdir.js",
     "start": "node server/server.js",
     "start-server": "set NODE_ENV=production&& node server/server.js",
     "lint": "eslint"
