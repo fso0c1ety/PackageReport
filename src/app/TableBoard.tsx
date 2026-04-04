@@ -317,10 +317,12 @@ function DateCellEditor({
     onSave(valueRef.current);
   };
 
-  // Ensure modification is saved when component unmounts (e.g. clicking another cell)
+  // Ensure modification is saved when component unmounts (e.g. clicking another cell or dialog closing)
   useEffect(() => {
     return () => {
-      // Just check savedRef, no need to set it here as cleanup runs last
+      // Only save on unmount if handleSave hasn't been called yet.
+      // We avoid calling handleSave via onClose AND here — the unmount cleanup
+      // is the single authoritative save-on-close path.
       if (!savedRef.current) {
         onSave(valueRef.current);
       }
@@ -374,7 +376,12 @@ function DateCellEditor({
     <Box sx={{ width: '100%', height: '100%' }}>
       <DatePicker
         defaultValue={initialDayjs}
-        onClose={() => handleSave()}
+        onAccept={(val) => {
+          // Save explicitly when user selects a date from the calendar.
+          // The unmount cleanup handles the case where dialog closes.
+          valueRef.current = val;
+          handleSave();
+        }}
         onChange={handleChange}
         slotProps={slotProps}
       />
@@ -2381,8 +2388,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       if (response.ok) {
         const responseData = await response.json();
         if (responseData.success && responseData.task) {
-          // If the edited row is the one currently being reviewed, update the reviewTask state
-          if (reviewTask && responseData.task.id === reviewTask.id) {
+          // If the edited row is the one currently being reviewed, update the reviewTask state.
+          // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
+          // value — to avoid reopening the dialog after it was closed while a date/cell save was in flight.
+          if (reviewTask && responseData.task.id === reviewTask.id
+              && dismissedTaskIdRef.current !== responseData.task.id) {
             setReviewTask(responseData.task);
           }
         }
