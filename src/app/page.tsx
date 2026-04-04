@@ -9,23 +9,63 @@ import {
   Button,
   Chip,
   Container,
-  IconButton,
   Stack,
   Toolbar,
   Typography,
   alpha,
   useTheme,
 } from "@mui/material";
-import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
-import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import { motion } from "framer-motion";
-import { useThemeContext } from "./ThemeContext";
 
 export default function LandingPage() {
   const router = useRouter();
   const theme = useTheme();
-  const { mode, toggleTheme } = useThemeContext();
-  const isDark = mode === "dark";
+  const isDark = false;
+
+  const serviceItems = [
+    {
+      title: "Workflow setup",
+      description: "Build structured package pipelines, task stages, and clear team ownership in one place.",
+    },
+    {
+      title: "Automation help",
+      description: "Reduce manual follow-ups with reminders, status rules, and repeatable automations.",
+    },
+    {
+      title: "Reporting & visibility",
+      description: "Track progress, bottlenecks, and delivery health with simple dashboards and live updates.",
+    },
+  ];
+
+  const aboutValues = ["Clear visibility", "Fast collaboration", "Reliable workflow tracking"];
+
+  const contactOptions = [
+    {
+      title: "Sales questions",
+      text: "Learn how PackageReport can fit your workflow and reporting needs.",
+    },
+    {
+      title: "Product support",
+      text: "Get help with setup, onboarding, or daily workspace usage.",
+    },
+    {
+      title: "Partnerships",
+      text: "Reach out if you want to collaborate or integrate with our platform.",
+    },
+  ];
+
+  const navButtonSx = {
+    color: theme.palette.text.secondary,
+    textTransform: "none",
+    fontSize: "0.96rem",
+    fontWeight: 600,
+    px: 1,
+    minWidth: "auto",
+    "&:hover": {
+      backgroundColor: "transparent",
+      color: theme.palette.text.primary,
+    },
+  };
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -43,19 +83,22 @@ export default function LandingPage() {
     router.push("/login?mode=signup");
   };
 
+  const scrollToSection = (sectionId: string) => {
+    const section = document.getElementById(sectionId);
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   if (Capacitor.isNativePlatform()) {
     return null;
   }
 
   return (
     <Box
+      id="top"
       sx={{
         minHeight: "100vh",
         color: theme.palette.text.primary,
-        background:
-          isDark
-            ? "radial-gradient(circle at 12% 20%, rgba(16, 185, 129, 0.20) 0%, transparent 38%), radial-gradient(circle at 80% 10%, rgba(245, 158, 11, 0.18) 0%, transparent 36%), linear-gradient(135deg, #0b1220 0%, #0f172a 52%, #111827 100%)"
-            : "radial-gradient(circle at 10% 18%, rgba(16, 185, 129, 0.16) 0%, transparent 40%), radial-gradient(circle at 85% 12%, rgba(245, 158, 11, 0.14) 0%, transparent 34%), linear-gradient(135deg, #f6f9ff 0%, #eef6ff 50%, #f8fafc 100%)",
+        background: "#ffffff",
         display: "flex",
         flexDirection: "column",
       }}
@@ -63,29 +106,28 @@ export default function LandingPage() {
       {/* Navigation Bar */}
       <AppBar
         position="static"
+        color="transparent"
+        elevation={0}
         sx={{
-          background: isDark
-            ? "linear-gradient(135deg, rgba(11, 18, 32, 0.92) 0%, rgba(15, 23, 42, 0.92) 100%)"
-            : "linear-gradient(135deg, rgba(255, 255, 255, 0.82) 0%, rgba(242, 248, 255, 0.82) 100%)",
-          backdropFilter: "blur(10px)",
-          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-          boxShadow: isDark ? "0 4px 20px rgba(0, 0, 0, 0.3)" : "0 8px 30px rgba(2, 6, 23, 0.08)",
+          background: "transparent",
+          boxShadow: "none",
         }}
       >
         <Container maxWidth="lg">
           <Toolbar
+            disableGutters
             sx={{
+              minHeight: 72,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              py: 2,
+              gap: 2,
             }}
           >
-            {/* Logo & App Name */}
             <Stack
               direction="row"
-              spacing={2}
-              sx={{ alignItems: "center", cursor: "pointer" }}
+              spacing={1.25}
+              sx={{ alignItems: "center", cursor: "pointer", minWidth: 0 }}
               onClick={() => router.push("/")}
             >
               <Box
@@ -93,27 +135,24 @@ export default function LandingPage() {
                 src="/icon.png"
                 alt="PackageReport logo"
                 sx={{
-                  width: 38,
-                  height: 38,
+                  width: 36,
+                  height: 36,
                   borderRadius: "10px",
                   objectFit: "cover",
-                  border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
-                  boxShadow: isDark ? "0 8px 20px rgba(0,0,0,0.35)" : "0 8px 20px rgba(15, 23, 42, 0.16)",
                 }}
               />
               <Typography
                 sx={{
-                  fontSize: "1.3rem",
-                  fontWeight: 900,
+                  fontSize: "1.15rem",
+                  fontWeight: 800,
                   letterSpacing: "-0.02em",
                   color: theme.palette.text.primary,
                 }}
               >
-                PackageReport
+                Smart Manage
               </Typography>
             </Stack>
 
-            {/* Navigation Links */}
             <Stack
               direction="row"
               spacing={3}
@@ -122,68 +161,26 @@ export default function LandingPage() {
                 alignItems: "center",
               }}
             >
-              <Button
-                sx={{
-                  color: theme.palette.text.primary,
-                  textTransform: "none",
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  "&:hover": {
-                    color: theme.palette.secondary.main,
-                  },
-                }}
-              >
-                Home
-              </Button>
-              <Button
-                sx={{
-                  color: theme.palette.text.secondary,
-                  textTransform: "none",
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  "&:hover": {
-                    color: theme.palette.secondary.main,
-                  },
-                }}
-              >
-                Services
-              </Button>
-              <Button
-                sx={{
-                  color: theme.palette.text.secondary,
-                  textTransform: "none",
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  "&:hover": {
-                    color: theme.palette.secondary.main,
-                  },
-                }}
-              >
-                About Us
-              </Button>
+              <Button onClick={() => scrollToSection("top")} sx={navButtonSx}>Home</Button>
+              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Services</Button>
+              <Button onClick={() => scrollToSection("about")} sx={navButtonSx}>About Us</Button>
+              <Button onClick={() => scrollToSection("contact")} sx={navButtonSx}>Contact</Button>
             </Stack>
 
-            {/* Auth Buttons */}
-            <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-              <IconButton
-                onClick={toggleTheme}
-                sx={{
-                  color: theme.palette.text.primary,
-                  border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
-                  backgroundColor: alpha(theme.palette.background.paper, 0.45),
-                }}
-              >
-                {isDark ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
-              </IconButton>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
               <Button
                 onClick={() => router.push("/login")}
                 sx={{
-                  color: theme.palette.text.primary,
+                  display: { xs: "none", sm: "inline-flex" },
+                  color: "#fff",
+                  borderRadius: 999,
+                  px: 2,
+                  py: 0.8,
                   textTransform: "none",
-                  fontSize: "1rem",
                   fontWeight: 700,
+                  backgroundColor: theme.palette.primary.main,
                   "&:hover": {
-                    color: theme.palette.secondary.main,
+                    backgroundColor: theme.palette.primary.dark,
                   },
                 }}
               >
@@ -194,14 +191,15 @@ export default function LandingPage() {
                 onClick={() => router.push("/login?mode=signup")}
                 sx={{
                   borderRadius: 999,
-                  px: 3,
-                  py: 1,
-                  fontWeight: 800,
+                  px: 2.2,
+                  py: 0.9,
+                  fontWeight: 700,
                   textTransform: "none",
-                  background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark || theme.palette.secondary.main})`,
-                  boxShadow: "0 10px 25px rgba(16, 185, 129, 0.3)",
+                  background: theme.palette.primary.main,
+                  boxShadow: "none",
                   "&:hover": {
-                    boxShadow: "0 15px 35px rgba(16, 185, 129, 0.4)",
+                    background: theme.palette.primary.dark,
+                    boxShadow: "none",
                   },
                 }}
               >
@@ -213,7 +211,7 @@ export default function LandingPage() {
       </AppBar>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, display: "flex", alignItems: "center", py: { xs: 6, md: 8 } }}>
+      <Box sx={{ flex: 1, py: { xs: 6, md: 8 } }}>
         <Container maxWidth="lg">
           <Box
             sx={{
@@ -221,6 +219,7 @@ export default function LandingPage() {
               gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
               gap: { xs: 4, md: 6 },
               alignItems: "center",
+              minHeight: { md: "70vh" },
             }}
           >
             {/* Left Content */}
@@ -286,15 +285,19 @@ export default function LandingPage() {
                       py: 1.4,
                       fontWeight: 800,
                       textTransform: "none",
-                      background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark || theme.palette.secondary.main})`,
-                      boxShadow: "0 14px 34px rgba(16, 185, 129, 0.35)",
+                      background: theme.palette.primary.main,
+                      boxShadow: "none",
+                      "&:hover": {
+                        background: theme.palette.primary.dark,
+                        boxShadow: "none",
+                      },
                     }}
                   >
                     Login
                   </Button>
 
                   <Button
-                    variant="outlined"
+                    variant="contained"
                     size="large"
                     onClick={() => router.push("/login?mode=signup")}
                     sx={{
@@ -303,8 +306,12 @@ export default function LandingPage() {
                       py: 1.4,
                       fontWeight: 800,
                       textTransform: "none",
-                      borderColor: alpha(theme.palette.divider, 0.9),
-                      color: theme.palette.text.primary,
+                      background: theme.palette.primary.main,
+                      boxShadow: "none",
+                      "&:hover": {
+                        background: theme.palette.primary.dark,
+                        boxShadow: "none",
+                      },
                     }}
                   >
                     Sign Up
@@ -341,92 +348,185 @@ export default function LandingPage() {
                   alignItems: "center",
                   justifyContent: "center",
                   position: "relative",
-                  height: { xs: 360, md: 500 },
+                  height: "auto",
+                  background: "transparent",
+                  overflow: "hidden",
                 }}
               >
-                {/* Gradient Background Circle */}
                 <Box
-                  sx={{
-                    position: "absolute",
-                    width: "100%",
-                    height: "100%",
-                    background: `radial-gradient(circle at 50% 50%, ${alpha(theme.palette.secondary.main, isDark ? 0.2 : 0.16)} 0%, transparent 70%)`,
-                    borderRadius: "50%",
-                    filter: "blur(40px)",
-                  }}
-                />
-
-                {/* Product preview card */}
-                <Box
+                  component="video"
+                  src="/Bost1.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
                   sx={{
                     position: "relative",
                     zIndex: 1,
                     width: "100%",
-                    maxWidth: 510,
-                    p: 2,
-                    borderRadius: 4,
-                    border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-                    background: alpha(theme.palette.background.paper, isDark ? 0.55 : 0.88),
-                    backdropFilter: "blur(10px)",
-                    boxShadow: isDark ? "0 24px 60px rgba(0,0,0,0.45)" : "0 24px 60px rgba(15,23,42,0.14)",
+                    maxWidth: 520,
+                    height: "auto",
+                    display: "block",
+                    objectFit: "contain",
+                    borderRadius: 0,
+                    boxShadow: "none",
+                    outline: "none",
+                    background: "transparent",
                   }}
-                >
-                  <Stack spacing={1.6}>
-                    <Stack direction="row" spacing={1.2} alignItems="center">
-                      <Box
-                        component="img"
-                        src="/icon.png"
-                        alt="PackageReport"
-                        sx={{ width: 30, height: 30, borderRadius: 1.5 }}
-                      />
-                      <Typography fontWeight={800}>Workspace Overview</Typography>
-                    </Stack>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr",
-                        gap: 1.2,
-                      }}
-                    >
-                      <Box sx={{ p: 1.4, borderRadius: 2, background: alpha(theme.palette.secondary.main, 0.14) }}>
-                        <Typography variant="caption" color="text.secondary">Open Tasks</Typography>
-                        <Typography fontWeight={900} fontSize="1.1rem">42</Typography>
-                      </Box>
-                      <Box sx={{ p: 1.4, borderRadius: 2, background: alpha(theme.palette.primary.main, 0.14) }}>
-                        <Typography variant="caption" color="text.secondary">In Review</Typography>
-                        <Typography fontWeight={900} fontSize="1.1rem">17</Typography>
-                      </Box>
-                      <Box sx={{ p: 1.4, borderRadius: 2, background: alpha(theme.palette.warning.main, 0.14) }}>
-                        <Typography variant="caption" color="text.secondary">Delayed</Typography>
-                        <Typography fontWeight={900} fontSize="1.1rem">3</Typography>
-                      </Box>
-                    </Box>
-                    <Stack spacing={1}>
-                      {["Packaging Flow", "Courier Sync", "Client Updates", "Automation Rules"].map((item, idx) => (
-                        <motion.div
-                          key={item}
-                          initial={{ opacity: 0, x: 18 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.12 * idx + 0.2 }}
-                        >
-                          <Box
-                            sx={{
-                              p: 1.2,
-                              borderRadius: 2,
-                              border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
-                              background: alpha(theme.palette.background.default, isDark ? 0.45 : 0.55),
-                            }}
-                          >
-                            <Typography fontSize="0.92rem" fontWeight={700}>{item}</Typography>
-                          </Box>
-                        </motion.div>
-                      ))}
-                    </Stack>
-                  </Stack>
-                </Box>
+                />
               </Box>
             </motion.div>
           </Box>
+          <Stack spacing={{ xs: 6, md: 8 }} sx={{ mt: { xs: 7, md: 10 } }}>
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <Box id="services" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Stack spacing={2.5} sx={{ mb: 3 }}>
+                  <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
+                    Services
+                  </Typography>
+                  <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Tools and support to keep package operations moving.
+                  </Typography>
+                  <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 760 }}>
+                    PackageReport helps teams organize workspaces, automate routine updates, and stay aligned from intake to delivery.
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    gap: 2,
+                  }}
+                >
+                  {serviceItems.map((item, idx) => (
+                    <motion.div
+                      key={item.title}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ duration: 0.45, delay: idx * 0.08 }}
+                    >
+                      <Box
+                        sx={{
+                          border: "1px solid rgba(15, 23, 42, 0.08)",
+                          borderRadius: 3,
+                          p: 3,
+                          bgcolor: "#ffffff",
+                        }}
+                      >
+                        <Typography fontWeight={800} fontSize="1.05rem" sx={{ mb: 1 }}>
+                          {item.title}
+                        </Typography>
+                        <Typography sx={{ color: "#475569", lineHeight: 1.7 }}>
+                          {item.description}
+                        </Typography>
+                      </Box>
+                    </motion.div>
+                  ))}
+                </Box>
+              </Box>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <Box id="about" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Stack spacing={2.5} sx={{ mb: 3 }}>
+                  <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
+                    About Us
+                  </Typography>
+                  <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Built for teams that need clarity without slowing down.
+                  </Typography>
+                  <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 780 }}>
+                    PackageReport brings tasks, communication, and progress tracking into one clean workspace so teams can move quickly and stay aligned.
+                  </Typography>
+                </Stack>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 22 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.45, delay: 0.08 }}
+                >
+                  <Box sx={{ border: "1px solid rgba(15, 23, 42, 0.08)", borderRadius: 3, p: { xs: 3, md: 4 }, bgcolor: "#fff" }}>
+                    <Typography fontWeight={800} fontSize="1.1rem" sx={{ mb: 1.5 }}>
+                      What matters to us
+                    </Typography>
+                    <Stack spacing={1.2}>
+                      {aboutValues.map((value) => (
+                        <Typography key={value} sx={{ color: "#334155" }}>• {value}</Typography>
+                      ))}
+                    </Stack>
+                  </Box>
+                </motion.div>
+              </Box>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <Box id="contact" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Stack spacing={2.5} sx={{ mb: 3 }}>
+                  <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
+                    Contact
+                  </Typography>
+                  <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Let’s talk about your workspace.
+                  </Typography>
+                  <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 760 }}>
+                    Whether you need onboarding help, product guidance, or a better workflow setup, this is the right place to start.
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    gap: 2,
+                  }}
+                >
+                  {contactOptions.map((item, idx) => (
+                    <motion.div
+                      key={item.title}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ duration: 0.45, delay: idx * 0.08 }}
+                    >
+                      <Box
+                        sx={{
+                          border: "1px solid rgba(15, 23, 42, 0.08)",
+                          borderRadius: 3,
+                          p: 3,
+                          bgcolor: "#ffffff",
+                        }}
+                      >
+                        <Typography fontWeight={800} fontSize="1.05rem" sx={{ mb: 1 }}>
+                          {item.title}
+                        </Typography>
+                        <Typography sx={{ color: "#475569", lineHeight: 1.7 }}>
+                          {item.text}
+                        </Typography>
+                      </Box>
+                    </motion.div>
+                  ))}
+                </Box>
+              </Box>
+            </motion.div>
+          </Stack>
         </Container>
       </Box>
     </Box>

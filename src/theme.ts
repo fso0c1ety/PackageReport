@@ -89,30 +89,30 @@ export const lightTheme = createTheme({
 export const darkTheme = createTheme({
   ...baseTheme,
   palette: {
-    mode: 'dark',
+    mode: 'light',
     primary: {
-      main: '#6366F1', // Indigo 500
+      main: '#4F46E5',
       light: '#818CF8',
-      dark: '#4F46E5',
+      dark: '#4338CA',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#10B981', // Emerald 500
+      main: '#10B981',
       contrastText: '#ffffff',
     },
     background: {
-      default: '#0A0B10', // Deep obsidian background
-      paper: 'rgba(18, 18, 30, 0.6)', // Glassy deep blue/black
+      default: '#F8FAFC',
+      paper: 'rgba(255, 255, 255, 0.85)',
     },
     text: {
-      primary: '#F8FAFC', // Slate 50
-      secondary: '#94A3B8', // Slate 400
+      primary: '#0F172A',
+      secondary: '#64748B',
     },
-    divider: 'rgba(255, 255, 255, 0.05)', // Subtle white line
+    divider: 'rgba(0, 0, 0, 0.06)',
   },
 });
 
-export const getTheme = (mode: 'light' | 'dark') => (mode === 'light' ? lightTheme : darkTheme);
+export const getTheme = () => lightTheme;
 const defaultTheme = lightTheme; 
 export default defaultTheme; // Fallback export
 

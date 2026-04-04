@@ -10,22 +10,16 @@ import {
   Stack,
   Alert,
   CircularProgress,
-  IconButton,
   alpha,
   useTheme,
 } from '@mui/material';
-import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
-import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { getApiUrl } from '../apiUrl';
-import { useThemeContext } from '../ThemeContext';
 
 export function LoginForm() {
   const searchParams = useSearchParams();
   const theme = useTheme();
-  const { mode, toggleTheme } = useThemeContext();
-  const isDark = mode === 'dark';
   const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [formData, setFormData] = useState({
     name: '',
@@ -98,9 +92,9 @@ export function LoginForm() {
           sx={{
             p: { xs: 2.2, md: 3.2 },
             borderRadius: 4,
-            border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-            background: alpha(theme.palette.background.paper, isDark ? 0.62 : 0.88),
-            boxShadow: isDark ? '0 20px 55px rgba(0,0,0,0.45)' : '0 20px 50px rgba(15,23,42,0.14)',
+            border: 'none',
+            background: '#ffffff',
+            boxShadow: '0 20px 50px rgba(15,23,42,0.08)',
           }}
         >
           <Stack spacing={2}>
@@ -133,16 +127,6 @@ export function LoginForm() {
                     : 'Create your account to start managing packages'}
                 </Typography>
               </Stack>
-              <IconButton
-                onClick={toggleTheme}
-                sx={{
-                  border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-                  color: theme.palette.text.primary,
-                  backgroundColor: alpha(theme.palette.background.default, 0.4),
-                }}
-              >
-                {isDark ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
-              </IconButton>
             </Stack>
 
             {/* Form */}
@@ -163,15 +147,16 @@ export function LoginForm() {
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       color: theme.palette.text.primary,
-                      backgroundColor: alpha(theme.palette.background.default, isDark ? 0.2 : 0.45),
+                      backgroundColor: '#f8fafc',
+                      borderRadius: 3,
                       '& fieldset': {
-                        borderColor: alpha(theme.palette.divider, 0.9),
+                        borderColor: 'transparent',
                       },
                       '&:hover fieldset': {
-                        borderColor: alpha(theme.palette.secondary.main, 0.52),
+                        borderColor: 'transparent',
                       },
                       '&.Mui-focused fieldset': {
-                        borderColor: theme.palette.secondary.main,
+                        borderColor: 'transparent',
                       },
                     },
                     '& .MuiInputLabel-root': {
@@ -196,15 +181,16 @@ export function LoginForm() {
               sx={{
                 '& .MuiOutlinedInput-root': {
                   color: theme.palette.text.primary,
-                  backgroundColor: alpha(theme.palette.background.default, isDark ? 0.2 : 0.45),
+                  backgroundColor: '#f8fafc',
+                  borderRadius: 3,
                   '& fieldset': {
-                    borderColor: alpha(theme.palette.divider, 0.9),
+                    borderColor: 'transparent',
                   },
                   '&:hover fieldset': {
-                    borderColor: alpha(theme.palette.secondary.main, 0.52),
+                    borderColor: 'transparent',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: theme.palette.secondary.main,
+                    borderColor: 'transparent',
                   },
                 },
                 '& .MuiInputLabel-root': {
@@ -227,15 +213,16 @@ export function LoginForm() {
               sx={{
                 '& .MuiOutlinedInput-root': {
                   color: theme.palette.text.primary,
-                  backgroundColor: alpha(theme.palette.background.default, isDark ? 0.2 : 0.45),
+                  backgroundColor: '#f8fafc',
+                  borderRadius: 3,
                   '& fieldset': {
-                    borderColor: alpha(theme.palette.divider, 0.9),
+                    borderColor: 'transparent',
                   },
                   '&:hover fieldset': {
-                    borderColor: alpha(theme.palette.secondary.main, 0.52),
+                    borderColor: 'transparent',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: theme.palette.secondary.main,
+                    borderColor: 'transparent',
                   },
                 },
                 '& .MuiInputLabel-root': {
@@ -266,6 +253,7 @@ export function LoginForm() {
 
             <Button
               type="submit"
+              variant="contained"
               fullWidth
               disabled={loading}
               sx={{
@@ -275,11 +263,12 @@ export function LoginForm() {
                 fontWeight: 800,
                 textTransform: 'none',
                 fontSize: '1rem',
-                background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark || theme.palette.secondary.main})`,
-                boxShadow: '0 14px 34px rgba(16, 185, 129, 0.35)',
+                color: '#fff',
+                background: theme.palette.primary.main,
+                boxShadow: 'none',
                 '&:hover': {
-                  background: `linear-gradient(135deg, ${theme.palette.secondary.light || theme.palette.secondary.main}, ${theme.palette.secondary.main})`,
-                  boxShadow: '0 20px 45px rgba(16, 185, 129, 0.4)',
+                  background: theme.palette.primary.dark,
+                  boxShadow: 'none',
                 },
                 '&:disabled': {
                   background: alpha(theme.palette.action.disabledBackground, 0.6),
