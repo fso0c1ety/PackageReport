@@ -2,6 +2,50 @@
 export const DEFAULT_FRONTEND_URL =
   process.env.NEXT_PUBLIC_FRONTEND_URL || "";
 
+function isNativeStaticRuntime() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const capacitor = (window as typeof window & {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  }).Capacitor;
+
+  return capacitor?.isNativePlatform?.() === true;
+}
+
+export function getAppRoute(path: string) {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return '/';
+  }
+
+  const match = trimmed.match(/^([^?#]*)(.*)$/);
+  const rawPath = match?.[1] || trimmed;
+  const suffix = match?.[2] || '';
+  const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+
+  if (isNativeStaticRuntime() && normalizedPath !== '/' && !normalizedPath.endsWith('.html')) {
+    return `${normalizedPath}.html${suffix}`;
+  }
+
+  return `${normalizedPath}${suffix}`;
+}
+
+export function redirectToAppRoute(path: string, replace = true) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const target = getAppRoute(path);
+
+  if (replace) {
+    window.location.replace(target);
+  } else {
+    window.location.assign(target);
+  }
+}
+
 export const DEFAULT_SERVER_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -204,7 +248,7 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
   if (response.status === 401 || response.status === 403) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token'); // Clear invalid token
-      window.location.href = '/login';
+      redirectToAppRoute('/login');
       return new Promise(() => { }) as unknown as Response;
     }
     throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");

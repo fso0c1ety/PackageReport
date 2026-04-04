@@ -10,6 +10,7 @@ import PageTransition from "./PageTransition";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@mui/material/styles"; // Added
 import { CallProvider } from "./CallContext"; // Added
+import { redirectToAppRoute } from "./apiUrl";
 
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -88,7 +89,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     
     if (!token) {
         // Redirect to login if no token
-        router.push('/login');
+        redirectToAppRoute('/login');
         // loading state will continue until redirect happens
     } else {
         setIsAuthenticated(true);

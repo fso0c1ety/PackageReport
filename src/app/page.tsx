@@ -16,6 +16,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { motion } from "framer-motion";
+import { redirectToAppRoute } from "./apiUrl";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -77,15 +78,8 @@ export default function LandingPage() {
 
     if (Capacitor.isNativePlatform()) {
       const target = hasToken ? "/home" : "/login";
-      router.replace(target);
-
-      const retryTimer = window.setTimeout(() => {
-        if (window.location.pathname === "/" || window.location.pathname === "") {
-          router.replace(target);
-        }
-      }, 600);
-
-      return () => window.clearTimeout(retryTimer);
+      redirectToAppRoute(target);
+      return;
     }
 
     if (hasToken) {

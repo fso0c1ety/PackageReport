@@ -24,7 +24,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
-import { authenticatedFetch, getApiUrl, getAvatarUrl } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl, redirectToAppRoute } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
 import UserProfileDialog from "./UserProfileDialog";
 
@@ -143,7 +143,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    router.replace("/login");
+    redirectToAppRoute('/login');
   };
 
   const workspaceLinks = [
