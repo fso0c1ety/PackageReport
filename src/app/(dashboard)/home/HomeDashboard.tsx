@@ -516,12 +516,13 @@ export default function HomeDashboard() {
                     <Box
                       sx={{
                         height: 'auto',
-                        minHeight: { xs: 120, md: 140 }, // Reduced from 160
-                        width: { xs: 120, sm: 180, md: 210 }, // Reduced from 240
+                        minHeight: { xs: 120, md: 140 },
+                        width: { xs: 120, sm: 180, md: 210 },
                         flexShrink: 0,
-                        bgcolor: "#35365a",
-                        backgroundImage: "url(/dashboard.svg)",
-                        backgroundSize: "cover",
+                        bgcolor: "#eef2ff",
+                        backgroundImage: "url('/dashboard-concept-illustration_114360-4351.avif')",
+                        backgroundSize: "contain",
+                        backgroundRepeat: "no-repeat",
                         backgroundPosition: "center",
                         position: "relative",
                       }}
@@ -571,12 +572,13 @@ export default function HomeDashboard() {
                       <Box
                         sx={{
                           height: 'auto',
-                          minHeight: { xs: 120, md: 140 }, // Reduced from 160
-                          width: { xs: 140, sm: 200, md: 250 }, // Reduced from 240
+                          minHeight: { xs: 120, md: 140 },
+                          width: { xs: 140, sm: 200, md: 250 },
                           flexShrink: 0,
-                          bgcolor: "#3b3c5a",
-                          backgroundImage: "url(/Group.svg)",
-                          backgroundSize: "cover",
+                          bgcolor: "#eef2ff",
+                          backgroundImage: "url('/kanban-illustration.png')",
+                          backgroundSize: "contain",
+                          backgroundRepeat: "no-repeat",
                           backgroundPosition: "center",
                           position: "relative",
                         }}
