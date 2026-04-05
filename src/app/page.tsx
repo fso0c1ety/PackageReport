@@ -90,7 +90,9 @@ export default function LandingPage() {
     }
 
     if (hasToken) {
-      navigateToAppRoute("/home", router, true);
+      // Use a hard navigation on initial web startup to avoid occasional client-router stalls
+      // when a stale tab/session is resumed after deploys or expired auth state.
+      redirectToAppRoute("/home", true);
       return;
     }
 

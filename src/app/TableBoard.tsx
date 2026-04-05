@@ -396,6 +396,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [filterText, setFilterText] = useState("");
   const [filterPerson, setFilterPerson] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const deferredFilterText = useDeferredValue(filterText);
   // Current date for calendar view
   const [currentDate, setCurrentDate] = useState(dayjs());
   // Chat view state
@@ -407,6 +408,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [currentUser, setCurrentUser] = useState<any>(null);
   const currentUserRef = React.useRef<any>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const mobileStickyFirstColumnInset = isMobile ? 18 : 0;
+  const mobileStickyFirstColumnLeft = 60 - mobileStickyFirstColumnInset;
+  const getResponsiveColumnWidth = React.useCallback((col: Column, isPrimary = false) => {
+    if (!isMobile) {
+      return col.width || 160;
+    }
+
+    const scale = isPrimary ? 0.72 : 0.8;
+    const minWidth = isPrimary ? 96 : 120;
+    const maxWidth = isPrimary ? 180 : 240;
+    const computedWidth = col.width ? Math.round(col.width * scale) : minWidth;
+
+    return Math.max(minWidth, Math.min(maxWidth, computedWidth));
+  }, [isMobile]);
   // Extract workspaceId from URL for import dialog
   const searchParamsForImport = useSearchParams();
   const workspaceIdForImport = searchParamsForImport?.get('id') || null;
@@ -592,7 +607,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
     let isMounted = true;
     const fetchChat = () => {
-      authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`))
+      if (typeof document !== 'undefined' && document.hidden && !isChatOpen) {
+        return;
+      }
+
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/chat`), {
+        suppressNativeErrorAlert: true,
+      })
         .then((res) => {
           if (!res.ok) {
             throw new Error(`Failed to fetch board chat (${res.status})`);
@@ -626,14 +647,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         .catch((err) => console.error("Failed to fetch chat messages", err));
     };
 
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined' || !document.hidden) {
+        fetchChat();
+      }
+    };
+
     fetchChat(); // Initial fetch
-    const intervalId = setInterval(fetchChat, 4000); // Poll every 4 seconds
+    const intervalMs = isChatOpen ? (isMobile ? 6000 : 5000) : (isMobile ? 15000 : 10000);
+    const intervalId = setInterval(fetchChat, intervalMs);
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     return () => {
       isMounted = false;
       clearInterval(intervalId);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
     };
-  }, [tableId]);
+  }, [tableId, isChatOpen, isMobile]);
 
   // Track unread messages when chat is closed
   useEffect(() => {
@@ -795,10 +830,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Handler to close the review dialog
   const handleCloseReview = () => {
-    if (!reviewTask) return;
+    const taskToClose = reviewTaskRef.current;
+    if (!taskToClose) return;
+
     reviewCloseGuardRef.current = Date.now() + 1000;
-    dismissedTaskIdRef.current = reviewTask.id;
+    dismissedTaskIdRef.current = taskToClose.id;
     blurFocusedElement();
+    void persistReviewTaskDraft(taskToClose);
     setReviewTask(null);
     setShowEmailAutomation(false);
     setMobileTab('details'); // Reset tab on close
@@ -815,12 +853,62 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [reviewTask, setReviewTask] = useState<Row | null>(null);
   const reviewCloseGuardRef = React.useRef(0);
   const dismissedTaskIdRef = React.useRef<string | null>(null);
+  const reviewTaskRef = React.useRef<Row | null>(null);
+  const rowsRef = React.useRef<Row[]>(initialRows);
 
   const blurFocusedElement = React.useCallback(() => {
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
   }, []);
+
+  useEffect(() => {
+    reviewTaskRef.current = reviewTask;
+  }, [reviewTask]);
+
+  const persistReviewTaskDraft = React.useCallback(async (task: Row | null) => {
+    if (!task || !tableId || task.id === 'placeholder' || userPermission === 'read') {
+      return;
+    }
+
+    const existingRow = rowsRef.current.find((row) => row.id === task.id);
+    if (!existingRow) {
+      return;
+    }
+
+    const currentValues = JSON.stringify(task.values ?? {});
+    const existingValues = JSON.stringify(existingRow.values ?? {});
+    if (currentValues === existingValues) {
+      return;
+    }
+
+    setRows((prev) => prev.map((row) => (
+      row.id === task.id ? { ...row, values: { ...task.values } } : row
+    )));
+
+    try {
+      const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: task.id, values: task.values }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || `Failed to save task details (${response.status})`);
+      }
+
+      const responseData = await response.json().catch(() => null);
+      if (responseData?.success && responseData?.task) {
+        setRows((prev) => prev.map((row) => (
+          row.id === responseData.task.id ? responseData.task : row
+        )));
+      }
+    } catch (err) {
+      console.error("Failed to persist task details before close", err);
+      showNotification("Failed to save task changes. Please try again.", "error");
+    }
+  }, [tableId]);
 
   const openReviewTask = React.useCallback((task: Row | null, source: 'user' | 'url' = 'user') => {
     if (!task || (source === 'url' && dismissedTaskIdRef.current === task.id) || Date.now() < reviewCloseGuardRef.current) {
@@ -941,8 +1029,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     if (!reviewTask || (mobileTab !== 'chat' && rightPanelTab !== 'chat')) return;
 
     const pollTaskChat = async () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
       try {
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${reviewTask.id}`));
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${reviewTask.id}`), {
+          suppressNativeErrorAlert: true,
+        });
         const updatedRow = await res.json();
         if (updatedRow && updatedRow.values) {
           const rawMessages = updatedRow.values.message || [];
@@ -960,18 +1054,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }
     };
 
-    const intervalId = setInterval(pollTaskChat, 4000);
+    const intervalId = setInterval(pollTaskChat, isMobile ? 8000 : 6000);
     return () => clearInterval(intervalId);
     // Add reviewTask.values.message to dependency array to trigger scroll on new messages
-  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId]);
+  }, [reviewTask?.id, mobileTab, rightPanelTab, tableId, isMobile]);
 
   // Real-time polling for Task Chat (Discussion Popover)
   useEffect(() => {
     if (!chatTaskId || !chatAnchor) return;
 
     const pollPopoverChat = async () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
       try {
-        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${chatTaskId}`));
+        const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${chatTaskId}`), {
+          suppressNativeErrorAlert: true,
+        });
         const updatedRow = await res.json();
         if (updatedRow && updatedRow.values) {
           const rawMessages = updatedRow.values.message || [];
@@ -985,9 +1085,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }
     };
 
-    const intervalId = setInterval(pollPopoverChat, 4000);
+    const intervalId = setInterval(pollPopoverChat, isMobile ? 8000 : 6000);
     return () => clearInterval(intervalId);
-  }, [chatTaskId, !!chatAnchor, tableId]);
+  }, [chatTaskId, !!chatAnchor, tableId, isMobile]);
 
   // Email Automation UI state
   const [showEmailAutomation, setShowEmailAutomation] = useState(false);
@@ -1726,6 +1826,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [editingLabelsColId, setEditingLabelsColId] = useState<string | null>(null);
   const [labelEdits, setLabelEdits] = useState<{ [colId: string]: { [idx: number]: string } }>({});
   const [rows, setRows] = useState<Row[]>(initialRows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [editValue, setEditValue] = useState<any>("");
   const editValueRef = React.useRef(editValue);
@@ -2670,33 +2773,41 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Filter logic
   const filteredRows = React.useMemo(() => {
-    if (!filterText && filterPerson.length === 0 && filterStatus.length === 0) return rows;
-    const lowerFilter = filterText.toLowerCase();
+    const normalizedFilterText = deferredFilterText.trim().toLowerCase();
+    if (!normalizedFilterText && filterPerson.length === 0 && filterStatus.length === 0) return rows;
+
+    const selectedMemberIds = filterPerson.length > 0
+      ? filterPerson
+          .map(name => tableMembers.find(m => m.name === name)?.id)
+          .filter(Boolean)
+      : [];
+    const peopleCols = filterPerson.length > 0 ? columns.filter(c => c.type === 'People') : [];
+    const statusCols = filterStatus.length > 0 ? columns.filter(c => c.type === 'Status') : [];
 
     return rows.filter(row => {
       // 1. Text Filter
-      const textMatch = !filterText || Object.values(row.values).some(val => {
+      const textMatch = !normalizedFilterText || Object.values(row.values).some(val => {
         if (val === null || val === undefined) return false;
         if (typeof val === 'string') {
-          return val.toLowerCase().includes(lowerFilter);
+          return val.toLowerCase().includes(normalizedFilterText);
         }
         if (typeof val === 'number') {
-          return val.toString().includes(lowerFilter);
+          return val.toString().includes(normalizedFilterText);
         }
         if (Array.isArray(val)) {
           return val.some((v: any) => {
-            if (typeof v === 'string') return v.toLowerCase().includes(lowerFilter);
+            if (typeof v === 'string') return v.toLowerCase().includes(normalizedFilterText);
             if (v && typeof v === 'object') {
-              return (v.name && v.name.toLowerCase().includes(lowerFilter)) ||
-                (v.email && v.email.toLowerCase().includes(lowerFilter)) ||
-                (v.originalName && v.originalName.toLowerCase().includes(lowerFilter));
+              return (v.name && v.name.toLowerCase().includes(normalizedFilterText)) ||
+                (v.email && v.email.toLowerCase().includes(normalizedFilterText)) ||
+                (v.originalName && v.originalName.toLowerCase().includes(normalizedFilterText));
             }
             return false;
           });
         }
         if (typeof val === 'object') {
           if (val.start && val.end) {
-            return val.start.includes(lowerFilter) || val.end.includes(lowerFilter);
+            return val.start.includes(normalizedFilterText) || val.end.includes(normalizedFilterText);
           }
         }
         return false;
@@ -2705,13 +2816,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       // 2. People Filter (Assignee or Creator)
       if (filterPerson.length > 0) {
-        // Find IDs for selected names
-        const selectedMemberIds = filterPerson.map(name =>
-          tableMembers.find(m => m.name === name)?.id
-        ).filter(Boolean);
-
-        const peopleCols = columns.filter(c => c.type === 'People');
-
         const isAssigned = peopleCols.some(col => {
           const val = row.values[col.id];
           if (Array.isArray(val)) {
@@ -2727,7 +2831,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       // 3. Status Filter
       if (filterStatus.length > 0) {
-        const statusCols = columns.filter(c => c.type === 'Status');
         const hasStatus = statusCols.some(col => {
           const val = row.values[col.id];
           return filterStatus.includes(val);
@@ -2737,7 +2840,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       return true;
     });
-  }, [rows, filterText, filterPerson, filterStatus, columns, tableMembers]);
+  }, [rows, deferredFilterText, filterPerson, filterStatus, columns, tableMembers]);
 
   const sortedColumns = React.useMemo(() => {
     return [...columns].sort((a, b) => a.order - b.order);
@@ -6436,9 +6539,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 sx={{
-                                  minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
-                                  maxWidth: isMobile ? (col.width ? col.width * 0.8 : 240) : (col.width || 160),
-                                  width: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
+                                  minWidth: getResponsiveColumnWidth(col, index === 0),
+                                  maxWidth: getResponsiveColumnWidth(col, index === 0),
+                                  width: getResponsiveColumnWidth(col, index === 0),
                                   transition: 'background-color 0.2s',
                                   bgcolor: snapshot.isDragging ? `${theme.palette.action.selected} !important` : theme.palette.background.paper,
                                   '&:hover': { bgcolor: `${theme.palette.action.hover} !important` },
@@ -7050,20 +7153,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                         p: isMobile ? 0.75 : 1.5, // 12px -> 6px on mobile
                                         color: theme.palette.text.primary,
                                         fontSize: isMobile ? '0.75rem' : '0.875rem', // 14px -> 12px on mobile
-                                        minWidth: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
-                                        maxWidth: isMobile ? (col.width ? col.width * 0.8 : 240) : (col.width || 160),
-                                        width: isMobile ? (col.width ? col.width * 0.8 : 120) : (col.width || 160),
+                                        minWidth: getResponsiveColumnWidth(col, idx === 0),
+                                        maxWidth: getResponsiveColumnWidth(col, idx === 0),
+                                        width: getResponsiveColumnWidth(col, idx === 0),
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap',
                                         ...(isMobile && idx === 0 ? {
                                           position: 'sticky',
-                                          left: 60, // Width of the drag handle column
+                                          left: mobileStickyFirstColumnLeft,
                                           zIndex: 100,
                                           bgcolor: theme.palette.background.paper,
                                           backgroundImage: snapshot.isDragging ? 'none' : `linear-gradient(${rowBg}, ${rowBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`,
-                                          borderRight: `2px solid ${theme.palette.divider}`,
-                                          boxShadow: '4px 0 8px rgba(0,0,0,0.15)',
+                                          borderRight: `1px solid ${theme.palette.divider}`,
+                                          boxShadow: '2px 0 6px rgba(0,0,0,0.12)',
                                           'tr:hover &': {
                                             backgroundImage: `linear-gradient(${rowHoverBg}, ${rowHoverBg}), linear-gradient(${theme.palette.background.paper}, ${theme.palette.background.paper})`
                                           }

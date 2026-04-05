@@ -80,6 +80,10 @@ self.addEventListener('notificationclick', function(event) {
   if (data) {
       if (data.type === 'incoming_call') {
           urlToOpen = `/chat?userId=${data.callerId}&autoAccept=true`;
+      } else if (data.type === 'direct_message' && data.senderId) {
+          urlToOpen = `/chat?userId=${data.senderId}`;
+      } else if (data.type === 'friend_request' || data.type === 'friend_accepted' || data.type === 'social_request') {
+          urlToOpen = '/chat?tab=social';
       } else if (data.workspaceId) {
           urlToOpen = `/workspace?id=${data.workspaceId}`;
           if (data.tableId) urlToOpen += `&tableId=${data.tableId}`;
@@ -95,18 +99,34 @@ self.addEventListener('notificationclick', function(event) {
   event.waitUntil(clients.matchAll({
     type: 'window',
     includeUncontrolled: true
-  }).then((clientList) => {
+  }).then(async (clientList) => {
     for (const client of clientList) {
       if ('postMessage' in client) {
+        if (data?.type === 'incoming_call') {
+          client.postMessage({
+            type: 'incoming_call_click',
+            payload: data
+          });
+        }
+
         client.postMessage({
-          type: 'incoming_call_click',
+          type: 'notification_route',
+          route: urlToOpen,
           payload: data
         });
       }
+
+      if ('navigate' in client && typeof client.navigate === 'function') {
+        await client.navigate(urlToOpen);
+      }
+
       if ('focus' in client) {
         return client.focus();
       }
     }
-    if (clients.openWindow) return clients.openWindow(urlToOpen);
+
+    if (clients.openWindow) {
+      return clients.openWindow(urlToOpen);
+    }
   }));
 });

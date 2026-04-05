@@ -341,15 +341,23 @@ const NotificationRequester = () => {
 
         const handleServiceWorkerMessage = (event: MessageEvent) => {
             const message = event.data;
-            if (!message || message.type !== 'incoming_call_click') return;
-            showIncomingCall(message.payload || {});
+            if (!message) return;
+
+            if (message.type === 'incoming_call_click') {
+                showIncomingCall(message.payload || {});
+                return;
+            }
+
+            if (message.type === 'notification_route' && message.route) {
+                navigateToAppRoute(String(message.route), router);
+            }
         };
 
         navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
         return () => {
             navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
         };
-    }, [showIncomingCall]);
+    }, [router, showIncomingCall]);
 
     if (!showPermissionPrompt) return null;
 

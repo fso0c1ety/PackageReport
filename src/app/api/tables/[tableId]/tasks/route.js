@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
+import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { sendEmail } from "../../../_lib/mailer";
 
 export const runtime = "nodejs";
@@ -33,6 +34,95 @@ function formatAutomationValue(value) {
   }
 
   return String(value);
+}
+
+function getTaskName(table, values) {
+  const columns = Array.isArray(table?.columns) ? table.columns : [];
+  const taskCol = columns.find((column) => column.id === "task") || columns[0];
+  const taskValue = taskCol ? values?.[taskCol.id] : values?.task;
+
+  if (typeof taskValue === "string" && taskValue.trim()) {
+    return taskValue.trim();
+  }
+
+  return "Task";
+}
+
+function getFileIdentifier(file) {
+  return file?.url || file?.path || file?.storagePath || file?.name || file?.originalName || null;
+}
+
+async function maybeSendTaskNotifications({ table, user, taskId, oldValues, mergedValues }) {
+  const messages = toArray(mergedValues?.message);
+  const oldMessages = toArray(oldValues?.message);
+  const taskName = getTaskName(table, mergedValues);
+
+  if (messages.length > oldMessages.length) {
+    const lastMsg = messages[messages.length - 1];
+    const isScheduled = lastMsg?.scheduledFor && new Date(lastMsg.scheduledFor) > new Date();
+
+    if (lastMsg && typeof lastMsg === "object") {
+      lastMsg.notificationSent = !isScheduled;
+    }
+
+    if (!isScheduled && lastMsg) {
+      const userName = lastMsg.sender || user.name || user.email || "User";
+      const commentText = typeof lastMsg.text === "string" && lastMsg.text.trim()
+        ? lastMsg.text.trim()
+        : "left a new comment.";
+
+      await sendTableNotification({
+        table,
+        senderId: user.id,
+        type: "task_chat",
+        title: "New Discussion",
+        body: `${userName} commented on the ${taskName}: ${commentText}`,
+        taskId,
+        extraData: {
+          taskName,
+        },
+      });
+    }
+  }
+
+  const columns = Array.isArray(table?.columns) ? table.columns : [];
+  for (const col of columns) {
+    if (col?.type !== "Files" && col?.type !== "File") {
+      continue;
+    }
+
+    const oldFiles = toArray(oldValues?.[col.id]);
+    const newFiles = toArray(mergedValues?.[col.id]);
+
+    for (const newFile of newFiles) {
+      const fileKey = getFileIdentifier(newFile);
+      const oldFile = oldFiles.find((candidate) => getFileIdentifier(candidate) === fileKey);
+      const oldComments = toArray(oldFile?.comments);
+      const newComments = toArray(newFile?.comments);
+
+      if (newComments.length > oldComments.length) {
+        const lastComment = newComments[newComments.length - 1];
+        const userName = lastComment?.user || user.name || user.email || "User";
+        const commentText = typeof lastComment?.text === "string" && lastComment.text.trim()
+          ? lastComment.text.trim()
+          : "left a new comment.";
+        const fileName = newFile?.name || newFile?.originalName || "file";
+
+        await sendTableNotification({
+          table,
+          senderId: user.id,
+          type: "file_comment",
+          title: "New File Comment",
+          body: `${userName} commented on the ${fileName}: ${commentText}`,
+          taskId,
+          extraData: {
+            fileName,
+            taskName,
+          },
+        });
+      }
+    }
+  }
 }
 
 async function runAutomations({ table, taskId, oldValues, newValues }) {
@@ -394,6 +484,18 @@ export async function PUT(req, { params }) {
 
     const mergedValues = { ...oldValues, ...newValues };
     mergedValues.activity = newActivity.length > 0 ? [...newActivity, ...oldActivity] : oldActivity;
+
+    try {
+      await maybeSendTaskNotifications({
+        table,
+        user,
+        taskId: id,
+        oldValues,
+        mergedValues,
+      });
+    } catch (notificationErr) {
+      console.error("[TABLE TASKS][PUT] Notification processing failed:", notificationErr);
+    }
 
     const updateRes = await pool.query(
       `

@@ -79,6 +79,28 @@ type SearchUser = {
   avatar?: string;
 };
 
+function areNotificationsEqual(prev: Notification[], next: Notification[]) {
+  if (prev === next) return true;
+  if (prev.length !== next.length) return false;
+
+  for (let i = 0; i < prev.length; i += 1) {
+    const a = prev[i];
+    const b = next[i];
+    if (
+      a.id !== b.id ||
+      a.read !== b.read ||
+      a.type !== b.type ||
+      a.created_at !== b.created_at ||
+      (a.data?.body || "") !== (b.data?.body || "") ||
+      (a.data?.subject || "") !== (b.data?.subject || "")
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
   const theme = useTheme();
@@ -193,13 +215,23 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
   useEffect(() => {
     const fetchNotifications = async () => {
+        if (typeof document !== 'undefined' && document.hidden) {
+            return;
+        }
+
         try {
-            const res = await authenticatedFetch(getApiUrl('notifications'));   
+            const res = await authenticatedFetch(getApiUrl('notifications'), {
+                suppressNativeErrorAlert: true,
+            });   
             if (res.ok) {
                 const data = await res.json();
-                const sortedData = Array.isArray(data) ? data.sort((a: Notification, b: Notification) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
-                setNotifications(sortedData);
-                setUnreadCount(sortedData.filter((n: Notification) => !n.read).length);
+                const sortedData = Array.isArray(data)
+                  ? [...data].sort((a: Notification, b: Notification) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  : [];
+                const nextUnreadCount = sortedData.filter((n: Notification) => !n.read).length;
+
+                setNotifications(prev => areNotificationsEqual(prev, sortedData) ? prev : sortedData);
+                setUnreadCount(prev => (prev === nextUnreadCount ? prev : nextUnreadCount));
 
                 // For Electron .exe builds: Simulate OS Push Notifications since FCM web push fails natively
                 if (isElectronRuntime() && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -249,9 +281,24 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         }
     };
 
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined' || !document.hidden) {
+        fetchNotifications();
+      }
+    };
+
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchNotifications, 30000);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, []);
 
   const handleInviteAction = async (notifId: string, action: 'accept' | 'decline') => {
@@ -287,7 +334,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     setNotifAnchorEl(e.currentTarget);
     if (unreadCount > 0) {
         try {
-            await authenticatedFetch(getApiUrl('notifications/mark-read'), { method: 'POST' });
+            await authenticatedFetch(getApiUrl('notifications/mark-read'), {
+                method: 'POST',
+                suppressNativeErrorAlert: true,
+            });
             setUnreadCount(0);
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         } catch (error) {

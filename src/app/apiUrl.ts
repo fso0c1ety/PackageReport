@@ -402,12 +402,20 @@ function isPrivateDevHost(hostname: string) {
 }
 
 function getLocalDevServerUrl() {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || isNativeStaticRuntime()) {
     return '';
   }
 
-  const { protocol, hostname } = window.location;
+  const { protocol, hostname, port } = window.location;
   if (!isPrivateDevHost(hostname)) {
+    return '';
+  }
+
+  const isLoopbackHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  const isWebLocalDev = isLoopbackHost && (port === '3000' || port === '3001');
+  const isLanPreview = !isLoopbackHost;
+
+  if (!isWebLocalDev && !isLanPreview) {
     return '';
   }
 
@@ -538,6 +546,20 @@ type AuthenticatedFetchOptions = RequestInit & {
   handleAuthErrors?: boolean;
 };
 
+function isTransientNetworkError(error: unknown) {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return [
+    'unable to resolve host',
+    'no address associated with hostname',
+    'failed to fetch',
+    'network request failed',
+    'err_name_not_resolved',
+    'err_internet_disconnected',
+    'internet disconnected',
+    'network error',
+  ].some((token) => message.includes(token));
+}
+
 export async function authenticatedFetch(url: string, options: AuthenticatedFetchOptions = {}) {
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -607,8 +629,10 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     if (!response) {
       if (typeof window !== 'undefined') {
           const errorMsg = `[Fetch Failed] ${requestUrl}\nError: ${err?.message || 'Unknown error'}`;
+          const transientNetworkError = isTransientNetworkError(err);
           console.error(errorMsg, err);
-          if (isNativeStaticRuntime() && !suppressNativeErrorAlert) {
+
+          if (isNativeStaticRuntime() && !suppressNativeErrorAlert && !transientNetworkError) {
             alert(errorMsg);
           }
       }
@@ -618,10 +642,13 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
 
   if (handleAuthErrors && (response.status === 401 || response.status === 403)) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-      localStorage.removeItem('token'); // Clear invalid token
-      redirectToAppRoute('/login');
-      return new Promise(() => { }) as unknown as Response;
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      redirectToAppRoute('/login', true);
     }
+
     throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");
   }
 

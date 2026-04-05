@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { sendTableNotification } from "../../../_lib/notificationHelper";
 
 export const runtime = "nodejs";
 
 async function canAccessTable(tableId, userId) {
-  const tableRes = await pool.query("SELECT id, workspace_id, shared_users FROM tables WHERE id = $1", [tableId]);
+  const tableRes = await pool.query("SELECT id, name, workspace_id, shared_users FROM tables WHERE id = $1", [tableId]);
   const table = tableRes.rows[0];
 
   if (!table) {
@@ -130,6 +131,21 @@ export async function POST(req, { params }) {
       `https://ui-avatars.com/api/?name=${encodeURIComponent(
         newMessage.sender
       )}&background=random&color=fff&bold=true`;
+
+    try {
+      await sendTableNotification({
+        table: access.table,
+        senderId: user.id,
+        type: "chat_message",
+        title: `New message in ${access.table?.name || "Board Chat"}`,
+        body: `${newMessage.sender}: ${newMessage.text || "Sent an attachment."}`,
+        extraData: {
+          senderId: user.id,
+        },
+      });
+    } catch (notifyErr) {
+      console.error("[TABLE CHAT][POST] Notification send failed:", notifyErr);
+    }
 
     return NextResponse.json({
       ...newMessage,

@@ -183,27 +183,35 @@ function ChatContent() {
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !otherUserId) return;
+        const trimmedMessage = newMessage.trim();
+        if (!trimmedMessage || !otherUserId) return;
 
-        const msg = {
+        const optimisticMessage = {
             id: Date.now().toString(),
-            text: newMessage,
+            text: trimmedMessage,
             sender_id: currentUser?.id,
             recipient_id: otherUserId,
             timestamp: Date.now()
         };
 
-        setMessages(prev => [...prev, msg]);
+        setMessages(prev => [...prev, optimisticMessage]);
         setNewMessage("");
 
         try {
-            await authenticatedFetch(getApiUrl(`chats/${otherUserId}`), {
+            const res = await authenticatedFetch(getApiUrl(`chats/${otherUserId}`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: newMessage })
+                body: JSON.stringify({ text: trimmedMessage })
             });
-            fetchConversations(); // Update last message in list
+
+            if (!res.ok) {
+                const errorText = await res.text().catch(() => "");
+                throw new Error(errorText || `Send failed (${res.status})`);
+            }
+
+            await Promise.all([fetchConversations(), fetchMessages()]);
         } catch (err) {
+            setMessages(prev => prev.filter(message => message.id !== optimisticMessage.id));
             console.error("Failed to send message", err);
         }
     };

@@ -19,8 +19,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Smar Manage",
-  applicationName: "Smar Manage",
+  title: "SMART MANAGE",
+  applicationName: "SMART MANAGE",
   icons: {
     icon: "/icon.png",
     shortcut: "/icon.png",
