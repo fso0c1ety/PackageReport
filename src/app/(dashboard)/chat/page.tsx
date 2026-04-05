@@ -143,14 +143,14 @@ function ChatContent() {
 
     const handleAcceptRequest = async (requestId: string) => {
         try {
-            const res = await authenticatedFetch(getApiUrl(`friends/${requestId}/accept`), { method: 'PUT' });
+            const res = await authenticatedFetch(getApiUrl(`friends/requests/${requestId}/accept`), { method: 'POST' });
             if (res.ok) fetchSocial();
         } catch (err) { console.error("Accept failed", err); }
     };
 
     const handleRejectRequest = async (requestId: string) => {
         try {
-            const res = await authenticatedFetch(getApiUrl(`friends/${requestId}`), { method: 'DELETE' });
+            const res = await authenticatedFetch(getApiUrl(`friends/requests/${requestId}/reject`), { method: 'POST' });
             if (res.ok) fetchSocial();
         } catch (err) { console.error("Reject failed", err); }
     };

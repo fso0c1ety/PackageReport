@@ -77,13 +77,42 @@ export function getAppHref(path: string) {
   return getAppRoute(path);
 }
 
+function getComparableAppPath(path: string) {
+  const href = getAppHref(path);
+  const match = href.match(/^([^?#]*)(.*)$/);
+  const pathname = match?.[1] || href;
+  return (pathname || '/').replace(/\.html$/i, '') || '/';
+}
+
 export function navigateToAppRoute(
   path: string,
   router?: AppRouterLike,
   replace = false,
   options?: { scroll?: boolean },
 ) {
-  if (isNativeStaticRuntime() || !router) {
+  if (isNativeStaticRuntime()) {
+    if (typeof window !== 'undefined') {
+      const currentPath = (window.location.pathname || '/').replace(/\.html$/i, '') || '/';
+      const targetPath = getComparableAppPath(path);
+      const targetHref = getAppHref(path);
+
+      // In native packaged apps, changing only query params on the same page
+      // should not force a full reload. Use history state instead.
+      if (currentPath === targetPath) {
+        if (replace) {
+          window.history.replaceState(window.history.state, '', targetHref);
+        } else {
+          window.history.pushState(window.history.state, '', targetHref);
+        }
+        return;
+      }
+    }
+
+    redirectToAppRoute(path, replace);
+    return;
+  }
+
+  if (!router) {
     redirectToAppRoute(path, replace);
     return;
   }

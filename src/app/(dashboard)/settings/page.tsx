@@ -340,11 +340,17 @@ export default function SettingsPage() {
     
     setIsInviting(true);
     try {
-        const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}/share`), {
+        const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}/invite`), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: selectedUser.id, permission: invitePermission })
+            body: JSON.stringify({
+              recipientId: selectedUser.id,
+              userId: selectedUser.id,
+              permission: invitePermission,
+            })
         });
+
+        const payload = await res.json().catch(() => null);
         
         if (res.ok) {
             showNotification(`Successfully invited ${selectedUser.name} to the board!`, "success");
@@ -355,8 +361,7 @@ export default function SettingsPage() {
             const teamRes = await authenticatedFetch(getApiUrl('teammates'));
             if (teamRes.ok) setTeammates(await teamRes.json());
         } else {
-            const err = await res.json();
-            showNotification(err.error || "Failed to invite teammate", "error");
+            showNotification(payload?.error || "Failed to invite teammate", "error");
         }
     } catch (e) {
         console.error("Invite error", e);
