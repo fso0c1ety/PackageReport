@@ -828,16 +828,43 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Fix popover anchor to button
   // (Removed duplicate handleOpenChat definition)
 
+  const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [reviewTask, setReviewTask] = useState<Row | null>(null);
+  const reviewCloseGuardRef = React.useRef(0);
+  const dismissedTaskIdRef = React.useRef<string | null>(null);
+  const reviewTaskRef = React.useRef<Row | null>(null);
+  const rowsRef = React.useRef<Row[]>(initialRows);
+
+  const setReviewTaskSynced = React.useCallback((updater: React.SetStateAction<Row | null>) => {
+    setReviewTask((prev) => {
+      const next = typeof updater === 'function'
+        ? (updater as (current: Row | null) => Row | null)(prev)
+        : updater;
+      reviewTaskRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const updateReviewTaskValue = React.useCallback((colId: string, value: any) => {
+    setReviewTaskSynced((prev) => prev ? ({
+      ...prev,
+      values: {
+        ...prev.values,
+        [colId]: value,
+      },
+    }) : null);
+  }, [setReviewTaskSynced]);
+
   // Handler to close the review dialog
-  const handleCloseReview = () => {
-    const taskToClose = reviewTaskRef.current;
+  const handleCloseReview = async () => {
+    const taskToClose = reviewTaskRef.current ?? reviewTask;
     if (!taskToClose) return;
 
     reviewCloseGuardRef.current = Date.now() + 1000;
     dismissedTaskIdRef.current = taskToClose.id;
     blurFocusedElement();
-    void persistReviewTaskDraft(taskToClose);
-    setReviewTask(null);
+    await persistReviewTaskDraft(taskToClose);
+    setReviewTaskSynced(null);
     setShowEmailAutomation(false);
     setMobileTab('details'); // Reset tab on close
 
@@ -849,12 +876,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     const newUrl = params.toString() ? `${currentPath}?${params.toString()}` : currentPath;
     navigateToAppRoute(newUrl, router, true, { scroll: false });
   };
-  const [columns, setColumns] = useState<Column[]>(initialColumns);
-  const [reviewTask, setReviewTask] = useState<Row | null>(null);
-  const reviewCloseGuardRef = React.useRef(0);
-  const dismissedTaskIdRef = React.useRef<string | null>(null);
-  const reviewTaskRef = React.useRef<Row | null>(null);
-  const rowsRef = React.useRef<Row[]>(initialRows);
 
   const blurFocusedElement = React.useCallback(() => {
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
@@ -903,6 +924,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         setRows((prev) => prev.map((row) => (
           row.id === responseData.task.id ? responseData.task : row
         )));
+
+        if (reviewTaskRef.current?.id === responseData.task.id) {
+          setReviewTaskSynced(responseData.task);
+        }
       }
     } catch (err) {
       console.error("Failed to persist task details before close", err);
@@ -921,8 +946,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     blurFocusedElement();
     setShowEmailAutomation(false);
-    setReviewTask(task);
-  }, [blurFocusedElement]);
+    setReviewTaskSynced(task);
+  }, [blurFocusedElement, setReviewTaskSynced]);
 
   const router = useRouter();
 
@@ -1839,9 +1864,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const textSuggestionAnchorRef = React.useRef<HTMLDivElement | null>(null);
   const textSuggestionPopoverRef = React.useRef<HTMLDivElement | null>(null);
   const [optionPopoverSearch, setOptionPopoverSearch] = useState("");
+  const [textSuggestionActiveIndex, setTextSuggestionActiveIndex] = useState(-1);
+  const [optionPopoverActiveIndex, setOptionPopoverActiveIndex] = useState(-1);
   const deferredTextSuggestionFilter = useDeferredValue(textSuggestionFilter);
   const deferredOptionPopoverSearch = useDeferredValue(optionPopoverSearch);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const cyclePopoverIndex = React.useCallback((currentIndex: number, itemCount: number, direction: 1 | -1) => {
+    if (itemCount <= 0) return -1;
+    if (currentIndex < 0) return direction > 0 ? 0 : itemCount - 1;
+    return (currentIndex + direction + itemCount) % itemCount;
+  }, []);
+
+  const scrollPopoverItemIntoView = React.useCallback((itemId: string) => {
+    if (typeof document === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      document.getElementById(itemId)?.scrollIntoView({ block: 'nearest' });
+    });
+  }, []);
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
   const [renameAnchorEl, setRenameAnchorEl] = useState<null | HTMLElement>(null);
   const [colMenuId, setColMenuId] = useState<string | null>(null);
@@ -2449,8 +2489,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const handleCellSave = async (rowId: string, colId: string, colType?: string, valueOverride?: any) => {
     if (userPermission === 'read' && colId !== 'message') return;
     // Find and update the row before calling setRows
-    const prevRows = [...rows];
-    const rowIdx = prevRows.findIndex((row) => row.id === rowId);
+    const sourceRows = rowsRef.current.length > 0 ? rowsRef.current : rows;
+    const rowIdx = sourceRows.findIndex((row) => row.id === rowId);
     if (rowIdx === -1) return;
     let newValue = valueOverride !== undefined ? valueOverride : editValue;
     const col = columns.find(c => c.id === colId);
@@ -2483,9 +2523,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const end = newValue?.end && dayjs(newValue.end).isValid() ? dayjs(newValue.end).format("YYYY-MM-DD") : null;
       newValue = { start, end };
     }
-    const updatedRow: Row = { ...prevRows[rowIdx], values: { ...prevRows[rowIdx].values, [colId]: newValue } };
-    const updatedRows = prevRows.map((row, idx) => idx === rowIdx ? updatedRow : row);
-    setRows(updatedRows);
+    const baseRow = reviewTaskRef.current?.id === rowId
+      ? reviewTaskRef.current
+      : sourceRows[rowIdx];
+    const updatedRow: Row = { ...baseRow, values: { ...baseRow.values, [colId]: newValue } };
+    setRows((prev) => prev.map((row) => row.id === rowId ? updatedRow : row));
+    if (reviewTaskRef.current?.id === rowId) {
+      setReviewTaskSynced(updatedRow);
+    }
     setEditingCell(null);
     setEditValue("");
     // If editing the placeholder row, treat as new task
@@ -2524,22 +2569,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
     // Persist to backend for real rows
     if (updatedRow) {
-      const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: updatedRow.id, values: updatedRow.values }),
-      });
+      try {
+        const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: updatedRow.id, values: updatedRow.values }),
+        });
 
-      if (response.ok) {
-        const responseData = await response.json();
-        if (responseData.success && responseData.task) {
-          // If the edited row is the one currently being reviewed, update the reviewTask state.
-          // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
-          // value — to avoid reopening the dialog after it was closed while a date/cell save was in flight.
-          if (reviewTask && responseData.task.id === reviewTask.id
-              && dismissedTaskIdRef.current !== responseData.task.id) {
-            setReviewTask(responseData.task);
-          }
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || `Failed to save task (${response.status})`);
+      }
+
+      const responseData = await response.json().catch(() => null);
+      if (responseData?.success && responseData?.task) {
+        setRows((prev) => prev.map((row) => row.id === responseData.task.id ? responseData.task : row));
+
+        // If the edited row is the one currently being reviewed, update the reviewTask state.
+        // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
+        // value — to avoid reopening the dialog after it was closed while a date/cell save was in flight.
+        if (reviewTaskRef.current?.id === responseData.task.id
+            && dismissedTaskIdRef.current !== responseData.task.id) {
+          setReviewTaskSynced(responseData.task);
         }
       }
 
@@ -2553,6 +2604,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         } catch (e) {
           console.warn("Failed to parse backend debug logs:", e, debugLogsHeader);
         }
+      }
+      } catch (err) {
+        console.error("Failed to save cell", err);
+        showNotification("Failed to save task change. Please try again.", "error");
       }
     }
   };
@@ -3264,6 +3319,52 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const filteredOptions = options.filter((opt) =>
         opt.value.toLowerCase().includes(deferredOptionPopoverSearch.toLowerCase())
       );
+      const dropdownOptionEntries = [
+        { value: "", label: "(Blank)" },
+        ...filteredOptions.map((opt) => ({ value: opt.value, label: opt.value })),
+      ];
+      const handleDropdownOptionSelect = (selectedValue: string) => {
+        handleCellSave(row.id, col.id, col.type, selectedValue);
+        setStatusAnchor(null);
+        setEditingCell(null);
+        setOptionPopoverSearch("");
+        setOptionPopoverActiveIndex(-1);
+      };
+      const handleDropdownSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          e.stopPropagation();
+          const nextIndex = cyclePopoverIndex(
+            optionPopoverActiveIndex,
+            dropdownOptionEntries.length,
+            e.key === 'ArrowDown' ? 1 : -1,
+          );
+          setOptionPopoverActiveIndex(nextIndex);
+          if (nextIndex >= 0) {
+            scrollPopoverItemIntoView(`dropdown-option-${row.id}-${col.id}-${nextIndex}`);
+          }
+          return;
+        }
+
+        if (e.key === 'Enter') {
+          const activeEntry = dropdownOptionEntries[optionPopoverActiveIndex];
+          if (activeEntry) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDropdownOptionSelect(activeEntry.value);
+          }
+          return;
+        }
+
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          setStatusAnchor(null);
+          setEditingCell(null);
+          setOptionPopoverSearch("");
+          setOptionPopoverActiveIndex(-1);
+        }
+      };
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       const isLabelEditing = editingLabelsColId === effectiveCol.id;
       const valueStr = value || '-';
@@ -3328,6 +3429,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 setEditingCell(null);
                 setEditingLabelsColId(null); // Reset mode on close
                 setOptionPopoverSearch("");
+                setOptionPopoverActiveIndex(-1);
               }}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
               transformOrigin={{ vertical: 'top', horizontal: 'left' }}
@@ -3351,9 +3453,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <TextField
                     size="small"
                     fullWidth
+                    autoFocus
                     placeholder="Search options"
                     value={optionPopoverSearch}
-                    onChange={(e) => setOptionPopoverSearch(e.target.value)}
+                    onChange={(e) => {
+                      setOptionPopoverSearch(e.target.value);
+                      setOptionPopoverActiveIndex(-1);
+                    }}
+                    onKeyDown={handleDropdownSearchKeyDown}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -3370,11 +3477,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   />
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 260, overflowY: 'auto' }}>
                   <Box
+                    id={`dropdown-option-${row.id}-${col.id}-0`}
+                    onMouseEnter={() => setOptionPopoverActiveIndex(0)}
                     onClick={() => {
-                      handleCellSave(row.id, col.id, col.type, "");
-                      setStatusAnchor(null);
-                      setEditingCell(null);
-                      setOptionPopoverSearch("");
+                      handleDropdownOptionSelect("");
                     }}
                     sx={{
                       color: theme.palette.text.secondary,
@@ -3385,7 +3491,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                       cursor: 'pointer',
                       fontSize: '0.9rem',
                       transition: 'all 0.1s',
-                      bgcolor: !value ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                      bgcolor: optionPopoverActiveIndex === 0
+                        ? alpha(theme.palette.primary.main, 0.22)
+                        : (!value ? alpha(theme.palette.primary.main, 0.15) : 'transparent'),
                       '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary },
                       display: 'flex',
                       alignItems: 'center',
@@ -3395,14 +3503,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     <Box component="span">(Blank)</Box>
                     {!value && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
                   </Box>
-                  {filteredOptions.map((opt) => (
+                  {filteredOptions.map((opt, idx) => (
                     <Box
                       key={opt.value}
+                      id={`dropdown-option-${row.id}-${col.id}-${idx + 1}`}
+                      onMouseEnter={() => setOptionPopoverActiveIndex(idx + 1)}
                       onClick={() => {
-                        handleCellSave(row.id, col.id, col.type, opt.value);
-                        setStatusAnchor(null);
-                        setEditingCell(null);
-                        setOptionPopoverSearch("");
+                        handleDropdownOptionSelect(opt.value);
                       }}
                       sx={{
                         color: theme.palette.text.primary,
@@ -3412,7 +3519,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         cursor: 'pointer',
                         fontSize: '0.9rem',
                         transition: 'all 0.1s',
-                        bgcolor: value === opt.value ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        bgcolor: optionPopoverActiveIndex === idx + 1
+                          ? alpha(theme.palette.primary.main, 0.22)
+                          : (value === opt.value ? alpha(theme.palette.primary.main, 0.15) : 'transparent'),
                         '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary },
                         display: 'flex',
                         alignItems: 'center',
@@ -3531,6 +3640,52 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const filteredOptions = options.filter((opt) =>
         opt.value.toLowerCase().includes(deferredOptionPopoverSearch.toLowerCase())
       );
+      const statusOptionEntries = [
+        { value: "", label: "(Blank)", color: theme.palette.background.paper },
+        ...filteredOptions.map((opt) => ({ value: opt.value, label: opt.value, color: opt.color })),
+      ];
+      const handleStatusOptionSelect = (selectedValue: string) => {
+        handleCellSave(row.id, col.id, col.type, selectedValue);
+        setStatusAnchor(null);
+        setEditingCell(null);
+        setOptionPopoverSearch("");
+        setOptionPopoverActiveIndex(-1);
+      };
+      const handleStatusSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          e.stopPropagation();
+          const nextIndex = cyclePopoverIndex(
+            optionPopoverActiveIndex,
+            statusOptionEntries.length,
+            e.key === 'ArrowDown' ? 1 : -1,
+          );
+          setOptionPopoverActiveIndex(nextIndex);
+          if (nextIndex >= 0) {
+            scrollPopoverItemIntoView(`status-option-${row.id}-${col.id}-${nextIndex}`);
+          }
+          return;
+        }
+
+        if (e.key === 'Enter') {
+          const activeEntry = statusOptionEntries[optionPopoverActiveIndex];
+          if (activeEntry) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleStatusOptionSelect(activeEntry.value);
+          }
+          return;
+        }
+
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          setStatusAnchor(null);
+          setEditingCell(null);
+          setOptionPopoverSearch("");
+          setOptionPopoverActiveIndex(-1);
+        }
+      };
       const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
       const isLabelEditing = editingLabelsColId === effectiveCol.id;
       const currentOption = options.find(o => o.value === value) || { value: value || '-', color: '#e0e4ef' };
@@ -3584,6 +3739,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 setEditingCell(null);
                 setEditingLabelsColId(null);
                 setOptionPopoverSearch("");
+                setOptionPopoverActiveIndex(-1);
               }}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
               transformOrigin={{ vertical: 'top', horizontal: 'center' }}
@@ -3610,9 +3766,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   <TextField
                     size="small"
                     fullWidth
+                    autoFocus
                     placeholder="Search options"
                     value={optionPopoverSearch}
-                    onChange={(e) => setOptionPopoverSearch(e.target.value)}
+                    onChange={(e) => {
+                      setOptionPopoverSearch(e.target.value);
+                      setOptionPopoverActiveIndex(-1);
+                    }}
+                    onKeyDown={handleStatusSearchKeyDown}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -3622,14 +3783,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     }}
                   />
                   <Box
+                    id={`status-option-${row.id}-${col.id}-0`}
+                    onMouseEnter={() => setOptionPopoverActiveIndex(0)}
                     onClick={() => {
-                      handleCellSave(row.id, col.id, col.type, "");
-                      setStatusAnchor(null);
-                      setEditingCell(null);
-                      setOptionPopoverSearch("");
+                      handleStatusOptionSelect("");
                     }}
                     sx={{
-                      bgcolor: theme.palette.background.paper,
+                      bgcolor: optionPopoverActiveIndex === 0 ? alpha(theme.palette.primary.main, 0.16) : theme.palette.background.paper,
                       color: theme.palette.text.primary,
                       border: `1px dashed ${theme.palette.divider}`,
                       borderRadius: '4px',
@@ -3645,14 +3805,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                   >
                     (Blank)
                   </Box>
-                  {filteredOptions.map((opt) => (
+                  {filteredOptions.map((opt, idx) => (
                     <Box
                       key={opt.value}
+                      id={`status-option-${row.id}-${col.id}-${idx + 1}`}
+                      onMouseEnter={() => setOptionPopoverActiveIndex(idx + 1)}
                       onClick={() => {
-                        handleCellSave(row.id, col.id, col.type, opt.value);
-                        setStatusAnchor(null);
-                        setEditingCell(null);
-                        setOptionPopoverSearch("");
+                        handleStatusOptionSelect(opt.value);
                       }}
                       sx={{
                         bgcolor: opt.color,
@@ -3664,6 +3823,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                         textAlign: 'center',
                         fontWeight: 500,
                         transition: 'transform 0.1s',
+                        boxShadow: optionPopoverActiveIndex === idx + 1 ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.35)}` : 'none',
                         '&:hover': { transform: 'scale(1.02)', filter: 'brightness(1.1)' },
                         overflow: 'hidden',
                         whiteSpace: 'nowrap',
@@ -4212,6 +4372,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const filteredUniqueOptions = uniqueOptions.filter((option) =>
         option.toLowerCase().includes(deferredTextSuggestionFilter.toLowerCase())
       );
+      const handleTextSuggestionSelect = (selectedOption: string) => {
+        setEditValue(selectedOption);
+        setTextSuggestionOpen(false);
+        setTextSuggestionFilter("");
+        setTextSuggestionActiveIndex(-1);
+        handleCellSave(row.id, col.id, col.type, selectedOption);
+      };
 
       return (
         <Box ref={textSuggestionAnchorRef} sx={{ width: '100%' }}>
@@ -4220,10 +4387,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             onChange={(e) => {
               setEditValue(e.target.value);
               setTextSuggestionOpen(true);
+              setTextSuggestionActiveIndex(-1);
             }}
             onFocus={() => {
               setTextSuggestionFilter("");
               setTextSuggestionOpen(true);
+              setTextSuggestionActiveIndex(-1);
             }}
             onBlur={() => {
               window.setTimeout(() => {
@@ -4238,10 +4407,38 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               }, 0);
             }}
             onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                setTextSuggestionOpen(true);
+                const nextIndex = cyclePopoverIndex(
+                  textSuggestionActiveIndex,
+                  filteredUniqueOptions.length,
+                  e.key === 'ArrowDown' ? 1 : -1,
+                );
+                setTextSuggestionActiveIndex(nextIndex);
+                if (nextIndex >= 0) {
+                  scrollPopoverItemIntoView(`text-suggestion-${row.id}-${col.id}-${nextIndex}`);
+                }
+                return;
+              }
+
               if (e.key === "Enter") {
                 e.stopPropagation();
+                if (textSuggestionActiveIndex >= 0 && filteredUniqueOptions[textSuggestionActiveIndex]) {
+                  e.preventDefault();
+                  handleTextSuggestionSelect(filteredUniqueOptions[textSuggestionActiveIndex]);
+                  return;
+                }
                 setTextSuggestionOpen(false);
                 handleCellSave(row.id, col.id, col.type, editValue);
+                return;
+              }
+
+              if (e.key === 'Escape') {
+                setTextSuggestionOpen(false);
+                setTextSuggestionFilter("");
+                setTextSuggestionActiveIndex(-1);
               }
             }}
             size="small"
@@ -4264,6 +4461,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             onClose={() => {
               setTextSuggestionOpen(false);
               setTextSuggestionFilter("");
+              setTextSuggestionActiveIndex(-1);
             }}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
             transformOrigin={{ vertical: 'top', horizontal: 'left' }}
@@ -4289,8 +4487,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 fullWidth
                 placeholder="Search suggestions"
                 value={textSuggestionFilter}
-                onChange={(e) => setTextSuggestionFilter(e.target.value)}
-                onFocus={() => setTextSuggestionOpen(true)}
+                onChange={(e) => {
+                  setTextSuggestionFilter(e.target.value);
+                  setTextSuggestionActiveIndex(-1);
+                }}
+                onFocus={() => {
+                  setTextSuggestionOpen(true);
+                }}
                 onBlur={() => {
                   window.setTimeout(() => {
                     const activeElement = document.activeElement;
@@ -4303,7 +4506,42 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                     handleCellSave(row.id, col.id, col.type, editValueRef.current);
                   }, 0);
                 }}
-                onKeyDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const nextIndex = cyclePopoverIndex(
+                      textSuggestionActiveIndex,
+                      filteredUniqueOptions.length,
+                      e.key === 'ArrowDown' ? 1 : -1,
+                    );
+                    setTextSuggestionActiveIndex(nextIndex);
+                    if (nextIndex >= 0) {
+                      scrollPopoverItemIntoView(`text-suggestion-${row.id}-${col.id}-${nextIndex}`);
+                    }
+                    return;
+                  }
+
+                  if (e.key === 'Enter') {
+                    if (textSuggestionActiveIndex >= 0 && filteredUniqueOptions[textSuggestionActiveIndex]) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleTextSuggestionSelect(filteredUniqueOptions[textSuggestionActiveIndex]);
+                    }
+                    return;
+                  }
+
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTextSuggestionOpen(false);
+                    setTextSuggestionFilter("");
+                    setTextSuggestionActiveIndex(-1);
+                    return;
+                  }
+
+                  e.stopPropagation();
+                }}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -4319,16 +4557,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </Box>
             <Box sx={{ maxHeight: 240, overflowY: 'auto', py: 0.5 }}>
               {filteredUniqueOptions.length > 0 ? (
-                filteredUniqueOptions.map((option) => (
+                filteredUniqueOptions.map((option, idx) => (
                   <MenuItem
+                    id={`text-suggestion-${row.id}-${col.id}-${idx}`}
                     key={option}
+                    selected={textSuggestionActiveIndex === idx}
+                    onMouseEnter={() => setTextSuggestionActiveIndex(idx)}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
-                      setEditValue(option);
-                      setTextSuggestionOpen(false);
-                      handleCellSave(row.id, col.id, col.type, option);
+                      handleTextSuggestionSelect(option);
                     }}
                     sx={{
+                      bgcolor: textSuggestionActiveIndex === idx ? alpha(theme.palette.primary.main, 0.12) : 'transparent',
                       '&:hover': { bgcolor: theme.palette.action.hover },
                       '&.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                     }}
@@ -7952,11 +8192,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           options={Array.from(new Set(rows.map(r => r.values[col.id]).filter(v => v && typeof v === 'string' && v.trim() !== ''))) as string[]}
                           value={reviewTask.values[col.id] || ''}
                           onInputChange={(e, val) => {
-                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                            updateReviewTaskValue(col.id, val);
                           }}
                           onChange={(e, val) => {
                             if (val) {
-                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                              updateReviewTaskValue(col.id, val);
                               handleCellSave(reviewTask.id, col.id, col.type, val);
                             }
                           }}
@@ -8016,7 +8256,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           value={reviewTask.values[col.id] || ''}
                           onChange={(e) => {
                             const val = e.target.value;
-                            setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                            updateReviewTaskValue(col.id, val);
                             handleCellSave(reviewTask.id, col.id, col.type, val);
                           }}
                           renderValue={(selected) => {
@@ -8064,7 +8304,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             initialValue={reviewTask.values[col.id] || ''}
                             onSave={(val) => {
                               const dateStr = val && dayjs(val).isValid() ? dayjs(val).format('YYYY-MM-DD') : '';
-                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: dateStr } }) : null);
+                              updateReviewTaskValue(col.id, dateStr);
                               handleCellSave(reviewTask.id, col.id, col.type, dateStr);
                             }}
                           />
@@ -8078,7 +8318,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             checked={Boolean(reviewTask.values[col.id])}
                             onChange={(e) => {
                               const val = e.target.checked;
-                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                              updateReviewTaskValue(col.id, val);
                               handleCellSave(reviewTask.id, col.id, col.type, val);
                             }}
                             sx={{ color: theme.palette.text.secondary, '&.Mui-checked': { color: theme.palette.primary.main }, p: 0.5 }}
@@ -8101,7 +8341,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                                   ...reviewTask,
                                   values: { ...reviewTask.values, [col.id]: newPeople }
                                 };
-                                setReviewTask(updatedReviewTask);
+                                setReviewTaskSynced(updatedReviewTask);
                                 handleCellSave(reviewTask.id, col.id, col.type, newPeople);
                               }
                             }}
@@ -8117,7 +8357,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             value={reviewTask.values[col.id]?.start || ''}
                             onChange={(e) => {
                               const val = { ...(reviewTask.values[col.id] || {}), start: e.target.value };
-                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                              updateReviewTaskValue(col.id, val);
                               handleCellSave(reviewTask.id, col.id, col.type, val);
                             }}
                             style={{
@@ -8135,7 +8375,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             value={reviewTask.values[col.id]?.end || ''}
                             onChange={(e) => {
                               const val = { ...(reviewTask.values[col.id] || {}), end: e.target.value };
-                              setReviewTask(prev => prev ? ({ ...prev, values: { ...prev.values, [col.id]: val } }) : null);
+                              updateReviewTaskValue(col.id, val);
                               handleCellSave(reviewTask.id, col.id, col.type, val);
                             }}
                             style={{

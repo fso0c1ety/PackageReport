@@ -91,28 +91,26 @@ export async function POST(req, { params }) {
 
     const newTable = {
       id: uuidv4(),
-      name: body?.name || "Untitled Table",
+      name: body?.name?.trim() || "Untitled Table",
       workspace_id: workspaceId,
       columns,
-      rows: [],
       created_at: Date.now(),
       shared_users: [],
     };
 
     await pool.query(
-      "INSERT INTO tables (id, name, workspace_id, columns, rows, created_at, shared_users) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      "INSERT INTO tables (id, name, workspace_id, columns, created_at, shared_users) VALUES ($1, $2, $3, $4, $5, $6)",
       [
         newTable.id,
         newTable.name,
         newTable.workspace_id,
         JSON.stringify(newTable.columns),
-        JSON.stringify(newTable.rows),
         newTable.created_at,
         JSON.stringify(newTable.shared_users),
       ]
     );
 
-    return NextResponse.json(newTable);
+    return NextResponse.json(newTable, { status: 201 });
   } catch (err) {
     console.error("[WORKSPACE TABLES][POST] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

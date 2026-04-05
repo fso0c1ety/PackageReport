@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Snackbar, Button, Alert } from "@mui/material"; // Added UI components
 import { PushNotifications } from "@capacitor/push-notifications";
+import { FCM } from "@capacitor-community/fcm";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
 import { authenticatedFetch, getApiUrl, isElectronRuntime, navigateToAppRoute } from "./apiUrl";
@@ -32,7 +33,7 @@ const getNotificationType = (payload: any) => {
 
 // Initialize only if window is defined (client-side) and the runtime supports web FCM.
 let messaging: any = null;
-if (typeof window !== "undefined" && !isElectronRuntime()) {
+if (typeof window !== "undefined" && !isElectronRuntime() && !Capacitor.isNativePlatform()) {
     try {
         const app = initializeApp(firebaseConfig);
         messaging = getMessaging(app);
@@ -93,6 +94,48 @@ const NotificationRequester = () => {
         }
 
         return "";
+    };
+
+    const persistMessagingToken = async (token: string | null | undefined, source: string) => {
+        const normalizedToken = typeof token === 'string' ? token.trim() : '';
+        if (!normalizedToken) {
+            return false;
+        }
+
+        try {
+            const response = await authenticatedFetch(getApiUrl('users/fcm'), {
+                method: 'PUT',
+                body: JSON.stringify({ token: normalizedToken }),
+                suppressNativeErrorAlert: true,
+            });
+
+            if (response.ok) {
+                console.log(`[Push] ${source} token sent to server successfully`);
+                return true;
+            }
+
+            const errorText = await response.text().catch(() => '');
+            console.error(`[Push] Failed to send ${source} token to server`, response.status, errorText);
+        } catch (err) {
+            console.error(`[Push] Error sending ${source} token to server:`, err);
+        }
+
+        return false;
+    };
+
+    const syncNativeFcmToken = async (reason: string) => {
+        try {
+            const result = await FCM.getToken();
+            const nativeFcmToken = result?.token;
+            if (nativeFcmToken) {
+                await persistMessagingToken(nativeFcmToken, `${nativePlatform}-${reason}`);
+                return nativeFcmToken;
+            }
+        } catch (err) {
+            console.warn(`[Push] Failed to get native FCM token (${reason})`, err);
+        }
+
+        return null;
     };
 
     const initWebPush = async () => {
@@ -223,21 +266,14 @@ const NotificationRequester = () => {
 
                         await PushNotifications.addListener('registration', async (token) => {
                             console.log('Push Registration Token: ', token.value);
-                            try {
-                                const response = await authenticatedFetch(getApiUrl('users/fcm'), {
-                                    method: 'PUT',
-                                    body: JSON.stringify({ token: token.value }),
-                                    suppressNativeErrorAlert: true,
-                                });
-                                if (response.ok) {
-                                    console.log('FCM Token sent to server successfully');
-                                } else {
-                                    const errorText = await response.text();
-                                    console.error('Failed to send FCM token to server', response.status, errorText);
-                                }
-                            } catch (err) {
-                                console.error('Error sending FCM token to server:', err);
+
+                            if (nativePlatform === 'ios') {
+                                console.log('[Push] Received APNs token on iOS; syncing Firebase token next.');
+                                await syncNativeFcmToken('ios-registration');
+                                return;
                             }
+
+                            await persistMessagingToken(token.value, `${nativePlatform}-registration`);
                         });
 
                         await PushNotifications.addListener('registrationError', (error: any) => {
@@ -309,6 +345,10 @@ const NotificationRequester = () => {
                         });
 
                         await PushNotifications.register();
+
+                        if (nativePlatform === 'ios') {
+                            await syncNativeFcmToken('ios-post-register');
+                        }
                     }
                 } else if (typeof Notification !== 'undefined') {
                      if (Notification.permission === 'granted') {
