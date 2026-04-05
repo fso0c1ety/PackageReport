@@ -215,7 +215,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-        if (typeof document !== 'undefined' && document.hidden) {
+        if (typeof document !== 'undefined' && document.hidden && !isElectronRuntime()) {
             return;
         }
 
@@ -282,7 +282,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     };
 
     const handleVisibilityChange = () => {
-      if (typeof document === 'undefined' || !document.hidden) {
+      if (typeof document === 'undefined' || !document.hidden || isElectronRuntime()) {
         fetchNotifications();
       }
     };

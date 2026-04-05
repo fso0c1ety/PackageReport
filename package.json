@@ -80,6 +80,12 @@
       "out/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "Smart Manage.mp4",
+        "to": "assets/Smart Manage.mp4"
+      }
+    ],
     "asar": true,
     "win": {
       "icon": "src/app/icon.png",

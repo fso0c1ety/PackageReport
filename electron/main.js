@@ -1,6 +1,14 @@
-const { app, BrowserWindow, shell, protocol, net } = require("electron");
+const { app, BrowserWindow, shell, protocol, net, Tray, Menu, nativeImage } = require("electron");
 const fs = require("fs");
 const path = require("path");
+
+let mainWindow = null;
+let mainWindowReady = false;
+let splashWindow = null;
+let tray = null;
+let isQuitting = false;
+let closeToTrayNoticeShown = false;
+const SPLASH_MINIMUM_MS = 30000;
 
 // Register custom protocol BEFORE app is ready so it can be used as a
 // secure origin (allows absolute paths like /home.html to resolve correctly,
@@ -29,6 +37,170 @@ function resolveWindowIcon() {
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
+function resolveSplashVideoPath() {
+  const candidates = [
+    path.join(process.resourcesPath, "assets", "Smart Manage.mp4"),
+    path.join(app.getAppPath(), "Smart Manage.mp4"),
+    path.join(__dirname, "..", "Smart Manage.mp4"),
+    path.join(process.cwd(), "Smart Manage.mp4"),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+function createSplashWindow() {
+  const splash = new BrowserWindow({
+    width: 980,
+    height: 560,
+    show: true,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    backgroundColor: "#050816",
+    ...(resolveWindowIcon() ? { icon: resolveWindowIcon() } : {}),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      backgroundThrottling: false,
+    },
+  });
+
+  const { pathToFileURL } = require("url");
+  const videoPath = resolveSplashVideoPath();
+  const videoSrc = videoPath ? pathToFileURL(videoPath).toString() : "";
+  const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:; media-src 'self' data: file:;" />
+    <title>SMART MANAGE</title>
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #050816;
+        font-family: Arial, sans-serif;
+      }
+      .wrap {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, rgba(99,102,241,0.18), rgba(5,8,22,1) 72%);
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #050816;
+      }
+      .fallback {
+        position: absolute;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        gap: 12px;
+        letter-spacing: 0.04em;
+      }
+      .spinner {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 4px solid rgba(255,255,255,0.15);
+        border-top-color: #818cf8;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      ${videoSrc ? `<video autoplay muted loop playsinline><source src="${videoSrc}" type="video/mp4" /></video>` : ""}
+      <div class="fallback" id="fallback">
+        <div class="spinner"></div>
+        <div>SMART MANAGE is loading...</div>
+      </div>
+    </div>
+    <script>
+      const video = document.querySelector('video');
+      const fallback = document.getElementById('fallback');
+      if (!video && fallback) {
+        fallback.style.display = 'flex';
+      }
+      if (video) {
+        video.addEventListener('error', () => {
+          if (fallback) fallback.style.display = 'flex';
+        });
+      }
+    </script>
+  </body>
+</html>`;
+
+  splash.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
+
+  setTimeout(() => {
+    if (!splash.isDestroyed()) {
+      splash.close();
+    }
+  }, SPLASH_MINIMUM_MS);
+
+  splash.on("closed", () => {
+    splashWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindowReady) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+  return splash;
+}
+
+function createTray(win) {
+  if (tray || process.platform !== "win32") {
+    return;
+  }
+
+  const iconPath = resolveWindowIcon();
+  const trayIcon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+  tray = new Tray(trayIcon);
+
+  const restoreWindow = () => {
+    if (win.isMinimized()) {
+      win.restore();
+    }
+    win.show();
+    win.focus();
+  };
+
+  tray.setToolTip("SMART MANAGE");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Open SMART MANAGE", click: restoreWindow },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on("click", restoreWindow);
+}
+
 function createMainWindow() {
   const iconPath = resolveWindowIcon();
 
@@ -55,11 +227,17 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   });
 
+  mainWindowReady = false;
+
   win.once("ready-to-show", () => {
-    win.show();
+    mainWindowReady = true;
+    if (!splashWindow || splashWindow.isDestroyed()) {
+      win.show();
+    }
   });
 
   win.loadURL("app://localhost/index.html");
@@ -68,10 +246,41 @@ function createMainWindow() {
     shell.openExternal(url);
     return { action: "deny" };
   });
+
+  createTray(win);
+
+  const hideToTray = () => {
+    win.hide();
+
+    if (!closeToTrayNoticeShown && tray?.displayBalloon) {
+      tray.displayBalloon({
+        title: "SMART MANAGE",
+        content: "The app is still running in the background so desktop notifications can arrive.",
+      });
+      closeToTrayNoticeShown = true;
+    }
+  };
+
+  win.on("minimize", (event) => {
+    if (process.platform === "win32") {
+      event.preventDefault();
+      hideToTray();
+    }
+  });
+
+  win.on("close", (event) => {
+    if (!isQuitting && process.platform === "win32") {
+      event.preventDefault();
+      hideToTray();
+    }
+  });
+
+  return win;
 }
 
 app.whenReady().then(() => {
   app.setName("SMART MANAGE");
+  app.setAppUserModelId("com.packagereport.desktop");
 
   const { session } = require("electron");
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -186,17 +395,25 @@ app.whenReady().then(() => {
     };
     return net.fetch(pathToFileURL(fullPath).toString(), fetchOptions);
   });
-  createMainWindow();
+  splashWindow = createSplashWindow();
+  mainWindow = createMainWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      mainWindow = createMainWindow();
+    } else {
+      mainWindow?.show();
+      mainWindow?.focus();
     }
   });
 });
 
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (process.platform !== "darwin" && isQuitting) {
     app.quit();
   }
 });

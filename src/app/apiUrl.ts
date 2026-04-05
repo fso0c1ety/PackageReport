@@ -97,13 +97,24 @@ export function navigateToAppRoute(
       const targetHref = getAppHref(path);
 
       // In native packaged apps, changing only query params on the same page
-      // should not force a full reload. Use history state instead.
+      // should stay client-side so hooks like useSearchParams react immediately.
       if (currentPath === targetPath) {
+        if (router) {
+          if (replace) {
+            router.replace?.(path, options);
+          } else {
+            router.push?.(path, options);
+          }
+          return;
+        }
+
         if (replace) {
           window.history.replaceState(window.history.state, '', targetHref);
         } else {
           window.history.pushState(window.history.state, '', targetHref);
         }
+
+        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
         return;
       }
     }
