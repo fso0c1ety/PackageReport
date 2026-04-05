@@ -32,6 +32,11 @@ jobs:
           fi
           npx cap sync ios
 
+      - name: Generate iOS app icon from logo
+        run: |
+          cp public/logo.png assets/icon.png
+          npx @capacitor/assets generate --ios
+
       - name: Build Unsigned iOS App
         working-directory: ios/App
         run: |
