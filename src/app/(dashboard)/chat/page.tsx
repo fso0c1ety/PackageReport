@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Box, Typography, Avatar, TextField, IconButton, Paper, List, ListItem, useTheme, alpha, CircularProgress, Button, Badge, Tooltip } from "@mui/material";
+import { Box, Typography, Avatar, TextField, IconButton, Paper, List, ListItem, ListItemButton, useTheme, alpha, CircularProgress, Button, Badge, Tooltip } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
@@ -18,7 +18,7 @@ import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import Dialog from "@mui/material/Dialog";
-import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl, isNativeStaticRuntime, navigateToAppRoute } from "../../apiUrl";
 import { useCallContext } from "../../CallContext";
 import dayjs from "dayjs";
 
@@ -51,8 +51,34 @@ function ChatContent() {
     const theme = useTheme();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const otherUserId = searchParams.get("userId");
-    
+    const nativeRuntime = isNativeStaticRuntime();
+    const [nativeSearch, setNativeSearch] = useState("");
+
+    useEffect(() => {
+        if (!nativeRuntime || typeof window === "undefined") {
+            setNativeSearch("");
+            return;
+        }
+
+        const syncNativeSearch = () => {
+            setNativeSearch(window.location.search || "");
+        };
+
+        syncNativeSearch();
+        window.addEventListener("popstate", syncNativeSearch);
+        window.addEventListener("native-route-change", syncNativeSearch as EventListener);
+
+        return () => {
+            window.removeEventListener("popstate", syncNativeSearch);
+            window.removeEventListener("native-route-change", syncNativeSearch as EventListener);
+        };
+    }, [nativeRuntime]);
+
+    const runtimeSearchParams = nativeRuntime
+        ? new URLSearchParams(nativeSearch)
+        : searchParams;
+    const otherUserId = runtimeSearchParams.get("userId");
+
     useEffect(() => {
         console.log("[Chat] Component mounted, otherUserId:", otherUserId);
     }, [otherUserId]);
@@ -60,7 +86,7 @@ function ChatContent() {
     const [conversations, setConversations] = useState<any[]>([]);
     const [friends, setFriends] = useState<any[]>([]);
     const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-    const tabParam = searchParams.get("tab");
+    const tabParam = runtimeSearchParams.get("tab");
     const [activeTab, setActiveTab] = useState<"chats" | "social">(tabParam === "social" ? "social" : "chats");
     const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
@@ -85,6 +111,10 @@ function ChatContent() {
     }, []);
 
     const { startCall } = useCallContext();
+
+    useEffect(() => {
+        setActiveTab(tabParam === "social" ? "social" : "chats");
+    }, [tabParam]);
 
     const fetchConversations = async () => {
         try {
@@ -216,6 +246,15 @@ function ChatContent() {
         }
     };
 
+    const openDirectMessage = (userId: string | number | null | undefined) => {
+        const targetUserId = String(userId ?? "").trim();
+        if (!targetUserId) return;
+
+        setActiveTab("chats");
+        setLoading(true);
+        navigateToAppRoute(`/chat?userId=${encodeURIComponent(targetUserId)}`, router);
+    };
+
     return (
         <Box sx={{ display: 'flex', height: 'calc(100vh - 72px)', bgcolor: 'transparent', position: 'relative' }}>
                 {/* Conversations / Social List */}
@@ -301,29 +340,29 @@ function ChatContent() {
                                 </Box>
                             ) : (
                                 conversations.map((conv) => (
-                                    <ListItem
-                                        key={conv.id}
-                                        onClick={() => navigateToAppRoute(`/chat?userId=${conv.id}`, router)}
-                                        sx={{
-                                            px: 3, py: 2,
-                                            cursor: 'pointer',
-                                            bgcolor: otherUserId === conv.id ? (theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)') : 'transparent',
-                                            '&:hover': { bgcolor: otherUserId === conv.id ? (theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)') : alpha(theme.palette.action.hover, 0.08) },
-                                            transition: 'all 0.2s',
-                                            borderLeft: otherUserId === conv.id ? `4px solid #6366f1` : '4px solid transparent',
-                                            position: 'relative',
-                                            '&::after': {
-                                                content: '""',
-                                                position: 'absolute',
-                                                bottom: 0,
-                                                left: 80,
-                                                right: 24,
-                                                height: '1px',
-                                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                                                display: otherUserId === conv.id ? 'none' : 'block'
-                                            }
-                                        }}
-                                    >
+                                    <ListItem key={conv.id} disablePadding>
+                                        <ListItemButton
+                                            onClick={() => openDirectMessage(conv.id)}
+                                            sx={{
+                                                px: 3, py: 2,
+                                                alignItems: 'center',
+                                                bgcolor: otherUserId === conv.id ? (theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)') : 'transparent',
+                                                '&:hover': { bgcolor: otherUserId === conv.id ? (theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)') : alpha(theme.palette.action.hover, 0.08) },
+                                                transition: 'all 0.2s',
+                                                borderLeft: otherUserId === conv.id ? `4px solid #6366f1` : '4px solid transparent',
+                                                position: 'relative',
+                                                '&::after': {
+                                                    content: '""',
+                                                    position: 'absolute',
+                                                    bottom: 0,
+                                                    left: 80,
+                                                    right: 24,
+                                                    height: '1px',
+                                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                                                    display: otherUserId === conv.id ? 'none' : 'block'
+                                                }
+                                            }}
+                                        >
                                         <Badge
                                             overlap="circular"
                                             anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -343,6 +382,7 @@ function ChatContent() {
                                                 {conv.last_message || "No messages yet"}
                                             </Typography>
                                         </Box>
+                                        </ListItemButton>
                                     </ListItem>
                                 ))
                             )}
@@ -412,7 +452,7 @@ function ChatContent() {
                                                 <Typography variant="body2" fontWeight={600} noWrap>{friend.name}</Typography>
                                             </Box>
                                             <Tooltip title="Message">
-                                                <IconButton size="small" onClick={() => navigateToAppRoute(`/chat/?userId=${friend.id}`, router)}>
+                                                <IconButton size="small" onClick={() => openDirectMessage(friend.id)}>
                                                     <MarkChatUnreadIcon fontSize="small" sx={{ color: theme.palette.primary.main }} />
                                                 </IconButton>
                                             </Tooltip>

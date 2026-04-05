@@ -10,6 +10,8 @@ let isQuitting = false;
 let closeToTrayNoticeShown = false;
 const SPLASH_MINIMUM_MS = 30000;
 
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+
 // Register custom protocol BEFORE app is ready so it can be used as a
 // secure origin (allows absolute paths like /home.html to resolve correctly,
 // the same way Capacitor uses http://localhost/).
@@ -48,6 +50,22 @@ function resolveSplashVideoPath() {
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
+function getSplashVideoSource() {
+  const videoPath = resolveSplashVideoPath();
+  if (!videoPath) {
+    return "";
+  }
+
+  try {
+    const videoBuffer = fs.readFileSync(videoPath);
+    return `data:video/mp4;base64,${videoBuffer.toString("base64")}`;
+  } catch (error) {
+    console.warn("[electron] Failed to inline splash video, falling back to file URL:", error);
+    const { pathToFileURL } = require("url");
+    return pathToFileURL(videoPath).toString();
+  }
+}
+
 function createSplashWindow() {
   const splash = new BrowserWindow({
     width: 980,
@@ -71,9 +89,7 @@ function createSplashWindow() {
     },
   });
 
-  const { pathToFileURL } = require("url");
-  const videoPath = resolveSplashVideoPath();
-  const videoSrc = videoPath ? pathToFileURL(videoPath).toString() : "";
+  const videoSrc = getSplashVideoSource();
   const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -99,21 +115,34 @@ function createSplashWindow() {
         background: radial-gradient(circle at center, rgba(99,102,241,0.18), rgba(5,8,22,1) 72%);
       }
       video {
+        position: absolute;
+        inset: 0;
         width: 100%;
         height: 100%;
         object-fit: cover;
         background: #050816;
+        opacity: 0;
+        transition: opacity 220ms ease;
+      }
+      video.ready {
+        opacity: 1;
       }
       .fallback {
         position: absolute;
         inset: 0;
-        display: none;
+        display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         color: white;
         gap: 12px;
         letter-spacing: 0.04em;
+        background: radial-gradient(circle at center, rgba(99,102,241,0.18), rgba(5,8,22,0.96) 72%);
+        transition: opacity 220ms ease;
+      }
+      .fallback.hidden {
+        opacity: 0;
+        pointer-events: none;
       }
       .spinner {
         width: 44px;
@@ -128,7 +157,7 @@ function createSplashWindow() {
   </head>
   <body>
     <div class="wrap">
-      ${videoSrc ? `<video autoplay muted loop playsinline><source src="${videoSrc}" type="video/mp4" /></video>` : ""}
+      ${videoSrc ? `<video autoplay muted loop playsinline preload="auto"><source src="${videoSrc}" type="video/mp4" /></video>` : ""}
       <div class="fallback" id="fallback">
         <div class="spinner"></div>
         <div>SMART MANAGE is loading...</div>
@@ -137,13 +166,45 @@ function createSplashWindow() {
     <script>
       const video = document.querySelector('video');
       const fallback = document.getElementById('fallback');
-      if (!video && fallback) {
-        fallback.style.display = 'flex';
+
+      const showFallback = () => {
+        if (fallback) fallback.classList.remove('hidden');
+      };
+
+      const hideFallback = () => {
+        if (fallback) fallback.classList.add('hidden');
+      };
+
+      if (!video) {
+        showFallback();
       }
+
       if (video) {
-        video.addEventListener('error', () => {
-          if (fallback) fallback.style.display = 'flex';
-        });
+        const revealVideo = () => {
+          video.classList.add('ready');
+          hideFallback();
+        };
+
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+
+        video.addEventListener('loadeddata', revealVideo);
+        video.addEventListener('canplay', revealVideo);
+        video.addEventListener('playing', revealVideo);
+        video.addEventListener('stalled', showFallback);
+        video.addEventListener('suspend', showFallback);
+        video.addEventListener('error', showFallback);
+
+        Promise.resolve(video.play())
+          .then(revealVideo)
+          .catch(showFallback);
+
+        setTimeout(() => {
+          if (video.readyState < 2) {
+            showFallback();
+          }
+        }, 1800);
       }
     </script>
   </body>

@@ -77,6 +77,23 @@ export function getAppHref(path: string) {
   return getAppRoute(path);
 }
 
+function dispatchNativeRouteChange() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const state = window.history.state;
+  window.dispatchEvent(new PopStateEvent('popstate', { state }));
+  window.dispatchEvent(new CustomEvent('native-route-change', {
+    detail: {
+      href: window.location.href,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      state,
+    },
+  }));
+}
+
 function getComparableAppPath(path: string) {
   const href = getAppHref(path);
   const match = href.match(/^([^?#]*)(.*)$/);
@@ -99,22 +116,13 @@ export function navigateToAppRoute(
       // In native packaged apps, changing only query params on the same page
       // should stay client-side so hooks like useSearchParams react immediately.
       if (currentPath === targetPath) {
-        if (router) {
-          if (replace) {
-            router.replace?.(path, options);
-          } else {
-            router.push?.(path, options);
-          }
-          return;
-        }
-
         if (replace) {
           window.history.replaceState(window.history.state, '', targetHref);
         } else {
           window.history.pushState(window.history.state, '', targetHref);
         }
 
-        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+        dispatchNativeRouteChange();
         return;
       }
     }
@@ -167,11 +175,15 @@ export function ensureNativeHistoryRouting() {
     const originalReplaceState = window.history.replaceState.bind(window.history);
 
     window.history.pushState = function pushState(data, unused, url) {
-      return originalPushState(data, unused, normalizeHistoryUrl(url));
+      const result = originalPushState(data, unused, normalizeHistoryUrl(url));
+      dispatchNativeRouteChange();
+      return result;
     };
 
     window.history.replaceState = function replaceState(data, unused, url) {
-      return originalReplaceState(data, unused, normalizeHistoryUrl(url));
+      const result = originalReplaceState(data, unused, normalizeHistoryUrl(url));
+      dispatchNativeRouteChange();
+      return result;
     };
   }
 
