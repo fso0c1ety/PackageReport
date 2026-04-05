@@ -405,10 +405,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const currentUserRef = React.useRef<any>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   // Extract workspaceId from URL for import dialog
   const searchParamsForImport = useSearchParams();
   const workspaceIdForImport = searchParamsForImport?.get('id') || null;
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   // Initialize Socket Connection - depends on tableId
   useEffect(() => {
@@ -420,71 +425,108 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       return;
     }
 
-    console.log('Connecting socket to:', socketUrl);
+    let cancelled = false;
+    let newSocket: Socket | null = null;
 
-    const newSocket = io(socketUrl, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      autoConnect: true,
-    });
+    const connectSocket = async () => {
+      try {
+        const probeUrl = `${socketUrl}/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
+        const probeResponse = await fetch(probeUrl, {
+          method: 'GET',
+          cache: 'no-store',
+        });
 
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      console.log('Connected to socket server');
-      newSocket.emit('join_table', tableId);
-    });
-
-    newSocket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err);
-      // If websocket fails, force polling on reconnection
-      // @ts-ignore - Transport manipulation is internal but necessary here
-      if (newSocket.io.opts.transports && (newSocket.io.opts.transports as any[]).indexOf('websocket') !== -1) {
-        console.log('Falling back to polling transport');
-        newSocket.io.opts.transports = ['polling', 'websocket'];
+        if (!probeResponse.ok) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('Socket endpoint unavailable, realtime typing disabled:', socketUrl, probeResponse.status);
+          }
+          if (!cancelled) {
+            setSocket(null);
+          }
+          return;
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Socket probe failed, realtime typing disabled:', socketUrl, error);
+        }
+        if (!cancelled) {
+          setSocket(null);
+        }
+        return;
       }
-    });
 
-    // ... (rest of listeners)
+      if (cancelled) {
+        return;
+      }
 
-    newSocket.on('typing_board', ({ user }) => {
-      setBoardTypingUsers(prev => {
-        // Don't show typing indicator for yourself
-        // Note: We need access to currentUser ref, but it's a dependency, so we're good.
-        if (currentUser && user === currentUser.name) return prev;
-        if (prev.includes(user)) return prev;
-        return [...prev, user];
+      console.log('Connecting socket to:', socketUrl);
+
+      newSocket = io(socketUrl, {
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        autoConnect: true,
       });
-    });
 
-    newSocket.on('stop_typing_board', ({ user }) => {
-      setBoardTypingUsers(prev => prev.filter(u => u !== user));
-    });
+      setSocket(newSocket);
 
-    newSocket.on('typing_task', ({ taskId, user }) => {
-      setTaskTypingUsers(prev => {
-        // Don't show typing indicator for yourself
-        if (currentUser && user === currentUser.name) return prev;
-
-        const current = prev[taskId] || [];
-        if (current.includes(user)) return prev;
-        return { ...prev, [taskId]: [...current, user] };
+      newSocket.on('connect', () => {
+        console.log('Connected to socket server');
+        newSocket?.emit('join_table', tableId);
       });
-    });
 
-    newSocket.on('stop_typing_task', ({ taskId, user }) => {
-      setTaskTypingUsers(prev => {
-        const current = prev[taskId] || [];
-        return { ...prev, [taskId]: current.filter(u => u !== user) };
+      newSocket.on('connect_error', (err) => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Socket connection error:', err);
+        }
+        // If websocket fails, force polling on reconnection
+        // @ts-ignore - Transport manipulation is internal but necessary here
+        if (newSocket?.io.opts.transports && (newSocket.io.opts.transports as any[]).indexOf('websocket') !== -1) {
+          console.log('Falling back to polling transport');
+          newSocket.io.opts.transports = ['polling', 'websocket'];
+        }
       });
-    });
+
+      newSocket.on('typing_board', ({ user }) => {
+        setBoardTypingUsers(prev => {
+          // Don't show typing indicator for yourself
+          if (currentUserRef.current && user === currentUserRef.current.name) return prev;
+          if (prev.includes(user)) return prev;
+          return [...prev, user];
+        });
+      });
+
+      newSocket.on('stop_typing_board', ({ user }) => {
+        setBoardTypingUsers(prev => prev.filter(u => u !== user));
+      });
+
+      newSocket.on('typing_task', ({ taskId, user }) => {
+        setTaskTypingUsers(prev => {
+          // Don't show typing indicator for yourself
+          if (currentUserRef.current && user === currentUserRef.current.name) return prev;
+
+          const current = prev[taskId] || [];
+          if (current.includes(user)) return prev;
+          return { ...prev, [taskId]: [...current, user] };
+        });
+      });
+
+      newSocket.on('stop_typing_task', ({ taskId, user }) => {
+        setTaskTypingUsers(prev => {
+          const current = prev[taskId] || [];
+          return { ...prev, [taskId]: current.filter(u => u !== user) };
+        });
+      });
+    };
+
+    void connectSocket();
 
     return () => {
-      newSocket.disconnect();
+      cancelled = true;
+      newSocket?.disconnect();
     };
-  }, [tableId, currentUser]);
+  }, [tableId]);
 
 
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -7690,34 +7732,81 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           bgcolor: theme.palette.background.paper,
           color: theme.palette.text.primary,
           borderBottom: `1px solid ${theme.palette.divider}`,
-          px: 4,
-          py: 2.5,
+          px: { xs: 1.5, sm: 4 },
+          py: { xs: 1.25, sm: 2.5 },
           display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
           justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 2
+          alignItems: { xs: 'stretch', md: 'center' },
+          gap: { xs: 1, md: 2 }
         }}>
-          <Typography component="div" variant="h6" sx={{ fontWeight: 700, fontSize: 20, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {reviewTask?.values && columns.length > 0 ? (reviewTask.values[columns[0].id] || 'Task Details') : 'Task Details'}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, width: '100%', minWidth: 0 }}>
+            <Typography
+              component="div"
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                fontSize: { xs: 16, sm: 20 },
+                flex: 1,
+                minWidth: 0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {reviewTask?.values && columns.length > 0 ? (reviewTask.values[columns[0].id] || 'Task Details') : 'Task Details'}
+            </Typography>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {/* Mobile Navigation Toggle (Pill Style) */}
-            <Box sx={{ display: { xs: 'flex', md: 'none' }, bgcolor: theme.palette.action.hover, borderRadius: 99, p: 0.5, gap: 0.5 }}>
+            <IconButton
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleCloseReview();
+              }}
+              size="small"
+              sx={{
+                flexShrink: 0,
+                color: theme.palette.text.secondary,
+                '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)' }
+              }}
+            >
+              <span style={{ fontSize: 24, lineHeight: 1 }}>×</span>
+            </IconButton>
+          </Box>
+
+          {/* Mobile Navigation Toggle */}
+          <Box sx={{ display: { xs: 'block', md: 'none' }, width: '100%' }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                bgcolor: theme.palette.action.hover,
+                borderRadius: 99,
+                p: 0.5,
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                whiteSpace: 'nowrap',
+                scrollbarWidth: 'none',
+                '&::-webkit-scrollbar': { display: 'none' }
+              }}
+            >
               {(['details', 'chat', 'team', 'files', 'activity'] as const).map((tab) => (
                 <Button
                   key={tab}
                   onClick={() => setMobileTab(tab)}
                   size="small"
                   sx={{
+                    flexShrink: 0,
                     color: mobileTab === tab ? theme.palette.primary.contrastText : theme.palette.text.secondary,
                     bgcolor: mobileTab === tab ? theme.palette.primary.main : 'transparent',
                     minWidth: 'auto',
                     borderRadius: 99,
-                    px: 2,
-                    py: 0.5,
+                    px: 1.25,
+                    py: 0.45,
                     fontWeight: 600,
-                    fontSize: 11,
+                    fontSize: 10,
+                    lineHeight: 1.1,
                     textTransform: 'capitalize',
                     '&:hover': { bgcolor: mobileTab === tab ? theme.palette.primary.dark : theme.palette.action.hover }
                   }}
@@ -7726,17 +7815,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Button>
               ))}
             </Box>
-            <IconButton
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                handleCloseReview();
-              }}
-              size="small"
-              sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: 'rgba(255,255,255,0.1)' } }}
-            >
-              <span style={{ fontSize: 24, lineHeight: 1 }}>×</span>
-            </IconButton>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, p: 0, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, flex: 1, overflow: 'hidden' }}>

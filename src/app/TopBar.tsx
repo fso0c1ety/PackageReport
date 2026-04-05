@@ -24,7 +24,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
-import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute, redirectToAppRoute } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
 import UserProfileDialog from "./UserProfileDialog";
 
@@ -48,12 +48,15 @@ type Notification = {
     data: {
       tableName?: string;
       body?: string;
+      text?: string;
       subject?: string;
       tableId?: string;
       workspaceId?: string;
       taskId?: string;
       senderId?: string;
       requestId?: string;
+      callerId?: string;
+      callerName?: string;
     } | null;
     read: boolean;
     created_at: string;
@@ -185,16 +188,61 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
+  const prevNotifsRef = React.useRef<Set<string>>(new Set());
+  const initialFetchDone = React.useRef<boolean>(false);
 
   useEffect(() => {
     const fetchNotifications = async () => {
         try {
-            const res = await authenticatedFetch(getApiUrl('notifications'));
+            const res = await authenticatedFetch(getApiUrl('notifications'));   
             if (res.ok) {
                 const data = await res.json();
                 const sortedData = Array.isArray(data) ? data.sort((a: Notification, b: Notification) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
                 setNotifications(sortedData);
                 setUnreadCount(sortedData.filter((n: Notification) => !n.read).length);
+
+                // For Electron .exe builds: Simulate OS Push Notifications since FCM web push fails natively
+                if (isElectronRuntime() && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                    if (initialFetchDone.current) {
+                        sortedData.forEach((n: Notification) => {
+                            if (!n.read && !prevNotifsRef.current.has(n.id)) {
+                                let title = 'Smar Manage';
+                                let body = 'New notification received.';
+                                
+                                if (n.type === 'invite') {
+                                    title = 'Workspace Invite';
+                                    body = 'You were invited to a new workspace.';
+                                } else if (n.type === 'chat_message' || n.type === 'task_chat' || n.type === 'direct_message') {
+                                    title = 'New Message';
+                                    body = n.data?.body || n.data?.text || 'Someone sent a message.';
+                                } else if (n.type === 'social_request' || n.type === 'friend_request') {
+                                    title = 'Friend Request';
+                                    body = 'You received a new friend request.';
+                                } else if (n.type === 'friend_accepted') {
+                                    title = 'Friend Request Accepted';
+                                    body = 'Your friend request was accepted.';
+                                } else if (n.type === 'file_comment') {
+                                    title = 'New File Comment';
+                                    body = n.data?.body || 'Someone commented on a file.';
+                                } else if (n.type === 'automation') {
+                                    title = n.data?.subject || 'Automation Update';
+                                    body = n.data?.body || 'An automation was triggered.';
+                                } else if (n.type === 'incoming_call') {
+                                    title = 'Incoming Call';
+                                    body = n.data?.callerName ? `${n.data.callerName} is calling you.` : 'Someone is calling you.';
+                                }
+
+                                const nativeNotification = new window.Notification(title, { body, icon: '/logo.png' });
+                                nativeNotification.onclick = () => {
+                                    window.focus();
+                                    handleNotificationClick(n);
+                                };
+                            }
+                        });
+                    }
+                    prevNotifsRef.current = new Set(sortedData.map((n: Notification) => n.id));
+                    initialFetchDone.current = true;
+                }
             }
         } catch (error) {
             console.error("Failed to fetch notifications", error);
@@ -257,9 +305,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       const { type, data } = notif;
       if (!data) return;
 
-      if (type === 'friend_request' || type === 'friend_accepted' || type === 'direct_message') {
+      if (type === 'incoming_call') {
+          navigateToAppRoute(`/chat?userId=${data.callerId || notif.sender_id}&autoAccept=true`, router);
+          return;
+      }
+
+      if (type === 'friend_request' || type === 'friend_accepted' || type === 'social_request' || type === 'direct_message') {
           const targetUserId = type === 'direct_message' ? (data.senderId || notif.sender_id) : null;
-          navigateToAppRoute(targetUserId ? `/chat?userId=${targetUserId}` : '/chat', router);
+          navigateToAppRoute(targetUserId ? `/chat?userId=${targetUserId}` : '/chat?tab=social', router);
           return;
       }
 

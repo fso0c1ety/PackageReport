@@ -415,8 +415,32 @@ export function getServerUrl() {
   return getBrowserOrigin() || NATIVE_PRODUCTION_FALLBACK_URL;
 }
 
+function isKnownSocketlessHostedOrigin(url: string) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
 export function getSocketUrl() {
-  return normalizeBaseUrl(DEFAULT_SOCKET_URL) || getServerUrl();
+  const configuredSocket = normalizeBaseUrl(DEFAULT_SOCKET_URL);
+  if (configuredSocket) {
+    return configuredSocket;
+  }
+
+  const localDevSocket = normalizeBaseUrl(getLocalDevServerUrl());
+  if (localDevSocket) {
+    return localDevSocket;
+  }
+
+  const fallbackServer = normalizeBaseUrl(getServerUrl());
+  if (!fallbackServer || isKnownSocketlessHostedOrigin(fallbackServer)) {
+    return '';
+  }
+
+  return fallbackServer;
 }
 
 export function getApiUrl(path: string) {

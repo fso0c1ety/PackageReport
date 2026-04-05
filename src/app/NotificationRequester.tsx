@@ -6,7 +6,7 @@ import { Snackbar, Button, Alert } from "@mui/material"; // Added UI components
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
-import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
+import { authenticatedFetch, getApiUrl, isElectronRuntime, navigateToAppRoute } from "./apiUrl";
 import { useNotification } from "./NotificationContext";
 
 // WEB: To use Push Notifications on Web, you must initialize Firebase here.
@@ -30,9 +30,9 @@ const getNotificationType = (payload: any) => {
     return payload?.notification?.title === 'Incoming Call' ? 'incoming_call' : 'generic';
 };
 
-// Initialize only if window is defined (client-side)
+// Initialize only if window is defined (client-side) and the runtime supports web FCM.
 let messaging: any = null;
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && !isElectronRuntime()) {
     try {
         const app = initializeApp(firebaseConfig);
         messaging = getMessaging(app);
@@ -46,10 +46,63 @@ const NotificationRequester = () => {
     const { showIncomingCall } = useCallContext();
     const router = useRouter();
     const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+    const nativePlatform = Capacitor.getPlatform();
+
+    const ensureLocalNotificationPermission = async () => {
+        try {
+            const permission = await LocalNotifications.checkPermissions();
+            if (permission.display !== 'granted') {
+                await LocalNotifications.requestPermissions();
+            }
+        } catch (e) {
+            console.warn('Local notification permissions unavailable:', e);
+        }
+    };
+
+    const buildNotificationRoute = (data: any) => {
+        if (!data) return "";
+
+        if (data.type === 'incoming_call' && data.callerId) {
+            return `/chat?userId=${data.callerId}&autoAccept=true`;
+        }
+
+        if (data.type === 'direct_message' && data.senderId) {
+            return `/chat?userId=${data.senderId}`;
+        }
+
+        if (data.type === 'friend_request' || data.type === 'friend_accepted' || data.type === 'social_request') {
+            return '/chat?tab=social';
+        }
+
+        if (data.workspaceId) {
+            let url = `/workspace?id=${data.workspaceId}`;
+            if (data.tableId) {
+                url += `&tableId=${data.tableId}`;
+            }
+            if (data.taskId) {
+                url += `&taskId=${data.taskId}`;
+            }
+
+            if (data.type === 'chat_message' || data.type === 'task_chat') {
+                url += `&tab=chat`;
+            } else if (data.type === 'file_comment') {
+                url += `&tab=files`;
+            }
+
+            return url;
+        }
+
+        return "";
+    };
 
     const initWebPush = async () => {
+        if (isElectronRuntime()) {
+            console.info('Skipping Firebase web push in Electron; desktop notifications use the in-app fallback.');
+            return;
+        }
+
         try {
-            if (messaging) {
+            if (messaging && 'serviceWorker' in navigator) {
                     // Explicitly register the Service Worker with 'none' cache to force updates
                     const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
                         scope: '/',
@@ -110,7 +163,11 @@ const NotificationRequester = () => {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 setShowPermissionPrompt(false);
-                initWebPush();
+                if (isElectronRuntime()) {
+                    showNotification('Desktop notifications enabled.', 'success');
+                } else {
+                    initWebPush();
+                }
             } else {
                 console.warn("Notification permission denied");
                 setShowPermissionPrompt(false);
@@ -139,24 +196,28 @@ const NotificationRequester = () => {
                     }
 
                     if (permStatus.receive === 'granted') {
-                        await PushNotifications.createChannel({
-                            id: 'chat_messages',
-                            name: 'Chat Messages',
-                            description: 'Notifications for new chat messages',
-                            importance: 5,
-                            visibility: 1,
-                            vibration: true,
-                        });
+                        await ensureLocalNotificationPermission();
 
-                        await PushNotifications.createChannel({
-                            id: 'calls_v5',
-                            name: 'Incoming Calls',
-                            description: 'Notifications for incoming audio and video calls',
-                            importance: 5,
-                            visibility: 1,
-                            vibration: true,
-                            sound: 'ringtone',
-                        });
+                        if (nativePlatform === 'android') {
+                            await PushNotifications.createChannel({
+                                id: 'chat_messages',
+                                name: 'Chat Messages',
+                                description: 'Notifications for new chat messages',
+                                importance: 5,
+                                visibility: 1,
+                                vibration: true,
+                            });
+
+                            await PushNotifications.createChannel({
+                                id: 'calls_v5',
+                                name: 'Incoming Calls',
+                                description: 'Notifications for incoming audio and video calls',
+                                importance: 5,
+                                visibility: 1,
+                                vibration: true,
+                                sound: 'ringtone',
+                            });
+                        }
 
                         await PushNotifications.removeAllListeners();
 
@@ -201,47 +262,38 @@ const NotificationRequester = () => {
                             const workspaceId = notification.data?.workspaceId;
                             const taskId = notification.data?.taskId;
 
-                            await LocalNotifications.schedule({
-                                notifications: [
-                                {
-                                    title,
-                                    body,
-                                    id: new Date().getTime(),
-                                    schedule: { at: new Date(Date.now() + 100) },
-                                    sound: undefined,
-                                    attachments: undefined,
-                                    actionTypeId: "",
-                                    extra: { tableId, workspaceId, taskId, type }
+                            try {
+                                const localPermission = await LocalNotifications.checkPermissions();
+                                if (localPermission.display === 'granted') {
+                                    await LocalNotifications.schedule({
+                                        notifications: [
+                                        {
+                                            title,
+                                            body,
+                                            id: new Date().getTime(),
+                                            schedule: { at: new Date(Date.now() + 100) },
+                                            sound: undefined,
+                                            attachments: undefined,
+                                            actionTypeId: "",
+                                            extra: { tableId, workspaceId, taskId, type, ...notification.data }
+                                        }
+                                        ]
+                                    });
                                 }
-                                ]
-                            });
+                            } catch (localErr) {
+                                console.warn('Failed to schedule local notification', localErr);
+                            }
                         });
                         
                         const handleNotificationTap = (data: any) => {
-                            let url = "";
+                            if (!data) return;
+
                             if (data.type === 'incoming_call') {
-                                url = `/chat?userId=${data.callerId}&autoAccept=true`;
-                            } else if (data.workspaceId) {
-                                url = `/workspace?id=${data.workspaceId}`;
-                                if (data.tableId) {
-                                    url += `&tableId=${data.tableId}`;
-                                }
-                            } else if (data.type === 'incoming_call') {
-                                // For background tap on call, we show the UI immediately
                                 showIncomingCall(data);
                             }
-                            
+
+                            const url = buildNotificationRoute(data);
                             if (url) {
-                                if (data.taskId) {
-                                    url += `&taskId=${data.taskId}`;
-                                }
-                                
-                                if (data.type === 'chat_message' || data.type === 'task_chat') {
-                                    url += `&tab=chat`;
-                                } else if (data.type === 'file_comment') {
-                                    url += `&tab=files`;
-                                }
-                                
                                 navigateToAppRoute(url, router);
                             }
                         };
@@ -258,10 +310,11 @@ const NotificationRequester = () => {
 
                         await PushNotifications.register();
                     }
-                } else {
-                     // WEB Push Logic
+                } else if (typeof Notification !== 'undefined') {
                      if (Notification.permission === 'granted') {
-                         initWebPush();
+                         if (!isElectronRuntime()) {
+                             initWebPush();
+                         }
                      } else if (Notification.permission === 'default') {
                          setShowPermissionPrompt(true);
                      }

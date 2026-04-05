@@ -39,6 +39,38 @@ function initFirebaseAdmin() {
   }
 }
 
+function stringifyDataValue(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
+
+function buildNotificationLink(data = {}) {
+  if (data.type === "incoming_call" && data.callerId) {
+    return `/chat?userId=${data.callerId}&autoAccept=true`;
+  }
+
+  if (data.type === "direct_message" && data.senderId) {
+    return `/chat?userId=${data.senderId}`;
+  }
+
+  if (data.type === "friend_request" || data.type === "friend_accepted" || data.type === "social_request") {
+    return "/chat?tab=social";
+  }
+
+  if (data.workspaceId) {
+    let url = `/workspace?id=${data.workspaceId}`;
+    if (data.tableId) url += `&tableId=${data.tableId}`;
+    if (data.taskId) url += `&taskId=${data.taskId}`;
+    if (data.type === "chat_message" || data.type === "task_chat") url += `&tab=chat`;
+    else if (data.type === "file_comment") url += `&tab=files`;
+    return url;
+  }
+
+  return "/";
+}
+
 export async function sendPushNotification(tokens, title, body, data = {}) {
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return { successCount: 0, failureCount: 0, responses: [] };
@@ -49,22 +81,72 @@ export async function sendPushNotification(tokens, title, body, data = {}) {
     return { successCount: 0, failureCount: tokens.length, responses: [] };
   }
 
+  const safeData = Object.fromEntries(
+    Object.entries(data || {}).map(([k, v]) => [k, stringifyDataValue(v)])
+  );
+
+  const isCall = safeData.type === "incoming_call";
+  const resolvedTitle = title || safeData.title || "Notification";
+  const resolvedBody = body || safeData.body || "You have a new update";
+
   const message = {
     tokens,
     notification: {
-      title: title || "Notification",
-      body: body || "You have a new update",
+      title: resolvedTitle,
+      body: resolvedBody,
     },
     data: {
-      ...Object.fromEntries(
-        Object.entries(data || {}).map(([k, v]) => [k, v == null ? "" : String(v)])
-      ),
-      title: title || "",
-      body: body || "",
+      ...safeData,
+      title: resolvedTitle,
+      body: resolvedBody,
+    },
+    android: {
+      priority: isCall ? "high" : "normal",
+      ttl: isCall ? 0 : 3600 * 1000,
+      notification: {
+        channelId: isCall ? "calls_v5" : "chat_messages",
+        sound: isCall ? "ringtone" : "default",
+        notificationPriority: isCall ? "PRIORITY_MAX" : "PRIORITY_HIGH",
+        visibility: "PUBLIC",
+      },
     },
     webpush: {
       headers: {
-        Urgency: "high",
+        Urgency: isCall ? "high" : "normal",
+      },
+      notification: {
+        title: resolvedTitle,
+        body: resolvedBody,
+        icon: "/logo.png",
+        badge: "/logo.png",
+        requireInteraction: isCall,
+        actions: isCall
+          ? [
+              { action: "answer", title: "✅ Accept Call" },
+              { action: "reject", title: "❌ Decline" },
+            ]
+          : [],
+      },
+      fcmOptions: {
+        link: buildNotificationLink(safeData),
+      },
+    },
+    apns: {
+      headers: {
+        "apns-priority": isCall ? "10" : "5",
+        "apns-push-type": "alert",
+      },
+      payload: {
+        aps: {
+          alert: {
+            title: resolvedTitle,
+            body: resolvedBody,
+          },
+          sound: "default",
+          badge: 1,
+          "content-available": 1,
+          category: isCall ? "call" : undefined,
+        },
       },
     },
   };

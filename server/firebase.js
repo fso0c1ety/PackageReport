@@ -35,68 +35,83 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   
   if (!tokens || tokens.length === 0) return;
 
-  const isCall = data.type === 'incoming_call';
+  const safeData = Object.fromEntries(
+    Object.entries(data || {}).map(([key, value]) => [
+      key,
+      value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value),
+    ])
+  );
+
+  const isCall = safeData.type === 'incoming_call';
+  const resolvedTitle = title || safeData.title || '';
+  const resolvedBody = body || safeData.body || '';
+
+  let notificationLink = '/';
+  if (isCall && safeData.callerId) {
+    notificationLink = `/chat?userId=${safeData.callerId}&autoAccept=true`;
+  } else if (safeData.type === 'direct_message' && safeData.senderId) {
+    notificationLink = `/chat?userId=${safeData.senderId}`;
+  } else if (safeData.workspaceId) {
+    notificationLink = `/workspace?id=${safeData.workspaceId}`;
+    if (safeData.tableId) notificationLink += `&tableId=${safeData.tableId}`;
+    if (safeData.taskId) notificationLink += `&taskId=${safeData.taskId}`;
+    if (safeData.type === 'chat_message' || safeData.type === 'task_chat') notificationLink += `&tab=chat`;
+    else if (safeData.type === 'file_comment') notificationLink += `&tab=files`;
+  } else if (safeData.type === 'friend_request' || safeData.type === 'friend_accepted' || safeData.type === 'social_request') {
+    notificationLink = '/chat?tab=social';
+  }
 
   // Base message structure
   const message = {
     data: {
-      ...data,
-      // Ensure title and body are available in data for service workers (data-only messages)
-      title: title || data.title || '',
-      body: body || data.body || '',
+      ...safeData,
+      title: resolvedTitle,
+      body: resolvedBody,
     },
     tokens: tokens,
   };
 
-  // Always add 'notification' to ensure OS/Browser delivery even if background process is asleep.
-  // Data-only messages are often suppressed by browsers/OS unless high-priority headers are perfectly set.
-  if (title && body) {
+  if (resolvedTitle && resolvedBody) {
     message.notification = {
-      title,
-      body,
+      title: resolvedTitle,
+      body: resolvedBody,
     };
   }
 
-  // Android-specific configuration
   message.android = {
     priority: isCall ? 'high' : 'normal',
-    ttl: isCall ? 0 : 3600 * 1000, // 0 for immediate (calls), 1 hour for others
+    ttl: isCall ? 0 : 3600 * 1000,
+    notification: {
+      channelId: isCall ? 'calls_v5' : 'chat_messages',
+      sound: isCall ? 'ringtone' : 'default',
+      notificationPriority: isCall ? 'PRIORITY_MAX' : 'PRIORITY_HIGH',
+      visibility: 'PUBLIC',
+      category: isCall ? 'call' : undefined,
+    },
   };
 
-  // Only add Android notification settings if we are sending a notification or if it's a call
-  // For calls, we still want to provide channel information for the background handler
-  message.android.notification = {
-    channelId: isCall ? 'calls_v5' : 'chat_messages',
-    sound: isCall ? 'ringtone' : 'default',
-    notificationPriority: isCall ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
-    visibility: 'PUBLIC',
-  };
-
-  if (isCall) {
-    message.android.notification.category = 'call';
-  }
-
-  // Webpush-specific configuration for background wake-up
   message.webpush = {
     headers: {
       Urgency: isCall ? 'high' : 'normal',
     },
-    notification: isCall ? {
-      title: title,
-      body: body,
+    notification: {
+      title: resolvedTitle,
+      body: resolvedBody,
       icon: '/logo.png',
-      requireInteraction: true,
-      actions: [
-        { action: 'answer', title: '✅ ACCEPT CALL' },
-        { action: 'reject', title: '❌ DECLINE' }
-      ]
-    } : undefined,
+      badge: '/logo.png',
+      requireInteraction: isCall,
+      actions: isCall
+        ? [
+            { action: 'answer', title: '✅ ACCEPT CALL' },
+            { action: 'reject', title: '❌ DECLINE' }
+          ]
+        : [],
+    },
     fcmOptions: {
-      link: isCall ? `/chat?userId=${data.callerId}&autoAccept=true` : undefined,
+      link: notificationLink,
     },
   };
 
-  // APNS-specific configuration (iOS) for background wake-up
   message.apns = {
     headers: {
       'apns-priority': isCall ? '10' : '5',
@@ -104,8 +119,13 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
     },
     payload: {
       aps: {
+        alert: {
+          title: resolvedTitle,
+          body: resolvedBody,
+        },
         'content-available': 1,
-        sound: isCall ? 'ringtone.wav' : 'default',
+        sound: 'default',
+        badge: 1,
         category: isCall ? 'call' : undefined,
       },
     },
