@@ -36,6 +36,14 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* Keep essential loading indicators visibly active in the packaged app. */
+  .MuiCircularProgress-root,
+  .MuiCircularProgress-root .MuiCircularProgress-circle {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+    animation-play-state: running !important;
+  }
 }
 
 /* Custom Scrollbar - Modern Solid */

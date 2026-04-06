@@ -1321,6 +1321,138 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     return `${amount.toFixed(2)} ${currency || 'EUR'}`;
   };
 
+  const AI_VALUE_PREVIEW_LIMIT = 180;
+
+  const simplifyAiValue = (value: any): any => {
+    if (value === null || value === undefined || value === "") return "";
+
+    if (typeof value === "string") {
+      const trimmed = value.replace(/\s+/g, " ").trim();
+      return trimmed.length > AI_VALUE_PREVIEW_LIMIT ? `${trimmed.slice(0, AI_VALUE_PREVIEW_LIMIT)}…` : trimmed;
+    }
+
+    if (typeof value === "number" || typeof value === "boolean") {
+      return value;
+    }
+
+    if (dayjs.isDayjs(value)) {
+      return value.format("YYYY-MM-DD");
+    }
+
+    if (Array.isArray(value)) {
+      return value
+        .slice(0, 4)
+        .map((item) => simplifyAiValue(item))
+        .filter(Boolean)
+        .join(", ");
+    }
+
+    if (typeof value === "object") {
+      if ("start" in value || "end" in value) {
+        return [value.start, value.end].filter(Boolean).join(" → ");
+      }
+
+      if ("name" in value && "email" in value) {
+        const name = typeof value.name === "string" ? value.name : "";
+        const email = typeof value.email === "string" ? value.email : "";
+        return [name, email ? `<${email}>` : ""].filter(Boolean).join(" ");
+      }
+
+      if ("name" in value && typeof value.name === "string") {
+        return value.name;
+      }
+
+      if ("text" in value && typeof value.text === "string") {
+        return simplifyAiValue(value.text);
+      }
+
+      if ("url" in value || "path" in value) {
+        return String(value.name || value.url || value.path || "[file]");
+      }
+
+      try {
+        return simplifyAiValue(JSON.stringify(value));
+      } catch {
+        return "[data]";
+      }
+    }
+
+    return String(value);
+  };
+
+  const buildAiTaskSnapshot = (sourceRows: Row[], limit = 40) => {
+    return sourceRows.slice(0, limit).map((r, i) => {
+      const valuesByColumn = columns.reduce((acc, col) => {
+        const simplified = simplifyAiValue(r.values[col.id]);
+        if (simplified !== "") {
+          acc[col.name] = simplified;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+
+      return {
+        index: i + 1,
+        id: r.id,
+        values: valuesByColumn
+      };
+    });
+  };
+
+  const buildLocalInvoiceDraft = (selectedRows: Row[]) => {
+    const titleCol = columns[0];
+    const qtyCol = columns.find(col => /qty|quantity|hours|days|units/i.test(col.name));
+    const amountCol = columns.find(col => /price|rate|cost|amount|total|budget|value/i.test(col.name));
+    let missingPricing = false;
+
+    const items = selectedRows.map((row, index) => {
+      const description = String(
+        (titleCol ? simplifyAiValue(row.values[titleCol.id]) : "") ||
+        Object.values(row.values).map((val) => simplifyAiValue(val)).find(Boolean) ||
+        `Task ${index + 1}`
+      );
+
+      const quantity = Math.max(1, toNumber(qtyCol ? row.values[qtyCol.id] : 1) || 1);
+      const amount = amountCol ? toNumber(row.values[amountCol.id]) : 0;
+
+      if (!amountCol || amount <= 0) {
+        missingPricing = true;
+      }
+
+      const unitPrice = quantity > 0 ? amount / quantity : amount;
+
+      return {
+        description,
+        quantity,
+        unitPrice: Number(unitPrice.toFixed(2)),
+        amount: Number((quantity * unitPrice).toFixed(2)),
+      };
+    });
+
+    const subtotal = Number(items.reduce((sum, item) => sum + toNumber(item.amount), 0).toFixed(2));
+    const taxPercent = toNumber(invoiceTaxPercent);
+    const taxAmount = Number((subtotal * taxPercent / 100).toFixed(2));
+    const total = Number((subtotal + taxAmount).toFixed(2));
+
+    return {
+      invoiceNumber: `INV-${dayjs().format("YYYYMMDD-HHmm")}`,
+      issueDate: dayjs().format("YYYY-MM-DD"),
+      dueDate: dayjs().add(toNumber(invoiceDueDays || 14), "day").format("YYYY-MM-DD"),
+      billFrom: invoiceCompanyName || boardTitle || "Your Company",
+      billTo: invoiceClientName || "Client",
+      currency: invoiceCurrency || "EUR",
+      subtotal,
+      taxPercent,
+      taxAmount,
+      total,
+      assumptions: [
+        missingPricing
+          ? "Some pricing fields were missing, so please review the totals before sending."
+          : "Draft created from the selected task data."
+      ],
+      items,
+    };
+  };
+
   const buildInvoiceText = (draft: any) => {
     if (!draft) return '';
 
@@ -1617,13 +1749,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
     setIsInvoiceGenerating(true);
     try {
-      const invoiceSourceRows = selectedRows.map((r, i) => {
-        const valuesByColumn = columns.reduce((acc, col) => {
-          acc[col.name] = r.values[col.id] ?? "";
-          return acc;
-        }, {} as Record<string, any>);
-        return { index: i + 1, id: r.id, values: valuesByColumn };
-      });
+      const invoiceSourceRows = buildAiTaskSnapshot(selectedRows, 40);
 
       const systemPrompt = `
         You are "Nexus Brain AI" invoice generator.
@@ -1691,23 +1817,43 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
       const data = await res.json();
       const aiResult = parseAiJson(data?.choices?.[0]?.message?.content || "");
+      const hasAiItems = Array.isArray(aiResult?.invoiceDraft?.items) && aiResult.invoiceDraft.items.length > 0;
+      const baseDraft = hasAiItems ? aiResult.invoiceDraft : buildLocalInvoiceDraft(selectedRows);
       const decoratedDraft = {
-        ...(aiResult?.invoiceDraft || {}),
-        companyName: invoiceCompanyName || boardTitle || aiResult?.invoiceDraft?.billFrom,
-        clientName: invoiceClientName || aiResult?.invoiceDraft?.billTo,
+        ...baseDraft,
+        companyName: invoiceCompanyName || boardTitle || baseDraft?.billFrom,
+        clientName: invoiceClientName || baseDraft?.billTo,
         template: invoiceTemplate,
         stampText: invoiceStampText,
         logoDataUrl: invoiceLogoDataUrl,
-        currency: invoiceCurrency || aiResult?.invoiceDraft?.currency
+        currency: invoiceCurrency || baseDraft?.currency
       };
-      setInvoiceSummary(aiResult?.response || "Invoice draft generated.");
-      setInvoiceDraft(decoratedDraft);
-      showNotification('Invoice draft is ready', 'success');
+      const finalizedDraft = decoratedDraft.markdown
+        ? decoratedDraft
+        : { ...decoratedDraft, markdown: buildInvoiceText(decoratedDraft) };
+      setInvoiceSummary(
+        hasAiItems
+          ? (aiResult?.response || "Invoice draft generated.")
+          : "Nexus Brain couldn't enrich the invoice right now, so a draft was created from the selected tasks."
+      );
+      setInvoiceDraft(finalizedDraft);
+      showNotification(hasAiItems ? 'Invoice draft is ready' : 'Invoice draft is ready (local fallback)', 'success');
     } catch (err) {
       console.error("Invoice Generation Error:", err);
-      setInvoiceSummary("I couldn't generate the invoice draft right now. Please try again.");
-      setInvoiceDraft(null);
-      showNotification('Failed to generate invoice draft', 'error');
+      const fallbackDraft = buildLocalInvoiceDraft(selectedRows);
+      const decoratedFallback = {
+        ...fallbackDraft,
+        companyName: invoiceCompanyName || boardTitle || fallbackDraft.billFrom,
+        clientName: invoiceClientName || fallbackDraft.billTo,
+        template: invoiceTemplate,
+        stampText: invoiceStampText,
+        logoDataUrl: invoiceLogoDataUrl,
+        currency: invoiceCurrency || fallbackDraft.currency
+      };
+      const fallbackWithMarkdown = { ...decoratedFallback, markdown: buildInvoiceText(decoratedFallback) };
+      setInvoiceSummary("Nexus Brain couldn't connect, so a draft was prepared from the selected tasks.");
+      setInvoiceDraft(fallbackWithMarkdown);
+      showNotification('Invoice draft is ready (local fallback)', 'success');
     } finally {
       setIsInvoiceGenerating(false);
     }
@@ -1723,23 +1869,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     setTimeout(async () => {
       let responseText = "";
       try {
-        const parsedHistory = aiMessages.slice(-10).map(m => ({
+        const parsedHistory = aiMessages.slice(-6).map(m => ({
           role: m.role,
-          content: m.text
+          content: typeof m.text === 'string' ? m.text.slice(0, 500) : ''
         }));
 
-        const taskSnapshot = rows.slice(0, 100).map((r, i) => {
-          const valuesByColumn = columns.reduce((acc, col) => {
-            acc[col.name] = r.values[col.id] ?? "";
-            return acc;
-          }, {} as Record<string, any>);
-
-          return {
-            index: i + 1,
-            id: r.id,
-            values: valuesByColumn
-          };
-        });
+        const taskSnapshot = buildAiTaskSnapshot(rows, 40);
 
         const assistantSystemPrompt = `
           You are the "Nexus Brain", the intelligent core of this project management app.

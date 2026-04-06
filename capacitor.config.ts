@@ -11,7 +11,9 @@ const config: CapacitorConfig = {
     androidScheme: 'http',
     allowNavigation: [
       '192.168.0.*',
-      '192.168.0.28:4000'
+      '192.168.0.28:4000',
+      'package-report.vercel.app',
+      '*.vercel.app'
     ]
   },
   plugins: {

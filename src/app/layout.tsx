@@ -38,6 +38,7 @@ export const viewport = {
 
 import { NotificationProvider } from "./NotificationContext";
 import ThemeRegistry from "./ThemeRegistry";
+import AppUpdateNotifier from "./AppUpdateNotifier";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`} style={{ overflowX: 'hidden' }}>
         <ThemeRegistry>
           <NotificationProvider>
+            <AppUpdateNotifier />
             {children}
           </NotificationProvider>
         </ThemeRegistry>
