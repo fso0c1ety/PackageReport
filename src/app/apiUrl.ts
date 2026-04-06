@@ -53,11 +53,24 @@ export function redirectToAppRoute(path: string, replace = true) {
   }
 
   const target = getAppRoute(path);
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const navigate = () => {
+    if (replace) {
+      window.location.replace(target);
+    } else {
+      window.location.assign(target);
+    }
+  };
 
-  if (replace) {
-    window.location.replace(target);
-  } else {
-    window.location.assign(target);
+  navigate();
+
+  if (isNativeStaticRuntime() && current !== target) {
+    window.setTimeout(() => {
+      const afterAttempt = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (afterAttempt === current) {
+        window.location.href = target;
+      }
+    }, 400);
   }
 }
 
@@ -659,7 +672,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     }
   }
 
-  if (handleAuthErrors && (response.status === 401 || response.status === 403)) {
+  if (handleAuthErrors && response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -668,7 +681,12 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
       redirectToAppRoute('/login', true);
     }
 
-    throw new Error(response.status === 401 ? "Unauthorized" : "Forbidden");
+    throw new Error("Unauthorized");
+  }
+
+  if (handleAuthErrors && response.status === 403) {
+    console.warn('[authenticatedFetch] Forbidden response received without clearing local auth state:', requestUrl);
+    throw new Error("Forbidden");
   }
 
   return response;

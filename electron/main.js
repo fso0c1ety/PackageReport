@@ -322,13 +322,8 @@ function createMainWindow() {
     }
   };
 
-  win.on("minimize", (event) => {
-    if (process.platform === "win32") {
-      event.preventDefault();
-      hideToTray();
-    }
-  });
-
+  // Let the minimize button behave normally so the app can stay on the taskbar.
+  // The close button still hides to tray on Windows to keep background notifications alive.
   win.on("close", (event) => {
     if (!isQuitting && process.platform === "win32") {
       event.preventDefault();

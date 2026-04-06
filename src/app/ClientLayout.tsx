@@ -90,23 +90,31 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     ensureNativeHistoryRouting();
 
     const token = localStorage.getItem('token');
-    
+
     if (!token) {
-        // Redirect to login if no token
+        // Redirect to login if no token.
         redirectToAppRoute('/login');
-        // loading state will continue until redirect happens
-    } else {
-        setIsAuthenticated(true);
-        setLoading(false);
+
+        const retryTimer = window.setTimeout(() => {
+          if (!localStorage.getItem('token') && !window.location.pathname.includes('/login')) {
+            redirectToAppRoute('/login', true);
+          }
+        }, 700);
+
+        return () => clearTimeout(retryTimer);
     }
+
+    setIsAuthenticated(true);
+    setLoading(false);
   }, [pathname, router]);
 
-  // Failsafe: if we are stuck in loading state for too long (e.g. redirect failed), just show content
-  // This is helpful if router.push is not firing or we are in a weird state
+  // Failsafe: only release the loading shell if authentication actually exists.
   useEffect(() => {
     const timer = setTimeout(() => {
-        setLoading(false);
-    }, 1000); 
+        if (typeof window !== 'undefined' && localStorage.getItem('token')) {
+          setLoading(false);
+        }
+    }, 2500);
     return () => clearTimeout(timer);
   }, []);
 
