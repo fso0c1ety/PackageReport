@@ -6,6 +6,8 @@ const config: CapacitorConfig = {
   webDir: 'out',
   server: {
     cleartext: true,
+    hostname: 'localhost',
+    iosScheme: 'capacitor',
     androidScheme: 'http',
     allowNavigation: [
       '192.168.0.*',

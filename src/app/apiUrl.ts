@@ -22,6 +22,19 @@ export function isNativeStaticRuntime() {
     return true;
   }
 
+  try {
+    if (Capacitor.isNativePlatform()) {
+      return true;
+    }
+  } catch {
+    // Ignore and fall back to runtime heuristics below.
+  }
+
+  const protocol = (window.location?.protocol || '').toLowerCase();
+  if (protocol === 'capacitor:' || protocol === 'ionic:' || protocol === 'file:') {
+    return true;
+  }
+
   const capacitor = (window as typeof window & {
     Capacitor?: { isNativePlatform?: () => boolean };
   }).Capacitor;

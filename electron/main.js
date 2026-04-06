@@ -8,7 +8,7 @@ let splashWindow = null;
 let tray = null;
 let isQuitting = false;
 let closeToTrayNoticeShown = false;
-const SPLASH_MINIMUM_MS = 30000;
+const SPLASH_MINIMUM_MS = 10000;
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
