@@ -2901,23 +2901,33 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     return [...columns].sort((a, b) => a.order - b.order);
   }, [columns]);
 
-  const ROW_HEIGHT_ESTIMATE = isMobile ? 52 : 62;
-  const ROW_WINDOW_SIZE = 8;
-  const ROW_OVERSCAN = 8;
-
-  const tableVirtualEnd = Math.min(
-    filteredRows.length,
-    tableVirtualStart + ROW_WINDOW_SIZE + ROW_OVERSCAN * 2
+  const ROW_HEIGHT_ESTIMATE = isMobile ? 60 : 70;
+  const ROW_WINDOW_SIZE = isMobile ? 10 : 12;
+  const ROW_OVERSCAN = isMobile ? 4 : 8;
+  const hasActiveFilters = !!filterText || filterPerson.length > 0 || filterStatus.length > 0;
+  const isTableVirtualized = !isMobile && !isReorderMode && !hasActiveFilters && filteredRows.length > 100;
+  const maxVirtualStart = Math.max(
+    0,
+    filteredRows.length - (ROW_WINDOW_SIZE + ROW_OVERSCAN * 2)
   );
 
-  const visibleFilteredRows = React.useMemo(() => {
-    return filteredRows.slice(tableVirtualStart, tableVirtualEnd);
-  }, [filteredRows, tableVirtualStart, tableVirtualEnd]);
+  const tableVirtualEnd = isTableVirtualized
+    ? Math.min(
+      filteredRows.length,
+      tableVirtualStart + ROW_WINDOW_SIZE + ROW_OVERSCAN * 2
+    )
+    : filteredRows.length;
 
-  const isTableVirtualized = filteredRows.length > ROW_WINDOW_SIZE;
-  const hasActiveFilters = !!filterText || filterPerson.length > 0 || filterStatus.length > 0;
-  const topSpacerHeight = tableVirtualStart * ROW_HEIGHT_ESTIMATE;
-  const bottomSpacerHeight = Math.max(0, (filteredRows.length - tableVirtualEnd) * ROW_HEIGHT_ESTIMATE);
+  const visibleFilteredRows = React.useMemo(() => {
+    return isTableVirtualized
+      ? filteredRows.slice(tableVirtualStart, tableVirtualEnd)
+      : filteredRows;
+  }, [filteredRows, isTableVirtualized, tableVirtualStart, tableVirtualEnd]);
+
+  const topSpacerHeight = isTableVirtualized ? tableVirtualStart * ROW_HEIGHT_ESTIMATE : 0;
+  const bottomSpacerHeight = isTableVirtualized
+    ? Math.max(0, (filteredRows.length - tableVirtualEnd) * ROW_HEIGHT_ESTIMATE)
+    : 0;
 
   useEffect(() => {
     // Reset viewport window when filters/data change significantly.
@@ -2929,10 +2939,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [tableId, filterText, filterPerson, filterStatus]);
 
   const handleTableScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (!isTableVirtualized) return;
+
     const el = e.currentTarget;
-    const nextStart = Math.max(0, Math.floor(el.scrollTop / ROW_HEIGHT_ESTIMATE) - ROW_OVERSCAN);
+    const rawStart = Math.floor(el.scrollTop / ROW_HEIGHT_ESTIMATE) - ROW_OVERSCAN;
+    const nextStart = Math.max(0, Math.min(maxVirtualStart, rawStart));
+
     setTableVirtualStart(prev => (prev === nextStart ? prev : nextStart));
-  }, [ROW_HEIGHT_ESTIMATE, ROW_OVERSCAN]);
+  }, [ROW_HEIGHT_ESTIMATE, ROW_OVERSCAN, isTableVirtualized, maxVirtualStart]);
 
   const invoiceTaskOptions = React.useMemo(() => {
     const titleColId = columns[0]?.id;
@@ -6720,6 +6734,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               overflowY: 'auto',
               maxHeight: '600px', // Roughly 10-12 tasks
               position: 'relative',
+              overflowAnchor: 'none',
+              overscrollBehavior: 'contain',
               '&::-webkit-scrollbar': { width: 8 },
               '&::-webkit-scrollbar-track': { background: 'transparent' },
               '&::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
@@ -6921,8 +6937,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                             <TableCell colSpan={sortedColumns.length + 2} sx={{ p: 0, border: 0, height: `${topSpacerHeight}px` }} />
                           </TableRow>
                         )}
-                        {(isReorderMode ? filteredRows : visibleFilteredRows).map((row, index) => {
-                          const rowIndex = isReorderMode ? index : (tableVirtualStart + index);
+                        {visibleFilteredRows.map((row, index) => {
+                          const rowIndex = isTableVirtualized ? (tableVirtualStart + index) : index;
                           // Calculate background color based on status
                           let rowBg = theme.palette.background.default;
                           let rowHoverBg = theme.palette.action.hover;
