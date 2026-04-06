@@ -13,6 +13,7 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+import DownloadIcon from "@mui/icons-material/Download";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 
@@ -47,6 +48,7 @@ export default function LandingPage() {
   ];
 
   const aboutValues = ["Clear visibility", "Fast collaboration", "Reliable workflow tracking"];
+  const desktopDownloadUrl = "https://github.com/fso0c1ety/PackageReport/actions/runs/24024598350/artifacts/6284359718";
 
   const contactOptions = [
     {
@@ -195,6 +197,27 @@ export default function LandingPage() {
             </Stack>
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <Button
+                component="a"
+                href={desktopDownloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                startIcon={<DownloadIcon />}
+                sx={{
+                  display: { xs: "none", md: "inline-flex" },
+                  color: LIGHT.text,
+                  borderRadius: 999,
+                  px: 2,
+                  py: 0.8,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  border: `1px solid ${LIGHT.border}`,
+                  backgroundColor: "#fff",
+                  "&:hover": { backgroundColor: "#f8fafc", borderColor: LIGHT.primary },
+                }}
+              >
+                Download
+              </Button>
               <Button
                 onClick={() => navigateToAppRoute("/login", router)}
                 sx={{
