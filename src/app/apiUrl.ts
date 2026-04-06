@@ -83,7 +83,6 @@ function dispatchNativeRouteChange() {
   }
 
   const state = window.history.state;
-  window.dispatchEvent(new PopStateEvent('popstate', { state }));
   window.dispatchEvent(new CustomEvent('native-route-change', {
     detail: {
       href: window.location.href,
@@ -114,7 +113,8 @@ export function navigateToAppRoute(
       const targetHref = getAppHref(path);
 
       // In native packaged apps, changing only query params on the same page
-      // should stay client-side so hooks like useSearchParams react immediately.
+      // should stay client-side so hooks like the chat view can react immediately
+      // without forcing a full route reload.
       if (currentPath === targetPath) {
         if (replace) {
           window.history.replaceState(window.history.state, '', targetHref);
@@ -175,15 +175,11 @@ export function ensureNativeHistoryRouting() {
     const originalReplaceState = window.history.replaceState.bind(window.history);
 
     window.history.pushState = function pushState(data, unused, url) {
-      const result = originalPushState(data, unused, normalizeHistoryUrl(url));
-      dispatchNativeRouteChange();
-      return result;
+      return originalPushState(data, unused, normalizeHistoryUrl(url));
     };
 
     window.history.replaceState = function replaceState(data, unused, url) {
-      const result = originalReplaceState(data, unused, normalizeHistoryUrl(url));
-      dispatchNativeRouteChange();
-      return result;
+      return originalReplaceState(data, unused, normalizeHistoryUrl(url));
     };
   }
 
