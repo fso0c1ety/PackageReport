@@ -18,6 +18,10 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import VideocamOffIcon from "@mui/icons-material/VideocamOff";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import HearingIcon from "@mui/icons-material/Hearing";
+import PictureInPictureAltIcon from "@mui/icons-material/PictureInPictureAlt";
+import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import { useRouter } from "next/navigation";
@@ -30,6 +34,38 @@ type CallContextType = {
 };
 
 const CallContext = createContext<CallContextType | null>(null);
+const INCOMING_CALL_STORAGE_KEY = "sm_pending_incoming_call";
+const INCOMING_CALL_MAX_AGE_MS = 90 * 1000;
+
+function parseMaybeJson(value: any) {
+    if (typeof value !== "string") return value;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return value;
+    }
+}
+
+function normalizeIncomingCallData(data: any) {
+    if (!data) return null;
+
+    const parsedOffer = parseMaybeJson(data.offer);
+    const validOffer = parsedOffer && typeof parsedOffer === "object" && parsedOffer.type && parsedOffer.sdp
+        ? parsedOffer
+        : null;
+
+    const receivedAt = Number(data.receivedAt || data.sentAt || Date.now());
+
+    return {
+        callerId: data.callerId || data.senderId || null,
+        callerName: data.callerName || data.title || "Incoming Call",
+        callerAvatar: data.callerAvatar || null,
+        isVideo: data.isVideo === 'true' || data.isVideo === true,
+        offer: validOffer,
+        callId: data.callId || null,
+        receivedAt,
+    };
+}
 
 export const useCallContext = () => {
     const context = useContext(CallContext);
@@ -52,12 +88,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [isAudioMuted, setIsAudioMuted] = useState(false);
     const [isVideoMuted, setIsVideoMuted] = useState(false);
+    const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+    const [isCallMinimized, setIsCallMinimized] = useState(false);
+    const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
 
     // Timing and Log State
     const [callStatus, setCallStatus] = useState<'ringing' | 'connected' | null>(null);
     const [connectedAt, setConnectedAt] = useState<number | null>(null);
     const [callDuration, setCallDuration] = useState<number>(0);
-    const [autoAcceptProcessed, setAutoAcceptProcessed] = useState(false);
 
     // Refs for stale closures in socket handlers
     const activeCallRef = useRef<any>(null);
@@ -131,6 +169,71 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        try {
+            const rawIncomingCall = localStorage.getItem(INCOMING_CALL_STORAGE_KEY);
+            if (!rawIncomingCall) return;
+
+            const restoredCall = normalizeIncomingCallData(JSON.parse(rawIncomingCall));
+            if (!restoredCall) {
+                localStorage.removeItem(INCOMING_CALL_STORAGE_KEY);
+                return;
+            }
+
+            if (Date.now() - restoredCall.receivedAt > INCOMING_CALL_MAX_AGE_MS) {
+                localStorage.removeItem(INCOMING_CALL_STORAGE_KEY);
+                return;
+            }
+
+            setIncomingCall((prev: any) => prev || restoredCall);
+        } catch (err) {
+            console.error("[CallContext] Failed to restore pending incoming call", err);
+            localStorage.removeItem(INCOMING_CALL_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        try {
+            if (incomingCall) {
+                localStorage.setItem(INCOMING_CALL_STORAGE_KEY, JSON.stringify(incomingCall));
+            } else {
+                localStorage.removeItem(INCOMING_CALL_STORAGE_KEY);
+            }
+        } catch (err) {
+            console.error("[CallContext] Failed to persist incoming call state", err);
+        }
+    }, [incomingCall]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const handleBeforeUnload = () => {
+            const currentCall = activeCallRef.current;
+            const channel = signalingChannelRef.current;
+
+            if (currentCall?.userId && channel) {
+                try {
+                    void channel.send({
+                        type: 'broadcast',
+                        event: 'call_end',
+                        payload: { targetId: currentCall.userId }
+                    });
+                } catch (err) {
+                    console.warn('[CallContext] Failed to notify remote peer during unload', err);
+                }
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, []);
+
     const sendSignal = async (event: string, payload: any) => {
         const channel = signalingChannelRef.current;
         if (!channel) {
@@ -159,9 +262,39 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                     broadcast: { self: false }
                 }
             })
-            .on('broadcast', { event: 'call_offer' }, ({ payload }) => {
+            .on('broadcast', { event: 'call_offer' }, async ({ payload }) => {
                 if (payload?.targetId !== currentUser.id) return;
                 console.log("Received call offer", payload);
+
+                const normalizedOffer = normalizeIncomingCallData(payload);
+                const currentActiveCall = activeCallRef.current;
+                const isRenegotiation = !!currentActiveCall
+                    && !!peerConnection.current
+                    && currentActiveCall.userId === normalizedOffer?.callerId
+                    && !!normalizedOffer?.offer;
+
+                if (isRenegotiation) {
+                    try {
+                        setActiveCall((prev: any) => prev ? ({
+                            ...prev,
+                            isVideo: normalizedOffer?.isVideo || prev.isVideo,
+                            callerAvatar: normalizedOffer?.callerAvatar || prev.callerAvatar,
+                            callerName: normalizedOffer?.callerName || prev.callerName,
+                        }) : prev);
+                        await peerConnection.current!.setRemoteDescription(new RTCSessionDescription(normalizedOffer!.offer));
+                        await processIceCandidatesQueue();
+                        const answer = await peerConnection.current!.createAnswer();
+                        await peerConnection.current!.setLocalDescription(answer);
+                        await sendSignal('call_answer', {
+                            targetId: normalizedOffer!.callerId,
+                            answer,
+                        });
+                    } catch (err) {
+                        console.error("[WebRTC] Failed to handle renegotiation offer", err);
+                    }
+                    return;
+                }
+
                 setIncomingCall((prev: any) => ({
                     ...(prev || {}),
                     ...(payload || {}),
@@ -173,8 +306,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
                 if (payload?.targetId !== currentUser.id) return;
                 console.log("Received call answer", payload);
-                setCallStatus('connected');
-                setConnectedAt(Date.now());
+                if (callStatusRef.current !== 'connected') {
+                    setCallStatus('connected');
+                    setConnectedAt(Date.now());
+                }
                 if (peerConnection.current) {
                     try {
                         if (!payload?.answer?.type || !payload?.answer?.sdp) {
@@ -292,6 +427,43 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         return pc;
     };
 
+    const applyAudioOutputPreference = async (speakerEnabled: boolean) => {
+        const mediaElement = remoteVideoRef.current as (HTMLMediaElement & { setSinkId?: (deviceId: string) => Promise<void> }) | null;
+        if (!mediaElement || typeof mediaElement.setSinkId !== 'function' || !navigator.mediaDevices?.enumerateDevices) {
+            return false;
+        }
+
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const outputs = devices.filter((device) => device.kind === 'audiooutput');
+            if (!outputs.length) return false;
+
+            const matches = (device: MediaDeviceInfo, pattern: RegExp) => pattern.test((device.label || '').toLowerCase());
+            const preferredDevice = speakerEnabled
+                ? outputs.find((device) => matches(device, /speaker|default|headphone|headset|usb/))
+                    || outputs.find((device) => device.deviceId === 'default')
+                    || outputs[0]
+                : outputs.find((device) => matches(device, /communications|earpiece|bluetooth/))
+                    || outputs.find((device) => device.deviceId === 'communications')
+                    || outputs[0];
+
+            await mediaElement.setSinkId(preferredDevice.deviceId || 'default');
+            return true;
+        } catch (err) {
+            console.warn("[CallContext] Could not change audio output route", err);
+            return false;
+        }
+    };
+
+    const toggleSpeaker = async () => {
+        const nextSpeakerState = !isSpeakerOn;
+        const changed = await applyAudioOutputPreference(nextSpeakerState);
+        if (!changed) {
+            console.info("[CallContext] Speaker routing is controlled by the device on this platform.");
+        }
+        setIsSpeakerOn(nextSpeakerState);
+    };
+
     const endCallLocally = () => {
         const callerData = activeCallRef.current;
         const currentStatus = callStatusRef.current;
@@ -325,6 +497,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setActiveCall(null);
         setIsAudioMuted(false);
         setIsVideoMuted(false);
+        setIsSpeakerOn(true);
+        setIsCallMinimized(false);
+        setHasRemoteVideo(false);
         setCallStatus(null);
         setConnectedAt(null);
         setCallDuration(0);
@@ -361,13 +536,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
+            const callId = `${currentUser.id}-${targetId}-${Date.now()}`;
+            const sentAt = Date.now();
+
             await sendSignal('call_offer', {
                 targetId: targetId,
                 callerId: currentUser.id,
                 callerName: currentUser.name,
                 callerAvatar: currentUser.avatar,
                 isVideo,
-                offer
+                offer,
+                callId,
+                sentAt,
             });
 
             // Trigger fallback push notification for devices not actively connected to Supabase RT
@@ -378,7 +558,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                     body: JSON.stringify({
                         callerName: currentUser.name,
                         callerAvatar: currentUser.avatar,
-                        isVideo
+                        isVideo,
+                        offer,
+                        callId,
+                        sentAt,
                     })
                 });
             } catch (notifyErr) {
@@ -393,7 +576,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const acceptCall = async () => {
         if (!incomingCall) return;
         try {
-            const offer = incomingCall?.offer;
+            const normalizedIncomingCall = normalizeIncomingCallData(incomingCall);
+            const offer = normalizedIncomingCall?.offer;
             const hasValidOffer = !!offer && typeof offer === 'object' && !!offer.type && !!offer.sdp;
             if (!hasValidOffer) {
                 console.warn("[WebRTC] Cannot accept call yet: missing/invalid SDP offer", incomingCall);
@@ -401,17 +585,17 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 return;
             }
 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: incomingCall.isVideo, audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: normalizedIncomingCall.isVideo, audio: true });
             setLocalStream(stream);
             setActiveCall({
-                userId: incomingCall.callerId,
-                isVideo: incomingCall.isVideo,
+                userId: normalizedIncomingCall.callerId,
+                isVideo: normalizedIncomingCall.isVideo,
                 isCaller: false,
-                callerAvatar: incomingCall.callerAvatar,
-                callerName: incomingCall.callerName
+                callerAvatar: normalizedIncomingCall.callerAvatar,
+                callerName: normalizedIncomingCall.callerName
             });
 
-            const pc = initializePeerConnection(incomingCall.callerId);
+            const pc = initializePeerConnection(normalizedIncomingCall.callerId);
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
             setCallStatus('connected');
@@ -424,7 +608,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             await pc.setLocalDescription(answer);
 
             await sendSignal('call_answer', {
-                targetId: incomingCall.callerId,
+                targetId: normalizedIncomingCall.callerId,
                 answer
             });
             setIncomingCall(null);
@@ -444,33 +628,31 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
     const showIncomingCall = (data: any) => {
         if (!data || activeCallRef.current) return;
-        console.log("[CallContext] Manual showIncomingCall triggered:", data);
+
+        const normalizedIncomingCall = normalizeIncomingCallData(data);
+        if (!normalizedIncomingCall) return;
+
+        console.log("[CallContext] Manual showIncomingCall triggered:", normalizedIncomingCall);
         setIncomingCall((prev: any) => ({
             ...(prev || {}),
-            callerId: data.callerId || prev?.callerId,
-            callerName: data.callerName || prev?.callerName || 'Incoming Call',
-            callerAvatar: data.callerAvatar || prev?.callerAvatar,
-            isVideo: data.isVideo === 'true' || data.isVideo === true,
-            // If push payload has no offer, keep any offer already received via realtime.
-            offer: data.offer || prev?.offer || null,
+            ...normalizedIncomingCall,
+            // If the push payload has no SDP offer yet, keep the existing one from realtime.
+            offer: normalizedIncomingCall.offer || prev?.offer || null,
+            receivedAt: normalizedIncomingCall.receivedAt || prev?.receivedAt || Date.now(),
         }));
     };
 
     useEffect(() => {
-        if (incomingCall && !autoAcceptProcessed && typeof window !== 'undefined') {
+        if (incomingCall && typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             if (params.get('autoAccept') === 'true') {
-                console.log("[CallContext] Auto-accepting call based on URL parameter");
-                setAutoAcceptProcessed(true);
-                acceptCall();
-                
-                // Cleanup URL
+                console.log("[CallContext] Incoming call opened from a notification; keeping the decision dialog visible.");
                 const url = new URL(window.location.href);
                 url.searchParams.delete('autoAccept');
                 window.history.replaceState({}, '', url.pathname + url.search);
             }
         }
-    }, [incomingCall, autoAcceptProcessed]);
+    }, [incomingCall]);
 
     // Play/stop ringtone when incomingCall changes
     useEffect(() => {
@@ -521,14 +703,60 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
-    const toggleVideo = () => {
-        if (localStream && activeCall?.isVideo) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                setIsVideoMuted(!videoTrack.enabled);
+    const enableCamera = async () => {
+        if (!activeCall || !currentUser) return;
+
+        try {
+            const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            const videoTrack = cameraStream.getVideoTracks()[0];
+            if (!videoTrack) return;
+
+            const existingAudioTracks = localStream?.getAudioTracks() || [];
+            localStream?.getVideoTracks().forEach((track) => track.stop());
+            const updatedStream = new MediaStream([...existingAudioTracks, videoTrack]);
+            setLocalStream(updatedStream);
+            setActiveCall((prev: any) => prev ? ({ ...prev, isVideo: true }) : prev);
+            setIsVideoMuted(false);
+
+            const pc = peerConnection.current;
+            if (pc) {
+                const existingVideoSender = pc.getSenders().find((sender) => sender.track?.kind === 'video');
+                if (existingVideoSender) {
+                    await existingVideoSender.replaceTrack(videoTrack);
+                } else {
+                    pc.addTrack(videoTrack, updatedStream);
+                }
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await sendSignal('call_offer', {
+                    targetId: activeCall.userId,
+                    callerId: currentUser.id,
+                    callerName: currentUser.name,
+                    callerAvatar: currentUser.avatar,
+                    isVideo: true,
+                    offer,
+                    callId: activeCall.callId || `${currentUser.id}-${activeCall.userId}-${Date.now()}`,
+                    sentAt: Date.now(),
+                });
             }
+        } catch (err) {
+            console.error("Failed to enable camera", err);
+            alert("Could not turn on the camera.");
         }
+    };
+
+    const toggleVideo = async () => {
+        if (!activeCall) return;
+
+        if (!activeCall.isVideo || !localStream?.getVideoTracks()[0]) {
+            await enableCamera();
+            return;
+        }
+
+        const videoTrack = localStream.getVideoTracks()[0];
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoMuted(!videoTrack.enabled);
     };
 
     useEffect(() => {
@@ -536,12 +764,15 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
-    }, [localStream]);
+    }, [localStream, isCallMinimized]);
 
     useEffect(() => {
         console.log("[CallContext] Remote stream update. Tracks:", remoteStream?.getTracks().length);
+        setHasRemoteVideo(!!remoteStream?.getVideoTracks().some((track) => track.readyState === 'live' && track.enabled));
+
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
+            void applyAudioOutputPreference(isSpeakerOn);
             
             // Critical for some browsers: unmuted remote audio requires a user gesture or specific handling
             const playPromise = remoteVideoRef.current.play();
@@ -552,7 +783,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 });
             }
         }
-    }, [remoteStream]);
+    }, [remoteStream, isSpeakerOn, isCallMinimized]);
+
+    useEffect(() => {
+        if (activeCall) {
+            setIsCallMinimized(false);
+        }
+    }, [activeCall?.userId]);
 
     return (
         <CallContext.Provider value={{ startCall, showIncomingCall }}>
@@ -562,8 +799,15 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <audio ref={ringAudioRef} src="/ringtone.wav" loop preload="auto" style={{ display: 'none' }} />
 
+            {activeCall && isCallMinimized && (
+                <>
+                    <video ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
+                    <video ref={localVideoRef} autoPlay playsInline muted style={{ display: 'none' }} />
+                </>
+            )}
+
             {/* Reverted to Old Incoming Call Dialog design as requested */}
-            <Dialog open={!!incomingCall && !activeCall} onClose={rejectCall}>
+            <Dialog open={!!incomingCall && !activeCall} onClose={() => {}} disableEscapeKeyDown>
                 <Box sx={{ p: 4, textAlign: 'center', minWidth: 300 }}>
                     <Avatar src={getAvatarUrl(incomingCall?.callerAvatar, incomingCall?.callerName)} sx={{ width: 80, height: 80, mx: 'auto', mb: 2 }} />
                     <Typography variant="h6">{incomingCall?.callerName}</Typography>
@@ -582,50 +826,83 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             </Dialog>
 
             {/* Active Call Overlay */}
-            {activeCall && (
+            {activeCall && !isCallMinimized && (
                 <Box sx={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
                     bgcolor: activeCall.isVideo ? '#000' : 'background.default',
                     zIndex: 9999, display: 'flex', flexDirection: 'column'
                 }}>
+                    <Box sx={{
+                        position: 'absolute',
+                        top: 16,
+                        left: 16,
+                        right: 16,
+                        zIndex: 2,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 2,
+                    }}>
+                        <Box sx={{
+                            px: 2,
+                            py: 1,
+                            borderRadius: 999,
+                            bgcolor: activeCall.isVideo ? 'rgba(0, 0, 0, 0.45)' : 'action.selected'
+                        }}>
+                            <Typography variant="subtitle1" fontWeight={700} color={activeCall.isVideo ? '#fff' : 'text.primary'}>
+                                {activeCall?.callerName || 'Connected'}
+                            </Typography>
+                            <Typography variant="caption" color={activeCall.isVideo ? 'rgba(255,255,255,0.78)' : 'text.secondary'}>
+                                {callStatus === 'ringing' ? 'Ringing...' : formatDuration(callDuration)}
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={() => setIsCallMinimized(true)}
+                            sx={{
+                                bgcolor: activeCall.isVideo ? 'rgba(0, 0, 0, 0.45)' : 'action.selected',
+                                color: activeCall.isVideo ? '#fff' : 'text.primary'
+                            }}
+                        >
+                            <PictureInPictureAltIcon />
+                        </IconButton>
+                    </Box>
+
                     <Box sx={{ flexGrow: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        
-                        {/* Remote Stream Element (Always mounted for stability) */}
                         <video
                             ref={remoteVideoRef}
                             autoPlay
                             playsInline
-                            style={{ 
+                            style={{
                                 width: '100%', height: '100%', objectFit: 'cover',
-                                display: activeCall.isVideo ? 'block' : 'none'
+                                display: activeCall.isVideo && hasRemoteVideo ? 'block' : 'none'
                             }}
                         />
 
-                        {/* Remote Avatar (Shown for Audio or Ringing) */}
-                        {!activeCall.isVideo && (
-                            <Box sx={{ 
+                        {(!activeCall.isVideo || !hasRemoteVideo) && (
+                            <Box sx={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                                 animation: callStatus === 'ringing' ? 'pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1)' : 'none',
                                 position: 'absolute'
                             }}>
-                                <Avatar 
-                                    src={getAvatarUrl(activeCall?.callerAvatar, activeCall?.callerName)} 
-                                    sx={{ width: 150, height: 150, border: '4px solid', borderColor: 'primary.main', mb: 2 }} 
+                                <Avatar
+                                    src={getAvatarUrl(activeCall?.callerAvatar, activeCall?.callerName)}
+                                    sx={{ width: 150, height: 150, border: '4px solid', borderColor: 'primary.main', mb: 2 }}
                                 />
-                                <Typography variant="h5" fontWeight={600}>{activeCall?.callerName || 'Connected'}</Typography>
+                                <Typography variant="h5" fontWeight={600} color={activeCall.isVideo ? '#fff' : 'text.primary'}>
+                                    {activeCall?.callerName || 'Connected'}
+                                </Typography>
                                 {callStatus === 'ringing' ? (
-                                    <Typography variant="caption" color="text.secondary">Ringing...</Typography>
+                                    <Typography variant="caption" color={activeCall.isVideo ? 'rgba(255,255,255,0.78)' : 'text.secondary'}>Ringing...</Typography>
                                 ) : (
-                                    <Typography variant="subtitle1" fontWeight={700} color="primary.main">{formatDuration(callDuration)}</Typography>
+                                    <Typography variant="subtitle1" fontWeight={700} color={activeCall.isVideo ? 'rgba(255,255,255,0.9)' : 'primary.main'}>{formatDuration(callDuration)}</Typography>
                                 )}
                             </Box>
                         )}
 
-                        {/* Local Stream Element (PIcture-in-Picture) */}
                         <Box sx={{
                             position: 'absolute', bottom: 20, right: 20,
-                            width: activeCall.isVideo ? 150 : 80, 
-                            height: activeCall.isVideo ? 200 : 80, 
+                            width: activeCall.isVideo ? 150 : 80,
+                            height: activeCall.isVideo ? 200 : 80,
                             bgcolor: activeCall.isVideo ? '#222' : 'transparent',
                             borderRadius: activeCall.isVideo ? 2 : '50%',
                             overflow: 'hidden',
@@ -638,32 +915,77 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                                 autoPlay
                                 playsInline
                                 muted
-                                style={{ 
+                                style={{
                                     width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
                                     display: activeCall.isVideo ? 'block' : 'none'
                                 }}
                             />
                             {!activeCall.isVideo && (
-                                <Avatar 
-                                    src={getAvatarUrl(currentUser?.avatar, currentUser?.name)} 
-                                    sx={{ width: '100%', height: '100%', border: '3px solid', borderColor: 'background.paper' }} 
+                                <Avatar
+                                    src={getAvatarUrl(currentUser?.avatar, currentUser?.name)}
+                                    sx={{ width: '100%', height: '100%', border: '3px solid', borderColor: 'background.paper' }}
                                 />
                             )}
                         </Box>
                     </Box>
 
-                    {/* Controls */}
-                    <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', gap: 3, bgcolor: activeCall.isVideo ? 'rgba(0,0,0,0.8)' : 'background.paper', borderTop: activeCall.isVideo ? 'none' : '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', gap: 3, flexWrap: 'wrap', bgcolor: activeCall.isVideo ? 'rgba(0,0,0,0.8)' : 'background.paper', borderTop: activeCall.isVideo ? 'none' : '1px solid', borderColor: 'divider' }}>
+                        <IconButton onClick={() => { void toggleSpeaker(); }} sx={{ bgcolor: isSpeakerOn ? 'primary.main' : 'action.selected', color: isSpeakerOn ? 'white' : (activeCall.isVideo ? '#fff' : 'text.primary'), p: 2, '&:hover': { bgcolor: isSpeakerOn ? 'primary.dark' : (activeCall.isVideo ? 'rgba(255,255,255,0.2)' : 'action.hover') } }}>
+                            {isSpeakerOn ? <VolumeUpIcon /> : <HearingIcon />}
+                        </IconButton>
                         <IconButton onClick={toggleAudio} sx={{ bgcolor: isAudioMuted ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,255,0.1)', color: isAudioMuted ? '#ef4444' : (activeCall.isVideo ? '#fff' : 'text.primary'), p: 2, '&:hover': { bgcolor: isAudioMuted ? 'rgba(255,0,0,0.3)' : 'rgba(255,255,255,0.2)' } }}>
                             {isAudioMuted ? <MicOffIcon /> : <MicIcon />}
                         </IconButton>
-                        {activeCall.isVideo && (
-                            <IconButton onClick={toggleVideo} disabled={!activeCall?.isVideo} sx={{ bgcolor: isVideoMuted ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoMuted ? '#ef4444' : '#fff', p: 2, '&:hover': { bgcolor: isVideoMuted ? 'rgba(255,0,0,0.3)' : 'rgba(255,255,255,0.2)' } }}>
-                                {isVideoMuted ? <VideocamOffIcon /> : <VideocamIcon />}
-                            </IconButton>
-                        )}
+                        <IconButton onClick={() => { void toggleVideo(); }} sx={{ bgcolor: isVideoMuted ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoMuted ? '#ef4444' : (activeCall.isVideo ? '#fff' : 'text.primary'), p: 2, '&:hover': { bgcolor: isVideoMuted ? 'rgba(255,0,0,0.3)' : 'rgba(255,255,255,0.2)' } }}>
+                            {!activeCall.isVideo ? <VideocamIcon color="primary" /> : isVideoMuted ? <VideocamOffIcon /> : <VideocamIcon />}
+                        </IconButton>
                         <IconButton onClick={endCall} sx={{ bgcolor: '#ef4444', color: '#fff', p: 2, '&:hover': { bgcolor: '#dc2626' } }}>
                             <CallEndIcon />
+                        </IconButton>
+                    </Box>
+                </Box>
+            )}
+
+            {activeCall && isCallMinimized && (
+                <Box sx={{
+                    position: 'fixed',
+                    right: 16,
+                    bottom: 16,
+                    zIndex: 10000,
+                    width: 272,
+                    bgcolor: 'background.paper',
+                    borderRadius: 3,
+                    boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    overflow: 'hidden'
+                }}>
+                    <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                        <Avatar src={getAvatarUrl(activeCall?.callerAvatar, activeCall?.callerName)} />
+                        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                            <Typography variant="subtitle2" fontWeight={700} noWrap>
+                                {activeCall?.callerName || 'Active Call'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {callStatus === 'ringing' ? 'Ringing...' : formatDuration(callDuration)}
+                            </Typography>
+                        </Box>
+                        <IconButton size="small" onClick={() => setIsCallMinimized(false)}>
+                            <OpenInFullIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ px: 1.5, pb: 1.5, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                        <IconButton size="small" onClick={() => { void toggleSpeaker(); }} sx={{ bgcolor: isSpeakerOn ? 'primary.main' : 'action.selected', color: isSpeakerOn ? 'white' : 'text.primary', '&:hover': { bgcolor: isSpeakerOn ? 'primary.dark' : 'action.hover' } }}>
+                            {isSpeakerOn ? <VolumeUpIcon fontSize="small" /> : <HearingIcon fontSize="small" />}
+                        </IconButton>
+                        <IconButton size="small" onClick={toggleAudio} sx={{ bgcolor: 'action.selected' }}>
+                            {isAudioMuted ? <MicOffIcon color="error" fontSize="small" /> : <MicIcon fontSize="small" />}
+                        </IconButton>
+                        <IconButton size="small" onClick={() => { void toggleVideo(); }} sx={{ bgcolor: 'action.selected' }}>
+                            {!activeCall.isVideo ? <VideocamIcon color="primary" fontSize="small" /> : isVideoMuted ? <VideocamOffIcon color="error" fontSize="small" /> : <VideocamIcon fontSize="small" />}
+                        </IconButton>
+                        <IconButton size="small" onClick={endCall} sx={{ bgcolor: '#ef4444', color: 'white', '&:hover': { bgcolor: '#d32f2f' } }}>
+                            <CallEndIcon fontSize="small" />
                         </IconButton>
                     </Box>
                 </Box>

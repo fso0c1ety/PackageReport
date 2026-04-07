@@ -25,17 +25,12 @@ import {
 import { useTheme } from "@mui/material/styles";
 import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 import HomeIcon from "@mui/icons-material/Home";
-import SmartToyIcon from "@mui/icons-material/SmartToy";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import PsychologyIcon from "@mui/icons-material/Psychology";
-import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import GroupIcon from "@mui/icons-material/Group";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
-import DashboardCustomizeRoundedIcon from "@mui/icons-material/DashboardCustomizeRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -467,20 +462,6 @@ export default function Sidebar({
             </Button>
           </Box>
 
-          <InlineHeader
-            label="Assist"
-            action={
-              <Avatar sx={{ width: 26, height: 26, bgcolor: alpha(theme.palette.primary.main, 0.12), color: theme.palette.primary.main }}>
-                <DashboardCustomizeRoundedIcon sx={{ fontSize: 14 }} />
-              </Avatar>
-            }
-          />
-          <Box sx={{ display: "grid", gap: 0.75 }}>
-            <SidebarItem icon={<SmartToyIcon fontSize="small" />} label="AI Sidekick" href="#" />
-            <SidebarItem icon={<AutoAwesomeIcon fontSize="small" />} label="Vibe" href="#" />
-            <SidebarItem icon={<PsychologyIcon fontSize="small" />} label="Reflex" href="#" />
-            <SidebarItem icon={<RecordVoiceOverIcon fontSize="small" />} label="Notetaker" href="#" />
-          </Box>
         </Box>
 
         <Box sx={{ px: 2.1, pb: 2.1 }}>

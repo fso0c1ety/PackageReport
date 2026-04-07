@@ -1169,6 +1169,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [tableVirtualStart, setTableVirtualStart] = useState(0);
   const [isReorderMode, setIsReorderMode] = useState(false);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const tableScrollRafRef = React.useRef<number | null>(null);
+  const latestTableScrollTopRef = React.useRef(0);
 
   // Load persistent AI chat history for this board
   useEffect(() => {
@@ -2468,6 +2470,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   };
 
+  const persistRowOrder = React.useCallback((nextRows: Row[]) => {
+    const orderedTaskIds = nextRows
+      .map((row) => row.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0 && id !== 'placeholder');
+
+    authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedTaskIds }),
+    }).catch(err => console.error("Failed to persist row order during drag and drop", err));
+  }, [tableId]);
+
   // Drag and drop handler
   const onDragEnd = async (result: any) => {
     setIsReorderMode(false);
@@ -2478,18 +2492,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     ) {
       return;
     }
-    if ((filterText || filterPerson.length > 0 || filterStatus.length > 0) && (result.type === undefined || result.type === 'row' || result.type === 'default')) {
+
+    if (hasActiveFilters && (result.type === undefined || result.type === 'row' || result.type === 'default' || result.type === 'kanban-task')) {
       showNotification('Clear filters before reordering tasks', 'info');
       return;
     }
+
     // Column drag
     if (result.type === 'column') {
-      const newColumns = Array.from(columns);
+      const newColumns = Array.from(sortedColumns);
       const [removed] = newColumns.splice(result.source.index, 1);
       newColumns.splice(result.destination.index, 0, removed);
       newColumns.forEach((col, idx) => (col.order = idx));
       setColumns(newColumns);
-      // Persist new column order to backend
       authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -2497,12 +2512,89 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }).catch(err => console.error("Failed to persist column order during drag and drop", err));
       return;
     }
+
+    if (result.type === 'kanban-column') {
+      const statusCol = sortedColumns.find((col) => col.type === 'Status');
+      if (!statusCol || !Array.isArray(statusCol.options)) return;
+
+      const newOptions = Array.from(statusCol.options);
+      const [removedOption] = newOptions.splice(result.source.index, 1);
+      newOptions.splice(result.destination.index, 0, removedOption);
+
+      const updatedColumns = columns.map((col) =>
+        col.id === statusCol.id ? { ...col, options: newOptions } : col
+      );
+
+      setColumns(updatedColumns);
+      authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ columns: updatedColumns }),
+      }).catch(err => console.error("Failed to persist kanban column order during drag and drop", err));
+      return;
+    }
+
+    if (result.type === 'kanban-task') {
+      const statusCol = sortedColumns.find((col) => col.type === 'Status');
+      if (!statusCol) return;
+
+      const currentRows = rowsRef.current.length > 0 ? rowsRef.current : rows;
+      const movedTaskId = result.draggableId;
+      const sourceStatus = String(result.source?.droppableId || '').replace(/^kanban:/, '');
+      const destinationStatus = String(result.destination?.droppableId || '').replace(/^kanban:/, '');
+      const movedTask = currentRows.find((row) => row.id === movedTaskId);
+
+      if (!movedTask) return;
+
+      const updatedMovedTask: Row = {
+        ...movedTask,
+        values: {
+          ...movedTask.values,
+          [statusCol.id]: destinationStatus,
+        },
+      };
+
+      const nextRows = currentRows.filter((row) => row.id !== movedTaskId);
+      const destinationTasks = nextRows.filter((row) => row.values?.[statusCol.id] === destinationStatus);
+      let insertIndex = nextRows.length;
+
+      if (destinationTasks.length > 0) {
+        const beforeTask = destinationTasks[result.destination.index];
+        if (beforeTask) {
+          insertIndex = nextRows.findIndex((row) => row.id === beforeTask.id);
+        } else {
+          const lastDestinationTask = destinationTasks[destinationTasks.length - 1];
+          insertIndex = nextRows.findIndex((row) => row.id === lastDestinationTask.id) + 1;
+        }
+      } else {
+        const statusOptions = Array.isArray(statusCol.options) ? statusCol.options : [];
+        const destinationStatusIndex = statusOptions.findIndex((opt: any) => opt.value === destinationStatus);
+        const laterStatuses = statusOptions.slice(destinationStatusIndex + 1).map((opt: any) => opt.value);
+        const nextStatusTask = nextRows.find((row) => laterStatuses.includes(row.values?.[statusCol.id]));
+        insertIndex = nextStatusTask ? nextRows.findIndex((row) => row.id === nextStatusTask.id) : nextRows.length;
+      }
+
+      nextRows.splice(Math.max(0, insertIndex), 0, updatedMovedTask);
+      setRows(nextRows);
+      persistRowOrder(nextRows);
+
+      if (sourceStatus !== destinationStatus) {
+        authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${movedTaskId}`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: movedTaskId, values: updatedMovedTask.values }),
+        }).catch(err => console.error("Failed to persist kanban task status during drag and drop", err));
+      }
+      return;
+    }
+
     // Row drag
     if (result.type === undefined || result.type === 'row' || result.type === 'default') {
-      const newRows = Array.from(rows);
+      const currentRows = rowsRef.current.length > 0 ? rowsRef.current : rows;
+      const newRows = Array.from(currentRows);
       const [removed] = newRows.splice(result.source.index, 1);
       newRows.splice(result.destination.index, 0, removed);
-      // Ensure all rows have unique, non-empty ids
+
       const allIds = newRows.map(r => r.id);
       const hasDuplicates = allIds.length !== new Set(allIds).size;
       const hasMissing = allIds.some(id => !id);
@@ -2512,13 +2604,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       if (hasMissing) {
         console.error('Some rows are missing ids:', newRows);
       }
+
       setRows(newRows);
-      // Persist new row order to backend (send only orderedTaskIds)
-      authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedTaskIds: newRows.map(r => r.id) }),
-      }).catch(err => console.error("Failed to persist row order during drag and drop", err));
+      persistRowOrder(newRows);
     }
   };
 
@@ -3037,10 +3125,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [columns]);
 
   const ROW_HEIGHT_ESTIMATE = isMobile ? 60 : 70;
-  const ROW_WINDOW_SIZE = isMobile ? 10 : 12;
-  const ROW_OVERSCAN = isMobile ? 4 : 8;
+  const ROW_WINDOW_SIZE = isMobile ? 8 : 8;
+  const ROW_OVERSCAN = isMobile ? 3 : 4;
+  const TABLE_VIRTUALIZATION_THRESHOLD = isMobile ? 40 : 60;
   const hasActiveFilters = !!filterText || filterPerson.length > 0 || filterStatus.length > 0;
-  const isTableVirtualized = !isMobile && !isReorderMode && !hasActiveFilters && filteredRows.length > 100;
+  const isTableVirtualized =
+    !isMobile &&
+    !isReorderMode &&
+    !hasActiveFilters &&
+    filteredRows.length > TABLE_VIRTUALIZATION_THRESHOLD;
   const maxVirtualStart = Math.max(
     0,
     filteredRows.length - (ROW_WINDOW_SIZE + ROW_OVERSCAN * 2)
@@ -3073,14 +3166,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     }
   }, [tableId, filterText, filterPerson, filterStatus]);
 
+  useEffect(() => {
+    return () => {
+      if (tableScrollRafRef.current !== null && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(tableScrollRafRef.current);
+      }
+    };
+  }, []);
+
   const handleTableScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (!isTableVirtualized) return;
 
-    const el = e.currentTarget;
-    const rawStart = Math.floor(el.scrollTop / ROW_HEIGHT_ESTIMATE) - ROW_OVERSCAN;
-    const nextStart = Math.max(0, Math.min(maxVirtualStart, rawStart));
+    latestTableScrollTopRef.current = e.currentTarget.scrollTop;
 
-    setTableVirtualStart(prev => (prev === nextStart ? prev : nextStart));
+    if (tableScrollRafRef.current !== null || typeof window === 'undefined') return;
+
+    tableScrollRafRef.current = window.requestAnimationFrame(() => {
+      const rawStart = Math.floor(latestTableScrollTopRef.current / ROW_HEIGHT_ESTIMATE) - ROW_OVERSCAN;
+      const nextStart = Math.max(0, Math.min(maxVirtualStart, rawStart));
+
+      setTableVirtualStart(prev => (prev === nextStart ? prev : nextStart));
+      tableScrollRafRef.current = null;
+    });
   }, [ROW_HEIGHT_ESTIMATE, ROW_OVERSCAN, isTableVirtualized, maxVirtualStart]);
 
   const invoiceTaskOptions = React.useMemo(() => {
@@ -6929,11 +7036,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                               <TableCell
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
+                                style={provided.draggableProps.style}
                                 sx={{
                                   minWidth: getResponsiveColumnWidth(col, index === 0),
                                   maxWidth: getResponsiveColumnWidth(col, index === 0),
                                   width: getResponsiveColumnWidth(col, index === 0),
-                                  transition: 'background-color 0.2s',
+                                  transition: snapshot.isDragging ? 'none' : 'background-color 0.2s',
                                   bgcolor: snapshot.isDragging ? `${theme.palette.action.selected} !important` : theme.palette.background.paper,
                                   '&:hover': { bgcolor: `${theme.palette.action.hover} !important` },
                                   '&:hover .column-actions': { opacity: 1 },
@@ -7091,15 +7199,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                           }
 
                           return (
-                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={hasActiveFilters}>
+                            <Draggable key={row.id} draggableId={row.id} index={rowIndex} isDragDisabled={userPermission === 'read' || hasActiveFilters}>
                               {(provided, snapshot) => (
                                 <TableRow
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
-                                  style={{
-                                    ...provided.draggableProps.style,
-                                    transform: snapshot.isDragging ? provided.draggableProps.style?.transform : 'none'
-                                  }}
+                                  style={provided.draggableProps.style}
                                   sx={{
                                     bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
                                     '&:hover': { bgcolor: rowHoverBg },
@@ -7594,264 +7699,303 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </TableContainer >
           </DragDropContext >
         ) : workspaceView === 'kanban' ? (
-          <Box sx={{
-            display: 'flex',
-            gap: 2.5,
-            height: '100%',
-            overflowX: 'auto',
-            overflowY: 'hidden',
-            pb: 2,
-            px: 1,
-            '::-webkit-scrollbar': { height: 8 },
-            '::-webkit-scrollbar-track': { background: 'transparent' },
-            '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
-            '::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
-          }}>
-            {(() => {
-              const statusCol = columns.find(col => col.type === 'Status');
-              if (!statusCol || !Array.isArray(statusCol.options)) {
-                return (
-                  <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
-                    <Stack alignItems="center" spacing={2}>
-                      <Box sx={{ bgcolor: theme.palette.background.default, p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 400 }}>
-                        <Typography variant="h6" sx={{ mb: 1, color: theme.palette.text.primary }}>No Status Column</Typography>
-                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                          Please add a "Status" column to your table to visualize your tasks in Kanban view.
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </Box>
-                );
-              }
-              // Use status options for columns
-              return statusCol.options.map(opt => {
-                const colTasks = filteredRows.filter(r => r.values[statusCol.id] === opt.value);
-                const statusColor = opt.color || '#35365a';
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="kanban-columns-droppable" direction="horizontal" type="kanban-column">
+              {(providedBoard) => (
+                <Box
+                  ref={providedBoard.innerRef}
+                  {...providedBoard.droppableProps}
+                  sx={{
+                    display: 'flex',
+                    gap: 2.5,
+                    height: '100%',
+                    overflowX: 'auto',
+                    overflowY: 'hidden',
+                    pb: 2,
+                    px: 1,
+                    '::-webkit-scrollbar': { height: 8 },
+                    '::-webkit-scrollbar-track': { background: 'transparent' },
+                    '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
+                    '::-webkit-scrollbar-thumb:hover': { background: '#45466a' }
+                  }}
+                >
+                  {(() => {
+                    const statusCol = columns.find(col => col.type === 'Status');
+                    if (!statusCol || !Array.isArray(statusCol.options)) {
+                      return (
+                        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
+                          <Stack alignItems="center" spacing={2}>
+                            <Box sx={{ bgcolor: theme.palette.background.default, p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 400 }}>
+                              <Typography variant="h6" sx={{ mb: 1, color: theme.palette.text.primary }}>No Status Column</Typography>
+                              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                                Please add a "Status" column to your table to visualize your tasks in Kanban view.
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+                      );
+                    }
 
-                return (
-                  <Paper
-                    key={opt.value}
-                    elevation={0}
-                    sx={{
-                      width: 280,
-                      minWidth: 280,
-                      bgcolor: 'transparent',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      height: '100%',
-                      flexShrink: 0
-                    }}
-                  >
-                    {/* Column Header */}
-                    <Box sx={{
-                      mb: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      bgcolor: theme.palette.background.default, // Header BG
-                      p: 1.5,
-                      borderRadius: 2,
-                      borderTop: `4px solid ${statusColor}`,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                    }}>
-                      <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: theme.palette.text.primary }}>
-                        {opt.value}
-                      </Typography>
-                      <Box sx={{
-                        bgcolor: 'rgba(255,255,255,0.1)',
-                        borderRadius: '12px',
-                        px: 1,
-                        py: 0.25,
-                        minWidth: 24,
-                        textAlign: 'center'
-                      }}>
-                        <Typography sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
-                          {colTasks.length}
-                        </Typography>
-                      </Box>
-                    </Box>
+                    return statusCol.options.map((opt, columnIndex) => {
+                      const colTasks = filteredRows.filter(r => r.values[statusCol.id] === opt.value);
+                      const statusColor = opt.color || '#35365a';
 
-                    {/* Tasks Container */}
-                    <Box sx={{
-                      flex: 1,
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1.5,
-                      px: 0.5,
-                      pb: 2,
-                      '::-webkit-scrollbar': { width: 6 },
-                      '::-webkit-scrollbar-track': { background: 'transparent' },
-                      '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 3 },
-                    }}>
-                      {colTasks.map(task => (
-                        <Paper
-                          key={task.id}
-                          elevation={0}
-                          sx={{
-                            bgcolor: theme.palette.background.default,
-                            p: 2,
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            transition: 'transform 0.2s, box-shadow 0.2s',
-                            border: '1px solid transparent',
-                            borderLeft: task.created_by ? `4px solid ${stringToColor(task.created_by)}` : undefined,
-                            position: 'relative',
-                            '&:hover': {
-                              transform: 'translateY(-2px)',
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                              border: `1px solid ${statusColor}44`,
-                              borderLeft: task.created_by ? `4px solid ${stringToColor(task.created_by)}` : undefined
-                            }
-                          }}
-                          onClick={() => openReviewTask(task)}
-                        >
-                          {/* Creator Avatar Badge */}
-                          {task.created_by && (() => {
-                            const creator = tableMembers.find(m => m.id === task.created_by);
-                            if (!creator) return null;
-                            return (
-                              <Tooltip title={`Created by ${creator.name}`}>
-                                <Avatar
-                                  src={getAvatarUrl(creator.avatar, creator.name)}
-                                  sx={{
-                                    width: 18,
-                                    height: 18,
-                                    position: 'absolute',
-                                    top: 6,
-                                    right: 6,
-                                    fontSize: '0.6rem',
-                                    fontWeight: 'bold',
-                                    bgcolor: stringToColor(task.created_by),
-                                    border: `2px solid ${theme.palette.background.default}`,
-                                    zIndex: 2
-                                  }}
-                                >
-                                  {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
-                                </Avatar>
-                              </Tooltip>
-                            );
-                          })()}
-
-                          {/* Primary Text (Use first column) */}
-                          <Typography sx={{ fontWeight: 500, color: theme.palette.text.primary, mb: 1, lineHeight: 1.4 }}>
-                            {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
-                          </Typography>
-
-                          {/* Metadata Grid */}
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {columns.filter(c => c.id !== statusCol.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3).map(col => {
-                              const rawVal = task.values[col.id];
-                              if (!rawVal) return null;
-
-                              if (col.type === 'People' && Array.isArray(rawVal)) {
-                                return (
-                                  <Box key={col.id} sx={{ display: 'flex', '& > *': { ml: -0.5 }, pl: 0.5 }}>
-                                    {rawVal.slice(0, 3).map((p: any, i) => (
-                                      <Tooltip key={i} title={p.name || p.email}>
-                                        <Avatar
-                                          src={getAvatarUrl(p.avatar, p.name)}
-                                          sx={{ width: 22, height: 22, border: `2px solid ${theme.palette.background.default}`, fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
-                                        >
-                                          {p.name?.[0] || p.email?.[0] || '?'}
-                                        </Avatar>
-                                      </Tooltip>
-                                    ))}
-                                  </Box>
-                                );
-                              }
-
-                              if (col.type === 'Priority') {
-                                const prioColor = rawVal === 'High' ? '#e2445c' : rawVal === 'Medium' ? '#fdab3d' : '#00c875';
-                                return (
-                                  <Chip
-                                    key={col.id}
-                                    label={String(rawVal)}
-                                    size="small"
-                                    sx={{
-                                      height: 20,
-                                      fontSize: '0.65rem',
-                                      bgcolor: `${prioColor}33`,
-                                      color: prioColor,
-                                      border: `1px solid ${prioColor}44`
-                                    }}
-                                  />
-                                );
-                              }
-
-                              if (col.type === 'Country' && countryCodeMap[String(rawVal)]) {
-                                return (
-                                  <Tooltip key={col.id} title={String(rawVal)}>
-                                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                      <Flag country={countryCodeMap[String(rawVal)]} size={14} />
-                                    </Box>
-                                  </Tooltip>
-                                );
-                              }
-
-                              // Generic fallback for other fields (Date, Text, etc)
-                              if (['Date', 'Text'].includes(col.type)) {
-                                return (
-                                  <Typography key={col.id} variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
-                                    {String(rawVal)}
+                      return (
+                        <Draggable key={`kanban-column:${opt.value}`} draggableId={`kanban-column:${opt.value}`} index={columnIndex} isDragDisabled={userPermission === 'read'}>
+                          {(providedColumn, snapshotColumn) => (
+                            <Paper
+                              ref={providedColumn.innerRef}
+                              {...providedColumn.draggableProps}
+                              style={providedColumn.draggableProps.style}
+                              elevation={0}
+                              sx={{
+                                width: 280,
+                                minWidth: 280,
+                                bgcolor: 'transparent',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: '100%',
+                                flexShrink: 0,
+                                transition: snapshotColumn.isDragging ? 'none' : 'transform 0.2s ease',
+                              }}
+                            >
+                              <Box
+                                {...providedColumn.dragHandleProps}
+                                sx={{
+                                  mb: 2,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  bgcolor: theme.palette.background.default,
+                                  p: 1.5,
+                                  borderRadius: 2,
+                                  borderTop: `4px solid ${statusColor}`,
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  cursor: userPermission === 'read' ? 'default' : (snapshotColumn.isDragging ? 'grabbing' : 'grab')
+                                }}
+                              >
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: theme.palette.text.primary }}>
+                                  {opt.value}
+                                </Typography>
+                                <Box sx={{
+                                  bgcolor: 'rgba(255,255,255,0.1)',
+                                  borderRadius: '12px',
+                                  px: 1,
+                                  py: 0.25,
+                                  minWidth: 24,
+                                  textAlign: 'center'
+                                }}>
+                                  <Typography sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
+                                    {colTasks.length}
                                   </Typography>
-                                );
-                              }
+                                </Box>
+                              </Box>
 
-                              return null;
-                            })}
-                          </Box>
-                        </Paper>
-                      ))}
+                              <Droppable droppableId={`kanban:${opt.value}`} type="kanban-task" isDropDisabled={userPermission === 'read' || hasActiveFilters}>
+                                {(provided, snapshot) => (
+                                  <Box
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                    sx={{
+                                      flex: 1,
+                                      overflowY: 'auto',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 1.5,
+                                      px: 0.5,
+                                      pb: 2,
+                                      borderRadius: 2,
+                                      bgcolor: snapshot.isDraggingOver ? alpha(statusColor, 0.08) : 'transparent',
+                                      transition: 'background-color 0.2s ease',
+                                      '::-webkit-scrollbar': { width: 6 },
+                                      '::-webkit-scrollbar-track': { background: 'transparent' },
+                                      '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 3 },
+                                    }}
+                                  >
+                                    {colTasks.map((task, index) => {
+                                      const taskStatusValue = task.values[statusCol.id];
+                                      const taskStatusOption = statusCol.options?.find((option: any) => option.value === taskStatusValue);
+                                      const taskStatusColor = taskStatusOption?.color || statusColor;
 
-                      <Button
-                        startIcon={<AddIcon sx={{ fontSize: 18 }} />}
-                        sx={{
-                          color: theme.palette.text.secondary,
-                          textTransform: 'none',
-                          justifyContent: 'flex-start',
-                          py: 1,
-                          px: 1,
-                          borderRadius: 2,
-                          '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary }
-                        }}
-                        onClick={async () => {
-                          // Create task on backend immediately
-                          const initialValues = { [statusCol.id]: opt.value };
-                          // Ensure other columns have default values
-                          columns.forEach(c => {
-                            if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : ('' as any);
-                          });
+                                      return (
+                                        <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={userPermission === 'read' || hasActiveFilters}>
+                                          {(providedTask, snapshotTask) => (
+                                            <Paper
+                                              ref={providedTask.innerRef}
+                                              {...providedTask.draggableProps}
+                                              {...providedTask.dragHandleProps}
+                                              style={providedTask.draggableProps.style}
+                                              elevation={0}
+                                              sx={{
+                                                bgcolor: alpha(taskStatusColor, theme.palette.mode === 'dark' ? 0.18 : 0.1),
+                                                p: 2,
+                                                borderRadius: 2,
+                                                cursor: userPermission === 'read' ? 'default' : (snapshotTask.isDragging ? 'grabbing' : 'grab'),
+                                                transition: snapshotTask.isDragging ? 'none' : 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
+                                                border: `1px solid ${alpha(taskStatusColor, 0.35)}`,
+                                                borderLeft: `4px solid ${taskStatusColor}`,
+                                                position: 'relative',
+                                                boxShadow: snapshotTask.isDragging ? `0 10px 24px ${alpha(taskStatusColor, 0.35)}` : 'none',
+                                                '&:hover': {
+                                                  transform: 'translateY(-2px)',
+                                                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                                  borderColor: alpha(taskStatusColor, 0.55),
+                                                }
+                                              }}
+                                              onClick={() => openReviewTask(task)}
+                                            >
+                                              {task.created_by && (() => {
+                                                const creator = tableMembers.find(m => m.id === task.created_by);
+                                                if (!creator) return null;
+                                                return (
+                                                  <Tooltip title={`Created by ${creator.name}`}>
+                                                    <Avatar
+                                                      src={getAvatarUrl(creator.avatar, creator.name)}
+                                                      sx={{
+                                                        width: 18,
+                                                        height: 18,
+                                                        position: 'absolute',
+                                                        top: 6,
+                                                        right: 6,
+                                                        fontSize: '0.6rem',
+                                                        fontWeight: 'bold',
+                                                        bgcolor: stringToColor(task.created_by),
+                                                        border: `2px solid ${theme.palette.background.default}`,
+                                                        zIndex: 2
+                                                      }}
+                                                    >
+                                                      {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
+                                                    </Avatar>
+                                                  </Tooltip>
+                                                );
+                                              })()}
 
-                          try {
-                            const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ values: initialValues }),
-                            });
+                                              <Typography sx={{ fontWeight: 500, color: theme.palette.text.primary, mb: 1, lineHeight: 1.4, pr: 2.5 }}>
+                                                {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
+                                              </Typography>
 
-                            if (res.ok) {
-                              const createdTask = await res.json();
-                              setRows(prev => [...prev, createdTask]);
-                              // Open detailed view for immediate editing
-                              openReviewTask(createdTask);
-                            } else {
-                              console.error(`Failed to create task (${res.status})`);
-                            }
-                          } catch (e) {
-                            console.error("Failed to create task", e);
-                          }
-                        }}
-                      >
-                        New Task
-                      </Button>
-                    </Box>
-                  </Paper>
-                );
-              });
-            })()}
-          </Box>
+                                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                                {columns.filter(c => c.id !== statusCol.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3).map(col => {
+                                                  const rawVal = task.values[col.id];
+                                                  if (!rawVal) return null;
+
+                                                  if (col.type === 'People' && Array.isArray(rawVal)) {
+                                                    return (
+                                                      <Box key={col.id} sx={{ display: 'flex', '& > *': { ml: -0.5 }, pl: 0.5 }}>
+                                                        {rawVal.slice(0, 3).map((p: any, i) => (
+                                                          <Tooltip key={i} title={p.name || p.email}>
+                                                            <Avatar
+                                                              src={getAvatarUrl(p.avatar, p.name)}
+                                                              sx={{ width: 22, height: 22, border: `2px solid ${theme.palette.background.default}`, fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
+                                                            >
+                                                              {p.name?.[0] || p.email?.[0] || '?'}
+                                                            </Avatar>
+                                                          </Tooltip>
+                                                        ))}
+                                                      </Box>
+                                                    );
+                                                  }
+
+                                                  if (col.type === 'Priority') {
+                                                    const prioColor = rawVal === 'High' ? '#e2445c' : rawVal === 'Medium' ? '#fdab3d' : '#00c875';
+                                                    return (
+                                                      <Chip
+                                                        key={col.id}
+                                                        label={String(rawVal)}
+                                                        size="small"
+                                                        sx={{
+                                                          height: 20,
+                                                          fontSize: '0.65rem',
+                                                          bgcolor: `${prioColor}33`,
+                                                          color: prioColor,
+                                                          border: `1px solid ${prioColor}44`
+                                                        }}
+                                                      />
+                                                    );
+                                                  }
+
+                                                  if (col.type === 'Country' && countryCodeMap[String(rawVal)]) {
+                                                    return (
+                                                      <Tooltip key={col.id} title={String(rawVal)}>
+                                                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                          <Flag country={countryCodeMap[String(rawVal)]} size={14} />
+                                                        </Box>
+                                                      </Tooltip>
+                                                    );
+                                                  }
+
+                                                  if (['Date', 'Text'].includes(col.type)) {
+                                                    return (
+                                                      <Typography key={col.id} variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
+                                                        {String(rawVal)}
+                                                      </Typography>
+                                                    );
+                                                  }
+
+                                                  return null;
+                                                })}
+                                              </Box>
+                                            </Paper>
+                                          )}
+                                        </Draggable>
+                                      );
+                                    })}
+
+                                    {provided.placeholder}
+
+                                    <Button
+                                      startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+                                      sx={{
+                                        color: theme.palette.text.secondary,
+                                        textTransform: 'none',
+                                        justifyContent: 'flex-start',
+                                        py: 1,
+                                        px: 1,
+                                        borderRadius: 2,
+                                        '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary }
+                                      }}
+                                      onClick={async () => {
+                                        const initialValues = { [statusCol.id]: opt.value };
+                                        columns.forEach(c => {
+                                          if (!initialValues[c.id]) initialValues[c.id] = c.type === 'People' ? [] : ('' as any);
+                                        });
+
+                                        try {
+                                          const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ values: initialValues }),
+                                          });
+
+                                          if (res.ok) {
+                                            const createdTask = await res.json();
+                                            setRows(prev => [...prev, createdTask]);
+                                            openReviewTask(createdTask);
+                                          } else {
+                                            console.error(`Failed to create task (${res.status})`);
+                                          }
+                                        } catch (e) {
+                                          console.error("Failed to create task", e);
+                                        }
+                                      }}
+                                    >
+                                      New Task
+                                    </Button>
+                                  </Box>
+                                )}
+                              </Droppable>
+                            </Paper>
+                          )}
+                        </Draggable>
+                      );
+                    });
+                  })()}
+                  {providedBoard.placeholder}
+                </Box>
+              )}
+            </Droppable>
+          </DragDropContext>
         ) : workspaceView === 'calendar' ? (
           <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
             {/* Calendar Header */}

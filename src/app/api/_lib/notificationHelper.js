@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { pool } from "./server";
+import { ensureUserNotificationColumns, pool } from "./server";
 import { sendPushNotification } from "./firebaseAdmin";
 
 function toArray(value) {
@@ -79,20 +79,32 @@ export async function sendTableNotification({
     ...(extraData || {}),
   };
 
+  await ensureUserNotificationColumns();
+
   const userRes = await pool.query(
-    "SELECT id, fcm_token, fcm_tokens FROM users WHERE id = ANY($1)",
+    `
+      SELECT
+        id,
+        fcm_token,
+        fcm_tokens,
+        COALESCE(push_notifications, TRUE) AS push_notifications
+      FROM users
+      WHERE id = ANY($1)
+    `,
     [recipients]
   );
 
   const tokenSet = new Set();
   for (const matchedUser of userRes.rows) {
-    if (matchedUser.fcm_token) {
+    if (matchedUser.push_notifications !== false && matchedUser.fcm_token) {
       tokenSet.add(matchedUser.fcm_token);
     }
 
-    for (const token of toArray(matchedUser.fcm_tokens)) {
-      if (token) {
-        tokenSet.add(token);
+    if (matchedUser.push_notifications !== false) {
+      for (const token of toArray(matchedUser.fcm_tokens)) {
+        if (token) {
+          tokenSet.add(token);
+        }
       }
     }
   }

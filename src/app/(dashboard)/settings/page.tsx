@@ -120,6 +120,7 @@ export default function SettingsPage() {
   // Notifications State
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
+  const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
 
   // Security State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -176,6 +177,8 @@ export default function SettingsPage() {
                 setEditJobTitle(data.job_title || "");
                 setEditCompany(data.company || "");
                 setEditPhone(data.phone || "");
+                setEmailNotifications(data.email_notifications !== false);
+                setPushNotifications(data.push_notifications !== false);
                 
                 // Keep local storage in sync
                 const storedUser = localStorage.getItem("user");
@@ -423,6 +426,69 @@ export default function SettingsPage() {
     } catch (e: any) {
       console.error(e);
       setProfileError(e.message || "Failed to save profile");
+    }
+  };
+
+  const handleNotificationToggle = async (
+    setting: "email_notifications" | "push_notifications",
+    checked: boolean
+  ) => {
+    const previousEmail = emailNotifications;
+    const previousPush = pushNotifications;
+
+    if (setting === "email_notifications") {
+      setEmailNotifications(checked);
+    } else {
+      setPushNotifications(checked);
+    }
+
+    setSavingNotificationSettings(true);
+
+    try {
+      const nextEmail = setting === "email_notifications" ? checked : previousEmail;
+      const nextPush = setting === "push_notifications" ? checked : previousPush;
+
+      const res = await authenticatedFetch(getApiUrl("users/profile"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_notifications: nextEmail,
+          push_notifications: nextPush,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update notification settings");
+      }
+
+      const updatedUser = await res.json();
+      setUser((prev: any) => ({ ...(prev || {}), ...updatedUser }));
+      setEmailNotifications(updatedUser.email_notifications !== false);
+      setPushNotifications(updatedUser.push_notifications !== false);
+
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        localStorage.setItem("user", JSON.stringify({ ...parsed, ...updatedUser }));
+      } else {
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('profile-updated'));
+      }
+
+      showNotification(
+        `${setting === "email_notifications" ? "Email" : "Push"} notifications ${checked ? "enabled" : "disabled"}`,
+        "success"
+      );
+    } catch (e) {
+      console.error("Failed to update notification settings", e);
+      setEmailNotifications(previousEmail);
+      setPushNotifications(previousPush);
+      showNotification("Failed to update notification settings", "error");
+    } finally {
+      setSavingNotificationSettings(false);
     }
   };
 
@@ -736,6 +802,15 @@ export default function SettingsPage() {
                 Manage how you receive updates and alerts.
             </Typography>
             
+            {savingNotificationSettings && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" color="text.secondary">
+                  Saving notification settings...
+                </Typography>
+              </Box>
+            )}
+
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600 }}>
                 <Paper sx={{
                   p: 2.5, borderRadius: 3,
@@ -752,7 +827,13 @@ export default function SettingsPage() {
                             <Typography variant="body2" color="text.secondary">Receive updates via email</Typography>
                         </Box>
                     </Box>
-                    <Switch edge="end" onChange={(e) => setEmailNotifications(e.target.checked)} checked={emailNotifications} color="info" />
+                    <Switch
+                      edge="end"
+                      onChange={(e) => handleNotificationToggle("email_notifications", e.target.checked)}
+                      checked={emailNotifications}
+                      color="info"
+                      disabled={savingNotificationSettings}
+                    />
                 </Paper>
                 
                 <Paper sx={{
@@ -770,7 +851,13 @@ export default function SettingsPage() {
                             <Typography variant="body2" color="text.secondary">Receive push notifications on your device</Typography>
                         </Box>
                     </Box>
-                    <Switch edge="end" onChange={(e) => setPushNotifications(e.target.checked)} checked={pushNotifications} color="warning" />
+                    <Switch
+                      edge="end"
+                      onChange={(e) => handleNotificationToggle("push_notifications", e.target.checked)}
+                      checked={pushNotifications}
+                      color="warning"
+                      disabled={savingNotificationSettings}
+                    />
                 </Paper>
             </Box>
         </TabPanel>

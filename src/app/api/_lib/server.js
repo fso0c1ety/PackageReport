@@ -16,6 +16,25 @@ export const pool = new Pool({
   },
 });
 
+let userNotificationColumnsReadyPromise = null;
+
+export async function ensureUserNotificationColumns() {
+  if (!userNotificationColumnsReadyPromise) {
+    userNotificationColumnsReadyPromise = pool
+      .query(`
+        ALTER TABLE public.users
+        ADD COLUMN IF NOT EXISTS email_notifications BOOLEAN DEFAULT TRUE,
+        ADD COLUMN IF NOT EXISTS push_notifications BOOLEAN DEFAULT TRUE
+      `)
+      .catch((err) => {
+        userNotificationColumnsReadyPromise = null;
+        throw err;
+      });
+  }
+
+  await userNotificationColumnsReadyPromise;
+}
+
 export function getAuthenticatedUser(req) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.split(" ")[1];

@@ -64,7 +64,7 @@ const NotificationRequester = () => {
         if (!data) return "";
 
         if (data.type === 'incoming_call' && data.callerId) {
-            return `/chat?userId=${data.callerId}&autoAccept=true`;
+            return `/chat?userId=${data.callerId}`;
         }
 
         if (data.type === 'direct_message' && data.senderId) {
@@ -136,6 +136,37 @@ const NotificationRequester = () => {
         }
 
         return null;
+    };
+
+    const restoreDeliveredIncomingCall = async () => {
+        if (!Capacitor.isNativePlatform()) return;
+
+        try {
+            const pushDelivered = await PushNotifications.getDeliveredNotifications();
+            const pushIncomingCall = pushDelivered.notifications.find(
+                (notification: any) => notification?.data?.type === 'incoming_call'
+            );
+
+            if (pushIncomingCall?.data) {
+                showIncomingCall(pushIncomingCall.data);
+                return;
+            }
+        } catch (err) {
+            console.warn('[Push] Failed to restore delivered push notification state', err);
+        }
+
+        try {
+            const localDelivered = await LocalNotifications.getDeliveredNotifications();
+            const localIncomingCall = localDelivered.notifications.find(
+                (notification: any) => notification?.extra?.type === 'incoming_call'
+            );
+
+            if (localIncomingCall?.extra) {
+                showIncomingCall(localIncomingCall.extra);
+            }
+        } catch (err) {
+            console.warn('[Push] Failed to restore delivered local notification state', err);
+        }
     };
 
     const initWebPush = async () => {
@@ -345,6 +376,7 @@ const NotificationRequester = () => {
                         });
 
                         await PushNotifications.register();
+                        await restoreDeliveredIncomingCall();
 
                         if (nativePlatform === 'ios') {
                             await syncNativeFcmToken('ios-post-register');

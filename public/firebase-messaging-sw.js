@@ -79,7 +79,7 @@ self.addEventListener('notificationclick', function(event) {
   let urlToOpen = '/';
   if (data) {
       if (data.type === 'incoming_call') {
-          urlToOpen = `/chat?userId=${data.callerId}&autoAccept=true`;
+          urlToOpen = `/chat?userId=${data.callerId}`;
       } else if (data.type === 'direct_message' && data.senderId) {
           urlToOpen = `/chat?userId=${data.senderId}`;
       } else if (data.type === 'friend_request' || data.type === 'friend_accepted' || data.type === 'social_request') {

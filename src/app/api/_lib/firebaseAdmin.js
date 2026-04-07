@@ -48,7 +48,7 @@ function stringifyDataValue(value) {
 
 function buildNotificationLink(data = {}) {
   if (data.type === "incoming_call" && data.callerId) {
-    return `/chat?userId=${data.callerId}&autoAccept=true`;
+    return `/chat?userId=${data.callerId}`;
   }
 
   if (data.type === "direct_message" && data.senderId) {

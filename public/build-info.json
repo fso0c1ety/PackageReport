@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "buildCommit": "",
+  "buildDate": "2026-04-07T20:10:16.114Z",
+  "minimumVersion": "0.1.0",
+  "forceUpdate": false,
+  "message": "A new SMART MANAGE update is available. Tap update to install the latest build.",
+  "releaseNotesUrl": "https://package-report.vercel.app",
+  "downloads": {
+    "desktop": "https://package-report.vercel.app",
+    "android": "https://package-report.vercel.app",
+    "ios": "https://package-report.vercel.app",
+    "web": "https://package-report.vercel.app"
+  }
+}

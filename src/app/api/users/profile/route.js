@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getAuthenticatedUser, pool } from "../../_lib/server";
+import {
+  ensureUserNotificationColumns,
+  getAuthenticatedUser,
+  pool,
+} from "../../_lib/server";
 
 export const runtime = "nodejs";
 
@@ -10,8 +14,23 @@ export async function GET(req) {
   }
 
   try {
+    await ensureUserNotificationColumns();
+
     const result = await pool.query(
-      "SELECT id, name, email, avatar, phone, job_title, company FROM users WHERE id = $1",
+      `
+        SELECT
+          id,
+          name,
+          email,
+          avatar,
+          phone,
+          job_title,
+          company,
+          COALESCE(email_notifications, TRUE) AS email_notifications,
+          COALESCE(push_notifications, TRUE) AS push_notifications
+        FROM users
+        WHERE id = $1
+      `,
       [user.id]
     );
 
@@ -33,10 +52,51 @@ export async function PUT(req) {
   }
 
   try {
-    const { name, avatar, phone, job_title, company } = await req.json();
+    await ensureUserNotificationColumns();
+
+    const {
+      name = null,
+      avatar = null,
+      phone = null,
+      job_title = null,
+      company = null,
+      email_notifications = null,
+      push_notifications = null,
+    } = await req.json();
+
     const result = await pool.query(
-      "UPDATE users SET name = $1, avatar = $2, phone = $3, job_title = $4, company = $5 WHERE id = $6 RETURNING id, name, email, avatar, phone, job_title, company",
-      [name, avatar, phone, job_title, company, user.id]
+      `
+        UPDATE users
+        SET
+          name = COALESCE($1, name),
+          avatar = COALESCE($2, avatar),
+          phone = COALESCE($3, phone),
+          job_title = COALESCE($4, job_title),
+          company = COALESCE($5, company),
+          email_notifications = COALESCE($6, email_notifications, TRUE),
+          push_notifications = COALESCE($7, push_notifications, TRUE)
+        WHERE id = $8
+        RETURNING
+          id,
+          name,
+          email,
+          avatar,
+          phone,
+          job_title,
+          company,
+          COALESCE(email_notifications, TRUE) AS email_notifications,
+          COALESCE(push_notifications, TRUE) AS push_notifications
+      `,
+      [
+        name,
+        avatar,
+        phone,
+        job_title,
+        company,
+        email_notifications,
+        push_notifications,
+        user.id,
+      ]
     );
 
     if (!result.rows[0]) {

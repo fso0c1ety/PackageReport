@@ -26,6 +26,7 @@ import { styled } from "@mui/material/styles";
 import { useRouter } from 'next/navigation';
 import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
+import { useCallContext } from "./CallContext";
 import UserProfileDialog from "./UserProfileDialog";
 
 interface TopBarProps {
@@ -104,6 +105,7 @@ function areNotificationsEqual(prev: Notification[], next: Notification[]) {
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
   const theme = useTheme();
+  const { showIncomingCall } = useCallContext();
   const { toggleTheme, mode } = useThemeContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -356,7 +358,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       if (!data) return;
 
       if (type === 'incoming_call') {
-          navigateToAppRoute(`/chat?userId=${data.callerId || notif.sender_id}&autoAccept=true`, router);
+          showIncomingCall(data);
+          navigateToAppRoute(`/chat?userId=${data.callerId || notif.sender_id}`, router);
           return;
       }
 

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { getAuthenticatedUser, pool } from "../../_lib/server";
+import {
+  ensureUserNotificationColumns,
+  getAuthenticatedUser,
+  pool,
+} from "../../_lib/server";
 import { sendPushNotification } from "../../_lib/firebaseAdmin";
 
 export const runtime = "nodejs";
@@ -88,8 +92,17 @@ export async function POST(req, { params }) {
     );
 
     try {
+      await ensureUserNotificationColumns();
+
       const recipientRes = await pool.query(
-        "SELECT fcm_token, fcm_tokens FROM users WHERE id = $1",
+        `
+          SELECT
+            fcm_token,
+            fcm_tokens,
+            COALESCE(push_notifications, TRUE) AS push_notifications
+          FROM users
+          WHERE id = $1
+        `,
         [userId]
       );
       const senderRes = await pool.query("SELECT name FROM users WHERE id = $1", [user.id]);
@@ -98,8 +111,8 @@ export async function POST(req, { params }) {
       const tokenSet = new Set();
       const row = recipientRes.rows[0];
 
-      if (row?.fcm_token) tokenSet.add(row.fcm_token);
-      if (Array.isArray(row?.fcm_tokens)) {
+      if (row?.push_notifications !== false && row?.fcm_token) tokenSet.add(row.fcm_token);
+      if (row?.push_notifications !== false && Array.isArray(row?.fcm_tokens)) {
         row.fcm_tokens.forEach((t) => {
           if (t) tokenSet.add(t);
         });

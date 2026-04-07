@@ -75,7 +75,6 @@ public class MyFCMService extends FirebaseMessagingService {
         intent.putExtra("callerId", callerId);
         intent.putExtra("type", "incoming_call");
         intent.putExtra("isVideo", isVideo);
-        intent.putExtra("autoAccept", true);
 
         PendingIntent pendingIntent = PendingIntent.getActivity(
             this, 

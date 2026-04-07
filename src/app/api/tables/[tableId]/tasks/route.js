@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import {
+  ensureUserNotificationColumns,
+  getAuthenticatedUser,
+  pool,
+} from "../../../_lib/server";
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { sendEmail } from "../../../_lib/mailer";
@@ -240,8 +244,18 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
       try {
         console.log("[AUTOMATION][NEXT] Sending push automation...");
         const normalizedRecipients = recipients.map((email) => email.toLowerCase());
+        await ensureUserNotificationColumns();
         const userRes = await pool.query(
-          "SELECT id, email, fcm_token, fcm_tokens FROM users WHERE LOWER(email) = ANY($1)",
+          `
+            SELECT
+              id,
+              email,
+              fcm_token,
+              fcm_tokens,
+              COALESCE(push_notifications, TRUE) AS push_notifications
+            FROM users
+            WHERE LOWER(email) = ANY($1)
+          `,
           [normalizedRecipients]
         );
 
@@ -271,13 +285,15 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
             ]
           );
 
-          if (matchedUser.fcm_token) {
+          if (matchedUser.push_notifications !== false && matchedUser.fcm_token) {
             tokenSet.add(matchedUser.fcm_token);
           }
 
-          for (const token of toArray(matchedUser.fcm_tokens)) {
-            if (token) {
-              tokenSet.add(token);
+          if (matchedUser.push_notifications !== false) {
+            for (const token of toArray(matchedUser.fcm_tokens)) {
+              if (token) {
+                tokenSet.add(token);
+              }
             }
           }
         }
