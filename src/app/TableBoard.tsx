@@ -2457,6 +2457,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       const created = await res.json();
       if (atBottom) {
         setRows((prev) => [...prev, created]);
+        // Auto-scroll to bottom after the new row is rendered
+        setTimeout(() => {
+          if (tableContainerRef.current) {
+            tableContainerRef.current.scrollTo({
+              top: tableContainerRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 100);
       } else {
         setRows((prev) => [created, ...prev]);
       }
