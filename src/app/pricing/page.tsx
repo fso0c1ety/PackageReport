@@ -117,7 +117,7 @@ export default function PricingPage() {
         {/* Pricing Cards */}
         <Grid container spacing={4} alignItems="stretch">
           {tiers.map((tier) => (
-            <Grid item key={tier.title} xs={12} sm={6} md={4}>
+            <Grid key={tier.title} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card 
                 sx={{ 
                   height: '100%', 
