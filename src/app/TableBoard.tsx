@@ -6183,7 +6183,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={handleAddTask}
+            onClick={() => handleAddTask(false)}
             sx={{
               bgcolor: '#0073ea',
               color: theme.palette.text.primary,
