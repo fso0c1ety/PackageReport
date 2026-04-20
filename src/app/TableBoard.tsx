@@ -2418,8 +2418,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [docContent, tableId]); // Removed workspaceView dependency
 
   // --- Handlers and logic ---
-  // Add new task
-  const handleAddTask = async () => {
+
+  const handleAddTask = async (atBottom = false) => {
     if (userPermission === 'read') return;
     setLoading(true);
     try {
@@ -2455,7 +2455,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       }
 
       const created = await res.json();
-      setRows((prev) => [created, ...prev]);
+      if (atBottom) {
+        setRows((prev) => [...prev, created]);
+      } else {
+        setRows((prev) => [created, ...prev]);
+      }
     } catch (err) {
       console.error("Failed to add task", err);
     } finally {
@@ -7697,6 +7701,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 </Droppable>
               </Table >
             </TableContainer >
+            {userPermission !== 'read' && (
+              <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-start' }}>
+                <Button
+                  startIcon={<AddIcon />}
+                  onClick={() => handleAddTask(true)}
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: '6px',
+                    '&:hover': {
+                      color: theme.palette.primary.main,
+                      bgcolor: 'rgba(255, 255, 255, 0.03)'
+                    }
+                  }}
+                >
+                  Add Task
+                </Button>
+              </Box>
+            )}
           </DragDropContext >
         ) : workspaceView === 'kanban' ? (
           <DragDropContext onDragEnd={onDragEnd}>
