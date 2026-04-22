@@ -250,13 +250,16 @@ export default function SettingsPage() {
     if (selectedInviteTable) {
         const fetchInviteCode = async () => {
             try {
-                const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}`));
+                // Use POST to get OR generate the code
+                const res = await authenticatedFetch(getApiUrl(`tables/${selectedInviteTable}/invite-code`), {
+                    method: 'POST'
+                });
                 if (res.ok) {
                     const data = await res.json();
                     setCurrentTableInviteCode(data.invite_code || null);
                 }
             } catch (e) {
-                console.error("Failed to fetch invite code", e);
+                console.error("Failed to fetch/generate invite code", e);
             }
         };
         fetchInviteCode();

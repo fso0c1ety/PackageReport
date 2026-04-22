@@ -289,7 +289,7 @@ export default function HomeDashboard() {
         }))
       };
 
-      const res = await authenticatedFetch(getApiUrl("/tables"), {
+      const res = await authenticatedFetch(getApiUrl("tables"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newTablePayload),
@@ -297,7 +297,7 @@ export default function HomeDashboard() {
 
       if (res.ok) {
         const newTable = await res.json();
-        navigateToAppRoute(`/board/${newTable.id}`, router);
+        navigateToAppRoute(`/workspace?id=${templateTargetWorkspace}&tableId=${newTable.id}`, router);
       } else {
         console.error("Failed to create template table");
       }

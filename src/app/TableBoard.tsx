@@ -2425,6 +2425,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     try {
       // Initialize values for all columns
       const values: Record<string, any> = {};
+
+      // Calculate max order to ensure task stays at bottom after reload
+      const currentRows = rowsRef.current.length > 0 ? rowsRef.current : rows;
+      const maxOrder = currentRows.reduce((max, r) => {
+        const o = parseInt(r.values?.order);
+        return isNaN(o) ? max : Math.max(max, o);
+      }, -1);
+
+      if (atBottom) {
+        values.order = maxOrder + 1;
+      }
+
       columns.forEach((col, idx) => {
         if (col.type === "Status") {
           values[col.id] = filterStatus.length > 0 ? filterStatus[0] : "";

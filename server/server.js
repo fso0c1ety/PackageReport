@@ -323,6 +323,21 @@ io.on('connection', (socket) => {
     `);
 
     await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;`);
+    
+    // Fill missing invite codes for existing tables
+    try {
+      const missingCodes = await db.query('SELECT id FROM tables WHERE invite_code IS NULL');
+      if (missingCodes.rows.length > 0) {
+        console.log(`[DB] Backfilling invite codes for ${missingCodes.rows.length} tables...`);
+        for (const table of missingCodes.rows) {
+          const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+          await db.query('UPDATE tables SET invite_code = $1 WHERE id = $2', [code, table.id]);
+        }
+      }
+    } catch (err) {
+      console.error('[DB] Error backfilling invite codes:', err);
+    }
+
     console.log('[DB] Schema checked/updated.');
   } catch (err) {
     console.error('[DB] Schema migration error:', err);
@@ -632,9 +647,10 @@ app.post('/api/workspaces', authenticateToken, async (req, res) => {
       { id: uuidv4(), name: 'Date', type: 'Date', order: 2 }
     ];
 
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     await db.query(
-      'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [defaultTableId, `${newWorkspace.name} Table`, newWorkspace.id, JSON.stringify(columns), Date.now()]
+      'INSERT INTO tables (id, name, workspace_id, columns, created_at, invite_code) VALUES ($1, $2, $3, $4, $5, $6)',
+      [defaultTableId, `${newWorkspace.name} Table`, newWorkspace.id, JSON.stringify(columns), Date.now(), inviteCode]
     );
 
     res.json(newWorkspace);
@@ -809,9 +825,10 @@ app.post('/api/workspaces/:workspaceId/tables', authenticateToken, async (req, r
       created_at: Date.now()
     };
 
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     await db.query(
-      'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [newTable.id, newTable.name, newTable.workspace_id, JSON.stringify(newTable.columns), newTable.created_at]
+      'INSERT INTO tables (id, name, workspace_id, columns, created_at, invite_code) VALUES ($1, $2, $3, $4, $5, $6)',
+      [newTable.id, newTable.name, newTable.workspace_id, JSON.stringify(newTable.columns), newTable.created_at, inviteCode]
     );
 
     res.json(newTable);
@@ -1011,9 +1028,10 @@ app.post('/api/tables', authenticateToken, async (req, res) => {
       created_at: Date.now()
     };
 
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     await db.query(
-      'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [newTable.id, newTable.name, newTable.workspace_id, JSON.stringify(newTable.columns), newTable.created_at]
+      'INSERT INTO tables (id, name, workspace_id, columns, created_at, invite_code) VALUES ($1, $2, $3, $4, $5, $6)',
+      [newTable.id, newTable.name, newTable.workspace_id, JSON.stringify(newTable.columns), newTable.created_at, inviteCode]
     );
 
     res.json(newTable);
@@ -1226,10 +1244,11 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
 
       // Create Table
       const tableId = uuidv4();
+      const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const dbColumns = columns.map(({ _excelColIdx, ...rest }) => rest);
       await db.query(
-        'INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)',
-        [tableId, tableName || worksheet.name, workspaceId, JSON.stringify(dbColumns), Date.now()]
+        'INSERT INTO tables (id, name, workspace_id, columns, created_at, invite_code) VALUES ($1, $2, $3, $4, $5, $6)',
+        [tableId, tableName || worksheet.name, workspaceId, JSON.stringify(dbColumns), Date.now(), inviteCode]
       );
 
       // Insert Row Data

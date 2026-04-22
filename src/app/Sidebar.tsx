@@ -28,6 +28,7 @@ import HomeIcon from "@mui/icons-material/Home";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import GroupIcon from "@mui/icons-material/Group";
+import AddIcon from "@mui/icons-material/Add";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
@@ -438,6 +439,28 @@ export default function Sidebar({
             }}
           >
             <WorkspaceDropdown currentId={currentWorkspaceId || undefined} />
+          </Box>
+
+          <Box sx={{ mt: 1.15 }}>
+            <Button
+              fullWidth
+              variant="text"
+              startIcon={<AddIcon />}
+              onClick={() => setDialogOpen(true)}
+              sx={{
+                justifyContent: "flex-start",
+                color: theme.palette.text.primary,
+                borderRadius: 3.5,
+                fontWeight: 800,
+                py: 1.1,
+                px: 1.2,
+                bgcolor: theme.palette.mode === "dark" ? "#0f131d" : "#f8fafc",
+                border: `1px solid ${theme.palette.divider}`,
+                "&:hover": { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+              }}
+            >
+              New Workspace
+            </Button>
           </Box>
 
           <Box sx={{ mt: 1.15 }}>
