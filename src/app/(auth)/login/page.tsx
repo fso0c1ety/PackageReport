@@ -1,0 +1,74 @@
+'use client';
+
+import dynamic from 'next/dynamic';
+import { Box, Container } from '@mui/material';
+
+const LoginForm = dynamic(
+  () => import('../LoginForm').then((mod) => mod.LoginForm),
+  {
+    ssr: false,
+    loading: () => <Box sx={{ p: 3 }}>Loading...</Box>,
+  }
+);
+
+
+export default function LoginPage() {
+  // Always light mode — never affected by dark/light theme setting.
+  return (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        px: { xs: 2, md: 3 },
+        py: { xs: 3, md: 4 },
+      }}
+    >
+      <Container maxWidth="lg">
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(380px, 460px) 1fr' },
+            gap: { xs: 3, md: 4 },
+            alignItems: 'stretch',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ width: '100%', maxWidth: 460 }}>
+              <LoginForm />
+            </Box>
+          </Box>
+
+          <Box
+            sx={{
+              display: { xs: 'none', md: 'flex' },
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 620,
+              overflow: 'hidden',
+              borderRadius: 4,
+              background: '#ffffff',
+            }}
+          >
+            <Box
+              component="video"
+              src="/login-side-video.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              sx={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+            />
+          </Box>
+        </Box>
+      </Container>
+    </Box>
+  );
+}

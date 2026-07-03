@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --board-cell-transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s, filter 0.2s;
+  --app-paper-divider: rgba(0, 0, 0, 0.06);
+  --app-paper-shadow: 0 40px 100px rgba(0, 0, 0, 0.1);
+}
+
+html[data-theme="dark"] {
+  --app-paper-divider: rgba(255, 255, 255, 0.05);
+  --app-paper-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Keep essential loading indicators visibly active in the packaged app. */
+  .MuiCircularProgress-root,
+  .MuiCircularProgress-root .MuiCircularProgress-circle {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+    animation-play-state: running !important;
+  }
+}
+
+/* Custom Scrollbar - Modern Solid */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5); /* gray-400 with opacity */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.8); /* gray-500 with opacity */
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+/* Remove default blue focus outline / borders from buttons */
+*:focus-visible {
+  outline: none !important;
+}
+
+button:focus, 
+.MuiButtonBase-root:focus {
+  outline: none !important;
+}
+
+@keyframes typing {
+  0% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-4px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.4; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0.8); opacity: 1; border-width: 2px; }
+  100% { transform: scale(2.4); opacity: 0; border-width: 1px; }
+}
+
+.animate-pulse-custom {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.ring-ripple {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: ripple 2s infinite ease-out;
+}
+
+.ring-ripple:nth-of-type(2) {
+  animation-delay: 0.5s;
+}
+
+.ring-ripple:nth-of-type(3) {
+  animation-delay: 1s;
+}

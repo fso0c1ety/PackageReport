@@ -1,0 +1,113 @@
+{
+  "name": "client",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack && node scripts/prepare-capacitor-webdir.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "db:migrate": "node server/db/runMigrations.js",
+    "start": "set NODE_ENV=production&& node server/index.js",
+    "start-server": "set SKIP_NEXT_APP=true&& set NODE_ENV=development&& nodemon server/index.js",
+    "lint": "eslint",
+    "desktop:build": "npm run build && npx electron-builder --win nsis --publish never",
+    "desktop:pack": "npm run build && npx electron-builder --win --dir --publish never"
+  },
+  "dependencies": {
+    "@capacitor-community/fcm": "^8.1.0",
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/ios": "^8.1.0",
+    "@capacitor/local-notifications": "^8.0.1",
+    "@capacitor/push-notifications": "^8.0.1",
+    "@date-io/dayjs": "^3.2.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@hello-pangea/dnd": "^18.0.1",
+    "@mui/icons-material": "^7.3.8",
+    "@mui/material": "^7.3.7",
+    "@mui/x-date-pickers": "^8.26.0",
+    "@supabase/supabase-js": "^2.99.3",
+    "@tanstack/react-virtual": "^3.14.4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dayjs": "^1.11.19",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "firebase": "^12.10.0",
+    "firebase-admin": "^13.7.0",
+    "framer-motion": "^12.34.3",
+    "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.1",
+    "lightningcss": "^1.32.0",
+    "multer": "^2.1.0",
+    "next": "16.1.5",
+    "node-fetch": "^2.7.0",
+    "openai": "^6.33.0",
+    "pg": "^8.19.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-flagkit": "^2.0.4",
+    "recharts": "^3.7.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "typescript": "^5",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@tailwindcss/postcss": "^4",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^25.5.2",
+    "babel-plugin-react-compiler": "1.0.0",
+    "electron": "^37.7.1",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.5",
+    "nodemon": "^3.1.14",
+    "tailwindcss": "^4"
+  },
+  "build": {
+    "appId": "com.packagereport.desktop",
+    "productName": "Smart Manage",
+    "icon": "src/app/icon.png",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "Smart Manage.mp4",
+        "to": "assets/Smart Manage.mp4"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "icon": "src/app/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

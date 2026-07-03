@@ -1,0 +1,11 @@
+
+> client@0.1.0 build
+> next build --webpack && node scripts/prepare-capacitor-webdir.js
+
+▲ Next.js 16.1.5 (webpack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 7.4s
+  Running TypeScript ...
+^C^C

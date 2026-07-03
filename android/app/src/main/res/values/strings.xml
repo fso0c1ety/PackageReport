@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Smart Manage</string>
+    <string name="title_activity_main">Smart Manage</string>
+    <string name="package_name">com.smartmanage.app</string>
+    <string name="custom_url_scheme">com.smartmanage.app</string>
+    <string name="default_notification_channel_id">chat_messages</string>
+</resources>

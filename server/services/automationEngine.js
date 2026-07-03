@@ -1,0 +1,105 @@
+const { v4: uuidv4 } = require("uuid");
+const db = require("../db");
+const logger = require("../utils/logger");
+const { deliverAutomation } = require("./automationDelivery");
+
+function changed(oldValues, newValues, columnId) {
+  return JSON.stringify(oldValues?.[columnId]) !== JSON.stringify(newValues?.[columnId]);
+}
+
+async function createRun({ automationId, tableId, rowId, idempotencyKey }) {
+  const result = await db.query(
+    `
+      INSERT INTO automation_runs (id, automation_id, table_id, row_id, idempotency_key, status, started_at)
+      VALUES ($1, $2, $3, $4, $5, 'running', NOW())
+      ON CONFLICT (idempotency_key) DO UPDATE
+      SET idempotency_key = automation_runs.idempotency_key
+      RETURNING *
+    `,
+    [uuidv4(), automationId, tableId, rowId, idempotencyKey]
+  );
+  return result.rows[0];
+}
+
+async function finishRun(runId, status, errorMessage = null) {
+  await db.query(
+    "UPDATE automation_runs SET status = $1, error_message = $2, finished_at = NOW() WHERE id = $3",
+    [status, errorMessage, runId]
+  );
+}
+
+async function runForRowChange({ table, rowId, oldValues, newValues, eventId }) {
+  const result = await db.query(
+    `
+      SELECT *
+      FROM automations
+      WHERE table_id = $1
+        AND enabled = true
+        AND (
+          task_ids IS NULL
+          OR jsonb_array_length(task_ids) = 0
+          OR task_ids @> jsonb_build_array($2::text)
+        )
+      ORDER BY id ASC
+    `,
+    [table.id, rowId]
+  );
+
+  for (const automation of result.rows) {
+    const triggerCol = automation.trigger_col;
+    if (!triggerCol || !changed(oldValues, newValues, triggerCol)) continue;
+    const rules = Array.isArray(automation.conditions) ? automation.conditions : [];
+    const matchingRule = rules.find((rule) => String(rule?.value) === String(newValues?.[triggerCol]));
+    if (rules.length > 0 && !matchingRule) continue;
+    const effectiveAutomation = matchingRule
+      ? { ...automation, action_type: matchingRule.actionType || matchingRule.type || automation.action_type }
+      : automation;
+
+    const idempotencyKey = eventId
+      ? `${automation.id}:${eventId}`
+      : `${automation.id}:${rowId}:${triggerCol}:${JSON.stringify(newValues?.[triggerCol])}`;
+    const run = await createRun({
+      automationId: automation.id,
+      tableId: table.id,
+      rowId,
+      idempotencyKey,
+    });
+
+    if (run.status !== "running") continue;
+
+    try {
+      const delivery = await deliverAutomation({
+        automation: effectiveAutomation,
+        table,
+        rowId,
+        values: newValues,
+      });
+
+      if (delivery.skipped) {
+        await finishRun(run.id, "skipped", delivery.reason || "skipped");
+        logger.warn("automation_run_skipped", {
+          automationId: automation.id,
+          tableId: table.id,
+          rowId,
+          reason: delivery.reason,
+        });
+        continue;
+      }
+
+      await finishRun(run.id, "success");
+      logger.info("automation_run_success", { automationId: automation.id, tableId: table.id, rowId });
+    } catch (err) {
+      await finishRun(run.id, "failed", err.message);
+      logger.error("automation_run_failed", {
+        automationId: automation.id,
+        tableId: table.id,
+        rowId,
+        error: err.message,
+      });
+    }
+  }
+}
+
+module.exports = {
+  runForRowChange,
+};

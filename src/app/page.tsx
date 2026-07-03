@@ -1,0 +1,560 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
+import {
+  AppBar,
+  Box,
+  Button,
+  Chip,
+  Container,
+  Stack,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import DownloadIcon from "@mui/icons-material/Download";
+import { motion } from "framer-motion";
+import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
+
+export default function LandingPage() {
+  const router = useRouter();
+  const [showWebLanding, setShowWebLanding] = useState(false);
+  // Landing page is always light — never affected by dark/light mode setting.
+  const LIGHT = {
+    bg: '#ffffff',
+    text: '#0f172a',
+    textSecondary: '#64748b',
+    textMuted: '#475569',
+    primary: '#6366f1',
+    primaryDark: '#4f46e5',
+    border: 'rgba(15, 23, 42, 0.08)',
+    chip: 'rgba(99, 102, 241, 0.35)',
+  };
+
+  const serviceItems = [
+    {
+      title: "Workflow setup",
+      description: "Build structured package pipelines, task stages, and clear team ownership in one place.",
+    },
+    {
+      title: "Automation help",
+      description: "Reduce manual follow-ups with reminders, status rules, and repeatable automations.",
+    },
+    {
+      title: "Reporting & visibility",
+      description: "Track progress, bottlenecks, and delivery health with simple dashboards and live updates.",
+    },
+  ];
+
+  const aboutValues = ["Clear visibility", "Fast collaboration", "Reliable workflow tracking"];
+  const desktopDownloadUrl = "https://github.com/fso0c1ety/PackageReport/actions/runs/24024598350/artifacts/6284359718";
+
+  const contactOptions = [
+    {
+      title: "Sales questions",
+      text: "Learn how PackageReport can fit your workflow and reporting needs.",
+    },
+    {
+      title: "Product support",
+      text: "Get help with setup, onboarding, or daily workspace usage.",
+    },
+    {
+      title: "Partnerships",
+      text: "Reach out if you want to collaborate or integrate with our platform.",
+    },
+  ];
+
+  const navButtonSx = {
+    color: LIGHT.textSecondary,
+    textTransform: "none",
+    fontSize: "0.96rem",
+    fontWeight: 600,
+    px: 1,
+    minWidth: "auto",
+    "&:hover": {
+      backgroundColor: "transparent",
+      color: LIGHT.text,
+    },
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const hasToken = !!localStorage.getItem("token");
+
+    if (Capacitor.isNativePlatform() || isElectronRuntime()) {
+      const target = hasToken ? "/home" : "/login";
+      redirectToAppRoute(target);
+      return;
+    }
+
+    if (hasToken) {
+      // Use a hard navigation on initial web startup to avoid occasional client-router stalls
+      // when a stale tab/session is resumed after deploys or expired auth state.
+      redirectToAppRoute("/home", true);
+      return;
+    }
+
+    setShowWebLanding(true);
+  }, [router]);
+
+  const handleGetStarted = () => {
+    navigateToAppRoute("/login?mode=signup", router);
+  };
+
+  const scrollToSection = (sectionId: string) => {
+    const section = document.getElementById(sectionId);
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (!showWebLanding) {
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: LIGHT.bg, display: "flex", alignItems: "center", justifyContent: "center", px: 3 }}>
+        <Stack spacing={1.25} sx={{ alignItems: "center", textAlign: "center" }}>
+          <Typography sx={{ fontSize: "1.15rem", fontWeight: 800, color: LIGHT.text }}>Opening Smart Manage...</Typography>
+          <Typography sx={{ color: LIGHT.textSecondary, maxWidth: 320 }}>Preparing your workspace for mobile.</Typography>
+        </Stack>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      id="top"
+      sx={{
+        minHeight: "100vh",
+        color: LIGHT.text,
+        background: LIGHT.bg,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Navigation Bar */}
+      <AppBar
+        position="static"
+        color="transparent"
+        elevation={0}
+        sx={{
+          background: "transparent",
+          boxShadow: "none",
+        }}
+      >
+        <Container maxWidth="lg">
+          <Toolbar
+            disableGutters
+            sx={{
+              minHeight: 72,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "center", cursor: "pointer", minWidth: 0 }}
+              onClick={() => navigateToAppRoute("/", router)}
+            >
+              <Box
+                component="img"
+                src="/icon.png"
+                alt="PackageReport logo"
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "10px",
+                  objectFit: "cover",
+                }}
+              />
+              <Typography
+                sx={{
+                  fontSize: "1.15rem",
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                  color: LIGHT.text,
+                }}
+              >
+                Smart Manage
+              </Typography>
+            </Stack>
+
+            <Stack
+              direction="row"
+              spacing={3}
+              sx={{
+                display: { xs: "none", md: "flex" },
+                alignItems: "center",
+              }}
+            >
+              <Button onClick={() => scrollToSection("top")} sx={navButtonSx}>Home</Button>
+              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Services</Button>
+              <Button onClick={() => scrollToSection("about")} sx={navButtonSx}>About Us</Button>
+              <Button onClick={() => navigateToAppRoute("/pricing", router)} sx={navButtonSx}>Pricing</Button>
+              <Button onClick={() => scrollToSection("contact")} sx={navButtonSx}>Contact</Button>
+            </Stack>
+
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <Button
+                component="a"
+                href={desktopDownloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                startIcon={<DownloadIcon />}
+                sx={{
+                  display: { xs: "none", md: "inline-flex" },
+                  color: LIGHT.text,
+                  borderRadius: 999,
+                  px: 2,
+                  py: 0.8,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  border: `1px solid ${LIGHT.border}`,
+                  backgroundColor: "#fff",
+                  "&:hover": { backgroundColor: "#f8fafc", borderColor: LIGHT.primary },
+                }}
+              >
+                Download
+              </Button>
+              <Button
+                onClick={() => navigateToAppRoute("/login", router)}
+                sx={{
+                  display: { xs: "none", sm: "inline-flex" },
+                  color: "#fff",
+                  borderRadius: 999,
+                  px: 2,
+                  py: 0.8,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  backgroundColor: LIGHT.primary,
+                  "&:hover": { backgroundColor: LIGHT.primaryDark },
+                }}
+              >
+                Login
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => navigateToAppRoute("/login?mode=signup", router)}
+                sx={{
+                  borderRadius: 999,
+                  px: 2.2,
+                  py: 0.9,
+                  fontWeight: 700,
+                  textTransform: "none",
+                  background: LIGHT.primary,
+                  boxShadow: "none",
+                  "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
+                }}
+              >
+                Sign Up
+              </Button>
+            </Stack>
+          </Toolbar>
+        </Container>
+      </AppBar>
+
+      {/* Main Content */}
+      <Box sx={{ flex: 1, py: { xs: 6, md: 8 } }}>
+        <Container maxWidth="lg">
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: { xs: 4, md: 6 },
+              alignItems: "center",
+              minHeight: { md: "70vh" },
+            }}
+          >
+            {/* Left Content */}
+            <motion.div
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              <Stack spacing={4}>
+                <Typography
+                  sx={{
+                    fontSize: { xs: "0.9rem", md: "1rem" },
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    color: LIGHT.textSecondary,
+                    fontWeight: 700,
+                  }}
+                >
+                  PackageReport Platform
+                </Typography>
+
+                <Typography
+                  component="h1"
+                  sx={{
+                    fontSize: { xs: "2.2rem", md: "4rem" },
+                    lineHeight: 1.1,
+                    fontWeight: 900,
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  Run workspaces that move fast and stay crystal clear.
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: { xs: "1rem", md: "1.2rem" },
+                    color: 'rgba(15,23,42,0.82)',
+                    lineHeight: 1.7,
+                  }}
+                >
+                  Plan tasks, collaborate with teammates, track updates, and keep every package flow visible
+                  in one place. Built for teams that need speed without losing control.
+                </Typography>
+
+                <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
+                  <Chip label="Task Boards" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Live Collaboration" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Automations" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                </Stack>
+
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  sx={{ width: { xs: "100%", sm: "auto" } }}
+                >
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => navigateToAppRoute("/login", router)}
+                    sx={{
+                      borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
+                      textTransform: "none", background: LIGHT.primary, boxShadow: "none",
+                      "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
+                    }}
+                  >
+                    Login
+                  </Button>
+
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => navigateToAppRoute("/login?mode=signup", router)}
+                    sx={{
+                      borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
+                      textTransform: "none", background: LIGHT.primary, boxShadow: "none",
+                      "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
+                    }}
+                  >
+                    Sign Up
+                  </Button>
+
+                  <Button
+                    variant="text"
+                    size="large"
+                    onClick={handleGetStarted}
+                    sx={{
+                      borderRadius: 999, px: 3, py: 1.4, fontWeight: 900,
+                      textTransform: "none", color: "#9a6d00",
+                    }}
+                  >
+                    Get Started
+                  </Button>
+                </Stack>
+              </Stack>
+            </motion.div>
+
+            {/* Right Content - App Visual */}
+            <motion.div
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  height: "auto",
+                  background: "transparent",
+                  overflow: "hidden",
+                }}
+              >
+                <Box
+                  component="video"
+                  src="/Bost1.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  sx={{
+                    position: "relative",
+                    zIndex: 1,
+                    width: "100%",
+                    maxWidth: 520,
+                    height: "auto",
+                    display: "block",
+                    objectFit: "contain",
+                    borderRadius: 0,
+                    boxShadow: "none",
+                    outline: "none",
+                    background: "transparent",
+                  }}
+                />
+              </Box>
+            </motion.div>
+          </Box>
+          <Stack spacing={{ xs: 6, md: 8 }} sx={{ mt: { xs: 7, md: 10 } }}>
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <Box id="services" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Stack spacing={2.5} sx={{ mb: 3 }}>
+                  <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
+                    Services
+                  </Typography>
+                  <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Tools and support to keep package operations moving.
+                  </Typography>
+                  <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 760 }}>
+                    PackageReport helps teams organize workspaces, automate routine updates, and stay aligned from intake to delivery.
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    gap: 2,
+                  }}
+                >
+                  {serviceItems.map((item, idx) => (
+                    <motion.div
+                      key={item.title}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ duration: 0.45, delay: idx * 0.08 }}
+                    >
+                      <Box
+                        sx={{
+                          border: "1px solid rgba(15, 23, 42, 0.08)",
+                          borderRadius: 3,
+                          p: 3,
+                          bgcolor: "#ffffff",
+                        }}
+                      >
+                        <Typography fontWeight={800} fontSize="1.05rem" sx={{ mb: 1 }}>
+                          {item.title}
+                        </Typography>
+                        <Typography sx={{ color: "#475569", lineHeight: 1.7 }}>
+                          {item.description}
+                        </Typography>
+                      </Box>
+                    </motion.div>
+                  ))}
+                </Box>
+              </Box>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <Box id="about" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Stack spacing={2.5} sx={{ mb: 3 }}>
+                  <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
+                    About Us
+                  </Typography>
+                  <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Built for teams that need clarity without slowing down.
+                  </Typography>
+                  <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 780 }}>
+                    PackageReport brings tasks, communication, and progress tracking into one clean workspace so teams can move quickly and stay aligned.
+                  </Typography>
+                </Stack>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 22 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.45, delay: 0.08 }}
+                >
+                  <Box sx={{ border: "1px solid rgba(15, 23, 42, 0.08)", borderRadius: 3, p: { xs: 3, md: 4 }, bgcolor: "#fff" }}>
+                    <Typography fontWeight={800} fontSize="1.1rem" sx={{ mb: 1.5 }}>
+                      What matters to us
+                    </Typography>
+                    <Stack spacing={1.2}>
+                      {aboutValues.map((value) => (
+                        <Typography key={value} sx={{ color: "#334155" }}>• {value}</Typography>
+                      ))}
+                    </Stack>
+                  </Box>
+                </motion.div>
+              </Box>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <Box id="contact" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Stack spacing={2.5} sx={{ mb: 3 }}>
+                  <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
+                    Contact
+                  </Typography>
+                  <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
+                    Let’s talk about your workspace.
+                  </Typography>
+                  <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 760 }}>
+                    Whether you need onboarding help, product guidance, or a better workflow setup, this is the right place to start.
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    gap: 2,
+                  }}
+                >
+                  {contactOptions.map((item, idx) => (
+                    <motion.div
+                      key={item.title}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ duration: 0.45, delay: idx * 0.08 }}
+                    >
+                      <Box
+                        sx={{
+                          border: "1px solid rgba(15, 23, 42, 0.08)",
+                          borderRadius: 3,
+                          p: 3,
+                          bgcolor: "#ffffff",
+                        }}
+                      >
+                        <Typography fontWeight={800} fontSize="1.05rem" sx={{ mb: 1 }}>
+                          {item.title}
+                        </Typography>
+                        <Typography sx={{ color: "#475569", lineHeight: 1.7 }}>
+                          {item.text}
+                        </Typography>
+                      </Box>
+                    </motion.div>
+                  ))}
+                </Box>
+              </Box>
+            </motion.div>
+          </Stack>
+        </Container>
+      </Box>
+    </Box>
+  );
+}

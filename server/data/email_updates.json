@@ -1,0 +1,282 @@
+[
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2022-03-02\"</li></ul>",
+    "timestamp": 1771715028322,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2022-03-02\"</li></ul>",
+    "timestamp": 1771796384932,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2022-03-02\"</li></ul>",
+    "timestamp": 1771796555992,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": ""
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2022-03-02\"</li></ul>",
+    "timestamp": 1771796558261,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Working on it\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2022-03-02\"</li></ul>",
+    "timestamp": 1771797873756,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Working on it"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2022-03-02\"</li></ul>",
+    "timestamp": 1771798947047,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Stuck\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799516547,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Stuck"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799526237,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Working on it\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799541702,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Working on it"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799574689,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Working on it\"</li><li><b>Country:</b> \"Australia\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799651501,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Working on it"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799704066,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Working on it\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799789782,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Working on it"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799803916,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transportii\"</li><li><b>Status:</b> \"Stuck\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771799874519,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Stuck"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transportii\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771800108108,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transportii\"</li><li><b>Status:</b> \"Working on it\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771800120047,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Working on it"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transportii\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Albania\"</li><li><b>Date:</b> \"2026-02-03\"</li></ul>",
+    "timestamp": 1771800266464,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Working on it\"</li><li><b>Country:</b> \"Armenia\"</li><li><b>Date:</b> \"2026-02-11\"</li></ul>",
+    "timestamp": 1772061116069,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Working on it"
+  },
+  {
+    "recipients": [
+      "valonhalili74@gmail.com",
+      "valitv7@gmail.com",
+      "valitv73@gmail.com"
+    ],
+    "subject": "Task updated: Main Workspace Table",
+    "html": "<h2>Task Update</h2><ul><li><b>Task:</b> \"Transporti\"</li><li><b>Status:</b> \"Done\"</li><li><b>Country:</b> \"Armenia\"</li><li><b>Date:</b> \"2026-02-11\"</li></ul>",
+    "timestamp": 1772061161523,
+    "tableId": "43270b9c-3951-4a16-b917-d0f9bc73ee1a",
+    "taskId": "e1541cc8-771a-49c8-addb-8e56872935fe",
+    "triggerCol": "ca2ce101-80c4-4436-aa9d-84a5b7ef1426",
+    "changedValue": "Done"
+  }
+]

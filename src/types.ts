@@ -1,0 +1,54 @@
+// Premium types for modern, table-based to-do app
+export type ColumnType =
+  | 'Status'
+  | 'Dropdown'
+  | 'Text'
+  | 'Date'
+  | 'People'
+  | 'Numbers'
+  | 'Files'
+  | 'Doc'
+  | 'Connect'
+  | 'Timeline'
+  | 'Checkbox'
+  | 'Formula'
+  | 'Extract'
+  | 'Priority'
+  | 'Country'
+  | 'Message'
+  | 'Link'
+  | 'Number';
+
+export interface ColumnOption {
+  value: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface Column {
+  id: string;
+  name: string;
+  type: ColumnType;
+  order: number;
+  fixed?: boolean;
+  width?: number;
+  hidden?: boolean;
+  icon?: string;
+  color?: string;
+  options?: ColumnOption[]; // For Dropdown/Status/People
+}
+
+export interface Row {
+  id: string;
+  values: Record<string, any>; // key: columnId, value: cell value
+  archived?: boolean;
+  activity?: { text: string; time: string; user: string; userAvatar?: string; userId?: string }[];
+  created_by?: string;
+}
+
+export interface Table {
+  id: string;
+  name: string;
+  columns: Column[];
+  rows: Row[];
+}

@@ -1,0 +1,76 @@
+name: Build Unsigned iOS IPA
+
+on:
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Prepare Capacitor iOS
+        run: |
+          if [ ! -d ios/App ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+
+      - name: Generate iOS app icon from logo
+        run: |
+          cp public/logo.png assets/icon.png
+          npx @capacitor/assets generate --ios
+
+      - name: Build Unsigned iOS App
+        working-directory: ios/App
+        run: |
+          if [ -f App.xcworkspace ]; then
+            xcodebuild -workspace App.xcworkspace \
+              -scheme App \
+              -configuration Release \
+              -sdk iphoneos \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build CONFIGURATION_BUILD_DIR=$PWD/build
+          else
+            xcodebuild -project App.xcodeproj \
+              -scheme App \
+              -configuration Release \
+              -sdk iphoneos \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build CONFIGURATION_BUILD_DIR=$PWD/build
+          fi
+
+      - name: Package into unsigned .ipa
+        working-directory: ios/App
+        run: |
+          mkdir -p Payload
+          # Move the compiled .app into the Payload folder
+          mv build/App.app Payload/
+          # Zip it up and rename the extension to .ipa
+          zip -qr App-Unsigned.ipa Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: ios/App/App-Unsigned.ipa
