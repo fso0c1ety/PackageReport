@@ -3,9 +3,9 @@ import { Pool } from "pg";
 
 export const runtime = "nodejs";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres";
 
-export const SECRET_KEY = process.env.JWT_SECRET || process.env.SECRET_KEY;
+export const SECRET_KEY = process.env.JWT_SECRET || process.env.SECRET_KEY || "your_secret_key_here";
 
 export const pool = connectionString
   ? new Pool({
