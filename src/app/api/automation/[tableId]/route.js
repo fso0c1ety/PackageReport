@@ -31,6 +31,8 @@ function validateAutomationPayload({ triggerCol, recipients, cols }) {
   return null;
 }
 
+const toJsonArray = (value) => JSON.stringify(Array.isArray(value) ? value : []);
+
 async function ensureAutomationSchema() {
   // Production has had both the original SERIAL schema and the newer TEXT/UUID
   // schema. Keep the API compatible with either and repair missing columns
@@ -131,10 +133,10 @@ export async function POST(req, { params }) {
         [
           triggerCol,
           enabled,
-          recipients || [],
-          cols || [],
+          toJsonArray(recipients),
+          toJsonArray(cols),
           actionType || "email",
-          taskIds || [],
+          toJsonArray(taskIds),
           JSON.stringify(normalizedRules),
           JSON.stringify(normalizedRules.map(({ value, actionType: type }) => ({ value, type }))),
           id,
@@ -144,11 +146,11 @@ export async function POST(req, { params }) {
     } else {
       const values = [
         tableId,
-        taskIds || [],
+        toJsonArray(taskIds),
         triggerCol,
         enabled,
-        recipients || [],
-        cols || [],
+        toJsonArray(recipients),
+        toJsonArray(cols),
         actionType || "email",
         JSON.stringify(normalizedRules),
         JSON.stringify(normalizedRules.map(({ value, actionType: type }) => ({ value, type }))),
