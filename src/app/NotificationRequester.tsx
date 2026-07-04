@@ -203,7 +203,6 @@ const NotificationRequester = () => {
                     
                     const { onMessage } = await import("firebase/messaging"); 
                     onMessage(messaging, (payload) => {
-                        console.log('Foreground message received: ', payload);
                         const data = payload.data || {};
                         const type = getNotificationType(payload);
 

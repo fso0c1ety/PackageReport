@@ -509,6 +509,19 @@ function isKnownSocketlessHostedOrigin(url: string) {
 export function getSocketUrl() {
   const configuredSocket = normalizeBaseUrl(DEFAULT_SOCKET_URL);
   if (configuredSocket) {
+    // Never let a production website try to reach localhost/private LAN values
+    // accidentally baked into NEXT_PUBLIC_SOCKET_URL at build time.
+    if (typeof window !== 'undefined' && !isNativeStaticRuntime()) {
+      try {
+        const pageIsPublic = !isPrivateDevHost(window.location.hostname);
+        const configuredHostIsPrivate = isPrivateDevHost(new URL(configuredSocket).hostname);
+        if (pageIsPublic && configuredHostIsPrivate) {
+          return '';
+        }
+      } catch {
+        return '';
+      }
+    }
     return configuredSocket;
   }
 
