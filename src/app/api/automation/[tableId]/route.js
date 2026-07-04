@@ -31,6 +31,35 @@ function validateAutomationPayload({ triggerCol, recipients, cols }) {
   return null;
 }
 
+async function ensureAutomationSchema() {
+  // Production has had both the original SERIAL schema and the newer TEXT/UUID
+  // schema. Keep the API compatible with either and repair missing columns
+  // before querying them.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS automations (
+      id TEXT PRIMARY KEY,
+      table_id TEXT NOT NULL,
+      enabled BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    ALTER TABLE automations
+      ADD COLUMN IF NOT EXISTS task_id TEXT,
+      ADD COLUMN IF NOT EXISTS task_ids JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS trigger_col TEXT,
+      ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS recipients JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS cols JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS action_type TEXT DEFAULT 'email',
+      ADD COLUMN IF NOT EXISTS conditions JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS actions JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_by TEXT,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
+  `);
+}
+
 async function getAutomationIdType() {
   const schema = await pool.query(`
     SELECT data_type
@@ -51,6 +80,7 @@ export async function GET(req, { params }) {
 
   try {
     const { tableId } = await params;
+    await ensureAutomationSchema();
 
     const result = await pool.query(
       "SELECT * FROM automations WHERE table_id = $1 ORDER BY id DESC",
@@ -72,6 +102,7 @@ export async function POST(req, { params }) {
 
   try {
     const { tableId } = await params;
+    await ensureAutomationSchema();
     const body = await req.json();
     const { id, triggerCol, cols, recipients, enabled, taskIds, actionType, rules } = body || {};
     const normalizedRules = Array.isArray(rules)
