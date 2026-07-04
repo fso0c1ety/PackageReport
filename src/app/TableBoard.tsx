@@ -629,7 +629,9 @@ const LocalDropdownSearch = React.memo(function LocalDropdownSearch({
 });
 
 const EMPTY_COLUMN_OPTIONS: readonly ColumnOption[] = Object.freeze([]);
-const LARGE_OPTION_LIST_THRESHOLD = 200;
+// Virtualize medium and large menus before their option components become
+// expensive to mount. The rendered menu remains visually identical.
+const LARGE_OPTION_LIST_THRESHOLD = 40;
 
 const ActiveDropdownOptionList = React.memo(function ActiveDropdownOptionList({
   options,
@@ -3041,11 +3043,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const handleBeforeDragStart = (start: any) => {
   const dragType = start?.type;
   const draggableId = String(start?.draggableId || '');
-  const dragElement = Array.from(document.querySelectorAll<HTMLElement>('[data-rfd-draggable-id]'))
-  .find((element) => (
-  element.getAttribute('data-rfd-draggable-id') === draggableId
-  && (dragType !== 'column' || element.dataset.boardColumnHeader === 'true')
-  ));
+  const escapedDraggableId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+  ? CSS.escape(draggableId)
+  : draggableId.replace(/["\\]/g, '\\$&');
+  const dragCandidates = document.querySelectorAll<HTMLElement>(
+  `[data-rfd-draggable-id="${escapedDraggableId}"]`,
+  );
+  const dragElement = dragType === 'column'
+  ? Array.from(dragCandidates).find((element) => element.dataset.boardColumnHeader === 'true')
+  : dragCandidates[0];
   const dragRect = dragElement?.getBoundingClientRect();
   const columnHeaderRow = dragType === 'column'
   ? dragElement?.closest<HTMLElement>('[data-board-header-row="true"]')
@@ -4054,7 +4060,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   count: filteredRowIds.length,
   getScrollElement: getRowScrollElement,
   estimateSize: estimateRowSize,
-  overscan: 30,
+  // Fixed-height rows only need a small safety buffer. A large buffer mounts
+  // hundreds of off-screen cells during scroll, drag and theme updates.
+  overscan: isMobile ? 12 : 10,
   scrollMargin: BOARD_HEADER_HEIGHT,
   getItemKey: getVirtualRowKey,
   useFlushSync: true,
@@ -12660,9 +12668,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-
-
-
 
 
 
