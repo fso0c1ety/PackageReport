@@ -27,6 +27,8 @@ export async function POST(req) {
     customer_email: user.email,
     "metadata[user_id]": user.id,
     "metadata[plan]": plan,
+    "subscription_data[metadata][user_id]": user.id,
+    "subscription_data[metadata][plan]": plan,
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "eur",
     "line_items[0][price_data][unit_amount]": String(config.amountCents),

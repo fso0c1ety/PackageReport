@@ -82,6 +82,8 @@ router.post("/billing/checkout", authenticateToken, async (req, res) => {
     customer_email: req.user.email,
     "metadata[user_id]": req.user.id,
     "metadata[plan]": plan,
+    "subscription_data[metadata][user_id]": req.user.id,
+    "subscription_data[metadata][plan]": plan,
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "eur",
     "line_items[0][price_data][unit_amount]": String(config.amountCents),
