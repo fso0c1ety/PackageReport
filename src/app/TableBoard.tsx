@@ -3479,12 +3479,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   });
   values[colId] = newValue;
   const realRowId = uuidv4();
-  console.info("[TableBoard save]", {
-  rowId: realRowId,
-  columnId: colId,
-  valueType: Array.isArray(newValue) ? "array" : newValue === null ? "null" : typeof newValue,
-  result: "request",
-  });
   const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -3499,12 +3493,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const created = await res.json();
   // Remove placeholder and add real task
   setRows((prev) => prev.map((row) => row.id === 'placeholder' ? created : row));
-  console.info("[TableBoard save]", {
-  rowId: created.id,
-  columnId: colId,
-  valueType: Array.isArray(newValue) ? "array" : newValue === null ? "null" : typeof newValue,
-  result: "success",
-  });
   setEditingCell(null);
   setEditValue("");
   } catch (err) {
@@ -3524,12 +3512,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   await pendingCreation;
   }
   const latestRow = rowsStore.getState().rowsById[rowId] ?? updatedRow;
-  console.info("[TableBoard save]", {
-  rowId,
-  columnId: colId,
-  valueType: Array.isArray(newValue) ? "array" : newValue === null ? "null" : typeof newValue,
-  result: "request",
-  });
   const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
   method: "PUT",
   headers: { "Content-Type": "application/json" },
@@ -3553,13 +3535,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setReviewTaskSynced(responseData.task);
   }
   }
-  console.info("[TableBoard save]", {
-  rowId,
-  columnId: colId,
-  valueType: Array.isArray(newValue) ? "array" : newValue === null ? "null" : typeof newValue,
-  result: "success",
-  });
-
   // Log backend debug logs if present
   const debugLogsHeader = response.headers.get("X-Debug-Logs");
   if (debugLogsHeader) {
@@ -12685,7 +12660,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-
 
 
 

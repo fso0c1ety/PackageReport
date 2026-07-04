@@ -205,7 +205,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             if (userStr) {
                 const parsed = JSON.parse(userStr);
                 setCurrentUser(parsed);
-                console.log("[CallContext] Current user loaded:", parsed.id);
             }
         } catch (err) {
             console.error("[CallContext] Failed to parse user from localStorage", err);
@@ -414,9 +413,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         channel.subscribe((status: string) => {
             const isReady = status === 'SUBSCRIBED';
             setSignalingReady(isReady);
-            if (isReady) {
-                console.log('[CallContext] Connected to Supabase signaling, user:', currentUser.id);
-            }
         });
 
         return () => {
@@ -963,14 +959,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     useEffect(() => {
-        console.log("[CallContext] Local stream update:", !!localStream);
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
     }, [localStream, isCallMinimized]);
 
     useEffect(() => {
-        console.log("[CallContext] Remote stream update. Tracks:", remoteStream?.getTracks().length);
         setHasRemoteVideo(!!remoteStream?.getVideoTracks().some((track) => track.readyState === 'live' && track.enabled));
 
         if (remoteVideoRef.current && remoteStream) {

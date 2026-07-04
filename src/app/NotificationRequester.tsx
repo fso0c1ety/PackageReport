@@ -110,7 +110,6 @@ const NotificationRequester = () => {
             });
 
             if (response.ok) {
-                console.log(`[Push] ${source} token sent to server successfully`);
                 return true;
             }
 
@@ -182,24 +181,19 @@ const NotificationRequester = () => {
                         scope: '/',
                         updateViaCache: 'none'
                     });
-                    console.log('Service Worker registered with scope:', registration.scope);
 
-                    console.log('Requesting Web FCM Token...');
                     const currentToken = await getToken(messaging, { 
                         vapidKey: 'BKbVWnX7gUt2601ppWblfDr_3Gwd9b-Rcs2n_BvyBTAl1B_WT_DmrvhRIFPvGjXtX2mn_Z0K2RtXT0oEIj5KPII',
                         serviceWorkerRegistration: registration
                     });
                     if (currentToken) {
-                        console.log('Web FCM Token obtained:', currentToken);
                         // Send token to backend
                         const response = await authenticatedFetch(getApiUrl('users/fcm'), {
                             method: 'PUT',
                             body: JSON.stringify({ token: currentToken }),
                             suppressNativeErrorAlert: true,
                         });
-                        if (response.ok) {
-                            console.log('Web FCM Token sent to server successfully');
-                        } else {
+                        if (!response.ok) {
                             const errorText = await response.text();
                             console.error('Failed to send Web FCM token to server', response.status, errorText);
                         }
