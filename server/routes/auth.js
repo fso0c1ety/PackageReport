@@ -13,6 +13,7 @@ const { createRateLimiter } = require('../middleware/rateLimit');
 const { isValidEmail, validatePassword } = require('../middleware/validate');
 const logger = require('../utils/logger');
 const { sendEmail } = require('../mailer');
+const { buildPasswordResetEmail } = require('../utils/emailTemplates');
 const authenticateToken = require('../middleware/authenticateToken');
 const billingService = require('../services/billingService');
 
@@ -21,14 +22,6 @@ const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, key
 const passwordResetRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5, keyPrefix: 'password-reset' });
 
 const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#039;');
-
-
 // Login Endpoint
 router.post('/login', authRateLimit, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
@@ -158,14 +151,12 @@ router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
     ).replace(/\/$/, '');
     const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
     const displayName = user.name || 'there';
-    const safeName = escapeHtml(displayName);
-
     try {
       await sendEmail({
         to: user.email,
         subject: 'Reset your Smart Manage password',
         text: `Hi ${displayName}, reset your password using this link: ${resetUrl}. This link expires in 30 minutes.`,
-        html: `<p>Hi ${safeName},</p><p>Use the link below to reset your Smart Manage password. It expires in 30 minutes and can be used once.</p><p><a href="${resetUrl}">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+        html: buildPasswordResetEmail({ displayName, resetUrl }),
       });
     } catch (emailError) {
       await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);

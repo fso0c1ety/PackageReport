@@ -3,7 +3,7 @@ const fetch = require('node-fetch');
 // The Brevo API Key
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
-const EMAIL_FROM = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM || '';
+const EMAIL_FROM = process.env.BREVO_SENDER_EMAIL || 'argjenddpecii@11554074.brevosend.com';
 const EMAIL_FROM_NAME = process.env.BREVO_SENDER_NAME || process.env.EMAIL_FROM_NAME || 'Smart Manage';
 
 async function sendEmail({ to, subject, text, html }) {

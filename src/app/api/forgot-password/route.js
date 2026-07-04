@@ -2,6 +2,7 @@ import crypto, { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { pool } from "../_lib/server";
 import { sendEmail } from "../_lib/mailer";
+import { buildPasswordResetEmail } from "../_lib/emailTemplates";
 import {
   ensurePasswordResetTable,
   hashResetToken,
@@ -14,13 +15,6 @@ const genericResponse = {
   success: true,
   message: "If an account exists for this email, a password reset link has been sent.",
 };
-
-const escapeHtml = (value) => String(value || "")
-  .replace(/&/g, "&amp;")
-  .replace(/</g, "&lt;")
-  .replace(/>/g, "&gt;")
-  .replace(/"/g, "&quot;")
-  .replace(/'/g, "&#039;");
 
 export async function POST(req) {
   const { email: inputEmail } = await req.json().catch(() => ({}));
@@ -70,7 +64,7 @@ export async function POST(req) {
         to: user.email,
         subject: "Reset your Smart Manage password",
         text: `Hi ${displayName}, reset your password using this link: ${resetUrl}. This link expires in 30 minutes.`,
-        html: `<p>Hi ${escapeHtml(displayName)},</p><p>Use the link below to reset your Smart Manage password. It expires in 30 minutes and can be used once.</p><p><a href="${resetUrl}">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+        html: buildPasswordResetEmail({ displayName, resetUrl }),
       });
     } catch (emailError) {
       await pool.query("DELETE FROM password_reset_tokens WHERE user_id = $1", [user.id]);

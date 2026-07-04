@@ -217,13 +217,26 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
   </div>
 </div>`;
 
+    const timestampTypeResult = await pool.query(`
+      SELECT data_type
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'activity_logs'
+        AND column_name = 'timestamp'
+      LIMIT 1
+    `);
+    const timestampType = timestampTypeResult.rows[0]?.data_type;
+    const activityTimestamp = ["smallint", "integer", "bigint", "numeric"].includes(timestampType)
+      ? Date.now()
+      : new Date().toISOString();
+
     const logRes = await pool.query(
       `
         INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
       `,
-      [JSON.stringify(recipients), subject, html, Date.now(), table.id, taskId, "pending"]
+      [JSON.stringify(recipients), subject, html, activityTimestamp, table.id, taskId, "pending"]
     );
 
     const logId = logRes.rows[0]?.id;
