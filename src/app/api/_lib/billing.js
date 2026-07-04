@@ -3,7 +3,7 @@ import { pool } from "./server";
 
 export const PLANS = {
   trial: { seatLimit: 5, amountCents: 0 },
-  basic: { seatLimit: 5, amountCents: 4000 },
+  basic: { seatLimit: 5, amountCents: 50 },
   standard: { seatLimit: 10, amountCents: 7500 },
   pro: { seatLimit: 20, amountCents: 18000 },
 };

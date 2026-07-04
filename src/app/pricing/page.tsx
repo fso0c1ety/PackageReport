@@ -36,7 +36,7 @@ const tiers = [
   },
   {
     title: 'Basic',
-    price: '40',
+    price: '0.50',
     plan: 'basic',
     description: 'For teams with 1-5 seats.',
     features: [
