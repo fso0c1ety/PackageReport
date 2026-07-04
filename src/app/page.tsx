@@ -48,7 +48,8 @@ export default function LandingPage() {
   ];
 
   const aboutValues = ["Clear visibility", "Fast collaboration", "Reliable workflow tracking"];
-  const desktopDownloadUrl = "https://github.com/fso0c1ety/PackageReport/actions/runs/24024598350/artifacts/6284359718";
+  const desktopDownloadUrl =
+    "https://github.com/fso0c1ety/PackageReport/releases/latest/download/Smart.Manage.zip";
 
   const contactOptions = [
     {
