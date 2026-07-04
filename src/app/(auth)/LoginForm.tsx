@@ -89,6 +89,7 @@ export function LoginForm() {
         if (typeof window !== 'undefined') {
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.removeItem('subscriptionBannerDismissed');
           redirectToAppRoute('/home');
         }
       } else {

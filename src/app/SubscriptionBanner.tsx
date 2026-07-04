@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, IconButton, Typography } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useRouter } from "next/navigation";
 import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
+
+const DISMISSED_STORAGE_KEY = "subscriptionBannerDismissed";
 
 interface BillingStatus {
   plan: string;
@@ -18,13 +21,24 @@ interface BillingStatus {
 export default function SubscriptionBanner() {
   const router = useRouter();
   const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    if (localStorage.getItem(DISMISSED_STORAGE_KEY) === "true") {
+      setDismissed(true);
+      return;
+    }
+
     authenticatedFetch(getApiUrl("billing/status"))
       .then((response) => response.ok ? response.json() : null)
       .then((data) => data && setBilling(data))
       .catch(() => {});
   }, []);
+
+  const handleDismiss = () => {
+    localStorage.setItem(DISMISSED_STORAGE_KEY, "true");
+    setDismissed(true);
+  };
 
   const daysUntilDeletion = useMemo(() => {
     if (!billing?.purge_at) return 30;
@@ -45,7 +59,7 @@ export default function SubscriptionBanner() {
     ));
   }, [billing]);
 
-  if (!billing) return null;
+  if (!billing || dismissed) return null;
 
   const expired = !billing.writable;
   const isTrial = billing.plan === "trial" && billing.status === "trialing";
@@ -66,7 +80,8 @@ export default function SubscriptionBanner() {
       role="alert"
       sx={{
         minHeight: 34,
-        px: 2,
+        pl: 2,
+        pr: 5,
         py: 0.5,
         bgcolor: expired ? "#dc354f" : isTrial ? "#d97706" : "#2563eb",
         color: "#fff",
@@ -76,6 +91,7 @@ export default function SubscriptionBanner() {
         gap: 1,
         flexWrap: "wrap",
         flexShrink: 0,
+        position: "relative",
       }}
     >
       <WarningAmberIcon sx={{ fontSize: 16 }} />
@@ -97,6 +113,19 @@ export default function SubscriptionBanner() {
       >
         {expired || isTrial ? "Choose a plan" : "Manage billing"}
       </Button>
+      <IconButton
+        aria-label="Close subscription banner"
+        size="small"
+        onClick={handleDismiss}
+        sx={{
+          color: "#fff",
+          position: "absolute",
+          right: 8,
+          p: 0.5,
+        }}
+      >
+        <CloseIcon sx={{ fontSize: 18 }} />
+      </IconButton>
     </Box>
   );
 }
