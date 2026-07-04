@@ -31,6 +31,18 @@ function validateAutomationPayload({ triggerCol, recipients, cols }) {
   return null;
 }
 
+async function getAutomationIdType() {
+  const schema = await pool.query(`
+    SELECT data_type
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'automations'
+      AND column_name = 'id'
+    LIMIT 1
+  `);
+  return schema.rows[0]?.data_type || "text";
+}
+
 export async function GET(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -99,26 +111,37 @@ export async function POST(req, { params }) {
         ]
       );
     } else {
-      await pool.query(
-        `
-          INSERT INTO automations
-            (id, table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        `,
-        [
-          randomUUID(),
-          tableId,
-          taskIds || [],
-          triggerCol,
-          enabled,
-          recipients || [],
-          cols || [],
-          actionType || "email",
-          JSON.stringify(normalizedRules),
-          JSON.stringify(normalizedRules.map(({ value, actionType: type }) => ({ value, type }))),
-          user.id,
-        ]
-      );
+      const values = [
+        tableId,
+        taskIds || [],
+        triggerCol,
+        enabled,
+        recipients || [],
+        cols || [],
+        actionType || "email",
+        JSON.stringify(normalizedRules),
+        JSON.stringify(normalizedRules.map(({ value, actionType: type }) => ({ value, type }))),
+        user.id,
+      ];
+      const idType = await getAutomationIdType();
+
+      // Older installations use SERIAL ids while fresh installations use TEXT ids.
+      // Let PostgreSQL generate a SERIAL id instead of attempting to insert a UUID into it.
+      if (["smallint", "integer", "bigint"].includes(idType)) {
+        await pool.query(
+          `INSERT INTO automations
+             (table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          values
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO automations
+             (id, table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [randomUUID(), ...values]
+        );
+      }
     }
 
     const result = await pool.query(
