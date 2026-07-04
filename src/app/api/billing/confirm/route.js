@@ -23,9 +23,23 @@ export async function POST(req) {
     if (!response.ok || session.metadata?.user_id !== user.id || session.payment_status !== "paid") {
       return NextResponse.json({ error: "Payment is not confirmed" }, { status: 400 });
     }
+    let currentPeriodEnd = null;
+    if (session.subscription) {
+      const subscriptionResponse = await fetch(
+        `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(session.subscription)}`,
+        { headers: { Authorization: `Bearer ${stripeKey}` } }
+      );
+      if (subscriptionResponse.ok) {
+        const subscription = await subscriptionResponse.json();
+        if (subscription.current_period_end) {
+          currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        }
+      }
+    }
     return NextResponse.json(await activateBillingPlan(user.id, session.metadata.plan, {
       customerId: session.customer,
       subscriptionId: session.subscription,
+      currentPeriodEnd,
     }));
   } catch (error) {
     console.error("[BILLING/CONFIRM]", error);

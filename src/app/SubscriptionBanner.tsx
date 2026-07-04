@@ -10,6 +10,7 @@ interface BillingStatus {
   plan: string;
   status: string;
   writable: boolean;
+  trial_ends_at?: string | null;
   purge_at?: string | null;
   current_period_end?: string | null;
 }
@@ -37,17 +38,28 @@ export default function SubscriptionBanner() {
     ));
   }, [billing]);
 
-  const showRenewalNotice = Boolean(
-    billing
-      && billing.plan !== "trial"
-      && billing.status === "active"
-      && daysUntilRenewal !== null
-      && daysUntilRenewal <= 14
-  );
+  const daysUntilTrialEnd = useMemo(() => {
+    if (!billing?.trial_ends_at) return null;
+    return Math.max(0, Math.ceil(
+      (new Date(billing.trial_ends_at).getTime() - Date.now()) / 86400000
+    ));
+  }, [billing]);
 
-  if (!billing || (billing.writable && !showRenewalNotice)) return null;
+  if (!billing) return null;
 
   const expired = !billing.writable;
+  const isTrial = billing.plan === "trial" && billing.status === "trialing";
+  const isPaid = billing.plan !== "trial" && billing.status === "active";
+
+  if (!expired && !isTrial && !isPaid) return null;
+
+  const message = expired
+    ? `Your subscription has expired. Boards are view-only and will be deleted in ${daysUntilDeletion} day${daysUntilDeletion === 1 ? "" : "s"}.`
+    : isTrial
+      ? `You are using the Free Trial${daysUntilTrialEnd === null ? "" : ` — ${daysUntilTrialEnd} day${daysUntilTrialEnd === 1 ? "" : "s"} remaining`}. Choose a plan before it ends to keep your workspace active.`
+      : daysUntilRenewal === null
+        ? `Your ${billing.plan} plan is active. The next payment date is being finalized.`
+        : `Your ${billing.plan} plan renews in ${daysUntilRenewal} day${daysUntilRenewal === 1 ? "" : "s"}. Keep your payment method active to avoid workspace interruption.`;
 
   return (
     <Box
@@ -56,7 +68,7 @@ export default function SubscriptionBanner() {
         minHeight: 34,
         px: 2,
         py: 0.5,
-        bgcolor: "#dc354f",
+        bgcolor: expired ? "#dc354f" : isTrial ? "#d97706" : "#2563eb",
         color: "#fff",
         display: "flex",
         alignItems: "center",
@@ -68,9 +80,7 @@ export default function SubscriptionBanner() {
     >
       <WarningAmberIcon sx={{ fontSize: 16 }} />
       <Typography sx={{ fontSize: 13, fontWeight: 600, letterSpacing: 0 }}>
-        {expired
-          ? `Your subscription has expired. Boards are view-only and will be deleted in ${daysUntilDeletion} day${daysUntilDeletion === 1 ? "" : "s"}.`
-          : `Your ${billing.plan} plan renews in ${daysUntilRenewal} day${daysUntilRenewal === 1 ? "" : "s"}. Please review your payment method.`}
+        {message}
       </Typography>
       <Button
         size="small"
@@ -85,7 +95,7 @@ export default function SubscriptionBanner() {
           textDecoration: "underline",
         }}
       >
-        {expired ? "Choose a plan" : "Manage billing"}
+        {expired || isTrial ? "Choose a plan" : "Manage billing"}
       </Button>
     </Box>
   );

@@ -1182,6 +1182,20 @@ export default function SettingsPage() {
                         ? new Date(billingStatus.trial_ends_at || billingStatus.current_period_end).toLocaleDateString()
                         : "Not scheduled"}
                     </Typography>
+                    {(billingStatus?.trial_ends_at || billingStatus?.current_period_end) && (
+                      <Typography variant="body2" color="text.secondary">
+                        {Math.max(
+                          0,
+                          Math.ceil(
+                            (new Date(
+                              billingStatus.plan === "trial"
+                                ? billingStatus.trial_ends_at
+                                : billingStatus.current_period_end
+                            ).getTime() - Date.now()) / 86400000
+                          )
+                        )} days remaining
+                      </Typography>
+                    )}
                   </Box>
                 </Stack>
               </Paper>
