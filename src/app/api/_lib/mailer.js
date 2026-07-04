@@ -3,7 +3,7 @@ const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const BREVO_SENDER_EMAIL =
   process.env.BREVO_SENDER_EMAIL ||
   process.env.EMAIL_FROM ||
-  "";
+  "argjenddpecii@11554074.brevosend.com";
 const BREVO_SENDER_NAME =
   process.env.BREVO_SENDER_NAME ||
   process.env.EMAIL_FROM_NAME ||
