@@ -1,34 +1,7 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-import { Pool } from "pg";
+import { getAuthenticatedUser, pool } from "../../_lib/server";
 
 export const runtime = "nodejs";
-
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres";
-
-const SECRET_KEY = process.env.SECRET_KEY || "your_secret_key_here";
-
-const pool = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
-
-function getAuthenticatedUser(req) {
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.split(" ")[1];
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, SECRET_KEY);
-  } catch {
-    return null;
-  }
-}
 
 export async function PUT(req) {
   const user = getAuthenticatedUser(req);
