@@ -30,13 +30,25 @@ export async function GET(req) {
                 json_build_object(
                   'id', r.id,
                   'table_id', r.table_id,
-                  'values', r.values
+                  'values', r.values,
+                  'created_by', r.created_by,
+                  'created_at', r.created_at,
+                  'creator', CASE
+                    WHEN creator.id IS NULL THEN NULL
+                    ELSE json_build_object(
+                      'id', creator.id,
+                      'name', creator.name,
+                      'email', creator.email,
+                      'avatar', creator.avatar
+                    )
+                  END
                 )
               ) FILTER (WHERE r.id IS NOT NULL),
               '[]'
             ) AS tasks
          FROM tables t
          LEFT JOIN rows r ON t.id = r.table_id
+         LEFT JOIN users creator ON creator.id = r.created_by
          WHERE t.workspace_id = $1
            AND ($2 = $3 OR EXISTS (
              SELECT 1
@@ -55,17 +67,29 @@ export async function GET(req) {
           t.*,
           COALESCE(
             json_agg(
-              json_build_object(
-                'id', r.id,
-                'table_id', r.table_id,
-                'values', r.values
-              )
+            json_build_object(
+              'id', r.id,
+              'table_id', r.table_id,
+              'values', r.values,
+              'created_by', r.created_by,
+              'created_at', r.created_at,
+              'creator', CASE
+                WHEN creator.id IS NULL THEN NULL
+                ELSE json_build_object(
+                  'id', creator.id,
+                  'name', creator.name,
+                  'email', creator.email,
+                  'avatar', creator.avatar
+                )
+              END
+            )
             ) FILTER (WHERE r.id IS NOT NULL),
             '[]'
           ) AS tasks
        FROM tables t
        JOIN workspaces w ON t.workspace_id = w.id
        LEFT JOIN rows r ON t.id = r.table_id
+       LEFT JOIN users creator ON creator.id = r.created_by
        WHERE w.owner_id = $1 OR COALESCE(t.shared_users, '[]'::jsonb) @> $2::jsonb
        GROUP BY t.id`,
       [String(user.id), JSON.stringify([{ userId: String(user.id) }])]
