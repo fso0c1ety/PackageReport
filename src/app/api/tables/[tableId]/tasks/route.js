@@ -244,98 +244,104 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
     let successNotif = true;
     const errorMessages = [];
 
-    if (actionType === "email" || actionType === "both") {
-      try {
-        console.log("[AUTOMATION][NEXT] Sending email automation...");
-        await sendEmail({
-          to: recipients,
-          subject,
-          text: textSummary,
-          html,
-        });
-      } catch (mailErr) {
-        successEmail = false;
-        console.error("[AUTOMATION][NEXT] Email send failed:", mailErr);
-        errorMessages.push(`Email: ${mailErr.message || mailErr}`);
+    const emailDelivery = (async () => {
+      if (actionType === "email" || actionType === "both") {
+        try {
+          console.log("[AUTOMATION][NEXT] Sending email automation...");
+          await sendEmail({
+            to: recipients,
+            subject,
+            text: textSummary,
+            html,
+          });
+        } catch (mailErr) {
+          successEmail = false;
+          console.error("[AUTOMATION][NEXT] Email send failed:", mailErr);
+          errorMessages.push(`Email: ${mailErr.message || mailErr}`);
+        }
       }
-    }
+    })();
 
-    if (actionType === "notification" || actionType === "both") {
-      try {
-        console.log("[AUTOMATION][NEXT] Sending push automation...");
-        const normalizedRecipients = recipients.map((email) => email.toLowerCase());
-        await ensureUserNotificationColumns();
-        const userRes = await pool.query(
-          `
-            SELECT
-              id,
-              email,
-              fcm_token,
-              fcm_tokens,
-              COALESCE(push_notifications, TRUE) AS push_notifications
-            FROM users
-            WHERE LOWER(email) = ANY($1)
-          `,
-          [normalizedRecipients]
-        );
-
-        const matchedUsers = userRes.rows;
-        const tokenSet = new Set();
-
-        for (const matchedUser of matchedUsers) {
-          await pool.query(
+    const notificationDelivery = (async () => {
+      if (actionType === "notification" || actionType === "both") {
+        try {
+          console.log("[AUTOMATION][NEXT] Sending push automation...");
+          const normalizedRecipients = recipients.map((email) => email.toLowerCase());
+          await ensureUserNotificationColumns();
+          const userRes = await pool.query(
             `
-              INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
-              VALUES ($1, $2, $3, $4, $5, $6, NOW())
+              SELECT
+                id,
+                email,
+                fcm_token,
+                fcm_tokens,
+                COALESCE(push_notifications, TRUE) AS push_notifications
+              FROM users
+              WHERE LOWER(email) = ANY($1)
             `,
-            [
-              uuidv4(),
-              matchedUser.id,
-              null,
-              "automation",
-              {
-                subject,
-                body: textSummary,
-                tableName: table.name,
-                tableId: table.id,
-                taskId,
-                logId,
-              },
-              false,
-            ]
+            [normalizedRecipients]
           );
 
-          if (matchedUser.push_notifications !== false && matchedUser.fcm_token) {
-            tokenSet.add(matchedUser.fcm_token);
-          }
+          const matchedUsers = userRes.rows;
+          const tokenSet = new Set();
 
-          if (matchedUser.push_notifications !== false) {
-            for (const token of toArray(matchedUser.fcm_tokens)) {
-              if (token) {
-                tokenSet.add(token);
+          for (const matchedUser of matchedUsers) {
+            await pool.query(
+              `
+                INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+              `,
+              [
+                uuidv4(),
+                matchedUser.id,
+                null,
+                "automation",
+                {
+                  subject,
+                  body: textSummary,
+                  tableName: table.name,
+                  tableId: table.id,
+                  taskId,
+                  logId,
+                },
+                false,
+              ]
+            );
+
+            if (matchedUser.push_notifications !== false && matchedUser.fcm_token) {
+              tokenSet.add(matchedUser.fcm_token);
+            }
+
+            if (matchedUser.push_notifications !== false) {
+              for (const token of toArray(matchedUser.fcm_tokens)) {
+                if (token) {
+                  tokenSet.add(token);
+                }
               }
             }
           }
-        }
 
-        const tokens = Array.from(tokenSet);
-        if (tokens.length > 0) {
-          await sendPushNotification(tokens, subject, textSummary || "Task updated.", {
-            type: "automation",
-            tableId: table.id,
-            workspaceId: table.workspace_id,
-            taskId,
-            logId,
-          });
-        } else if (matchedUsers.length === 0) {
-          console.warn("[AUTOMATION][NEXT] No users matched the automation recipient emails.");
+          const tokens = Array.from(tokenSet);
+          if (tokens.length > 0) {
+            await sendPushNotification(tokens, subject, textSummary || "Task updated.", {
+              type: "automation",
+              tableId: table.id,
+              workspaceId: table.workspace_id,
+              taskId,
+              logId,
+            });
+          } else if (matchedUsers.length === 0) {
+            console.warn("[AUTOMATION][NEXT] No users matched the automation recipient emails.");
+          }
+        } catch (pushErr) {
+          successNotif = false;
+          console.error("[AUTOMATION][NEXT] Push send failed:", pushErr);
+          errorMessages.push(`Notification: ${pushErr.message || pushErr}`);
         }
-      } catch (pushErr) {
-        successNotif = false;
-        console.error("[AUTOMATION][NEXT] Push send failed:", pushErr);
-        errorMessages.push(`Notification: ${pushErr.message || pushErr}`);
       }
-    }
+    })();
+
+    await Promise.all([emailDelivery, notificationDelivery]);
 
     const finalStatus = !successEmail || !successNotif || errorMessages.length > 0 ? "error" : "sent";
     await pool.query(

@@ -102,69 +102,75 @@ async function deliverAutomation({ automation, table, rowId, values }) {
   let successNotif = true;
   const errorMessages = [];
 
-  // Persist the in-app notification first. Email providers can be slow or
-  // unavailable and must not delay the realtime app alert.
-  if (actionType === "notification" || actionType === "both") {
-    try {
-      const userRes = await db.query(
-        "SELECT id, email, fcm_token, fcm_tokens FROM users WHERE email = ANY($1)",
-        [recipients]
-      );
-
-      const fcmTokens = new Set();
-      for (const user of userRes.rows) {
-        await db.query(
-          `INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-          [
-            uuidv4(),
-            user.id,
-            null,
-            "automation",
-            {
-              title: notificationTitle,
-              subject,
-              body: notificationBody,
-              tableName: table.name,
-              tableId: table.id,
-              taskId: rowId,
-              logId,
-            },
-            false,
-          ]
+  // Start both delivery channels together. A slow email provider must not
+  // delay an in-app/push alert, and notification work must not delay email.
+  const notificationDelivery = (async () => {
+    if (actionType === "notification" || actionType === "both") {
+      try {
+        const userRes = await db.query(
+          "SELECT id, email, fcm_token, fcm_tokens FROM users WHERE email = ANY($1)",
+          [recipients]
         );
 
-        if (user.fcm_token) fcmTokens.add(user.fcm_token);
-        if (Array.isArray(user.fcm_tokens)) {
-          user.fcm_tokens.forEach((token) => {
-            if (token) fcmTokens.add(token);
+        const fcmTokens = new Set();
+        for (const user of userRes.rows) {
+          await db.query(
+            `INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            [
+              uuidv4(),
+              user.id,
+              null,
+              "automation",
+              {
+                title: notificationTitle,
+                subject,
+                body: notificationBody,
+                tableName: table.name,
+                tableId: table.id,
+                taskId: rowId,
+                logId,
+              },
+              false,
+            ]
+          );
+
+          if (user.fcm_token) fcmTokens.add(user.fcm_token);
+          if (Array.isArray(user.fcm_tokens)) {
+            user.fcm_tokens.forEach((token) => {
+              if (token) fcmTokens.add(token);
+            });
+          }
+        }
+
+        const tokensArray = Array.from(fcmTokens);
+        if (tokensArray.length > 0) {
+          await sendPushNotification(tokensArray, notificationTitle, `${subject}\n${notificationBody}`, {
+            type: "automation",
+            tableId: table.id.toString(),
+            workspaceId: table.workspace_id,
+            taskId: rowId.toString(),
           });
         }
+      } catch (notifErr) {
+        successNotif = false;
+        errorMessages.push(`Notification: ${notifErr.message || notifErr}`);
       }
+    }
+  })();
 
-      const tokensArray = Array.from(fcmTokens);
-      if (tokensArray.length > 0) {
-        await sendPushNotification(tokensArray, notificationTitle, `${subject}\n${notificationBody}`, {
-          type: "automation",
-          tableId: table.id.toString(),
-          workspaceId: table.workspace_id,
-          taskId: rowId.toString(),
-        });
+  const emailDelivery = (async () => {
+    if (actionType === "email" || actionType === "both") {
+      try {
+        await sendEmail({ to: recipients, subject, html });
+      } catch (mailErr) {
+        successEmail = false;
+        errorMessages.push(`Email: ${mailErr.message || mailErr}`);
       }
-    } catch (notifErr) {
-      successNotif = false;
-      errorMessages.push(`Notification: ${notifErr.message || notifErr}`);
     }
-  }
+  })();
 
-  if (actionType === "email" || actionType === "both") {
-    try {
-      await sendEmail({ to: recipients, subject, html });
-    } catch (mailErr) {
-      successEmail = false;
-      errorMessages.push(`Email: ${mailErr.message || mailErr}`);
-    }
-  }
+  await Promise.all([notificationDelivery, emailDelivery]);
 
   const finalStatus = successEmail && successNotif ? "sent" : "error";
   const finalErrorMsg = errorMessages.length > 0 ? errorMessages.join("; ") : null;
