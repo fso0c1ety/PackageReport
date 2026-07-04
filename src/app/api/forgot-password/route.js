@@ -51,10 +51,17 @@ export async function POST(req) {
       ]
     );
 
-    const appUrl = String(
+    const requestOrigin = new URL(req.url).origin;
+    const configuredAppUrl = String(
       process.env.APP_URL ||
       process.env.NEXT_PUBLIC_FRONTEND_URL ||
-      new URL(req.url).origin
+      requestOrigin
+    );
+    const appUrl = (
+      process.env.NODE_ENV === "production" &&
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredAppUrl)
+        ? requestOrigin
+        : configuredAppUrl
     ).replace(/\/$/, "");
     const resetUrl = `${appUrl}/reset-password/?token=${encodeURIComponent(rawToken)}`;
     const displayName = user.name || "there";

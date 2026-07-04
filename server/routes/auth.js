@@ -144,10 +144,16 @@ router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
       [uuidv4(), user.id, tokenHash, expiresAt, req.ip || null]
     );
 
-    const appUrl = String(
+    const configuredAppUrl = String(
       process.env.APP_URL
       || process.env.NEXT_PUBLIC_FRONTEND_URL
       || 'http://localhost:3000'
+    );
+    const appUrl = (
+      process.env.NODE_ENV === 'production'
+      && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredAppUrl)
+        ? 'https://package-report.vercel.app'
+        : configuredAppUrl
     ).replace(/\/$/, '');
     const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
     const displayName = user.name || 'there';
