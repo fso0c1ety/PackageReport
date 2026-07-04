@@ -38,6 +38,21 @@ function subscriptionIdFromInvoice(invoice) {
     || null;
 }
 
+function invoiceSubscriptionMetadata(invoice) {
+  return invoice.parent?.subscription_details?.metadata
+    || invoice.subscription_details?.metadata
+    || {};
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 async function setSubscriptionStatus(subscriptionId, status, currentPeriodEnd = null) {
   if (!subscriptionId) return;
   await pool.query(
@@ -60,7 +75,7 @@ async function notificationExists(stripeEventId) {
   return result.rowCount > 0;
 }
 
-async function notifyUser(userId, event, title, message, emailSubject) {
+async function notifyUser(userId, event, title, message, emailSubject, links = {}) {
   if (!userId || await notificationExists(event.id)) return;
 
   await pool.query(
@@ -71,6 +86,8 @@ async function notifyUser(userId, event, title, message, emailSubject) {
       title,
       message,
       billing: true,
+      invoiceUrl: links.invoiceUrl || null,
+      invoicePdf: links.invoicePdf || null,
     })]
   );
 
@@ -81,11 +98,24 @@ async function notifyUser(userId, event, title, message, emailSubject) {
   const user = userResult.rows[0];
   if (!user?.email) return;
 
+  const invoiceText = [
+    links.invoiceUrl ? `View invoice: ${links.invoiceUrl}` : "",
+    links.invoicePdf ? `Download PDF: ${links.invoicePdf}` : "",
+  ].filter(Boolean).join("\n");
+  const invoiceHtml = [
+    links.invoiceUrl
+      ? `<p><a href="${escapeHtml(links.invoiceUrl)}">View Stripe invoice</a></p>`
+      : "",
+    links.invoicePdf
+      ? `<p><a href="${escapeHtml(links.invoicePdf)}">Download invoice PDF</a></p>`
+      : "",
+  ].join("");
+
   await sendEmail({
     to: user.email,
     subject: emailSubject,
-    text: `Hi ${user.name || "there"},\n\n${message}\n\nSmart Manage`,
-    html: `<p>Hi ${user.name || "there"},</p><p>${message}</p><p><strong>Smart Manage</strong></p>`,
+    text: `Hi ${user.name || "there"},\n\n${message}${invoiceText ? `\n\n${invoiceText}` : ""}\n\nSmart Manage`,
+    html: `<p>Hi ${escapeHtml(user.name || "there")},</p><p>${escapeHtml(message)}</p>${invoiceHtml}<p><strong>Smart Manage</strong></p>`,
   }).catch((error) => console.error("[BILLING/WEBHOOK][EMAIL]", error));
 }
 
@@ -130,6 +160,13 @@ export async function POST(req) {
 
     if (event.type === "invoice.paid") {
       const subscriptionId = subscriptionIdFromInvoice(object);
+      const metadata = invoiceSubscriptionMetadata(object);
+      if (metadata.user_id && metadata.plan) {
+        await activateBillingPlan(metadata.user_id, metadata.plan, {
+          customerId: object.customer,
+          subscriptionId,
+        });
+      }
       await setSubscriptionStatus(subscriptionId, "active");
       const result = await pool.query(
         "SELECT user_id, plan FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 1",
@@ -141,7 +178,11 @@ export async function POST(req) {
           event,
           "Subscription renewed",
           `Your Smart Manage ${result.rows[0].plan} subscription payment was successful.`,
-          "Smart Manage subscription renewed"
+          "Your Smart Manage invoice",
+          {
+            invoiceUrl: object.hosted_invoice_url,
+            invoicePdf: object.invoice_pdf,
+          }
         );
       }
     }
