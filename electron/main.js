@@ -31,6 +31,8 @@ protocol.registerSchemesAsPrivileged([
 
 function resolveWindowIcon() {
   const candidates = [
+    path.join(app.getAppPath(), "electron", "icon.ico"),
+    path.join(__dirname, "icon.ico"),
     path.join(app.getAppPath(), "out", "icon.png"),
     path.join(app.getAppPath(), "src", "app", "icon.png"),
     path.join(__dirname, "..", "src", "app", "icon.png"),
