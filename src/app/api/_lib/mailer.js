@@ -1,7 +1,13 @@
 const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "valonhalili74@gmail.com";
-const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "Smart Manage App";
+const BREVO_SENDER_EMAIL =
+  process.env.BREVO_SENDER_EMAIL ||
+  process.env.EMAIL_FROM ||
+  "";
+const BREVO_SENDER_NAME =
+  process.env.BREVO_SENDER_NAME ||
+  process.env.EMAIL_FROM_NAME ||
+  "Smart Manage";
 
 export async function sendEmail({ to, subject, text, html }) {
   const recipients = (Array.isArray(to) ? to : [to])
@@ -15,6 +21,9 @@ export async function sendEmail({ to, subject, text, html }) {
 
   if (!BREVO_API_KEY) {
     throw new Error("BREVO_API_KEY is not configured for Next API email sends");
+  }
+  if (!BREVO_SENDER_EMAIL) {
+    throw new Error("BREVO_SENDER_EMAIL or EMAIL_FROM is not configured");
   }
 
   const payload = {
