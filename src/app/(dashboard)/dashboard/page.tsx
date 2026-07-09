@@ -259,6 +259,41 @@ function getTaskCreator(task: any) {
   return null;
 }
 
+function getPersonDisplayName(person: any) {
+  return String(person?.name || person?.email || person?.id || "").trim();
+}
+
+function getPersonKey(person: any) {
+  return String(person?.id || person?.email || person?.name || "").trim();
+}
+
+function addPersonOption(options: Map<string, any>, person: any) {
+  const label = getPersonDisplayName(person);
+  if (!label || label === "Unknown user") return;
+
+  const key = getPersonKey(person) || label;
+  if (!options.has(key)) {
+    options.set(key, {
+      id: person?.id || "",
+      name: person?.name || label,
+      email: person?.email || "",
+      avatar: person?.avatar || "",
+      value: key,
+      label,
+    });
+  }
+}
+
+function taskHasPerson(task: any, selectedPersonValue: string) {
+  if (!selectedPersonValue) return true;
+  const people = [...(task?._assignees || []), task?._creator].filter(Boolean);
+  return people.some((person: any) => {
+    const key = getPersonKey(person);
+    const label = getPersonDisplayName(person);
+    return key === selectedPersonValue || label === selectedPersonValue;
+  });
+}
+
 
 
 export default function DashboardPage() {
@@ -371,9 +406,7 @@ export default function DashboardPage() {
     );
 
     return baseTasks.filter((task: any) => {
-      const matchesPerson = !selectedPerson || task._assignees.some((person: any) =>
-        person?.name === selectedPerson || person?.email === selectedPerson
-      );
+      const matchesPerson = taskHasPerson(task, selectedPerson);
 
       const matchesSearch = !search || task._taskName.toLowerCase().includes(search.toLowerCase());
 
@@ -382,15 +415,16 @@ export default function DashboardPage() {
   }, [filteredTables, workspacesById, selectedPerson, search, selectedStatusConfig]);
 
   const allPeople = useMemo(() => {
-    return Array.from(
-      new Set(
-        filteredTables.flatMap((table: any) =>
-          (table.tasks || []).flatMap((task: any) =>
-            getTaskAssignees(task, table).map((person: any) => person.name || person.email).filter(Boolean)
-          )
-        )
-      )
-    ).sort();
+    const options = new Map<string, any>();
+
+    filteredTables.forEach((table: any) => {
+      (table.tasks || []).forEach((task: any) => {
+        getTaskAssignees(task, table).forEach((person: any) => addPersonOption(options, person));
+        addPersonOption(options, getTaskCreator(task));
+      });
+    });
+
+    return Array.from(options.values()).sort((a: any, b: any) => a.label.localeCompare(b.label));
   }, [filteredTables]);
 
   // Metrics
@@ -423,11 +457,19 @@ export default function DashboardPage() {
       ? (task._creator ? [task._creator] : [])
       : task._assignees;
     people.forEach((person: any) => {
-      const name = person.name || person.email;
+      const name = getPersonDisplayName(person);
       if (name) acc[name] = (acc[name] || 0) + 1;
     });
     return acc;
   }, {});
+
+  if (workloadMode === 'assigned') {
+    allPeople.forEach((person: any) => {
+      if (peopleCounts[person.label] === undefined) {
+        peopleCounts[person.label] = 0;
+      }
+    });
+  }
 
   const barData = Object.entries(peopleCounts)
     .map(([name, count]: any) => ({ name, count }))
@@ -520,7 +562,11 @@ export default function DashboardPage() {
               sx={{ color: 'text.primary', '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
             >
               <MenuItem value="">All Team Members</MenuItem>
-              {allPeople.map((name: any) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
+              {allPeople.map((person: any) => (
+                <MenuItem key={person.value} value={person.value}>
+                  {person.label}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
