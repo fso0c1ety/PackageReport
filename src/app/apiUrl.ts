@@ -613,6 +613,16 @@ type AuthenticatedFetchOptions = RequestInit & {
   handleAuthErrors?: boolean;
 };
 
+const inFlightGetRequests = new Map<string, Promise<Response>>();
+
+function shouldDedupeRequest(method: string, requestOptions: RequestInit) {
+  return method === 'GET' && !requestOptions.body;
+}
+
+function getDedupeKey(requestUrl: string, headers: Record<string, string>) {
+  return `${requestUrl}|${headers.Authorization || headers.authorization || ''}`;
+}
+
 function isTransientNetworkError(error: unknown) {
   const message = String((error as any)?.message || error || '').toLowerCase();
   return [
@@ -650,6 +660,15 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const requestMethod = (requestOptions.method || 'GET').toUpperCase();
+  const canDedupe = shouldDedupeRequest(requestMethod, requestOptions);
+  const dedupeKey = canDedupe ? getDedupeKey(requestUrl, headers as Record<string, string>) : "";
+
+  if (canDedupe && inFlightGetRequests.has(dedupeKey)) {
+    const cachedResponse = await inFlightGetRequests.get(dedupeKey)!;
+    return cachedResponse.clone();
+  }
+
   // console.log(`[Fetch] ${requestUrl}`); // Debug
 
   const canUseNativeHttpFallback =
@@ -664,8 +683,9 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     isElectronRuntime() &&
     shouldUseElectronApiProxy(requestUrl);
 
-  let response;
-  try {
+  const executeRequest = async () => {
+    let response;
+    try {
     response = await fetch(requestUrl, {
       ...requestOptions,
       headers,
@@ -729,6 +749,19 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
       throw err;
     }
   }
+
+    return response;
+  };
+
+  const requestPromise = executeRequest();
+  if (canDedupe) {
+    inFlightGetRequests.set(dedupeKey, requestPromise);
+    requestPromise.finally(() => {
+      inFlightGetRequests.delete(dedupeKey);
+    });
+  }
+
+  const response = await requestPromise;
 
   if (handleAuthErrors && response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {

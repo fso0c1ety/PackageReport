@@ -1,6 +1,5 @@
 "use client";
-import { getApiUrl, getSocketUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
-import { io, Socket } from "socket.io-client";
+import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -717,8 +716,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Current date for calendar view
   const [currentDate, setCurrentDate] = useState(dayjs());
   // Chat view state
-  // Socket.IO State
-  const [socket, setSocket] = useState<Socket | null>(null);
+  // Realtime chat typing was removed from the board hot path to avoid an
+  // always-on socket connection and listeners while users work in the table.
+  const socket: { emit: (event: string, payload: unknown) => void } | null = null;
   const [boardTypingUsers, setBoardTypingUsers] = useState<string[]>([]);
   const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -735,122 +735,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
   currentUserRef.current = currentUser;
   }, [currentUser]);
-
-  // Initialize Socket Connection - depends on tableId
-  useEffect(() => {
-  if (!tableId) return;
-
-  const socketUrl = getSocketUrl();
-  if (!socketUrl) {
-  setSocket(null);
-  return;
-  }
-
-  let cancelled = false;
-  let newSocket: Socket | null = null;
-
-  const connectSocket = async () => {
-  try {
-  const probeUrl = `${socketUrl}/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
-  const probeResponse = await fetch(probeUrl, {
-  method: 'GET',
-  cache: 'no-store',
-  });
-
-  if (!probeResponse.ok) {
-  if (process.env.NODE_ENV !== 'production') {
-  console.warn('Socket endpoint unavailable, realtime typing disabled:', socketUrl, probeResponse.status);
-  }
-  if (!cancelled) {
-  setSocket(null);
-  }
-  return;
-  }
-  } catch (error) {
-  if (process.env.NODE_ENV !== 'production') {
-  console.warn('Socket probe failed, realtime typing disabled:', socketUrl, error);
-  }
-  if (!cancelled) {
-  setSocket(null);
-  }
-  return;
-  }
-
-  if (cancelled) {
-  return;
-  }
-
-  console.log('Connecting socket to:', socketUrl);
-
-  newSocket = io(socketUrl, {
-  path: '/socket.io',
-  auth: {
-  token: typeof window !== 'undefined' ? localStorage.getItem('token') : null,
-  },
-  transports: ['websocket', 'polling'],
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  autoConnect: true,
-  });
-
-  setSocket(newSocket);
-
-  newSocket.on('connect', () => {
-  console.log('Connected to socket server');
-  newSocket?.emit('join_table', tableId);
-  });
-
-  newSocket.on('connect_error', (err) => {
-  if (process.env.NODE_ENV !== 'production') {
-  console.warn('Socket connection error:', err);
-  }
-  // If websocket fails, force polling on reconnection
-  if (newSocket?.io.opts.transports && (newSocket.io.opts.transports as any[]).indexOf('websocket') !== -1) {
-  console.log('Falling back to polling transport');
-  newSocket.io.opts.transports = ['polling', 'websocket'];
-  }
-  });
-
-  newSocket.on('typing_board', ({ user }) => {
-  setBoardTypingUsers(prev => {
-  // Don't show typing indicator for yourself
-  if (currentUserRef.current && user === currentUserRef.current.name) return prev;
-  if (prev.includes(user)) return prev;
-  return [...prev, user];
-  });
-  });
-
-  newSocket.on('stop_typing_board', ({ user }) => {
-  setBoardTypingUsers(prev => prev.filter(u => u !== user));
-  });
-
-  newSocket.on('typing_task', ({ taskId, user }) => {
-  setTaskTypingUsers(prev => {
-  // Don't show typing indicator for yourself
-  if (currentUserRef.current && user === currentUserRef.current.name) return prev;
-
-  const current = prev[taskId] || [];
-  if (current.includes(user)) return prev;
-  return { ...prev, [taskId]: [...current, user] };
-  });
-  });
-
-  newSocket.on('stop_typing_task', ({ taskId, user }) => {
-  setTaskTypingUsers(prev => {
-  const current = prev[taskId] || [];
-  return { ...prev, [taskId]: current.filter(u => u !== user) };
-  });
-  });
-  };
-
-  void connectSocket();
-
-  return () => {
-  cancelled = true;
-  newSocket?.disconnect();
-  };
-  }, [tableId]);
-
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [boardChatMessages, setBoardChatMessages] = useState<{
@@ -913,11 +797,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // Fetch chat messages with polling
   useEffect(() => {
+  if (!tableId || !isChatOpen) return;
   let isMounted = true;
   let requestInFlight = false;
   let retryAfterAt = 0;
   const fetchChat = () => {
-  if (typeof document !== 'undefined' && document.hidden && !isChatOpen) {
+  if (typeof document !== 'undefined' && document.hidden) {
   return;
   }
   if (requestInFlight || Date.now() < retryAfterAt) {
@@ -975,8 +860,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   };
 
-  fetchChat(); // Initial fetch
-  const intervalMs = isChatOpen ? (isMobile ? 6000 : 5000) : (isMobile ? 15000 : 10000);
+  fetchChat(); // Initial fetch when the widget is opened.
+  const intervalMs = isMobile ? 6000 : 5000;
   const intervalId = setInterval(fetchChat, intervalMs);
 
   if (typeof document !== 'undefined') {
@@ -7597,43 +7482,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Button>
   </Tooltip>
 
-  {/* Board Chat Button */}
-  <Tooltip title="Board Chat">
-  <IconButton
-  onClick={() => { setIsChatOpen(true); setUnreadCount(0); }}
-  sx={{
-  bgcolor: theme.palette.action.hover,
-  color: theme.palette.text.secondary,
-  borderRadius: '8px',
-  border: `1px solid ${theme.palette.divider}`,
-  height: 36,
-  width: 36,
-  flexShrink: 0,
-  transition: 'all 0.2s',
-  '&:hover': { bgcolor: theme.palette.action.selected, color: theme.palette.primary.main, borderColor: theme.palette.primary.main }
-  }}
-  >
-  <Badge
-  badgeContent={unreadCount}
-  max={99}
-  sx={{
-  '& .MuiBadge-badge': {
-  bgcolor: theme.palette.error.main,
-  color: theme.palette.text.primary,
-  fontSize: '0.65rem',
-  fontWeight: 700,
-  minWidth: 16,
-  height: 16,
-  borderRadius: 8,
-  top: 2,
-  right: 2,
-  }
-  }}
-  >
-  <ChatBubbleOutlineIcon fontSize="small" />
-  </Badge>
-  </IconButton>
-  </Tooltip>
   </Box>
   </Box>
   <Dialog
@@ -12668,8 +12516,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-
-
 
 
 
