@@ -4060,12 +4060,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   count: filteredRowIds.length,
   getScrollElement: getRowScrollElement,
   estimateSize: estimateRowSize,
-  // Fixed-height rows only need a small safety buffer. A large buffer mounts
-  // hundreds of off-screen cells during scroll, drag and theme updates.
-  overscan: isMobile ? 12 : 10,
+  // Fixed-height rows only need a small safety buffer. Keep this modest so
+  // scrolling, drag previews and theme changes do not mount too many cells.
+  overscan: isMobile ? 8 : 6,
   scrollMargin: BOARD_HEADER_HEIGHT,
   getItemKey: getVirtualRowKey,
-  useFlushSync: true,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
   // Do not memoize this projection by the virtual-items array reference.
@@ -4081,12 +4080,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const visibleRowEntries = virtualVisibleRowEntries;
 
   const invoiceTaskOptions = React.useMemo(() => {
+  if (!isInvoiceDialogOpen) return [];
   const titleColId = columns[0]?.id;
   return filteredRows.map((row, index) => ({
   id: row.id,
   label: String(row.values[titleColId] || `Task ${index + 1}`)
   }));
-  }, [filteredRows, columns]);
+  }, [isInvoiceDialogOpen, filteredRows, columns]);
 
   const numericTotalsByColumn = React.useMemo(() => {
   const totals = new Map<string, number>();
@@ -12668,7 +12668,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-
 
 
 
