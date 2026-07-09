@@ -26,7 +26,6 @@ import { useTheme } from "@mui/material/styles";
 import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 import HomeIcon from "@mui/icons-material/Home";
 import SettingsIcon from "@mui/icons-material/Settings";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import GroupIcon from "@mui/icons-material/Group";
 import AddIcon from "@mui/icons-material/Add";
 import AddLinkIcon from "@mui/icons-material/AddLink";
@@ -420,13 +419,6 @@ export default function Sidebar({
               label="Home"
               href="/home"
               isActive={pathname === "/home" || pathname === "/"}
-              onClick={onClose}
-            />
-            <SidebarItem
-              icon={<ChatBubbleOutlineIcon fontSize="small" />}
-              label="Chat"
-              href="/chat"
-              isActive={pathname.startsWith("/chat")}
               onClick={onClose}
             />
             <SidebarItem

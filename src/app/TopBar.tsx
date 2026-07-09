@@ -3,12 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, Button, List, useTheme, alpha } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
-import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CommentIcon from "@mui/icons-material/Comment";
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -17,7 +15,6 @@ import SecurityIcon from '@mui/icons-material/Security';
 import GroupIcon from '@mui/icons-material/Group';
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import PeopleIcon from "@mui/icons-material/People";
 import SpaceDashboardIcon from "@mui/icons-material/SpaceDashboard";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -182,7 +179,6 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const workspaceLinks = [
     { label: 'Dashboard', icon: <SpaceDashboardIcon fontSize="small" />, path: '/dashboard', accent: theme.palette.primary.main },
     { label: 'Workspaces', icon: <TableChartIcon fontSize="small" />, path: '/workspace', accent: theme.palette.success.main },
-    { label: 'Messages', icon: <MailOutlineIcon fontSize="small" />, path: '/chat', accent: theme.palette.warning.main },
   ];
 
   const preferenceLinks = [
@@ -191,7 +187,6 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     { label: 'Notifications', icon: <NotificationsNoneIcon fontSize="small" />, path: '/settings?tab=notifications', accent: '#f59e0b' },
     { label: 'Security', icon: <SecurityIcon fontSize="small" />, path: '/settings?tab=security', accent: '#ef4444' },
     { label: 'Team', icon: <GroupIcon fontSize="small" />, path: '/settings?tab=team', accent: '#10b981' },
-    { label: 'Friends', icon: <PeopleIcon fontSize="small" />, path: '/chat?tab=social', accent: '#8b5cf6' },
     { label: 'Billing & Plans', icon: <CreditCardIcon fontSize="small" />, path: '/settings?tab=billing', accent: '#06b6d4' },
     { label: 'Account Controls', icon: <SettingsSuggestIcon fontSize="small" />, path: '/settings?tab=security', accent: theme.palette.text.secondary },
   ];
@@ -365,13 +360,11 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
       if (type === 'incoming_call') {
           showIncomingCall(data);
-          navigateToAppRoute(`/chat?userId=${data.callerId || notif.sender_id}`, router);
           return;
       }
 
       if (type === 'friend_request' || type === 'friend_accepted' || type === 'social_request' || type === 'direct_message') {
-          const targetUserId = type === 'direct_message' ? (data.senderId || notif.sender_id) : null;
-          navigateToAppRoute(targetUserId ? `/chat?userId=${targetUserId}` : '/chat?tab=social', router);
+          navigateToAppRoute('/settings?tab=team', router);
           return;
       }
 
@@ -418,7 +411,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           case 'friend_request': return <PersonAddIcon sx={{ fontSize: 18 }} />;
           case 'friend_accepted': return <CheckCircleIcon sx={{ fontSize: 18 }} />;
           case 'automation': return <NotificationsNoneIcon sx={{ fontSize: 16 }} />;
-          case 'chat_message': return <ChatBubbleOutlineIcon sx={{ fontSize: 16 }} />;
+          case 'chat_message': return <CommentIcon sx={{ fontSize: 16 }} />;
           case 'file_comment': return <CommentIcon sx={{ fontSize: 16 }} />;
           case 'task_chat': return <CommentIcon sx={{ fontSize: 16 }} />;
           default: return <NotificationsNoneIcon sx={{ fontSize: 18 }} />;
@@ -468,7 +461,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       if (type === 'chat_message' && data) {
           return (
               <>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>New Chat Message</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>New Update</Typography>
                   <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     <strong>{data.tableName}</strong>: {data.body}
                   </Box>
@@ -566,7 +559,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         
         <Menu anchorEl={notifAnchorEl} open={Boolean(notifAnchorEl)} onClose={handleNotifClose} PaperProps={{ sx: { width: 380, maxHeight: 500, bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, border: `1px solid ${theme.palette.divider}`, mt: 1, overflowY: 'auto' } }} transformOrigin={{ horizontal: 'right', vertical: 'top' }} anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
             <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle2" fontWeight={600}>Updates & Messages</Typography>
+                <Typography variant="subtitle2" fontWeight={600}>Updates</Typography>
             </Box>
             <List sx={{ p: 0 }}>
                 {notifications.length === 0 ? (
@@ -600,12 +593,6 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                 )}
             </List>
         </Menu>
-
-        <Tooltip title="Messages">
-          <StyledIconButton size="small" onClick={() => navigateToAppRoute('/chat', router)}>
-            <MailOutlineIcon fontSize="small" />
-          </StyledIconButton>
-        </Tooltip>
 
         <Box sx={{ width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
 

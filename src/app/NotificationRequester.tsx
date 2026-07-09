@@ -64,15 +64,15 @@ const NotificationRequester = () => {
         if (!data) return "";
 
         if (data.type === 'incoming_call' && data.callerId) {
-            return `/chat?userId=${data.callerId}`;
+            return '/settings?tab=team';
         }
 
         if (data.type === 'direct_message' && data.senderId) {
-            return `/chat?userId=${data.senderId}`;
+            return '/settings?tab=team';
         }
 
         if (data.type === 'friend_request' || data.type === 'friend_accepted' || data.type === 'social_request') {
-            return '/chat?tab=social';
+            return '/settings?tab=team';
         }
 
         if (data.workspaceId) {
@@ -268,7 +268,7 @@ const NotificationRequester = () => {
                         if (nativePlatform === 'android') {
                             await PushNotifications.createChannel({
                                 id: 'chat_messages',
-                                name: 'Chat Messages',
+                                name: 'Updates',
                                 description: 'Notifications for new chat messages',
                                 importance: 5,
                                 visibility: 1,

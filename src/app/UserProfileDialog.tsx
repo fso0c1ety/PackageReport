@@ -15,10 +15,8 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import AddLinkIcon from "@mui/icons-material/AddLink";
-import { useRouter } from "next/navigation";
-import { getAvatarUrl, authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
+import { getAvatarUrl, authenticatedFetch, getApiUrl } from "./apiUrl";
 import { useNotification } from "./NotificationContext";
 import InviteToTableDialog from "./InviteToTableDialog";
 import CheckIcon from "@mui/icons-material/Check";
@@ -32,7 +30,6 @@ interface UserProfileDialogProps {
 
 export default function UserProfileDialog({ open, onClose, user }: UserProfileDialogProps) {
   const theme = useTheme();
-  const router = useRouter();
   const { showNotification } = useNotification();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -71,11 +68,6 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
     } finally {
       setRequesting(false);
     }
-  };
-
-  const handleMessage = () => {
-    onClose();
-    navigateToAppRoute(`/chat?userId=${user.id}`, router);
   };
 
   return (
@@ -172,23 +164,6 @@ export default function UserProfileDialog({ open, onClose, user }: UserProfileDi
                 </Button>
             )}
             <Box sx={{ display: "flex", gap: 2 }}>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<ChatBubbleOutlineIcon />}
-                onClick={handleMessage}
-                sx={{
-                  borderRadius: 2,
-                  py: 1.2,
-                  textTransform: "none",
-                  fontWeight: 600,
-                  borderColor: theme.palette.divider,
-                  color: theme.palette.text.primary,
-                  "&:hover": { borderColor: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                }}
-              >
-                Message
-              </Button>
               <Button
                 fullWidth
                 variant="outlined"
