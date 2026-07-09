@@ -157,7 +157,6 @@ const stringToColor = (string: string) => {
 
 const FastTextCellEditor = React.memo(function FastTextCellEditor({
   initialValue,
-  suggestions,
   isPrimary,
   isMobile,
   textColor,
@@ -165,7 +164,6 @@ const FastTextCellEditor = React.memo(function FastTextCellEditor({
   onCancel,
 }: {
   initialValue: string;
-  suggestions: string[];
   isPrimary: boolean;
   isMobile: boolean;
   textColor: string;
@@ -173,7 +171,6 @@ const FastTextCellEditor = React.memo(function FastTextCellEditor({
   onCancel: () => void;
 }) {
   const [draft, setDraft] = React.useState(initialValue);
-  const listId = React.useId();
   const savedRef = React.useRef(false);
 
   const save = React.useCallback(() => {
@@ -204,7 +201,6 @@ const FastTextCellEditor = React.memo(function FastTextCellEditor({
   }}
   size={isPrimary ? "medium" : "small"}
   autoFocus
-  inputProps={{ list: listId }}
   InputProps={{
   style: { color: textColor, padding: 0 },
   sx: {
@@ -218,9 +214,6 @@ const FastTextCellEditor = React.memo(function FastTextCellEditor({
   }}
   sx={{ width: '100%', '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
   />
-  <datalist id={listId}>
-  {suggestions.slice(0, 30).map((option) => <option key={option} value={option} />)}
-  </datalist>
   </>
   );
 });
@@ -3920,19 +3913,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   [tableMembers],
   );
 
-  const activeTextSuggestions = React.useMemo(() => {
-  const activeColumnId = editingCell?.colId;
-  if (!activeColumnId) return [] as string[];
-  const uniqueValues = new Set<string>();
-  rows.forEach((row) => {
-  const cellValue = row.values?.[activeColumnId];
-  if (typeof cellValue === 'string' && cellValue.trim()) {
-  uniqueValues.add(cellValue);
-  }
-  });
-  return Array.from(uniqueValues).slice(0, 500);
-  }, [editingCell?.colId, rows]);
-
   const ROW_HEIGHT_ESTIMATE = isMobile ? BOARD_ROW_HEIGHT_MOBILE : BOARD_ROW_HEIGHT_DESKTOP;
   const hasActiveFilters = !!filterText || filterPerson.length > 0 || filterStatus.length > 0;
   const getRowScrollElement = React.useCallback(() => tableContainerRef.current, []);
@@ -5764,14 +5744,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   );
   }
 
-  // Default: text input with autocomplete
-  const uniqueOptions = editingCell?.colId === col.id ? activeTextSuggestions : [];
+  // Default: plain text input. Autocomplete suggestions were intentionally
+  // removed because native datalist popovers become heavy on large boards.
   const isPrimaryTextColumn = sortedColumns[0]?.id === col.id;
   return (
   <FastTextCellEditor
   key={`${row.id}-${col.id}`}
   initialValue={String(editValue ?? "")}
-  suggestions={uniqueOptions}
   isPrimary={isPrimaryTextColumn}
   isMobile={isMobile}
   textColor={theme.palette.text.primary}
@@ -12516,6 +12495,5 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-
 
 
