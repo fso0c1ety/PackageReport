@@ -27,6 +27,7 @@ import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 import HomeIcon from "@mui/icons-material/Home";
 import SettingsIcon from "@mui/icons-material/Settings";
 import GroupIcon from "@mui/icons-material/Group";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import AddIcon from "@mui/icons-material/Add";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
@@ -426,6 +427,13 @@ export default function Sidebar({
               label="Team"
               href="/settings/?tab=team"
               isActive={pathname === "/settings" && searchParams.get("tab") === "team"}
+              onClick={onClose}
+            />
+            <SidebarItem
+              icon={<AutoAwesomeIcon fontSize="small" />}
+              label="Nexus Brain"
+              href="/nexusbrain-chat"
+              isActive={pathname === "/nexusbrain-chat"}
               onClick={onClose}
             />
             <SidebarItem

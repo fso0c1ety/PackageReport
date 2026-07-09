@@ -12149,7 +12149,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Dialog>
 
   {/* Global AI Assistant Floating Button & Popover */}
-  <Box sx={{ position: 'fixed', bottom: { xs: 20, sm: 32 }, right: { xs: 20, sm: 32 }, zIndex: 3000 }}>
+  <Box sx={{ display: 'none' }}>
   <AnimatePresence>
   {isGlobalAiOpen && (
   <Box
@@ -12495,5 +12495,4 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-
 
