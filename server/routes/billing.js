@@ -69,9 +69,11 @@ router.get("/billing/status", authenticateToken, async (req, res) => {
 
 router.post("/billing/checkout", authenticateToken, async (req, res) => {
   const plan = String(req.body?.plan || "");
+  const billingCycle = req.body?.billing === "yearly" ? "yearly" : "monthly";
   const config = billing.PLANS[plan];
   if (!config || plan === "trial") return res.status(400).json({ error: "Invalid paid plan" });
   if (!requireStripeConfiguration(res)) return;
+  const checkoutPrice = billing.getPlanCheckoutPrice(plan, billingCycle);
 
   const frontend = String(process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
   const params = new URLSearchParams({
@@ -82,12 +84,14 @@ router.post("/billing/checkout", authenticateToken, async (req, res) => {
     customer_email: req.user.email,
     "metadata[user_id]": req.user.id,
     "metadata[plan]": plan,
+    "metadata[billing]": billingCycle,
     "subscription_data[metadata][user_id]": req.user.id,
     "subscription_data[metadata][plan]": plan,
+    "subscription_data[metadata][billing]": billingCycle,
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "eur",
-    "line_items[0][price_data][unit_amount]": String(config.amountCents),
-    "line_items[0][price_data][recurring][interval]": "month",
+    "line_items[0][price_data][unit_amount]": String(checkoutPrice.amountCents),
+    "line_items[0][price_data][recurring][interval]": checkoutPrice.interval,
     "line_items[0][price_data][product_data][name]": `Smart Manage ${plan}`,
   });
   const response = await stripeRequest("https://api.stripe.com/v1/checkout/sessions", {

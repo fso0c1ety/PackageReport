@@ -1,16 +1,16 @@
 "use client";
 
 import React, { Suspense, useEffect, useState } from 'react';
-import { 
-  Box, 
-  Container, 
-  Typography, 
-  Grid, 
-  Card, 
-  CardContent, 
-  CardActions, 
-  Button, 
-  Stack, 
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  Stack,
   useTheme,
   alpha,
   Divider,
@@ -20,10 +20,31 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authenticatedFetch, getApiUrl } from '../apiUrl';
 
-const tiers = [
+type BillingCycle = 'monthly' | 'yearly';
+type Plan = {
+  name: string;
+  price?: number;
+  type?: 'free';
+  custom?: boolean;
+  plan: string;
+  description: string;
+  features: readonly string[];
+  buttonText: string;
+  buttonVariant: 'contained' | 'outlined';
+  featured?: boolean;
+  subheader?: string;
+};
+
+function calculateFinalPrice(desired: number) {
+  if (desired === 0) return 0;
+  return Number(((desired + 0.25) / (1 - 0.015)).toFixed(2));
+}
+
+const plans: Plan[] = [
   {
-    title: 'Free',
-    price: '0',
+    name: 'Free',
+    price: 0,
+    type: 'free',
     plan: 'trial',
     description: 'Full access for 7 days. Then view-only for 30 days before deletion.',
     features: [
@@ -35,8 +56,8 @@ const tiers = [
     buttonVariant: 'outlined',
   },
   {
-    title: 'Basic',
-    price: '0.50',
+    name: 'Basic',
+    price: 40,
     plan: 'basic',
     description: 'For teams with 1-5 seats.',
     features: [
@@ -48,9 +69,9 @@ const tiers = [
     buttonVariant: 'contained',
   },
   {
-    title: 'Standard',
+    name: 'Standard',
     subheader: 'Most Popular',
-    price: '75',
+    price: 75,
     plan: 'standard',
     description: 'For teams with 6-10 seats.',
     features: [
@@ -63,8 +84,8 @@ const tiers = [
     featured: true,
   },
   {
-    title: 'Pro',
-    price: '180',
+    name: 'Pro',
+    price: 180,
     plan: 'pro',
     description: 'For teams with 11-20 seats.',
     features: ['Up to 20 seats', 'Equivalent to €9 per seat at 20 seats', 'Advanced collaboration and permissions'],
@@ -72,21 +93,48 @@ const tiers = [
     buttonVariant: 'outlined',
   },
   {
-    title: 'Enterprise',
-    price: null,
+    name: 'Enterprise',
+    custom: true,
     plan: 'enterprise',
     description: 'Custom pricing for organizations with more than 20 seats.',
     features: ['21+ seats', 'Custom onboarding', 'Dedicated commercial support'],
     buttonText: 'Contact Sales',
     buttonVariant: 'outlined',
   },
-];
+] as const;
+
+function getPlanPricing(plan: Plan, billing: BillingCycle) {
+  if (plan.custom) {
+    return { label: 'Custom', suffix: '', billed: '' };
+  }
+
+  const price = plan.price || 0;
+  if (price === 0) {
+    return { label: '€0', suffix: '', billed: '' };
+  }
+
+  if (billing === 'yearly') {
+    const yearlyBase = price * 12 * 0.9;
+    return {
+      label: `€${yearlyBase.toFixed(0)}`,
+      suffix: '/year',
+      billed: `billed €${calculateFinalPrice(yearlyBase).toFixed(2)}`,
+    };
+  }
+
+  return {
+    label: `€${price}`,
+    suffix: '/mo',
+    billed: `billed €${calculateFinalPrice(price).toFixed(2)}`,
+  };
+}
 
 function PricingContent() {
   const theme = useTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [checkoutMessage, setCheckoutMessage] = useState('');
+  const [billing, setBilling] = useState<BillingCycle>('monthly');
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
@@ -118,7 +166,7 @@ function PricingContent() {
     const response = await authenticatedFetch(getApiUrl('billing/checkout'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, billing }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -129,8 +177,8 @@ function PricingContent() {
   };
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh', 
+    <Box sx={{
+      minHeight: '100vh',
       bgcolor: theme.palette.background.default,
       py: 10,
       px: 2
@@ -139,11 +187,11 @@ function PricingContent() {
         {checkoutMessage && <Alert severity={checkoutMessage.startsWith('Payment confirmed') ? 'success' : 'error'} sx={{ mb: 3 }}>{checkoutMessage}</Alert>}
         {/* Header */}
         <Box textAlign="center" mb={10}>
-          <Typography 
-            variant="overline" 
-            sx={{ 
-              color: theme.palette.primary.main, 
-              fontWeight: 800, 
+          <Typography
+            variant="overline"
+            sx={{
+              color: theme.palette.primary.main,
+              fontWeight: 800,
               letterSpacing: 2,
               mb: 2,
               display: 'block'
@@ -151,10 +199,10 @@ function PricingContent() {
           >
             PRICING PLANS
           </Typography>
-          <Typography 
-            variant="h2" 
-            sx={{ 
-              fontWeight: 800, 
+          <Typography
+            variant="h2"
+            sx={{
+              fontWeight: 800,
               color: theme.palette.text.primary,
               mb: 3,
               fontSize: { xs: '2.5rem', md: '3.75rem' }
@@ -162,11 +210,11 @@ function PricingContent() {
           >
             Choose the right plan for your business
           </Typography>
-          <Typography 
-            variant="h6" 
-            sx={{ 
-              color: theme.palette.text.secondary, 
-              maxWidth: 700, 
+          <Typography
+            variant="h6"
+            sx={{
+              color: theme.palette.text.secondary,
+              maxWidth: 700,
               mx: 'auto',
               fontWeight: 400
             }}
@@ -174,103 +222,128 @@ function PricingContent() {
             Manage your packages and tasks more efficiently with our powerful platform.
             Simple, transparent pricing for teams of all sizes.
           </Typography>
+          <Stack direction="row" spacing={1} justifyContent="center" sx={{ mt: 4 }}>
+            {(['monthly', 'yearly'] as const).map((option) => (
+              <Button
+                key={option}
+                variant={billing === option ? 'contained' : 'outlined'}
+                onClick={() => setBilling(option)}
+                sx={{
+                  borderRadius: 3,
+                  px: 3,
+                  textTransform: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                {option === 'monthly' ? 'Monthly' : 'Yearly'}
+              </Button>
+            ))}
+          </Stack>
         </Box>
 
         {/* Pricing Cards */}
         <Grid container spacing={4} alignItems="stretch">
-          {tiers.map((tier) => (
-            <Grid key={tier.title} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card 
-                sx={{ 
-                  height: '100%', 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  bgcolor: theme.palette.background.paper,
-                  borderRadius: 6,
-                  border: `1px solid ${tier.featured ? theme.palette.primary.main : theme.palette.divider}`,
-                  boxShadow: tier.featured ? `0 20px 40px ${alpha(theme.palette.primary.main, 0.1)}` : 'none',
-                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                  '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: theme.shadows[10]
-                  },
-                  position: 'relative',
-                  overflow: 'visible'
-                }}
-              >
-                {tier.featured && (
-                  <Box 
-                    sx={{ 
-                      position: 'absolute', 
-                      top: -12, 
-                      left: '50%', 
-                      transform: 'translateX(-50%)',
-                      bgcolor: theme.palette.primary.main,
-                      color: '#fff',
-                      px: 2,
-                      py: 0.5,
-                      borderRadius: 2,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      zIndex: 1
-                    }}
-                  >
-                    MOST POPULAR
-                  </Box>
-                )}
-                <CardContent sx={{ p: 4, flexGrow: 1 }}>
-                  <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                    {tier.title}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-                    {tier.description}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 4 }}>
-                    <Typography variant="h3" sx={{ fontWeight: 800 }}>
-                      {tier.price === null ? 'Custom' : `€${tier.price}`}
+          {plans.map((tier) => {
+            const pricing = getPlanPricing(tier, billing);
+            return (
+              <Grid key={tier.name} size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    bgcolor: theme.palette.background.paper,
+                    borderRadius: 6,
+                    border: `1px solid ${tier.featured ? theme.palette.primary.main : theme.palette.divider}`,
+                    boxShadow: tier.featured ? `0 20px 40px ${alpha(theme.palette.primary.main, 0.1)}` : 'none',
+                    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-8px)',
+                      boxShadow: theme.shadows[10]
+                    },
+                    position: 'relative',
+                    overflow: 'visible'
+                  }}
+                >
+                  {tier.featured && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: -12,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        bgcolor: theme.palette.primary.main,
+                        color: '#fff',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: 2,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        zIndex: 1
+                      }}
+                    >
+                      MOST POPULAR
+                    </Box>
+                  )}
+                  <CardContent sx={{ p: 4, flexGrow: 1 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+                      {tier.name}
                     </Typography>
-                    <Typography variant="h6" sx={{ color: theme.palette.text.secondary, ml: 1 }}>
-                      {tier.price === null ? '' : '/mo'}
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
+                      {tier.description}
                     </Typography>
-                  </Box>
-                  <Divider sx={{ mb: 4, opacity: 0.5 }} />
-                  <Stack spacing={2}>
-                    {tier.features.map((feature) => (
-                      <Stack key={feature} direction="row" spacing={1.5} alignItems="center">
-                        <CheckCircleIcon sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {feature}
-                        </Typography>
-                      </Stack>
-                    ))}
-                  </Stack>
-                </CardContent>
-                <CardActions sx={{ p: 4, pt: 0 }}>
-                  <Button 
-                    fullWidth 
-                    variant={tier.buttonVariant as 'contained' | 'outlined'}
-                    size="large"
-                    onClick={() => choosePlan(tier.plan)}
-                    sx={{ 
-                      borderRadius: 3, 
-                      py: 1.5, 
-                      fontWeight: 700,
-                      textTransform: 'none',
-                      ...(tier.buttonVariant === 'contained' && {
-                        boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
-                        '&:hover': {
-                          bgcolor: theme.palette.primary.dark,
-                          boxShadow: `0 12px 25px ${alpha(theme.palette.primary.main, 0.4)}`,
-                        }
-                      })
-                    }}
-                  >
-                    {tier.buttonText}
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', mb: pricing.billed ? 1 : 4 }}>
+                      <Typography variant="h3" sx={{ fontWeight: 800 }}>
+                        {pricing.label}
+                      </Typography>
+                      <Typography variant="h6" sx={{ color: theme.palette.text.secondary, ml: 1 }}>
+                        {pricing.suffix}
+                      </Typography>
+                    </Box>
+                    {pricing.billed && (
+                      <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3, fontWeight: 600 }}>
+                        {pricing.billed}
+                      </Typography>
+                    )}
+                    <Divider sx={{ mb: 4, opacity: 0.5 }} />
+                    <Stack spacing={2}>
+                      {tier.features.map((feature) => (
+                        <Stack key={feature} direction="row" spacing={1.5} alignItems="center">
+                          <CheckCircleIcon sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {feature}
+                          </Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                  <CardActions sx={{ p: 4, pt: 0 }}>
+                    <Button
+                      fullWidth
+                      variant={tier.buttonVariant as 'contained' | 'outlined'}
+                      size="large"
+                      onClick={() => choosePlan(tier.plan)}
+                      sx={{
+                        borderRadius: 3,
+                        py: 1.5,
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        ...(tier.buttonVariant === 'contained' && {
+                          boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
+                          '&:hover': {
+                            bgcolor: theme.palette.primary.dark,
+                            boxShadow: `0 12px 25px ${alpha(theme.palette.primary.main, 0.4)}`,
+                          }
+                        })
+                      }}
+                    >
+                      {tier.buttonText}
+                    </Button>
+                  </CardActions>
+                </Card>
+              </Grid>
+            );
+          })}
         </Grid>
       </Container>
     </Box>

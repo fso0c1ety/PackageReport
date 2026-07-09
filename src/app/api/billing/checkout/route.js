@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "../../_lib/server";
-import { PLANS } from "../../_lib/billing";
+import { PLANS, getPlanCheckoutPrice } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -8,11 +8,13 @@ export async function POST(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { plan } = await req.json().catch(() => ({}));
+  const { plan, billing } = await req.json().catch(() => ({}));
   const config = PLANS[plan];
   if (!config || plan === "trial") {
     return NextResponse.json({ error: "Invalid paid plan" }, { status: 400 });
   }
+  const billingCycle = billing === "yearly" ? "yearly" : "monthly";
+  const checkoutPrice = getPlanCheckoutPrice(plan, billingCycle);
   const stripeKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
   if (!/^(sk_test_|sk_live_)[A-Za-z0-9_]+$/.test(stripeKey)) {
     return NextResponse.json({ error: "Billing is not configured" }, { status: 503 });
@@ -27,12 +29,14 @@ export async function POST(req) {
     customer_email: user.email,
     "metadata[user_id]": user.id,
     "metadata[plan]": plan,
+    "metadata[billing]": billingCycle,
     "subscription_data[metadata][user_id]": user.id,
     "subscription_data[metadata][plan]": plan,
+    "subscription_data[metadata][billing]": billingCycle,
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "eur",
-    "line_items[0][price_data][unit_amount]": String(config.amountCents),
-    "line_items[0][price_data][recurring][interval]": "month",
+    "line_items[0][price_data][unit_amount]": String(checkoutPrice.amountCents),
+    "line_items[0][price_data][recurring][interval]": checkoutPrice.interval,
     "line_items[0][price_data][product_data][name]": `Smart Manage ${plan}`,
   });
   try {

@@ -3,10 +3,25 @@ const db = require("../db");
 
 const PLANS = {
   trial: { seatLimit: 1, amountCents: 0 },
-  basic: { seatLimit: 5, amountCents: 50 },
-  standard: { seatLimit: 10, amountCents: 7500 },
-  pro: { seatLimit: 20, amountCents: 18000 },
+  basic: { seatLimit: 5, price: 40 },
+  standard: { seatLimit: 10, price: 75 },
+  pro: { seatLimit: 20, price: 180 },
 };
+
+function calculateFinalPrice(desired) {
+  if (desired === 0) return 0;
+  return Number(((desired + 0.25) / (1 - 0.015)).toFixed(2));
+}
+
+function getPlanCheckoutPrice(plan, billing = "monthly") {
+  const config = PLANS[plan];
+  if (!config || !config.price) return { amountCents: 0, interval: "month" };
+  if (billing === "yearly") {
+    const yearlyBase = config.price * 12 * 0.9;
+    return { amountCents: Math.round(calculateFinalPrice(yearlyBase) * 100), interval: "year" };
+  }
+  return { amountCents: Math.round(calculateFinalPrice(config.price) * 100), interval: "month" };
+}
 
 async function ensureSubscription(userId) {
   await db.query(
@@ -127,4 +142,4 @@ async function processTrialLifecycle() {
   return purged.rowCount;
 }
 
-module.exports = { PLANS, activatePlan, assertSeatAvailable, ensureSubscription, getStatus, isWritable, processTrialLifecycle };
+module.exports = { PLANS, calculateFinalPrice, getPlanCheckoutPrice, activatePlan, assertSeatAvailable, ensureSubscription, getStatus, isWritable, processTrialLifecycle };
