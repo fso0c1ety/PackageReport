@@ -21,6 +21,7 @@ import PublicIcon from "@mui/icons-material/Public";
 import LinkIcon from "@mui/icons-material/Link";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import Flag from "react-flagkit";
 import { countryCodeMap, fullCountryList } from "./board/constants/countryConstants";
 import dayjs, { Dayjs } from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -628,45 +629,6 @@ const withSequentialRowOrder = (rows: Row[]) => rows.map((row, index) => ({
     order: index,
   },
 }));
-
-const countryCodeToEmoji = (countryCode?: string) => {
-  if (!countryCode || countryCode.length !== 2) return "";
-  return countryCode
-    .toUpperCase()
-    .replace(/[A-Z]/g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)));
-};
-
-const CountryFlag = React.memo(function CountryFlag({
-  code,
-  size = 16,
-  sx,
-}: {
-  code?: string;
-  size?: number;
-  sx?: any;
-}) {
-  const emoji = countryCodeToEmoji(code);
-  if (!emoji) return null;
-  return (
-    <Box
-      component="span"
-      aria-label={`${code} flag`}
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        fontSize: Math.round(size * 0.95),
-        lineHeight: 1,
-        flexShrink: 0,
-        ...sx,
-      }}
-    >
-      {emoji}
-    </Box>
-  );
-});
 // Virtualize medium and large menus before their option components become
 // expensive to mount. The rendered menu remains visually identical.
 const LARGE_OPTION_LIST_THRESHOLD = 40;
@@ -4601,7 +4563,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const countryCode = countryCodeMap[value as keyof typeof countryCodeMap];
   return (
   <Box onClick={activate} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, px: 1, py: 0.25, borderRadius: 1, minHeight: isMobile ? 32 : 36, cursor: canEdit ? 'pointer' : 'default', '&:hover': { bgcolor: canEdit ? theme.palette.action.hover : 'transparent' } }}>
-  {countryCode ? <><CountryFlag code={countryCode} size={16} /><Typography sx={{ color: theme.palette.text.primary, fontWeight: 600, fontSize: 13, letterSpacing: '0.02em' }}>{countryCode}</Typography></> : <Typography sx={{ color: theme.palette.text.secondary, fontSize: 12, fontStyle: 'italic' }}>{value || 'Select Country'}</Typography>}
+  {countryCode ? <><Flag country={countryCode} size={16} style={{ borderRadius: 2, flexShrink: 0 }} /><Typography sx={{ color: theme.palette.text.primary, fontWeight: 600, fontSize: 13, letterSpacing: '0.02em' }}>{countryCode}</Typography></> : <Typography sx={{ color: theme.palette.text.secondary, fontSize: 12, fontStyle: 'italic' }}>{value || 'Select Country'}</Typography>}
   </Box>
   );
   }
@@ -5646,7 +5608,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   renderOption={(props, option) => (
   <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1 }}>
   {countryCodeMap[option as keyof typeof countryCodeMap] ? (
-  <CountryFlag code={countryCodeMap[option as keyof typeof countryCodeMap]} size={18} />
+  <Flag country={countryCodeMap[option as keyof typeof countryCodeMap]} size={18} style={{ borderRadius: 3, boxShadow: '0 1px 3px #0002' }} />
   ) : null}
   <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{option}</Typography>
   </Box>
@@ -5859,7 +5821,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   >
   {countryCodeMap[value as keyof typeof countryCodeMap] ? (
   <>
-  <CountryFlag code={countryCodeMap[value as keyof typeof countryCodeMap]} size={16} />
+  <Flag country={countryCodeMap[value as keyof typeof countryCodeMap]} size={16} style={{ borderRadius: 2, flexShrink: 0 }} />
   <Typography sx={{ color: theme.palette.text.primary, fontWeight: 600, fontSize: 13, letterSpacing: '0.02em' }}>{countryCodeMap[value as keyof typeof countryCodeMap]}</Typography>
   </>
   ) : (
@@ -9222,7 +9184,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return (
   <Tooltip key={col.id} title={String(rawVal)}>
   <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
-  <CountryFlag code={countryCodeMap[String(rawVal)]} size={14} />
+  <Flag country={countryCodeMap[String(rawVal)]} size={14} />
   </Box>
   </Tooltip>
   );
@@ -9915,7 +9877,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const { key, ...optionProps } = props;
   return (
   <Box key={key} component="li" {...optionProps} sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-  {countryCodeMap[option] && <CountryFlag code={countryCodeMap[option]} size={20} />}
+  {countryCodeMap[option] && <Flag country={countryCodeMap[option]} size={20} style={{ borderRadius: 2 }} />}
   <Typography sx={{ fontSize: 14 }}>{option}</Typography>
   </Box>
   );
@@ -9933,7 +9895,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <>
   {reviewTask.values[col.id] && countryCodeMap[String(reviewTask.values[col.id])] && (
   <InputAdornment position="start">
-  <CountryFlag code={countryCodeMap[String(reviewTask.values[col.id])]} size={20} />
+  <Flag country={countryCodeMap[String(reviewTask.values[col.id])]} size={20} style={{ borderRadius: 2 }} />
   </InputAdornment>
   )}
   {params.InputProps.startAdornment}
