@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, Button, List, useTheme, alpha } from "@mui/material";
+import React, { useState, useEffect, useRef } from "react";
+import { Box, Avatar, IconButton, Badge, Tooltip, Typography, Menu, MenuItem, Button, List, useTheme, useMediaQuery, alpha } from "@mui/material";
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
@@ -106,6 +107,7 @@ function areNotificationsEqual(prev: Notification[], next: Notification[]) {
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const router = useRouter();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { showIncomingCall } = useCallContext();
   const { toggleTheme, mode } = useThemeContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -126,10 +128,28 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const visibleSearchResults = searchQuery.trim() ? searchResults : [];
+
+  useEffect(() => {
+    if (mobileSearchOpen) {
+      window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    }
+  }, [mobileSearchOpen]);
+
+  useEffect(() => {
+    if (!isMobile && mobileSearchOpen) setMobileSearchOpen(false);
+  }, [isMobile, mobileSearchOpen]);
+
+  const closeMobileSearch = () => {
+    setMobileSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -551,19 +571,29 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, bgcolor: theme.palette.mode === 'dark' ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)", p: 0.5, pl: 2, pr: 1, borderRadius: "30px", border: `1px solid ${theme.palette.divider}` }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: mobileSearchOpen ? 0.5 : 1, sm: 2 }, width: { xs: mobileSearchOpen ? 'calc(100vw - 84px)' : 'auto', sm: 'auto' }, bgcolor: theme.palette.mode === 'dark' ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)", p: 0.5, pl: { xs: mobileSearchOpen ? 0.75 : 2, sm: 2 }, pr: 1, borderRadius: "30px", border: `1px solid ${theme.palette.divider}`, transition: 'width 0.2s ease' }}>
         <Tooltip title={mode === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-          <StyledIconButton size="small" onClick={toggleTheme}>
+          <StyledIconButton size="small" onClick={toggleTheme} sx={{ display: { xs: mobileSearchOpen ? 'none' : 'inline-flex', sm: 'inline-flex' } }}>
             {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
           </StyledIconButton>
         </Tooltip>
 
-        <Box sx={{ width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
+        <Box sx={{ display: { xs: mobileSearchOpen ? 'none' : 'block', sm: 'block' }, width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
 
         <Box sx={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <Box sx={{ display: "flex", alignItems: "center", bgcolor: alpha(theme.palette.text.primary, 0.05), borderRadius: "20px", px: 1.5, py: 0.5, border: "1px solid", borderColor: searchQuery ? theme.palette.primary.main : "transparent", transition: "all 0.2s", width: { xs: 40, sm: 180, md: 240 }, overflow: "hidden" }}>
-            <SearchIcon sx={{ fontSize: 18, color: theme.palette.text.secondary, mr: 1 }} />
-            <input placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ background: "transparent", border: "none", color: theme.palette.text.primary, fontSize: "0.8rem", width: "100%", outline: "none" }} />
+          <Box
+            onClick={() => {
+              if (isMobile && !mobileSearchOpen) setMobileSearchOpen(true);
+            }}
+            sx={{ display: "flex", alignItems: "center", flex: mobileSearchOpen ? 1 : 'initial', bgcolor: alpha(theme.palette.text.primary, 0.05), borderRadius: "20px", px: mobileSearchOpen ? 0.75 : 1.5, py: 0.5, border: "1px solid", borderColor: searchQuery || mobileSearchOpen ? theme.palette.primary.main : "transparent", transition: "all 0.2s", width: { xs: mobileSearchOpen ? '100%' : 40, sm: 180, md: 240 }, overflow: "hidden", cursor: { xs: mobileSearchOpen ? 'text' : 'pointer', sm: 'text' } }}
+          >
+            <SearchIcon sx={{ fontSize: 18, color: theme.palette.text.secondary, mr: mobileSearchOpen ? 0.75 : 1, flexShrink: 0 }} />
+            <input ref={searchInputRef} aria-label="Search users" placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ display: isMobile && !mobileSearchOpen ? 'none' : 'block', background: "transparent", border: "none", color: theme.palette.text.primary, fontSize: "0.8rem", width: "100%", outline: "none" }} />
+            {isMobile && mobileSearchOpen && (
+              <IconButton size="small" aria-label="Close search" onClick={(event) => { event.stopPropagation(); closeMobileSearch(); }} sx={{ p: 0.25, color: theme.palette.text.secondary }}>
+                <CloseIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            )}
           </Box>
           {visibleSearchResults.length > 0 && (
             <Box sx={{ position: "absolute", top: "120%", left: 0, width: "100%", bgcolor: theme.palette.background.paper, boxShadow: theme.shadows[8], borderRadius: 2, border: `1px solid ${theme.palette.divider}`, zIndex: 1000, maxHeight: 300, overflowY: "auto" }}>
@@ -583,7 +613,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </Box>
 
         <Tooltip title="Notifications">
-          <IconButton size="small" onClick={handleNotifOpen} sx={{ color: theme.palette.text.secondary, transition: "all 0.2s", "&:hover": { color: theme.palette.text.primary, backgroundColor: theme.palette.action.hover } }}>
+          <IconButton size="small" onClick={handleNotifOpen} sx={{ display: { xs: mobileSearchOpen ? 'none' : 'inline-flex', sm: 'inline-flex' }, color: theme.palette.text.secondary, transition: "all 0.2s", "&:hover": { color: theme.palette.text.primary, backgroundColor: theme.palette.action.hover } }}>
             <Badge badgeContent={unreadCount} max={99} color="error" invisible={unreadCount === 0}>
               <NotificationsNoneIcon fontSize="small" />
             </Badge>
@@ -627,10 +657,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             </List>
         </Menu>
 
-        <Box sx={{ width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
+        <Box sx={{ display: { xs: mobileSearchOpen ? 'none' : 'block', sm: 'block' }, width: 1, height: 24, bgcolor: theme.palette.divider, mx: 0.5 }} />
 
         <Tooltip title="Account settings">
-          <IconButton onClick={handleClick} size="small" sx={{ ml: 2 }}>
+          <IconButton onClick={handleClick} size="small" sx={{ display: { xs: mobileSearchOpen ? 'none' : 'inline-flex', sm: 'inline-flex' }, ml: 2 }}>
             <Avatar src={getAvatarUrl(user?.avatar, user?.name)} sx={{ width: 36, height: 36, bgcolor: theme.palette.primary.main, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: `2px solid ${theme.palette.background.default}`, boxShadow: `0 0 0 2px ${theme.palette.primary.main}`, transition: "all 0.2s", "&:hover": { transform: "scale(1.05)" } }} />
           </IconButton>
         </Tooltip>
