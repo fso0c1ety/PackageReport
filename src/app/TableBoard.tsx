@@ -4,6 +4,8 @@ import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import FirstPageIcon from '@mui/icons-material/FirstPage';
 import LastPageIcon from '@mui/icons-material/LastPage';
 import React, { useState, useEffect, useDeferredValue } from "react";
@@ -2835,6 +2837,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // --- Handlers and logic ---
 
+  const scrollTableToTop = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
+  tableContainerRef.current?.scrollTo({ top: 0, behavior });
+  }, []);
+
+  const scrollTableToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
+  const scrollContainer = tableContainerRef.current;
+  if (!scrollContainer) return;
+  scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior });
+  }, []);
+
   const handleAddTask = async (atBottom = false) => {
   if (userPermission === 'read') return;
   // Initialize values for all columns
@@ -2884,13 +2896,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (atBottom) {
   // Scroll as soon as the optimistic row has rendered; do not wait for the server.
   requestAnimationFrame(() => {
-  if (tableContainerRef.current) {
-  tableContainerRef.current.scrollTo({
-  top: tableContainerRef.current.scrollHeight,
-  behavior: 'smooth'
+  requestAnimationFrame(() => scrollTableToBottom('smooth'));
   });
-  }
-  });
+  window.setTimeout(() => scrollTableToBottom('auto'), 120);
   }
 
   const creationPromise = (async (): Promise<Row> => {
@@ -8018,6 +8026,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   boardFileTargetRef.current = null;
   }}
   />
+  <Box sx={{ position: 'relative' }}>
   <TableContainer component={Paper} sx={{ 
   bgcolor: 'transparent', 
   boxShadow: 'none', 
@@ -8959,6 +8968,57 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </TableFooter>
         </Table >
       </TableContainer >
+      {isMobile && filteredRowIds.length > 8 && (
+        <Stack
+          spacing={1}
+          sx={{
+            position: 'absolute',
+            right: 10,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 180,
+            pointerEvents: 'auto'
+          }}
+        >
+          <Tooltip title="Go to top" placement="left">
+            <IconButton
+              size="small"
+              onClick={() => scrollTableToTop('smooth')}
+              sx={{
+                width: 42,
+                height: 42,
+                bgcolor: alpha(theme.palette.background.paper, 0.88),
+                color: theme.palette.text.primary,
+                border: `1px solid ${alpha(theme.palette.text.primary, 0.16)}`,
+                boxShadow: theme.palette.mode === 'dark' ? '0 10px 28px rgba(0,0,0,0.35)' : '0 10px 28px rgba(15,23,42,0.18)',
+                backdropFilter: 'blur(10px)',
+                '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.96) }
+              }}
+            >
+              <KeyboardArrowUpIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Go to bottom" placement="left">
+            <IconButton
+              size="small"
+              onClick={() => scrollTableToBottom('smooth')}
+              sx={{
+                width: 42,
+                height: 42,
+                bgcolor: alpha(theme.palette.background.paper, 0.88),
+                color: theme.palette.text.primary,
+                border: `1px solid ${alpha(theme.palette.text.primary, 0.16)}`,
+                boxShadow: theme.palette.mode === 'dark' ? '0 10px 28px rgba(0,0,0,0.35)' : '0 10px 28px rgba(15,23,42,0.18)',
+                backdropFilter: 'blur(10px)',
+                '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.96) }
+              }}
+            >
+              <KeyboardArrowDownIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      )}
+      </Box>
       {userPermission !== 'read' && (
         <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-start' }}>
           <Button
