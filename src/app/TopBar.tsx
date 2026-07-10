@@ -213,14 +213,19 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
   const prevNotifsRef = React.useRef<Set<string>>(new Set());
   const initialFetchDone = React.useRef<boolean>(false);
+  const isFetchingNotificationsRef = React.useRef(false);
 
   useEffect(() => {
     const fetchNotifications = async () => {
         if (typeof document !== 'undefined' && document.hidden && !isElectronRuntime()) {
             return;
         }
+        if (isFetchingNotificationsRef.current) {
+            return;
+        }
 
         try {
+            isFetchingNotificationsRef.current = true;
             const res = await authenticatedFetch(getApiUrl('notifications'), {
                 suppressNativeErrorAlert: true,
             });   
@@ -279,6 +284,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             }
         } catch (error) {
             console.error("Failed to fetch notifications", error);
+        } finally {
+            isFetchingNotificationsRef.current = false;
         }
     };
 
@@ -289,9 +296,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     };
 
     fetchNotifications();
-    // Keep the in-app bell effectively realtime even when push delivery is
-    // unavailable (for example local development without Firebase Admin).
-    const interval = setInterval(fetchNotifications, 1000);
+    // Push delivery handles realtime alerts; this fallback keeps the bell fresh
+    // without flooding the Network panel or the API while the user is idle.
+    const interval = setInterval(fetchNotifications, isElectronRuntime() ? 10000 : 30000);
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
