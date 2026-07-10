@@ -729,6 +729,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [currentUser, setCurrentUser] = useState<any>(null);
   const currentUserRef = React.useRef<any>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const mobileStickyFirstColumnInset = isMobile ? 18 : 0;
   const mobileStickyFirstColumnLeft = 60 - mobileStickyFirstColumnInset;
   const getResponsiveColumnWidth = useResponsiveColumnWidth(isMobile);
@@ -2633,7 +2634,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   };
 
-  const handleExportExcel = (row: Row) => {
+  const handleExportRowCsv = (row: Row) => {
   try {
   // Create CSV content
   const headers = columns.map(c => `"${c.name.replace(/"/g, '""')}"`).join(',');
@@ -3964,6 +3965,120 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const sortedColumns = React.useMemo(() => {
   return [...columns].sort((a, b) => a.order - b.order);
   }, [columns]);
+
+  const handleExportExcel = React.useCallback(async () => {
+  if (!tableId || sortedColumns.length === 0 || isExportingExcel) return;
+
+  setIsExportingExcel(true);
+  try {
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Smart Manage';
+  workbook.created = new Date();
+
+  const safeSheetName = (boardTitle || 'Workspace Table').replace(/[\\/*?:[\]]/g, ' ').slice(0, 31) || 'Table';
+  const worksheet = workbook.addWorksheet(safeSheetName);
+  const exportRows = rows.filter((row) => !row.archived && row.id !== 'placeholder');
+  const totalColumns = Math.max(1, sortedColumns.length);
+
+  worksheet.addRow([boardTitle || 'Workspace Table', '', 'This spreadsheet was created using Smart Manage']);
+  worksheet.addRow(['Manage your workspace data, assignments, statuses and timelines in one export.']);
+  worksheet.addRow([]);
+  worksheet.addRow(['To-Do', '', `Exported ${dayjs().format('MMM D, YYYY HH:mm')}`]);
+  worksheet.addRow(sortedColumns.map((column) => column.name));
+
+  const normalizeExcelValue = (value: any, column: Column) => {
+  if (value == null || value === '') return '';
+  if (column.type === 'Date') {
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.toDate() : String(value);
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') return value;
+  if (Array.isArray(value)) {
+  return value.map((item) => typeof item === 'object'
+  ? item?.name || item?.label || item?.value || item?.email || item?.originalName || item?.url || ''
+  : String(item)).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'object') {
+  return value.name || value.label || value.value || value.email || value.originalName || value.url || JSON.stringify(value);
+  }
+  return String(value);
+  };
+
+  exportRows.forEach((row) => {
+  worksheet.addRow(sortedColumns.map((column) => normalizeExcelValue(row.values[column.id], column)));
+  });
+
+  worksheet.getRow(1).height = 24;
+  worksheet.getRow(1).font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF172B4D' } };
+  worksheet.getRow(2).font = { name: 'Arial', size: 11, color: { argb: 'FF5E6C84' } };
+  worksheet.getRow(4).font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF579BFC' } };
+  worksheet.getRow(5).height = 24;
+  worksheet.getRow(5).eachCell((cell) => {
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6D6D6' } };
+  cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF172B4D' } };
+  cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  cell.border = {
+  top: { style: 'thin', color: { argb: 'FFB3BAC5' } },
+  left: { style: 'thin', color: { argb: 'FFB3BAC5' } },
+  bottom: { style: 'thin', color: { argb: 'FFB3BAC5' } },
+  right: { style: 'thin', color: { argb: 'FFB3BAC5' } },
+  };
+  });
+
+  sortedColumns.forEach((column, index) => {
+  const excelColumn = worksheet.getColumn(index + 1);
+  excelColumn.width = index === 0 ? 40 : Math.max(16, Math.min(35, Math.round((column.width || 160) / 8)));
+  if (column.type === 'Date') excelColumn.numFmt = 'mmm d, yyyy';
+  });
+
+  exportRows.forEach((row, rowIndex) => {
+  const excelRow = worksheet.getRow(rowIndex + 6);
+  excelRow.height = 22;
+  excelRow.eachCell((cell, columnNumber) => {
+  cell.font = { name: 'Arial', size: 10, color: { argb: 'FF172B4D' } };
+  cell.alignment = { vertical: 'middle', wrapText: true };
+  cell.border = {
+  bottom: { style: 'hair', color: { argb: 'FFDDE1E6' } },
+  right: { style: 'hair', color: { argb: 'FFDDE1E6' } },
+  };
+  const boardColumn = sortedColumns[columnNumber - 1];
+  if (boardColumn?.type === 'Status' || boardColumn?.type === 'Priority') {
+  const option = boardColumn.options?.find((candidate) => candidate.value === row.values[boardColumn.id]);
+  const color = String(option?.color || '').replace('#', '');
+  if (/^[0-9a-fA-F]{6}$/.test(color)) {
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${color.toUpperCase()}` } };
+  cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  }
+  }
+  });
+  });
+
+  worksheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: 5, column: totalColumns } };
+  worksheet.views = [{ state: 'frozen', ySplit: 5 }];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([new Uint8Array(buffer as ArrayBuffer)], {
+  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${(boardTitle || 'workspace-table').replace(/[^a-z0-9-_]+/gi, '_')}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showNotification(`Exported ${exportRows.length} rows to Excel`, 'success');
+  } catch (error) {
+  console.error('Excel export failed', error);
+  showNotification('Unable to export this table to Excel', 'error');
+  } finally {
+  setIsExportingExcel(false);
+  }
+  }, [boardTitle, isExportingExcel, rows, showNotification, sortedColumns, tableId]);
   const displayedHeaderColumns = React.useMemo(() => {
   if (!columnDragPreviewIds) return sortedColumns;
   const byId = new Map(sortedColumns.map((column) => [column.id, column]));
@@ -7560,6 +7675,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </IconButton>
   </Tooltip>
   )}
+  <Tooltip title="Export table to Excel">
+  <span>
+  <IconButton
+  onClick={handleExportExcel}
+  disabled={isExportingExcel || sortedColumns.length === 0}
+  aria-label="Export table to Excel"
+  sx={{
+  color: '#16a34a',
+  '&:hover': { color: '#15803d', bgcolor: 'rgba(22,163,74,0.12)' }
+  }}
+  >
+  {isExportingExcel ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon sx={{ fontSize: 20 }} />}
+  </IconButton>
+  </span>
+  </Tooltip>
   <ImportExcelDialog
   open={importDialogOpen}
   onClose={() => setImportDialogOpen(false)}
@@ -8674,7 +8804,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   onMoveTop={() => handleMoveRow(row.id, 'top')}
   onMoveBottom={() => handleMoveRow(row.id, 'bottom')}
   onExportPdf={() => handleExportPdf(row)}
-  onExportExcel={() => handleExportExcel(row)}
+  onExportExcel={() => handleExportRowCsv(row)}
   onDelete={async () => {
   if (confirm('Are you sure you want to delete this task?')) {
   // Optimistic update

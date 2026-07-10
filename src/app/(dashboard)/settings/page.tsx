@@ -143,6 +143,7 @@ export default function SettingsPage() {
   const [billingStatus, setBillingStatus] = useState<any>(null);
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState("");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
 
   // Teammates State
   const [teammates, setTeammates] = useState<any[]>([]);
@@ -257,7 +258,7 @@ export default function SettingsPage() {
       const response = await authenticatedFetch(getApiUrl("billing/checkout"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, billing: billingCycle }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to start checkout");
@@ -1261,19 +1262,62 @@ export default function SettingsPage() {
                 </Stack>
               </Paper>
 
+              <Box
+                sx={{
+                  display: "inline-flex",
+                  gap: 0.5,
+                  p: 0.5,
+                  mb: 2,
+                  borderRadius: 999,
+                  bgcolor: alpha(theme.palette.primary.main, 0.06),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.18)}`,
+                }}
+              >
+                {(["monthly", "yearly"] as const).map((cycle) => {
+                  const selected = billingCycle === cycle;
+                  return (
+                    <Button
+                      key={cycle}
+                      size="small"
+                      variant={selected ? "contained" : "text"}
+                      onClick={() => setBillingCycle(cycle)}
+                      sx={{
+                        minWidth: 84,
+                        px: 2,
+                        py: 0.65,
+                        borderRadius: 999,
+                        textTransform: "capitalize",
+                        fontWeight: 800,
+                        boxShadow: "none",
+                      }}
+                    >
+                      {cycle}
+                    </Button>
+                  );
+                })}
+              </Box>
+
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
                 {[
-                  { id: "basic", name: "Basic", price: "EUR 40/month", seats: "1-5 seats" },
-                  { id: "standard", name: "Standard", price: "EUR 75/month", seats: "6-10 seats" },
-                  { id: "pro", name: "Pro", price: "EUR 180/month", seats: "11-20 seats" },
-                  { id: "enterprise", name: "Enterprise", price: "Custom price", seats: "21+ seats" },
+                  { id: "basic", name: "Basic", monthlyPrice: 40, seats: "1-5 seats" },
+                  { id: "standard", name: "Standard", monthlyPrice: 75, seats: "6-10 seats" },
+                  { id: "pro", name: "Pro", monthlyPrice: 180, seats: "11-20 seats" },
+                  { id: "enterprise", name: "Enterprise", monthlyPrice: null, seats: "21+ seats" },
                 ].map((plan) => {
                   const current = billingStatus?.plan === plan.id && billingStatus?.status === "active";
+                  const price = plan.monthlyPrice == null
+                    ? "Custom price"
+                    : billingCycle === "yearly"
+                      ? `EUR ${Math.round(plan.monthlyPrice * 12 * 0.9)}/year`
+                      : `EUR ${plan.monthlyPrice}/month`;
                   return (
                     <Card key={plan.id} variant="outlined" sx={{ borderRadius: 2, bgcolor: panelBg, borderColor: current ? "primary.main" : "divider" }}>
                       <CardContent>
                         <Typography variant="h6" fontWeight={800}>{plan.name}</Typography>
-                        <Typography variant="h5" fontWeight={800} sx={{ my: 1 }}>{plan.price}</Typography>
+                        <Typography variant="h5" fontWeight={800} sx={{ my: 1 }}>{price}</Typography>
+                        {billingCycle === "yearly" && plan.monthlyPrice != null && (
+                          <Typography variant="caption" color="success.main" fontWeight={800}>Save 10% yearly</Typography>
+                        )}
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{plan.seats}</Typography>
                         <Button
                           fullWidth
