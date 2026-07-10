@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   ensureUserNotificationColumns,
+  ensureExtendedUserProfileColumns,
   getAuthenticatedUser,
   pool,
 } from "../../_lib/server";
@@ -15,6 +16,7 @@ export async function GET(req) {
 
   try {
     await ensureUserNotificationColumns();
+    await ensureExtendedUserProfileColumns();
 
     const result = await pool.query(
       `
@@ -26,6 +28,10 @@ export async function GET(req) {
           phone,
           job_title,
           company,
+          first_name,
+          last_name,
+          birth_date,
+          gender,
           COALESCE(email_notifications, TRUE) AS email_notifications,
           COALESCE(push_notifications, TRUE) AS push_notifications
         FROM users
@@ -53,6 +59,7 @@ export async function PUT(req) {
 
   try {
     await ensureUserNotificationColumns();
+    await ensureExtendedUserProfileColumns();
 
     const {
       name = null,
@@ -60,6 +67,10 @@ export async function PUT(req) {
       phone = null,
       job_title = null,
       company = null,
+      first_name = null,
+      last_name = null,
+      birth_date = null,
+      gender = null,
       email_notifications = null,
       push_notifications = null,
     } = await req.json();
@@ -73,9 +84,13 @@ export async function PUT(req) {
           phone = COALESCE($3, phone),
           job_title = COALESCE($4, job_title),
           company = COALESCE($5, company),
-          email_notifications = COALESCE($6, email_notifications, TRUE),
-          push_notifications = COALESCE($7, push_notifications, TRUE)
-        WHERE id = $8
+          first_name = COALESCE($6, first_name),
+          last_name = COALESCE($7, last_name),
+          birth_date = COALESCE($8, birth_date),
+          gender = COALESCE($9, gender),
+          email_notifications = COALESCE($10, email_notifications, TRUE),
+          push_notifications = COALESCE($11, push_notifications, TRUE)
+        WHERE id = $12
         RETURNING
           id,
           name,
@@ -84,6 +99,10 @@ export async function PUT(req) {
           phone,
           job_title,
           company,
+          first_name,
+          last_name,
+          birth_date,
+          gender,
           COALESCE(email_notifications, TRUE) AS email_notifications,
           COALESCE(push_notifications, TRUE) AS push_notifications
       `,
@@ -93,6 +112,10 @@ export async function PUT(req) {
         phone,
         job_title,
         company,
+        first_name,
+        last_name,
+        birth_date,
+        gender,
         email_notifications,
         push_notifications,
         user.id,

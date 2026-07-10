@@ -42,7 +42,11 @@ async function bootstrapProductionDb() {
             ADD COLUMN IF NOT EXISTS fcm_tokens JSONB DEFAULT '[]'::jsonb,
             ADD COLUMN IF NOT EXISTS phone TEXT,
             ADD COLUMN IF NOT EXISTS job_title TEXT,
-            ADD COLUMN IF NOT EXISTS company TEXT;
+            ADD COLUMN IF NOT EXISTS company TEXT,
+            ADD COLUMN IF NOT EXISTS first_name TEXT,
+            ADD COLUMN IF NOT EXISTS last_name TEXT,
+            ADD COLUMN IF NOT EXISTS birth_date DATE,
+            ADD COLUMN IF NOT EXISTS gender TEXT;
         `);
 
         // 2. tables table: Add invite_code and shared_users
@@ -342,6 +346,10 @@ if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS phone TEXT;
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS job_title TEXT;
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS first_name TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_name TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS birth_date DATE;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gender TEXT;
       ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS sender_id TEXT;
       ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS attachment JSONB;
     `);
@@ -576,7 +584,7 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
   }
   try {
     const result = await db.query(
-      'SELECT id, name, email, avatar, phone, job_title, company, email_notifications, push_notifications FROM users WHERE id = $1',
+      'SELECT id, name, email, avatar, phone, job_title, company, first_name, last_name, birth_date, gender, email_notifications, push_notifications FROM users WHERE id = $1',
       [req.user.id]
     );
     const user = result.rows[0];
@@ -597,7 +605,7 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
   }
   try {
     const currentResult = await db.query(
-      'SELECT name, avatar, phone, job_title, company, email_notifications, push_notifications FROM users WHERE id = $1',
+      'SELECT name, avatar, phone, job_title, company, first_name, last_name, birth_date, gender, email_notifications, push_notifications FROM users WHERE id = $1',
       [req.user.id]
     );
     const current = currentResult.rows[0];
@@ -608,6 +616,10 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
     const nextPhone = req.body.phone === undefined ? current.phone : String(req.body.phone || '').trim();
     const nextJobTitle = req.body.job_title === undefined ? current.job_title : String(req.body.job_title || '').trim();
     const nextCompany = req.body.company === undefined ? current.company : String(req.body.company || '').trim();
+    const nextFirstName = req.body.first_name === undefined ? current.first_name : String(req.body.first_name || '').trim();
+    const nextLastName = req.body.last_name === undefined ? current.last_name : String(req.body.last_name || '').trim();
+    const nextBirthDate = req.body.birth_date === undefined ? current.birth_date : (req.body.birth_date || null);
+    const nextGender = req.body.gender === undefined ? current.gender : String(req.body.gender || '').trim() || null;
     const nextEmailNotifications = typeof req.body.email_notifications === 'boolean'
       ? req.body.email_notifications
       : current.email_notifications;
@@ -623,11 +635,12 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
 
     const result = await db.query(
       `UPDATE users
-       SET name = $1, avatar = $2, phone = $3, job_title = $4, company = $5,
-           email_notifications = $6, push_notifications = $7
-       WHERE id = $8
-       RETURNING id, name, email, avatar, phone, job_title, company, email_notifications, push_notifications`,
-      [nextName, nextAvatar, nextPhone, nextJobTitle, nextCompany, nextEmailNotifications, nextPushNotifications, req.user.id]
+       SET name=$1, avatar=$2, phone=$3, job_title=$4, company=$5,
+           first_name=$6, last_name=$7, birth_date=$8, gender=$9,
+           email_notifications=$10, push_notifications=$11
+       WHERE id=$12
+       RETURNING id, name, email, avatar, phone, job_title, company, first_name, last_name, birth_date, gender, email_notifications, push_notifications`,
+      [nextName, nextAvatar, nextPhone, nextJobTitle, nextCompany, nextFirstName, nextLastName, nextBirthDate, nextGender, nextEmailNotifications, nextPushNotifications, req.user.id]
     );
     if (result.rows.length === 0) {
       console.error('[PROFILE UPDATE] No user updated for id:', req.user.id);

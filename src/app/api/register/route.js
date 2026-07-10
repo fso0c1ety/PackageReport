@@ -1,26 +1,26 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
-import { Pool } from "pg";
+import { ensureExtendedUserProfileColumns, pool } from "../_lib/server";
 
 export const runtime = "nodejs";
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres";
-
-const pool = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
-
 export async function POST(req) {
   try {
-    const { name, email, password } = await req.json();
+    await ensureExtendedUserProfileColumns();
+    const body = await req.json();
+    const firstName = String(body?.first_name || "").trim();
+    const lastName = String(body?.last_name || "").trim();
+    const name = String(body?.name || `${firstName} ${lastName}`).trim();
+    const email = String(body?.email || "").trim().toLowerCase();
+    const password = String(body?.password || "");
+    const phone = String(body?.phone || "").trim();
+    const jobTitle = String(body?.job_title || "").trim();
+    const company = String(body?.company || "").trim();
+    const birthDate = body?.birth_date || null;
+    const gender = String(body?.gender || "").trim() || null;
 
-    if (!name || !email || !password) {
+    if (!firstName || !lastName || !email || !password) {
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
@@ -41,8 +41,9 @@ export async function POST(req) {
       )}&background=random&color=fff&bold=true`;
 
       await pool.query(
-        "UPDATE users SET name = $1, password = $2, avatar = $3 WHERE id = $4",
-        [name, hashedPassword, avatarUrl, existingUser.id]
+        `UPDATE users SET name=$1, password=$2, avatar=$3, first_name=$4, last_name=$5,
+         phone=$6, job_title=$7, company=$8, birth_date=$9, gender=$10 WHERE id=$11`,
+        [name, hashedPassword, avatarUrl, firstName, lastName, phone, jobTitle, company, birthDate, gender, existingUser.id]
       );
 
       return NextResponse.json({
@@ -57,8 +58,10 @@ export async function POST(req) {
     )}&background=random&color=fff&bold=true`;
 
     await pool.query(
-      "INSERT INTO users (id, name, email, avatar, password) VALUES ($1, $2, $3, $4, $5)",
-      [userId, name, email, avatarUrl, hashedPassword]
+      `INSERT INTO users
+       (id, name, email, avatar, password, first_name, last_name, phone, job_title, company, birth_date, gender)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [userId, name, email, avatarUrl, hashedPassword, firstName, lastName, phone, jobTitle, company, birthDate, gender]
     );
 
     return NextResponse.json({

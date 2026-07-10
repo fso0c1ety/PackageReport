@@ -67,11 +67,13 @@ router.post('/login', authRateLimit, async (req, res) => {
 
 // Register Endpoint
 router.post('/register', authRateLimit, async (req, res) => {
-  const name = String(req.body?.name || '').trim();
+  const firstName = String(req.body?.first_name || '').trim();
+  const lastName = String(req.body?.last_name || '').trim();
+  const name = String(req.body?.name || `${firstName} ${lastName}`).trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
 
-  if (!email || !password || !name) {
+  if (!email || !password || !firstName || !lastName) {
     return res.status(400).json({ error: 'All fields are required' });
   }
   if (!isValidEmail(email)) {
@@ -95,8 +97,9 @@ router.post('/register', authRateLimit, async (req, res) => {
       // Update legacy user with password and generate avatar
       const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
       await db.query(
-        'UPDATE users SET name = $1, password = $2, avatar = $3 WHERE id = $4',
-        [name, hashedPassword, avatarUrl, existingUser.id]
+        `UPDATE users SET name=$1, password=$2, avatar=$3, first_name=$4, last_name=$5,
+         phone=$6, job_title=$7, company=$8, birth_date=$9, gender=$10 WHERE id=$11`,
+        [name, hashedPassword, avatarUrl, firstName, lastName, req.body.phone || '', req.body.job_title || '', req.body.company || '', req.body.birth_date || null, req.body.gender || null, existingUser.id]
       );
       await billingService.ensureSubscription(existingUser.id);
       return res.json({ success: true, message: 'Account updated with password and avatar successfully' });
@@ -106,8 +109,10 @@ router.post('/register', authRateLimit, async (req, res) => {
     const userId = uuidv4();
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
     await db.query(
-      'INSERT INTO users (id, name, email, avatar, password) VALUES ($1, $2, $3, $4, $5)',
-      [userId, name, email, avatarUrl, hashedPassword]
+      `INSERT INTO users
+       (id,name,email,avatar,password,first_name,last_name,phone,job_title,company,birth_date,gender)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [userId, name, email, avatarUrl, hashedPassword, firstName, lastName, req.body.phone || '', req.body.job_title || '', req.body.company || '', req.body.birth_date || null, req.body.gender || null]
     );
     await billingService.ensureSubscription(userId);
 

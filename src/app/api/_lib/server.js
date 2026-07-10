@@ -26,6 +26,25 @@ export async function ensureUserNotificationColumns() {
   return true;
 }
 
+let extendedProfileColumnsPromise;
+
+export function ensureExtendedUserProfileColumns() {
+  if (!extendedProfileColumnsPromise) {
+    extendedProfileColumnsPromise = pool.query(`
+      ALTER TABLE public.users
+        ADD COLUMN IF NOT EXISTS first_name TEXT,
+        ADD COLUMN IF NOT EXISTS last_name TEXT,
+        ADD COLUMN IF NOT EXISTS birth_date DATE,
+        ADD COLUMN IF NOT EXISTS gender TEXT
+    `).catch((error) => {
+      extendedProfileColumnsPromise = undefined;
+      throw error;
+    });
+  }
+
+  return extendedProfileColumnsPromise;
+}
+
 export function getAuthenticatedUser(req) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.split(" ")[1];

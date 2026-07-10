@@ -28,7 +28,8 @@ import {
   DialogContent,
   Tooltip,
   Stack,
-  Autocomplete
+  Autocomplete,
+  MenuItem
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
@@ -111,6 +112,10 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editBirthDate, setEditBirthDate] = useState("");
+  const [editGender, setEditGender] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
   const [editJobTitle, setEditJobTitle] = useState("");
@@ -182,6 +187,10 @@ export default function SettingsPage() {
                 const data = await res.json();
                 setUser(data);
                 setEditName(data.name || "");
+                setEditFirstName(data.first_name || "");
+                setEditLastName(data.last_name || "");
+                setEditBirthDate(data.birth_date ? String(data.birth_date).slice(0, 10) : "");
+                setEditGender(data.gender || "");
                 setEditEmail(data.email || "");
                 setEditAvatar(data.avatar || "");
                 setEditJobTitle(data.job_title || "");
@@ -437,7 +446,8 @@ export default function SettingsPage() {
   };
 
   const handleSaveProfile = async () => {
-    if (!editName.trim()) {
+    const fullName = `${editFirstName.trim()} ${editLastName.trim()}`.trim() || editName.trim();
+    if (!fullName) {
       setProfileError("Name is required");
       return;
     }
@@ -448,7 +458,11 @@ export default function SettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          name: editName, 
+          name: fullName,
+          first_name: editFirstName,
+          last_name: editLastName,
+          birth_date: editBirthDate || null,
+          gender: editGender || null,
           avatar: editAvatar,
           job_title: editJobTitle,
           company: editCompany,
@@ -596,6 +610,10 @@ export default function SettingsPage() {
 
   const handleCancelProfileEdit = () => {
     setEditName(user?.name || "");
+    setEditFirstName(user?.first_name || "");
+    setEditLastName(user?.last_name || "");
+    setEditBirthDate(user?.birth_date ? String(user.birth_date).slice(0, 10) : "");
+    setEditGender(user?.gender || "");
     setEditEmail(user?.email || "");
     setEditAvatar(user?.avatar || "");
     setEditJobTitle(user?.job_title || "");
@@ -779,13 +797,22 @@ export default function SettingsPage() {
               <Box sx={{ flexGrow: 1, width: '100%' }}>
                 {isEditing ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 600, mx: { xs: 'auto', sm: 0 } }}>
-                    <TextField
-                      label="Full Name"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      size="small"
-                      sx={{ width: '100%', ...fieldSx }}
-                    />
+                    <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', sm: 'row' } }}>
+                      <TextField
+                        label="First Name"
+                        value={editFirstName}
+                        onChange={(e) => setEditFirstName(e.target.value)}
+                        size="small"
+                        sx={{ width: '100%', ...fieldSx }}
+                      />
+                      <TextField
+                        label="Last Name"
+                        value={editLastName}
+                        onChange={(e) => setEditLastName(e.target.value)}
+                        size="small"
+                        sx={{ width: '100%', ...fieldSx }}
+                      />
+                    </Box>
                     <TextField
                       label="Email"
                       value={editEmail}
@@ -816,6 +843,30 @@ export default function SettingsPage() {
                       size="small"
                       sx={{ width: '100%', ...fieldSx }}
                     />
+                    <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', sm: 'row' } }}>
+                      <TextField
+                        label="Birthday"
+                        type="date"
+                        value={editBirthDate}
+                        onChange={(e) => setEditBirthDate(e.target.value)}
+                        size="small"
+                        slotProps={{ inputLabel: { shrink: true } }}
+                        sx={{ width: '100%', ...fieldSx }}
+                      />
+                      <TextField
+                        select
+                        label="Gender"
+                        value={editGender}
+                        onChange={(e) => setEditGender(e.target.value)}
+                        size="small"
+                        sx={{ width: '100%', ...fieldSx }}
+                      >
+                        <MenuItem value="">Prefer not to say</MenuItem>
+                        <MenuItem value="female">Female</MenuItem>
+                        <MenuItem value="male">Male</MenuItem>
+                        <MenuItem value="other">Other</MenuItem>
+                      </TextField>
+                    </Box>
                   </Box>
                 ) : (
                   <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
@@ -838,6 +889,16 @@ export default function SettingsPage() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 0.75, borderRadius: 999, bgcolor: alpha(theme.palette.success.main, 0.1), color: theme.palette.success.main }}>
                           <CallIcon fontSize="small" />
                           <Typography variant="body2" fontWeight={600}>{user.phone}</Typography>
+                        </Box>
+                      )}
+                      {user?.birth_date && (
+                        <Box sx={{ px: 2, py: 0.75, borderRadius: 999, bgcolor: alpha(theme.palette.info.main, 0.1), color: theme.palette.info.main }}>
+                          <Typography variant="body2" fontWeight={600}>Birthday: {String(user.birth_date).slice(0, 10)}</Typography>
+                        </Box>
+                      )}
+                      {user?.gender && (
+                        <Box sx={{ px: 2, py: 0.75, borderRadius: 999, bgcolor: alpha(theme.palette.warning.main, 0.1), color: theme.palette.warning.main }}>
+                          <Typography variant="body2" fontWeight={600}>Gender: {user.gender}</Typography>
                         </Box>
                       )}
                     </Box>

@@ -12,6 +12,7 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
+  MenuItem,
 } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
@@ -39,8 +40,15 @@ export function LoginForm() {
   const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
   const [formData, setFormData] = useState({
     name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     password: '',
+    phone: '',
+    birth_date: '',
+    gender: '',
+    job_title: '',
+    company: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,7 +80,12 @@ export function LoginForm() {
       const response = await publicFetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          name: isLogin
+            ? formData.name
+            : `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim(),
+        }),
       });
 
       let data: any = null;
@@ -183,28 +196,47 @@ export function LoginForm() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
               >
-                <TextField
-                  fullWidth
-                  label="Full Name"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      color: LIGHT.text,
-                      backgroundColor: LIGHT.inputBg,
-                      borderRadius: 3,
-                      '& fieldset': { borderColor: 'transparent' },
-                      '&:hover fieldset': { borderColor: 'transparent' },
-                      '&.Mui-focused fieldset': { borderColor: 'transparent' },
-                    },
-                    '& .MuiInputLabel-root': {
-                      color: LIGHT.labelMuted,
-                      '&.Mui-focused': { color: LIGHT.secondary },
-                    },
-                  }}
-                />
+                <Stack spacing={2} sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: LIGHT.text,
+                    backgroundColor: LIGHT.inputBg,
+                    borderRadius: 3,
+                    '& fieldset': { borderColor: 'transparent' },
+                    '&:hover fieldset': { borderColor: 'transparent' },
+                    '&.Mui-focused fieldset': { borderColor: 'transparent' },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: LIGHT.labelMuted,
+                    '&.Mui-focused': { color: LIGHT.secondary },
+                  },
+                }}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField fullWidth label="First Name" name="first_name" required value={formData.first_name} onChange={handleChange} />
+                    <TextField fullWidth label="Last Name" name="last_name" required value={formData.last_name} onChange={handleChange} />
+                  </Stack>
+                  <TextField fullWidth label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleChange} />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField
+                      fullWidth
+                      label="Birthday"
+                      name="birth_date"
+                      type="date"
+                      value={formData.birth_date}
+                      onChange={handleChange}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                    <TextField fullWidth select label="Gender" name="gender" value={formData.gender} onChange={handleChange}>
+                      <MenuItem value="">Prefer not to say</MenuItem>
+                      <MenuItem value="female">Female</MenuItem>
+                      <MenuItem value="male">Male</MenuItem>
+                      <MenuItem value="other">Other</MenuItem>
+                    </TextField>
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField fullWidth label="Job Title" name="job_title" value={formData.job_title} onChange={handleChange} />
+                    <TextField fullWidth label="Company" name="company" value={formData.company} onChange={handleChange} />
+                  </Stack>
+                </Stack>
               </motion.div>
             )}
 
