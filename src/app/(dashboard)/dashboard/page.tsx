@@ -28,7 +28,7 @@ import {
   ToggleButtonGroup,
   Tooltip as MuiTooltip
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import { styled, useTheme } from "@mui/material/styles";
 import {
   PieChart,
   Pie,
@@ -297,6 +297,7 @@ function taskHasPerson(task: any, selectedPersonValue: string) {
 
 
 export default function DashboardPage() {
+  const theme = useTheme();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState('');
@@ -307,6 +308,18 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const chartGridStroke = theme.palette.mode === 'dark'
+    ? 'rgba(255,255,255,0.08)'
+    : 'rgba(15,23,42,0.12)';
+  const chartCursorFill = theme.palette.mode === 'dark'
+    ? 'rgba(255,255,255,0.04)'
+    : 'rgba(15,23,42,0.05)';
+  const chartTooltipStyle = {
+    backgroundColor: theme.palette.background.paper,
+    borderColor: theme.palette.divider,
+    borderRadius: 8,
+    color: theme.palette.text.primary,
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -755,8 +768,8 @@ export default function DashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
-                      itemStyle={{ color: 'text.primary', fontWeight: 600 }}
+                      contentStyle={{ ...chartTooltipStyle, boxShadow: theme.shadows[4] }}
+                      itemStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
                     />
                     <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
                   </PieChart>
@@ -797,7 +810,7 @@ export default function DashboardPage() {
               {mounted && barData.length > 0 && (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} vertical={false} />
                     <XAxis
                       dataKey="name"
                       stroke="#64748b"
@@ -813,9 +826,10 @@ export default function DashboardPage() {
                       axisLine={false}
                     />
                     <Tooltip
-                      cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                      contentStyle={{ backgroundColor: '#1e1f30', borderColor: '#35365a', borderRadius: 8 }}
-                      itemStyle={{ color: 'text.primary' }}
+                      cursor={{ fill: chartCursorFill }}
+                      contentStyle={chartTooltipStyle}
+                      itemStyle={{ color: theme.palette.text.primary }}
+                      labelStyle={{ color: theme.palette.text.primary }}
                     />
                     <Bar
                       dataKey="count"
