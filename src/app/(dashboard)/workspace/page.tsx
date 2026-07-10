@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
 import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { authenticatedFetch, getApiUrl } from "../../apiUrl";
+import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "../../apiUrl";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 function WorkspaceContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const workspaceId = searchParams.get('id');
   const tableIdParam = searchParams.get('tableId');
   const taskIdParam = searchParams.get('taskId');
@@ -63,6 +64,52 @@ function WorkspaceContent() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (workspaceId || typeof window === 'undefined') return;
+
+    let cancelled = false;
+    const resolveWorkspace = async () => {
+      setLoading(true);
+      try {
+        const response = await authenticatedFetch(getApiUrl('workspaces'));
+        if (!response.ok) throw new Error(`Failed to load workspaces (${response.status})`);
+        const availableWorkspaces = await response.json();
+        if (!Array.isArray(availableWorkspaces) || availableWorkspaces.length === 0) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+
+        let preferredId = '';
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            const storedWorkspace = user?.id ? localStorage.getItem(`lastWorkspace_${user.id}`) : null;
+            const parsedWorkspace = storedWorkspace ? JSON.parse(storedWorkspace) : null;
+            if (parsedWorkspace?.id && availableWorkspaces.some((workspace: any) => workspace.id === parsedWorkspace.id)) {
+              preferredId = parsedWorkspace.id;
+            }
+          } catch {
+            // Fall back to the first accessible workspace below.
+          }
+        }
+
+        const targetId = preferredId || availableWorkspaces[0].id;
+        if (!cancelled && targetId) {
+          navigateToAppRoute(`/workspace?id=${encodeURIComponent(targetId)}`, router, true);
+        }
+      } catch (error) {
+        console.error('Failed to resolve default workspace', error);
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void resolveWorkspace();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, workspaceId]);
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, idx: number) => {
     setMenuAnchor(event.currentTarget);
     setMenuTableId(tables[idx]?.id || null);
