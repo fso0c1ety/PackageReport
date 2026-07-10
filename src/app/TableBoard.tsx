@@ -4250,7 +4250,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   [columns],
   );
   const kanbanCardColumns = React.useMemo(
-  () => columns.filter(c => c.id !== kanbanStatusColumn?.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3),
+  () => {
+  const candidates = columns.filter(c => c.id !== kanbanStatusColumn?.id && c.id !== columns[0]?.id && !c.hidden);
+  const dateColumn = candidates.find(c => c.type === 'Date');
+  return dateColumn ? [dateColumn] : candidates.slice(0, 1);
+  },
   [columns, kanbanStatusColumn],
   );
   const kanbanTasksByStatus = React.useMemo(() => {
@@ -9362,12 +9366,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   {...providedBoard.droppableProps}
   sx={{
   display: 'flex',
-  gap: 2.5,
-  height: '100%',
+  gap: 1.25,
+  height: isMobile
+  ? 'calc(100dvh - 230px)'
+  : 'min(calc(100dvh - 270px), 938px)',
+  minHeight: 280,
+  maxHeight: 'calc(100dvh - 180px)',
   overflowX: 'auto',
   overflowY: 'hidden',
-  pb: 2,
-  px: 1,
+  pb: 1,
+  px: 0.5,
+  overscrollBehavior: 'contain',
   '::-webkit-scrollbar': { height: 8 },
   '::-webkit-scrollbar-track': { background: 'transparent' },
   '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 4 },
@@ -9404,8 +9413,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   style={providedColumn.draggableProps.style}
   elevation={0}
   sx={{
-  width: 280,
-  minWidth: 280,
+  width: 220,
+  minWidth: 220,
   bgcolor: 'transparent',
   display: 'flex',
   flexDirection: 'column',
@@ -9417,14 +9426,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Box
   {...providedColumn.dragHandleProps}
   sx={{
-  mb: 2,
+  mb: 0.75,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   bgcolor: theme.palette.background.default,
-  p: 1.5,
-  borderRadius: 2,
-  borderTop: `4px solid ${statusColor}`,
+  px: 1.25,
+  py: 0.9,
+  borderRadius: 1.5,
+  borderTop: `3px solid ${statusColor}`,
   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   cursor: userPermission === 'read' ? 'default' : (snapshotColumn.isDragging ? 'grabbing' : 'grab')
   }}
@@ -9456,10 +9466,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 1.5,
-  px: 0.5,
-  pb: 2,
-  borderRadius: 2,
+  gap: 0.65,
+  px: 0.25,
+  pb: 1,
+  borderRadius: 1.5,
+  minHeight: 0,
   bgcolor: snapshot.isDraggingOver ? alpha(statusColor, 0.08) : 'transparent',
   transition: 'background-color 0.2s ease',
   '::-webkit-scrollbar': { width: 6 },
@@ -9483,12 +9494,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   elevation={0}
   sx={{
   bgcolor: alpha(taskStatusColor, theme.palette.mode === 'dark' ? 0.18 : 0.1),
-  p: 2,
-  borderRadius: 2,
+  px: 1.25,
+  py: 1,
+  minHeight: 64,
+  borderRadius: 1.25,
   cursor: userPermission === 'read' ? 'default' : (snapshotTask.isDragging ? 'grabbing' : 'grab'),
   transition: snapshotTask.isDragging ? 'none' : 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
   border: `1px solid ${alpha(taskStatusColor, 0.35)}`,
-  borderLeft: `4px solid ${taskStatusColor}`,
+  borderLeft: `3px solid ${taskStatusColor}`,
   position: 'relative',
   boxShadow: snapshotTask.isDragging ? `0 10px 24px ${alpha(taskStatusColor, 0.35)}` : 'none',
   '&:hover': {
@@ -9525,11 +9538,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   );
   })()}
 
-  <Typography sx={{ fontWeight: 500, color: theme.palette.text.primary, mb: 1, lineHeight: 1.4, pr: 2.5 }}>
+  <Typography noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 0.55, lineHeight: 1.25, pr: 2.5, fontSize: '0.82rem' }}>
   {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
   </Typography>
 
-  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: 16 }}>
   {kanbanCardColumns.map(col => {
   const rawVal = task.values[col.id];
   if (!rawVal) return null;
@@ -9581,7 +9594,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   if (['Date', 'Text'].includes(col.type)) {
   return (
-  <Typography key={col.id} variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+  <Typography key={col.id} variant="caption" noWrap sx={{ color: theme.palette.text.secondary, fontSize: '0.66rem', display: 'flex', alignItems: 'center', gap: 0.4, maxWidth: '100%' }}>
   {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
   {String(rawVal)}
   </Typography>
@@ -9605,7 +9618,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   color: theme.palette.text.secondary,
   textTransform: 'none',
   justifyContent: 'flex-start',
-  py: 1,
+  py: 0.65,
   px: 1,
   borderRadius: 2,
   '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary }
