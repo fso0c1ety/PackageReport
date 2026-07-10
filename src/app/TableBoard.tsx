@@ -1048,6 +1048,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const rowsStore = rowsStoreRef.current;
   const rowsRef = React.useRef<Row[]>(initialRows);
   const pendingTaskCreationsRef = React.useRef<Map<string, Promise<Row>>>(new Map());
+  const cellSaveVersionsRef = React.useRef<Record<string, number>>({});
 
   const setReviewTaskSynced = React.useCallback((updater: React.SetStateAction<Row | null>) => {
   setReviewTask((prev) => {
@@ -3359,6 +3360,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   : sourceRows[rowIdx];
   const updatedRow: Row = { ...baseRow, values: { ...baseRow.values, [colId]: newValue } };
   const previousValue = baseRow.values?.[colId];
+  const saveKey = `${rowId}:${colId}`;
+  const saveVersion = (cellSaveVersionsRef.current[saveKey] ?? 0) + 1;
+  cellSaveVersionsRef.current[saveKey] = saveVersion;
   rowsStore.getState().updateCell(rowId, colId, newValue);
   if (reviewTaskRef.current?.id === rowId) {
   setReviewTaskSynced(updatedRow);
@@ -3422,14 +3426,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const responseData = await response.json().catch(() => null);
   if (responseData?.success && responseData?.task) {
-  rowsStore.getState().upsertRow(responseData.task);
+  const currentRow = rowsStore.getState().rowsById[rowId];
+  const responseRow = responseData.task as Row;
+  const mergedRow = currentRow
+  ? {
+  ...responseRow,
+  values: {
+  ...(responseRow.values ?? {}),
+  ...(currentRow.values ?? {}),
+  [colId]: (currentRow.values ?? {})[colId] ?? newValue,
+  },
+  }
+  : responseRow;
+  rowsStore.getState().upsertRow(mergedRow);
 
   // If the edited row is the one currently being reviewed, update the reviewTask state.
   // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
   // value — to avoid reopening the dialog after it was closed while a date/cell save was in flight.
-  if (reviewTaskRef.current?.id === responseData.task.id
-  && dismissedTaskIdRef.current !== responseData.task.id) {
-  setReviewTaskSynced(responseData.task);
+  if (reviewTaskRef.current?.id === mergedRow.id
+  && dismissedTaskIdRef.current !== mergedRow.id) {
+  setReviewTaskSynced(mergedRow);
   }
   }
   // Log backend debug logs if present
@@ -3445,7 +3461,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   } catch (err) {
   console.error("Failed to save cell", err);
+  const currentCellValue = rowsStore.getState().rowsById[rowId]?.values?.[colId];
+  if (cellSaveVersionsRef.current[saveKey] === saveVersion && currentCellValue === newValue) {
   rowsStore.getState().updateCell(rowId, colId, previousValue);
+  }
   showNotification("Failed to save task change. Please try again.", "error");
   }
   }
