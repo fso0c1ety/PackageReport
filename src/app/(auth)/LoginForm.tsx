@@ -53,6 +53,9 @@ export function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [twoFactorChallengeId, setTwoFactorChallengeId] = useState("");
+  const [twoFactorEmailHint, setTwoFactorEmailHint] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -74,18 +77,20 @@ export function LoginForm() {
     setError('');
     setLoading(true);
 
-    const endpoint = isLogin ? 'login' : 'register';
+    const endpoint = twoFactorChallengeId ? 'login/verify-2fa' : isLogin ? 'login' : 'register';
 
     try {
       const response = await publicFetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          name: isLogin
-            ? formData.name
-            : `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim(),
-        }),
+        body: JSON.stringify(twoFactorChallengeId
+          ? { challengeId: twoFactorChallengeId, code: otpCode }
+          : {
+              ...formData,
+              name: isLogin
+                ? formData.name
+                : `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim(),
+            }),
       });
 
       let data: any = null;
@@ -101,6 +106,14 @@ export function LoginForm() {
         ) as Error & { status?: number };
         authError.status = response.status;
         throw authError;
+      }
+
+      if (isLogin && data?.requiresTwoFactor) {
+        setTwoFactorChallengeId(data.challengeId);
+        setTwoFactorEmailHint(data.emailHint || formData.email);
+        setOtpCode("");
+        setError("");
+        return;
       }
 
       if (isLogin) {
@@ -120,9 +133,11 @@ export function LoginForm() {
       const errorMsg = err?.message || 'Unknown error';
       setError(errorMsg);
 
-      if (isLogin) {
+      if (isLogin && !twoFactorChallengeId) {
         setFormData((prev) => ({ ...prev, password: '' }));
         window.setTimeout(() => passwordInputRef.current?.focus(), 0);
+      } else if (twoFactorChallengeId) {
+        setOtpCode("");
       }
 
       if (
@@ -172,7 +187,7 @@ export function LoginForm() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  {isLogin ? 'Welcome Back' : 'Create Account'}
+                  {twoFactorChallengeId ? 'Verify Your Login' : isLogin ? 'Welcome Back' : 'Create Account'}
                 </Typography>
                 <Typography
                   sx={{
@@ -181,7 +196,9 @@ export function LoginForm() {
                     lineHeight: 1.6,
                   }}
                 >
-                  {isLogin
+                  {twoFactorChallengeId
+                    ? `We sent a 6-digit code to ${twoFactorEmailHint}`
+                    : isLogin
                     ? 'Log in to your account to access your workspace'
                     : 'Create your account to start managing packages'}
                 </Typography>
@@ -240,7 +257,7 @@ export function LoginForm() {
               </motion.div>
             )}
 
-            <TextField
+            {!twoFactorChallengeId && <TextField
               fullWidth
               label="Email Address"
               name="email"
@@ -263,9 +280,9 @@ export function LoginForm() {
                   '&.Mui-focused': { color: LIGHT.secondary },
                 },
               }}
-            />
+            />}
 
-            <TextField
+            {!twoFactorChallengeId && <TextField
               fullWidth
               label="Password"
               name="password"
@@ -307,9 +324,36 @@ export function LoginForm() {
                   '&.Mui-focused': { color: LIGHT.secondary },
                 },
               }}
-            />
+            />}
 
-            {isLogin && (
+            {twoFactorChallengeId && (
+              <TextField
+                fullWidth
+                autoFocus
+                label="Verification Code"
+                name="otpCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                value={otpCode}
+                onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                helperText="The code expires in 10 minutes"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: LIGHT.text,
+                    backgroundColor: LIGHT.inputBg,
+                    borderRadius: 3,
+                    fontSize: '1.25rem',
+                    letterSpacing: '0.35em',
+                    '& fieldset': { borderColor: 'transparent' },
+                    '&:hover fieldset': { borderColor: 'transparent' },
+                    '&.Mui-focused fieldset': { borderColor: LIGHT.primary },
+                  },
+                }}
+              />
+            )}
+
+            {isLogin && !twoFactorChallengeId && (
               <Button
                 type="button"
                 onClick={() => router.push('/forgot-password/')}
@@ -324,6 +368,21 @@ export function LoginForm() {
                 }}
               >
                 Forgot password?
+              </Button>
+            )}
+
+            {twoFactorChallengeId && (
+              <Button
+                type="button"
+                onClick={() => {
+                  setTwoFactorChallengeId("");
+                  setTwoFactorEmailHint("");
+                  setOtpCode("");
+                  setError("");
+                }}
+                sx={{ alignSelf: 'flex-start', p: 0, minWidth: 0, textTransform: 'none' }}
+              >
+                Back to password
               </Button>
             )}
 
@@ -357,6 +416,8 @@ export function LoginForm() {
             >
               {loading ? (
                 <CircularProgress size={24} sx={{ color: 'inherit' }} />
+              ) : twoFactorChallengeId ? (
+                'Verify Code'
               ) : isLogin ? (
                 'Sign In'
               ) : (
@@ -366,12 +427,12 @@ export function LoginForm() {
             </Box>
 
             {/* Toggle Mode */}
-            <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: 3 }}>
+            {!twoFactorChallengeId && <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: 3 }}>
               <Typography sx={{ color: LIGHT.textMuted, fontSize: '0.95rem' }}>
               {isLogin ? "Don't have an account?" : 'Already have an account?'}
               </Typography>
               <Button
-                onClick={() => { setIsLogin(!isLogin); setError(''); }}
+                onClick={() => { setIsLogin(!isLogin); setError(''); setTwoFactorChallengeId(''); setOtpCode(''); }}
                 sx={{
                   fontWeight: 800, textTransform: 'none', fontSize: '0.95rem',
                   color: LIGHT.secondary, p: 0,
@@ -380,7 +441,7 @@ export function LoginForm() {
               >
                 {isLogin ? 'Sign Up' : 'Sign In'}
               </Button>
-            </Stack>
+            </Stack>}
           </Stack>
         </Paper>
       </motion.div>

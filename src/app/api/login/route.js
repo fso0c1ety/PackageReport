@@ -1,25 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { Pool } from "pg";
+import { pool } from "../_lib/server";
+import { issueEmailOtp } from "../_lib/twoFactor";
 
 export const runtime = "nodejs";
-
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres.gxzvlsukjodbarlcjyys:Kukupermu1234@aws-1-eu-central-1.pooler.supabase.com:6543/postgres";
-
-const SECRET_KEY =
-  process.env.JWT_SECRET ||
-  process.env.SECRET_KEY ||
-  "your_secret_key_here";
-
-const pool = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
 
 export async function POST(req) {
   try {
@@ -54,26 +38,12 @@ export async function POST(req) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      SECRET_KEY,
-      { expiresIn: "24h" }
-    );
-
-    const avatarUrl =
-      user.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        user.name
-      )}&background=random&color=fff&bold=true`;
-
+    const challenge = await issueEmailOtp(user);
     return NextResponse.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: avatarUrl,
-      },
+      requiresTwoFactor: true,
+      challengeId: challenge.challengeId,
+      expiresInMinutes: challenge.expiresInMinutes,
+      emailHint: user.email.replace(/^(.{1,2}).*(@.*)$/, "$1***$2"),
     });
   } catch (err) {
     console.error("[LOGIN] Error:", err);
