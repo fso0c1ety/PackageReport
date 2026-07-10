@@ -622,6 +622,13 @@ const LocalDropdownSearch = React.memo(function LocalDropdownSearch({
 
 const EMPTY_COLUMN_OPTIONS: readonly ColumnOption[] = Object.freeze([]);
 const EMPTY_ROWS: readonly Row[] = Object.freeze([]);
+const withSequentialRowOrder = (rows: Row[]) => rows.map((row, index) => ({
+  ...row,
+  values: {
+    ...row.values,
+    order: index,
+  },
+}));
 // Virtualize medium and large menus before their option components become
 // expensive to mount. The rendered menu remains visually identical.
 const LARGE_OPTION_LIST_THRESHOLD = 40;
@@ -2555,14 +2562,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const nextVisibleRank = new Map(nextVisibleOrderIds.map((id, index) => [id, index]));
   const previousRows = rowsRef.current.length > 0 ? rowsRef.current : rows;
-  const nextRows = [...previousRows].sort((a, b) => {
+  const nextRows = withSequentialRowOrder([...previousRows].sort((a, b) => {
   const aRank = nextVisibleRank.get(a.id);
   const bRank = nextVisibleRank.get(b.id);
   if (aRank !== undefined && bRank !== undefined) return aRank - bRank;
   if (aRank !== undefined) return -1;
   if (bRank !== undefined) return 1;
   return previousRows.findIndex((row) => row.id === a.id) - previousRows.findIndex((row) => row.id === b.id);
-  });
+  }));
 
   setRows(nextRows);
   rowsRef.current = nextRows;
@@ -3167,14 +3174,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
 
   nextRows.splice(Math.max(0, insertIndex), 0, updatedMovedTask);
-  setRows(nextRows);
-  persistRowOrder(nextRows);
+  const orderedNextRows = withSequentialRowOrder(nextRows);
+  const orderedMovedTask = orderedNextRows.find((row) => row.id === movedTaskId) || updatedMovedTask;
+  setRows(orderedNextRows);
+  rowsRef.current = orderedNextRows;
+  persistRowOrder(orderedNextRows);
 
   if (sourceStatus !== destinationStatus) {
   authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${movedTaskId}`), {
   method: "PUT",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ id: movedTaskId, values: updatedMovedTask.values }),
+  body: JSON.stringify({ id: movedTaskId, values: orderedMovedTask.values }),
   }).catch(err => console.error("Failed to persist kanban task status during drag and drop", err));
   }
   return;
@@ -3197,8 +3207,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   console.error('Some rows are missing ids:', newRows);
   }
 
-  setRows(newRows);
-  persistRowOrder(newRows);
+  const orderedNewRows = withSequentialRowOrder(newRows);
+  setRows(orderedNewRows);
+  rowsRef.current = orderedNewRows;
+  persistRowOrder(orderedNewRows);
   }
   };
 
@@ -3950,9 +3962,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   count: filteredRowIds.length,
   getScrollElement: getRowScrollElement,
   estimateSize: estimateRowSize,
-  // Fixed-height rows only need a small safety buffer. Keep this modest so
-  // scrolling, drag previews and theme changes do not mount too many cells.
-  overscan: isMobile ? 8 : 6,
+  // Keep a healthy buffer so fast scrolls never expose blank space while rows
+  // are being measured in responsive/mobile layouts.
+  overscan: isMobile ? 18 : 12,
   scrollMargin: BOARD_HEADER_HEIGHT,
   getItemKey: getVirtualRowKey,
   });
@@ -8332,8 +8344,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const draggableRow = (
   <MemoizedTableRow
   component="div"
+  data-index={rowIndex}
   ref={(node: HTMLElement | null) => {
   provided.innerRef(node);
+  if (node && !snapshot.isDragging) {
+  rowVirtualizer.measureElement(node);
+  }
   }}
   {...provided.draggableProps}
   style={snapshot.isDragging ? {
@@ -8354,7 +8370,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   top: 0,
   left: 0,
   width: gridContentWidth,
-  height: ROW_HEIGHT_ESTIMATE,
+  minHeight: ROW_HEIGHT_ESTIMATE,
   display: 'grid',
   gridTemplateColumns: bodyGridTemplateColumns,
   transform: displacementTransform
@@ -8366,7 +8382,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   bgcolor: snapshot.isDragging ? theme.palette.background.paper : rowBg,
   '&:hover': { bgcolor: rowHoverBg },
   transition: 'background-color 0.2s',
-  height: ROW_HEIGHT_ESTIMATE,
   minHeight: ROW_HEIGHT_ESTIMATE,
   borderRadius: 0,
   }}
