@@ -3372,6 +3372,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const saveVersion = (cellSaveVersionsRef.current[saveKey] ?? 0) + 1;
   cellSaveVersionsRef.current[saveKey] = saveVersion;
   rowsStore.getState().updateCell(rowId, colId, newValue);
+  rowsRef.current = sourceRows.map((row) => row.id === rowId ? updatedRow : row);
   if (reviewTaskRef.current?.id === rowId) {
   setReviewTaskSynced(updatedRow);
   }
@@ -3447,6 +3448,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   : responseRow;
   rowsStore.getState().upsertRow(mergedRow);
+  rowsRef.current = rowsRef.current.map((row) => row.id === rowId ? mergedRow : row);
 
   // If the edited row is the one currently being reviewed, update the reviewTask state.
   // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
@@ -3472,6 +3474,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const currentCellValue = rowsStore.getState().rowsById[rowId]?.values?.[colId];
   if (cellSaveVersionsRef.current[saveKey] === saveVersion && currentCellValue === newValue) {
   rowsStore.getState().updateCell(rowId, colId, previousValue);
+  rowsRef.current = rowsRef.current.map((row) => (
+  row.id === rowId ? { ...row, values: { ...row.values, [colId]: previousValue } } : row
+  ));
   }
   showNotification("Failed to save task change. Please try again.", "error");
   }
