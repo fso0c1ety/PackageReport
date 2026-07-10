@@ -96,10 +96,14 @@ const StyledCard = styled(Card)(({ theme }) => ({
 const RecentCard = styled(StyledCard)(({ theme }) => ({
   cursor: "pointer",
   height: "100%",
-  display: "flex",
-  flexDirection: "row", // Horizontal layout everywhere
+  display: "grid",
+  gridTemplateColumns: "minmax(120px, 40%) minmax(0, 1fr)",
   alignItems: "stretch", // Stretch image and content
   overflow: "hidden",
+  minWidth: 0,
+  [theme.breakpoints.down("sm")]: {
+    gridTemplateColumns: "minmax(110px, 34%) minmax(0, 1fr)",
+  },
 }));
 
 const WorkspaceCard = styled(StyledCard)(({ theme }) => ({
@@ -514,15 +518,15 @@ export default function HomeDashboard() {
             </SectionTitle>
             <Grid container spacing={3} alignItems="stretch">
               {/* Dashboard Card - Takes 12 on mobile, 6 on desktop (half width) */}
-              <Grid size={{ xs: 12, sm: 6, md: 6 }} sx={{ display: 'flex' }}>
+              <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', minWidth: 0 }}>
                 <Link href={getAppHref('/dashboard')} style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
                   <RecentCard sx={{ width: '100%' }}>
                     <Box
                       sx={{
                         height: 'auto',
                         minHeight: { xs: 120, md: 140 },
-                        width: { xs: 120, sm: 180, md: 210 },
-                        flexShrink: 0,
+                        width: '100%',
+                        minWidth: 0,
                         bgcolor: "#eef2ff",
                         backgroundImage: "url('/dashboard-concept-illustration_114360-4351.avif')",
                         backgroundSize: "contain",
@@ -556,11 +560,11 @@ export default function HomeDashboard() {
                         }}
                       />
                     </Box>
-                    <CardContent sx={{ flex: 1, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                      <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { md: "1.15rem" } }}>
+                    <CardContent sx={{ minWidth: 0, p: { xs: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
+                      <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', md: "1.1rem" }, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
                         Dashboard & Reporting
                       </Typography>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.85rem" } }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.82rem" }, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
                         Overview of all project metrics
                       </Typography>
                     </CardContent>
@@ -570,15 +574,15 @@ export default function HomeDashboard() {
 
               {/* Last Workspace Card - Takes 12 on mobile, 6 on desktop (half width) */}
               {lastWorkspace && (
-                <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex' }}>
+                <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', minWidth: 0 }}>
                   <Link href={getAppHref(`/workspace?id=${lastWorkspace.id}`)} style={{ textDecoration: 'none', width: '100%', display: 'flex' }}>
                     <RecentCard sx={{ width: '100%' }}>
                       <Box
                         sx={{
                           height: 'auto',
                           minHeight: { xs: 120, md: 140 },
-                          width: { xs: 140, sm: 200, md: 250 },
-                          flexShrink: 0,
+                          width: '100%',
+                          minWidth: 0,
                           bgcolor: "#eef2ff",
                           backgroundImage: "url('/kanban-illustration.png')",
                           backgroundSize: "contain",
@@ -611,11 +615,11 @@ export default function HomeDashboard() {
                           }}
                         />
                       </Box>
-                      <CardContent sx={{ flex: 1, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { md: "1.15rem" } }}>
+                      <CardContent sx={{ minWidth: 0, p: { xs: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
+                        <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', md: "1.1rem" }, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
                           {lastWorkspace.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.85rem" } }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: { md: "0.82rem" }, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
                           Continue where you left off
                         </Typography>
                       </CardContent>
