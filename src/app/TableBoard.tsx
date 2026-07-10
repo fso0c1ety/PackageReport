@@ -1050,6 +1050,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   const rowsStore = rowsStoreRef.current;
   const rowsRef = React.useRef<Row[]>(initialRows);
+  const tableRealtimeChannelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
   const pendingTaskCreationsRef = React.useRef<Map<string, Promise<Row>>>(new Map());
   const cellSaveVersionsRef = React.useRef<Record<string, number>>({});
 
@@ -2379,6 +2380,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const setRows = React.useCallback((updater: React.SetStateAction<Row[]>) => {
   rowsStore.getState().replaceRows(updater);
   }, [rowsStore]);
+  const broadcastTableChange = React.useCallback((event: 'row-change' | 'row-order', payload: Record<string, any>) => {
+  const channel = tableRealtimeChannelRef.current;
+  if (!channel) return;
+  void channel.send({ type: 'broadcast', event, payload }).then((result) => {
+  if (result !== 'ok') {
+  console.warn('[TableBoard realtime] Broadcast was not acknowledged', { event, result });
+  }
+  });
+  }, []);
   useEffect(() => {
   rowsRef.current = rows;
   }, [rows]);
@@ -2864,13 +2874,44 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   });
   }
   )
+  .on('broadcast', { event: 'row-change' }, (message: any) => {
+  const eventType = message.payload?.eventType;
+  if (eventType === 'DELETE') {
+  const deletedId = message.payload?.rowId;
+  if (deletedId) setRows((prev) => prev.filter((row) => row.id !== deletedId));
+  return;
+  }
+
+  const realtimeRow = normalizeRealtimeRow(message.payload?.row);
+  if (!realtimeRow?.id) return;
+  setRows((prev) => {
+  const withoutPlaceholder = prev.filter((row) => row.id !== 'placeholder');
+  const exists = withoutPlaceholder.some((row) => row.id === realtimeRow.id);
+  return sortRowsForRealtime(exists
+  ? withoutPlaceholder.map((row) => row.id === realtimeRow.id ? realtimeRow : row)
+  : [...withoutPlaceholder, realtimeRow]);
+  });
+  })
+  .on('broadcast', { event: 'row-order' }, (message: any) => {
+  const orderedTaskIds = message.payload?.orderedTaskIds;
+  if (!Array.isArray(orderedTaskIds)) return;
+  const orderById = new Map(orderedTaskIds.map((id: string, index: number) => [id, index]));
+  setRows((prev) => withSequentialRowOrder([...prev].sort((a, b) => (
+  (orderById.get(a.id) ?? Number.MAX_SAFE_INTEGER)
+  - (orderById.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+  ))));
+  })
   .subscribe((status) => {
   if (status === 'CHANNEL_ERROR') {
   console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
   }
   });
+  tableRealtimeChannelRef.current = channel;
 
   return () => {
+  if (tableRealtimeChannelRef.current === channel) {
+  tableRealtimeChannelRef.current = null;
+  }
   void supabase.removeChannel(channel);
   };
   }, [tableId, setRows]);
@@ -2987,6 +3028,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   values: latestLocalRow?.values ?? created.values,
   };
   setRows((prev) => prev.map((row) => row.id === optimisticTask.id ? persistedRow : row));
+  broadcastTableChange('row-change', { eventType: 'INSERT', row: persistedRow });
   console.info("[TableBoard create]", { rowId: optimisticTask.id, result: "success" });
   } catch (err) {
   console.error("Failed to add task", err);
@@ -3261,9 +3303,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const orderedMovedTask = orderedNextRows.find((row) => row.id === movedTaskId) || updatedMovedTask;
   setRows(orderedNextRows);
   rowsRef.current = orderedNextRows;
-  await persistRowOrder(orderedNextRows).catch(err => {
+  const kanbanOrderSaved = await persistRowOrder(orderedNextRows).then(() => true).catch(err => {
   console.error("Failed to persist kanban task order", err);
   showNotification("Failed to save task order. Please try again.", "error");
+  return false;
+  });
+  if (kanbanOrderSaved) broadcastTableChange('row-order', {
+  orderedTaskIds: orderedNextRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
   });
 
   if (sourceStatus !== destinationStatus) {
@@ -3296,9 +3342,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const orderedNewRows = withSequentialRowOrder(newRows);
   setRows(orderedNewRows);
   rowsRef.current = orderedNewRows;
-  await persistRowOrder(orderedNewRows).catch(err => {
+  const rowOrderSaved = await persistRowOrder(orderedNewRows).then(() => true).catch(err => {
   console.error("Failed to persist row order during drag and drop", err);
   showNotification("Failed to save task order. Please try again.", "error");
+  return false;
+  });
+  if (rowOrderSaved) broadcastTableChange('row-order', {
+  orderedTaskIds: orderedNewRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
   });
   }
   };
@@ -3483,6 +3533,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const created = await res.json();
   // Remove placeholder and add real task
   setRows((prev) => prev.map((row) => row.id === 'placeholder' ? created : row));
+  broadcastTableChange('row-change', { eventType: 'INSERT', row: created });
   setEditingCell(null);
   setEditValue("");
   } catch (err) {
@@ -3529,6 +3580,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   : responseRow;
   rowsStore.getState().upsertRow(mergedRow);
   rowsRef.current = rowsRef.current.map((row) => row.id === rowId ? mergedRow : row);
+  broadcastTableChange('row-change', { eventType: 'UPDATE', row: mergedRow });
 
   // If the edited row is the one currently being reviewed, update the reviewTask state.
   // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
@@ -8588,9 +8640,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Optimistic update
   setRows(prev => prev.filter(r => r.id !== row.id));
   // Backend call
-  await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
+  const deleteResponse = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${row.id}`), {
   method: "DELETE",
   });
+  if (deleteResponse.ok) {
+  broadcastTableChange('row-change', { eventType: 'DELETE', rowId: row.id });
+  }
   }
   }}
   />
