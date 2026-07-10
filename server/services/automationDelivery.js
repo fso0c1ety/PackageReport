@@ -86,6 +86,8 @@ async function deliverAutomation({ automation, table, rowId, values }) {
   }
 
   const subject = `Task updated: ${table.name}`;
+  const taskColumn = columns.find((column) => column.id === "task") || columns[0];
+  const taskName = String(values?.[taskColumn?.id] || "Untitled").trim() || "Untitled";
   const notificationTitle = "Automation Alert";
   const notificationBody = "Check task for details.";
   const { html, textSummary } = buildAutomationEmail(table, columns, colIds, values);
@@ -127,6 +129,7 @@ async function deliverAutomation({ automation, table, rowId, values }) {
                 subject,
                 body: notificationBody,
                 tableName: table.name,
+                taskName,
                 tableId: table.id,
                 taskId: rowId,
                 logId,

@@ -165,6 +165,7 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
     }
 
     const subject = `Task updated: ${table.name}`;
+    const taskName = getTaskName(table, newValues);
     const columns = Array.isArray(table.columns) ? table.columns : [];
     const automationCols = toArray(automation.cols);
     const recipients = toArray(automation.recipients)
@@ -300,6 +301,7 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
                   subject,
                   body: textSummary,
                   tableName: table.name,
+                  taskName,
                   tableId: table.id,
                   taskId,
                   logId,

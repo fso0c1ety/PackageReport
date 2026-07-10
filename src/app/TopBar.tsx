@@ -53,6 +53,7 @@ type Notification = {
       tableId?: string;
       workspaceId?: string;
       taskId?: string;
+      taskName?: string;
       senderId?: string;
       requestId?: string;
       callerId?: string;
@@ -211,6 +212,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
+  const [expandedNotificationIds, setExpandedNotificationIds] = useState<Set<string>>(() => new Set());
   const prevNotifsRef = React.useRef<Set<string>>(new Set());
   const initialFetchDone = React.useRef<boolean>(false);
   const isFetchingNotificationsRef = React.useRef(false);
@@ -451,16 +453,40 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           );
       }
       if (type === 'automation' && data) {
+          const taskNameFromBody = data.body
+              ?.split('\n')
+              .find((line) => /^task\s*:/i.test(line))
+              ?.replace(/^task\s*:\s*/i, '')
+              .trim();
+          const taskName = data.taskName || taskNameFromBody || 'Untitled';
+          const isExpanded = expandedNotificationIds.has(notif.id);
           return (
               <>
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Automation Alert</Typography>
                   <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
-                    {data.subject}
+                    Task updated: {data.tableName || data.subject?.replace(/^Task updated:\s*/i, '') || 'Workspace'}, Task: {taskName} - Check for more details
                   </Box>
-                  {data.body && (
-                      <Box component="pre" sx={{ color: theme.palette.text.secondary, fontWeight: 500, fontSize: '0.7rem', mt: 0.5, mb: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', maxHeight: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {isExpanded && data.body && (
+                      <Box component="pre" sx={{ color: theme.palette.text.secondary, fontWeight: 500, fontSize: '0.7rem', mt: 0.75, mb: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', maxHeight: 160, overflowY: 'auto' }}>
                           {data.body}
                       </Box>
+                  )}
+                  {data.body && (
+                      <Button
+                          size="small"
+                          onClick={(event) => {
+                              event.stopPropagation();
+                              setExpandedNotificationIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(notif.id)) next.delete(notif.id);
+                                  else next.add(notif.id);
+                                  return next;
+                              });
+                          }}
+                          sx={{ minWidth: 0, p: 0, mt: 0.5, fontSize: '0.68rem', textTransform: 'none' }}
+                      >
+                          {isExpanded ? 'See less' : 'See more'}
+                      </Button>
                   )}
               </>
           );
