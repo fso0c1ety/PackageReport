@@ -13,6 +13,7 @@ interface BillingStatus {
   plan: string;
   status: string;
   writable: boolean;
+  unlimited?: boolean;
   trial_ends_at?: string | null;
   purge_at?: string | null;
   current_period_end?: string | null;
@@ -59,7 +60,7 @@ export default function SubscriptionBanner() {
     ));
   }, [billing]);
 
-  if (!billing || dismissed) return null;
+  if (!billing || dismissed || billing.unlimited) return null;
 
   const expired = !billing.writable;
   const isTrial = billing.plan === "trial" && billing.status === "trialing";

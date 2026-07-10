@@ -2,6 +2,12 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { pool } from "./server";
 
+export const INTERNAL_UNLIMITED_EMAILS = [
+  "a.gjendzz@gmail.com",
+  "valitv7@gmail.com",
+  "bleonahalili8@gmail.com",
+];
+
 export const PLANS = {
   trial: { seatLimit: 5, amountCents: 0 },
   basic: { seatLimit: 5, price: 40 },
@@ -45,9 +51,28 @@ export async function getBillingStatus(userId) {
     [userId]
   );
   const value = subscription.rows[0];
+  const userResult = await pool.query("SELECT LOWER(email) AS email FROM users WHERE id = $1", [userId]);
+  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(userResult.rows[0]?.email || "");
+
+  if (unlimited) {
+    await pool.query(
+      `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
+       WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+      [userId]
+    );
+  }
+
   const writable = value?.status === "active"
-    || (value?.status === "trialing" && new Date(value.trial_ends_at) > new Date());
-  return { ...value, writable, seats_used: seats.rows[0]?.count || 1 };
+    || (value?.status === "trialing" && new Date(value.trial_ends_at) > new Date())
+    || unlimited;
+  return {
+    ...value,
+    status: unlimited ? "active" : value?.status,
+    writable,
+    unlimited,
+    seat_limit: unlimited ? null : value?.seat_limit,
+    seats_used: seats.rows[0]?.count || 1,
+  };
 }
 
 async function resolveBillingOwner(userId, { tableId, workspaceId } = {}) {

@@ -49,6 +49,7 @@ interface BillingStatus {
   status: "trialing" | "active" | "past_due" | "expired" | "canceled";
   trial_ends_at?: string | null;
   writable?: boolean;
+  unlimited?: boolean;
 }
 
 interface SidebarItemProps {
@@ -231,6 +232,7 @@ export default function Sidebar({
 
   const billingLabel = React.useMemo(() => {
     if (!billingStatus) return "Loading plan...";
+    if (billingStatus.unlimited) return "Internal · Unlimited";
     if (billingStatus.status === "trialing") {
       const remainingMs = billingStatus.trial_ends_at
         ? new Date(billingStatus.trial_ends_at).getTime() - Date.now()
