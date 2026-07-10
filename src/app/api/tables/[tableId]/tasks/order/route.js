@@ -60,6 +60,7 @@ export async function PUT(req, { params }) {
         FROM ordered
         WHERE row.id::text = ordered.task_id
           AND row.table_id = $2
+          AND (row.values->>'order')::int IS DISTINCT FROM ordered.row_order
       `,
       [JSON.stringify(validTaskIds), tableId]
     );

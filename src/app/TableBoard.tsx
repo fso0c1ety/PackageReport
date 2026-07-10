@@ -5248,7 +5248,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   sx={{
   bgcolor: currentOption.color,
-  color: currentOption.color.toLowerCase() === '#333333' ? '#ffffff' : theme.palette.text.primary,
+  color: theme.palette.getContrastText(currentOption.color),
   borderRadius: '4px',
   textAlign: 'center',
   height: isMobile ? 28 : 30,
@@ -5348,7 +5348,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   sx={{
   bgcolor: opt.color,
-  color: opt.color.toLowerCase() === '#333333' ? '#ffffff' : theme.palette.text.primary,
+  color: theme.palette.getContrastText(opt.color),
   borderRadius: '4px',
   height: 40,
   minHeight: 40,

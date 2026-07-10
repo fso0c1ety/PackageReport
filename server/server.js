@@ -2430,6 +2430,7 @@ app.put('/api/tables/:tableId/tasks/order', authenticateToken, async (req, res) 
       FROM ordered
       WHERE row.id::text = ordered.task_id
         AND row.table_id = $2
+        AND (row.values->>'order')::int IS DISTINCT FROM ordered.row_order
     `, [JSON.stringify(validIds), req.params.tableId]);
     await client.query('COMMIT');
     res.json({ success: true });
