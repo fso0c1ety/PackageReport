@@ -2995,6 +2995,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   ? [...withoutPlaceholder, optimisticTask]
   : [optimisticTask, ...withoutPlaceholder];
   });
+  broadcastTableChange('row-change', { eventType: 'INSERT', row: optimisticTask });
 
   if (atBottom) {
   // Scroll as soon as the optimistic row has rendered; do not wait for the server.
@@ -3033,6 +3034,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   } catch (err) {
   console.error("Failed to add task", err);
   setRows((prev) => prev.filter((row) => row.id !== optimisticTask.id));
+  broadcastTableChange('row-change', { eventType: 'DELETE', rowId: optimisticTask.id });
   showNotification("Failed to create task. Please try again.", "error");
   } finally {
   pendingTaskCreationsRef.current.delete(optimisticTask.id);
@@ -3303,13 +3305,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const orderedMovedTask = orderedNextRows.find((row) => row.id === movedTaskId) || updatedMovedTask;
   setRows(orderedNextRows);
   rowsRef.current = orderedNextRows;
-  const kanbanOrderSaved = await persistRowOrder(orderedNextRows).then(() => true).catch(err => {
-  console.error("Failed to persist kanban task order", err);
-  showNotification("Failed to save task order. Please try again.", "error");
-  return false;
-  });
-  if (kanbanOrderSaved) broadcastTableChange('row-order', {
+  broadcastTableChange('row-order', {
   orderedTaskIds: orderedNextRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
+  });
+  await persistRowOrder(orderedNextRows).catch(err => {
+  console.error("Failed to persist kanban task order", err);
+  setRows(currentRows);
+  rowsRef.current = currentRows;
+  broadcastTableChange('row-order', {
+  orderedTaskIds: currentRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
+  });
+  showNotification("Failed to save task order. Please try again.", "error");
   });
 
   if (sourceStatus !== destinationStatus) {
@@ -3342,13 +3348,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const orderedNewRows = withSequentialRowOrder(newRows);
   setRows(orderedNewRows);
   rowsRef.current = orderedNewRows;
-  const rowOrderSaved = await persistRowOrder(orderedNewRows).then(() => true).catch(err => {
-  console.error("Failed to persist row order during drag and drop", err);
-  showNotification("Failed to save task order. Please try again.", "error");
-  return false;
-  });
-  if (rowOrderSaved) broadcastTableChange('row-order', {
+  broadcastTableChange('row-order', {
   orderedTaskIds: orderedNewRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
+  });
+  await persistRowOrder(orderedNewRows).catch(err => {
+  console.error("Failed to persist row order during drag and drop", err);
+  setRows(currentRows);
+  rowsRef.current = currentRows;
+  broadcastTableChange('row-order', {
+  orderedTaskIds: currentRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
+  });
+  showNotification("Failed to save task order. Please try again.", "error");
   });
   }
   };
@@ -3503,6 +3513,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   cellSaveVersionsRef.current[saveKey] = saveVersion;
   rowsStore.getState().updateCell(rowId, colId, newValue);
   rowsRef.current = sourceRows.map((row) => row.id === rowId ? updatedRow : row);
+  broadcastTableChange('row-change', { eventType: 'UPDATE', row: updatedRow });
   if (reviewTaskRef.current?.id === rowId) {
   setReviewTaskSynced(updatedRow);
   }
@@ -3580,7 +3591,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   : responseRow;
   rowsStore.getState().upsertRow(mergedRow);
   rowsRef.current = rowsRef.current.map((row) => row.id === rowId ? mergedRow : row);
-  broadcastTableChange('row-change', { eventType: 'UPDATE', row: mergedRow });
 
   // If the edited row is the one currently being reviewed, update the reviewTask state.
   // IMPORTANT: Check dismissedTaskIdRef (a ref, always current) — NOT the reviewTask closure
@@ -3609,6 +3619,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   rowsRef.current = rowsRef.current.map((row) => (
   row.id === rowId ? { ...row, values: { ...row.values, [colId]: previousValue } } : row
   ));
+  const revertedRow = rowsRef.current.find((row) => row.id === rowId);
+  if (revertedRow) broadcastTableChange('row-change', { eventType: 'UPDATE', row: revertedRow });
   }
   showNotification("Failed to save task change. Please try again.", "error");
   }
