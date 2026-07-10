@@ -1202,7 +1202,7 @@ export default function SettingsPage() {
 
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
                 {[
-                  { id: "basic", name: "Basic", price: "EUR 0.50/month", seats: "1-5 seats" },
+                  { id: "basic", name: "Basic", price: "EUR 40/month", seats: "1-5 seats" },
                   { id: "standard", name: "Standard", price: "EUR 75/month", seats: "6-10 seats" },
                   { id: "pro", name: "Pro", price: "EUR 180/month", seats: "11-20 seats" },
                   { id: "enterprise", name: "Enterprise", price: "Custom price", seats: "21+ seats" },

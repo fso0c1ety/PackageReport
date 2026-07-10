@@ -621,6 +621,7 @@ const LocalDropdownSearch = React.memo(function LocalDropdownSearch({
 });
 
 const EMPTY_COLUMN_OPTIONS: readonly ColumnOption[] = Object.freeze([]);
+const EMPTY_ROWS: readonly Row[] = Object.freeze([]);
 // Virtualize medium and large menus before their option components become
 // expensive to mount. The rendered menu remains visually identical.
 const LARGE_OPTION_LIST_THRESHOLD = 40;
@@ -3912,6 +3913,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   () => new Map(tableMembers.map((member) => [member.id, member])),
   [tableMembers],
   );
+
+  const kanbanStatusColumn = React.useMemo(
+  () => columns.find(col => col.type === 'Status'),
+  [columns],
+  );
+  const kanbanCardColumns = React.useMemo(
+  () => columns.filter(c => c.id !== kanbanStatusColumn?.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3),
+  [columns, kanbanStatusColumn],
+  );
+  const kanbanTasksByStatus = React.useMemo(() => {
+  if (!kanbanStatusColumn) return new Map<string, Row[]>();
+  const taskGroups = new Map<string, Row[]>();
+  filteredRows.forEach((row) => {
+  const statusValue = row.values[kanbanStatusColumn.id];
+  if (typeof statusValue !== 'string') return;
+  const bucket = taskGroups.get(statusValue);
+  if (bucket) {
+  bucket.push(row);
+  } else {
+  taskGroups.set(statusValue, [row]);
+  }
+  });
+  return taskGroups;
+  }, [filteredRows, kanbanStatusColumn]);
 
   const ROW_HEIGHT_ESTIMATE = isMobile ? BOARD_ROW_HEIGHT_MOBILE : BOARD_ROW_HEIGHT_DESKTOP;
   const hasActiveFilters = !!filterText || filterPerson.length > 0 || filterStatus.length > 0;
@@ -8946,7 +8971,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   >
   {(() => {
-  const statusCol = columns.find(col => col.type === 'Status');
+  const statusCol = kanbanStatusColumn;
   if (!statusCol || !Array.isArray(statusCol.options)) {
   return (
   <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
@@ -8963,7 +8988,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
 
   return statusCol.options.map((opt, columnIndex) => {
-  const colTasks = filteredRows.filter(r => r.values[statusCol.id] === opt.value);
+  const colTasks = kanbanTasksByStatus.get(opt.value) || EMPTY_ROWS;
   const statusColor = opt.color || '#35365a';
 
   return (
@@ -9101,7 +9126,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Typography>
 
   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-  {columns.filter(c => c.id !== statusCol.id && c.id !== columns[0]?.id && !c.hidden).slice(0, 3).map(col => {
+  {kanbanCardColumns.map(col => {
   const rawVal = task.values[col.id];
   if (!rawVal) return null;
 
