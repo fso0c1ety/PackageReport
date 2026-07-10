@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { requireWritableSubscription } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,9 @@ export async function POST(req) {
     if (!table) {
       return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
     }
+
+    const billingError = await requireWritableSubscription(user.id, { tableId: table.id });
+    if (billingError) return billingError;
 
     let sharedUsers = Array.isArray(table.shared_users) ? table.shared_users : [];
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { NextResponse } from "next/server";
 import { pool } from "./server";
 
 export const PLANS = {
@@ -47,6 +48,42 @@ export async function getBillingStatus(userId) {
   const writable = value?.status === "active"
     || (value?.status === "trialing" && new Date(value.trial_ends_at) > new Date());
   return { ...value, writable, seats_used: seats.rows[0]?.count || 1 };
+}
+
+async function resolveBillingOwner(userId, { tableId, workspaceId } = {}) {
+  if (tableId) {
+    const result = await pool.query(
+      `SELECT w.owner_id
+       FROM tables t
+       JOIN workspaces w ON w.id = t.workspace_id
+       WHERE t.id = $1`,
+      [tableId]
+    );
+    return result.rows[0]?.owner_id || userId;
+  }
+
+  if (workspaceId) {
+    const result = await pool.query("SELECT owner_id FROM workspaces WHERE id = $1", [workspaceId]);
+    return result.rows[0]?.owner_id || userId;
+  }
+
+  return userId;
+}
+
+export async function requireWritableSubscription(userId, scope = {}) {
+  const ownerId = await resolveBillingOwner(userId, scope);
+  const billing = await getBillingStatus(ownerId);
+
+  if (billing.writable) return null;
+
+  return NextResponse.json(
+    {
+      error: "Subscription required",
+      code: "SUBSCRIPTION_EXPIRED",
+      billing,
+    },
+    { status: 402 }
+  );
 }
 
 export async function activateBillingPlan(userId, plan, stripe = {}) {

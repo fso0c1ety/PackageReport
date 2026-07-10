@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,8 @@ export async function POST(req, { params }) {
 
   try {
     const { workspaceId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { workspaceId });
+    if (billingError) return billingError;
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,9 @@ export async function POST(req, { params }) {
     if (!tableId) {
       return NextResponse.json({ error: "Invalid invite data" }, { status: 400 });
     }
+
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
 
     const tableResult = await pool.query("SELECT * FROM tables WHERE id = $1", [tableId]);
     const table = tableResult.rows[0];

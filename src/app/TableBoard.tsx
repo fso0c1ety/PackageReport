@@ -2433,6 +2433,34 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [colSelectorAnchor, setColSelectorAnchor] = useState<null | HTMLElement>(null);
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
   const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner' | 'admin'>('read');
+  const [billingWritable, setBillingWritable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    authenticatedFetch(getApiUrl('/billing/status'))
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json();
+      })
+      .then((billing) => {
+        if (!cancelled && billing) setBillingWritable(Boolean(billing.writable));
+      })
+      .catch(() => {
+        // The API remains authoritative. Keep the current permission if the
+        // status request itself is temporarily unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (billingWritable === false && userPermission !== 'read') {
+      setUserPermission('read');
+    }
+  }, [billingWritable, userPermission]);
   const [boardTitle, setBoardTitle] = useState("");
 
 
@@ -12766,4 +12794,3 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   );
 }
-

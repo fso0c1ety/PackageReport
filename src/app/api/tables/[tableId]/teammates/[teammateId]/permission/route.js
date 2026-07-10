@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../../../_lib/server";
+import { requireWritableSubscription } from "../../../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,8 @@ export async function PUT(req, { params }) {
 
   try {
     const { tableId, teammateId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const { permission } = await req.json();
 
     if (!VALID_PERMISSIONS.has(permission)) {

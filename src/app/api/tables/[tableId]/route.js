@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { requireWritableSubscription } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,8 @@ async function updateTableName(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const { name } = await req.json();
 
     if (!name || !String(name).trim()) {
@@ -108,6 +111,8 @@ export async function DELETE(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const result = await pool.query(
       `
         SELECT t.id, w.owner_id AS workspace_owner_id

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { requireWritableSubscription } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,9 @@ export async function POST(req) {
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
     }
+
+    const billingError = await requireWritableSubscription(user.id, { workspaceId });
+    if (billingError) return billingError;
 
     const workspaceResult = await pool.query(
       "SELECT id, owner_id FROM workspaces WHERE id = $1 LIMIT 1",

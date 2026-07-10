@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,8 @@ export async function DELETE(req, { params }) {
 
   try {
     const { tableId, id } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     await pool.query("DELETE FROM automations WHERE id = $1 AND table_id = $2", [id, tableId]);
     return NextResponse.json({ success: true });
   } catch (err) {

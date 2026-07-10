@@ -8,6 +8,7 @@ import {
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { sendEmail } from "../../../_lib/mailer";
+import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -404,6 +405,8 @@ export async function POST(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const body = await req.json();
 
     const accessRes = await pool.query(
@@ -455,6 +458,8 @@ export async function PUT(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const body = await req.json();
     const id = body?.id;
     const values = body?.values;

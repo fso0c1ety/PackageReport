@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
+import { requireWritableSubscription } from "../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -115,6 +116,9 @@ export async function POST(req) {
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
     }
+
+    const billingError = await requireWritableSubscription(user.id, { workspaceId });
+    if (billingError) return billingError;
 
     const workspaceRes = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = workspaceRes.rows[0];

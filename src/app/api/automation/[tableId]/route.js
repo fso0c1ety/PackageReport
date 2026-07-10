@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { requireWritableSubscription } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -104,6 +105,8 @@ export async function POST(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     await ensureAutomationSchema();
     const body = await req.json();
     const { id, triggerCol, cols, recipients, enabled, taskIds, actionType, rules } = body || {};

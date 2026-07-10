@@ -6,6 +6,7 @@ import {
   pool,
 } from "../../../_lib/server";
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
+import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,8 @@ export async function POST(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const body = await req.json();
 
     // Support both keys used across the app/history.

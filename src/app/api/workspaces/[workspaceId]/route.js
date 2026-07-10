@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { requireWritableSubscription } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,8 @@ export async function PUT(req, { params }) {
 
   try {
     const { workspaceId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { workspaceId });
+    if (billingError) return billingError;
     const { name } = await req.json();
 
     if (!name || !name.trim()) {
@@ -90,6 +93,8 @@ export async function DELETE(req, { params }) {
 
   try {
     const { workspaceId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { workspaceId });
+    if (billingError) return billingError;
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 

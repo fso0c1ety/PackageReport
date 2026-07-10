@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { requireWritableSubscription } from "../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,9 @@ export async function DELETE(req, { params }) {
   if (!teammateId) {
     return NextResponse.json({ error: "Missing teammateId" }, { status: 400 });
   }
+
+  const billingError = await requireWritableSubscription(user.id);
+  if (billingError) return billingError;
 
   try {
     const ownedTablesRes = await pool.query(

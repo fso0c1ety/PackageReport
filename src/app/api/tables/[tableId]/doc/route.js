@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,8 @@ export async function PUT(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const billingError = await requireWritableSubscription(user.id, { tableId });
+    if (billingError) return billingError;
     const table = await getAccessibleTable(tableId, user.id);
 
     if (!table) {

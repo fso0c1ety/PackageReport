@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../_lib/server";
+import { requireWritableSubscription } from "../_lib/billing";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,9 @@ export async function POST(req) {
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const billingError = await requireWritableSubscription(user.id);
+  if (billingError) return billingError;
 
   try {
     const body = await req.json();
