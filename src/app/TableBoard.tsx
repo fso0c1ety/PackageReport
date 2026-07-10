@@ -3131,16 +3131,28 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   };
 
+  const rowOrderSaveQueueRef = React.useRef<Promise<void>>(Promise.resolve());
+
   const persistRowOrder = React.useCallback((nextRows: Row[]) => {
   const orderedTaskIds = nextRows
   .map((row) => row.id)
   .filter((id): id is string => typeof id === 'string' && id.length > 0 && id !== 'placeholder');
 
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
+  const saveOrder = async () => {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/order`), {
   method: "PUT",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ orderedTaskIds }),
-  }).catch(err => console.error("Failed to persist row order during drag and drop", err));
+  keepalive: true,
+  });
+  if (!response.ok) {
+  throw new Error(`Failed to persist row order (${response.status})`);
+  }
+  };
+
+  const queuedSave = rowOrderSaveQueueRef.current.catch(() => undefined).then(saveOrder);
+  rowOrderSaveQueueRef.current = queuedSave;
+  return queuedSave;
   }, [tableId]);
 
   // Drag and drop handler
@@ -3249,7 +3261,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const orderedMovedTask = orderedNextRows.find((row) => row.id === movedTaskId) || updatedMovedTask;
   setRows(orderedNextRows);
   rowsRef.current = orderedNextRows;
-  persistRowOrder(orderedNextRows);
+  await persistRowOrder(orderedNextRows).catch(err => {
+  console.error("Failed to persist kanban task order", err);
+  showNotification("Failed to save task order. Please try again.", "error");
+  });
 
   if (sourceStatus !== destinationStatus) {
   authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${movedTaskId}`), {
@@ -3281,7 +3296,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const orderedNewRows = withSequentialRowOrder(newRows);
   setRows(orderedNewRows);
   rowsRef.current = orderedNewRows;
-  persistRowOrder(orderedNewRows);
+  await persistRowOrder(orderedNewRows).catch(err => {
+  console.error("Failed to persist row order during drag and drop", err);
+  showNotification("Failed to save task order. Please try again.", "error");
+  });
   }
   };
 

@@ -2414,16 +2414,23 @@ app.put('/api/tables/:tableId/tasks/order', authenticateToken, async (req, res) 
     }
 
     await client.query('BEGIN');
-    for (let i = 0; i < validIds.length; i++) {
-      const taskId = validIds[i];
-      await client.query(`
-            UPDATE rows
-            SET values = jsonb_set(COALESCE(values, '{}'::jsonb), '{order}', $1::jsonb)
-            WHERE id = $2 AND table_id = $3
-        `, [JSON.stringify(i), taskId, req.params.tableId]);
-      // Note: we no longer throw on rowCount === 0, because the frontend may include
-      // rows from a different table context during race conditions. We just skip them.
-    }
+    await client.query(`
+      WITH ordered AS (
+        SELECT task_id, (position - 1)::int AS row_order
+        FROM jsonb_array_elements_text($1::jsonb)
+          WITH ORDINALITY AS item(task_id, position)
+      )
+      UPDATE rows AS row
+      SET values = jsonb_set(
+        COALESCE(row.values, '{}'::jsonb),
+        '{order}',
+        to_jsonb(ordered.row_order),
+        true
+      )
+      FROM ordered
+      WHERE row.id::text = ordered.task_id
+        AND row.table_id = $2
+    `, [JSON.stringify(validIds), req.params.tableId]);
     await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {

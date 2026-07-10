@@ -39,16 +39,30 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
-    for (let index = 0; index < orderedTaskIds.length; index += 1) {
-      await pool.query(
-        `
-          UPDATE rows
-          SET values = jsonb_set(COALESCE(values, '{}'::jsonb), '{order}', $1::jsonb)
-          WHERE id = $2 AND table_id = $3
-        `,
-        [JSON.stringify(index), orderedTaskIds[index], tableId]
-      );
-    }
+    const validTaskIds = orderedTaskIds.filter(
+      (id) => typeof id === "string" && id.trim() && id !== "placeholder"
+    );
+
+    await pool.query(
+      `
+        WITH ordered AS (
+          SELECT task_id, (position - 1)::int AS row_order
+          FROM jsonb_array_elements_text($1::jsonb)
+            WITH ORDINALITY AS item(task_id, position)
+        )
+        UPDATE rows AS row
+        SET values = jsonb_set(
+          COALESCE(row.values, '{}'::jsonb),
+          '{order}',
+          to_jsonb(ordered.row_order),
+          true
+        )
+        FROM ordered
+        WHERE row.id::text = ordered.task_id
+          AND row.table_id = $2
+      `,
+      [JSON.stringify(validTaskIds), tableId]
+    );
 
     return NextResponse.json({ success: true });
   } catch (err) {
