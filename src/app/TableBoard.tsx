@@ -114,6 +114,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import BackupTableIcon from '@mui/icons-material/BackupTable';
 import ImportExcelDialog from './ImportExcelDialog';
+import { supabase } from "../lib/supabase";
 
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];
@@ -2812,6 +2813,67 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   })
   .finally(() => setLoading(false));
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
+
+  useEffect(() => {
+  if (!tableId) return;
+
+  const normalizeRealtimeRow = (row: any): Row => {
+  const values = row?.values ?? {};
+  return {
+  ...row,
+  values: values.message && Array.isArray(values.message)
+  ? { ...values, message: values.message.map(formatChatMessage) }
+  : values,
+  };
+  };
+
+  const sortRowsForRealtime = (nextRows: Row[]) => {
+  return [...nextRows].sort((a, b) => {
+  const aOrder = Number.parseInt(String(a.values?.order ?? ""), 10);
+  const bOrder = Number.parseInt(String(b.values?.order ?? ""), 10);
+  if (!Number.isNaN(aOrder) && !Number.isNaN(bOrder) && aOrder !== bOrder) return aOrder - bOrder;
+  if (!Number.isNaN(aOrder)) return -1;
+  if (!Number.isNaN(bOrder)) return 1;
+  return 0;
+  });
+  };
+
+  const channel = supabase
+  .channel(`table-rows-${tableId}`)
+  .on(
+  'postgres_changes',
+  { event: '*', schema: 'public', table: 'rows', filter: `table_id=eq.${tableId}` },
+  (payload: any) => {
+  if (payload.eventType === 'DELETE') {
+  const deletedId = payload.old?.id;
+  if (!deletedId) return;
+  setRows((prev) => prev.filter((row) => row.id !== deletedId));
+  return;
+  }
+
+  const realtimeRow = normalizeRealtimeRow(payload.new);
+  if (!realtimeRow?.id) return;
+
+  setRows((prev) => {
+  const withoutPlaceholder = prev.filter((row) => row.id !== 'placeholder');
+  const exists = withoutPlaceholder.some((row) => row.id === realtimeRow.id);
+  const nextRows = exists
+  ? withoutPlaceholder.map((row) => row.id === realtimeRow.id ? realtimeRow : row)
+  : [...withoutPlaceholder, realtimeRow];
+  return sortRowsForRealtime(nextRows);
+  });
+  }
+  )
+  .subscribe((status) => {
+  if (status === 'CHANNEL_ERROR') {
+  console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
+  }
+  });
+
+  return () => {
+  void supabase.removeChannel(channel);
+  };
+  }, [tableId, setRows]);
 
 
   // Debounced save for document content
