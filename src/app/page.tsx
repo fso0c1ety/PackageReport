@@ -20,10 +20,6 @@ import DownloadIcon from "@mui/icons-material/Download";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
-import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
-import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 
@@ -406,7 +402,7 @@ export default function LandingPage() {
               </Stack>
             </motion.div>
 
-            {/* Right Content - Real dashboard phone preview */}
+            {/* Right Content - App Visual */}
             <motion.div
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
@@ -418,80 +414,32 @@ export default function LandingPage() {
                   alignItems: "center",
                   justifyContent: "center",
                   position: "relative",
-                  minHeight: { xs: 530, sm: 640, md: 690 },
-                  background: "radial-gradient(circle at 52% 45%, rgba(99,102,241,.22), transparent 57%)",
-                  overflow: "visible",
+                  height: "auto",
+                  background: "transparent",
+                  overflow: "hidden",
                 }}
               >
                 <Box
+                  component="video"
+                  src="/Bost1.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
                   sx={{
                     position: "relative",
                     zIndex: 1,
-                    width: { xs: 285, sm: 340, md: 365 },
-                    height: { xs: 540, sm: 630, md: 675 },
-                    borderRadius: { xs: "42px", md: "52px" },
-                    p: "9px",
-                    background: "linear-gradient(145deg,#1f2031 0%,#03040a 42%,#38394b 100%)",
-                    boxShadow: "0 34px 70px rgba(28,31,74,.28), inset 0 0 0 1px rgba(255,255,255,.24)",
-                    transform: { md: "rotate(4deg)" },
+                    width: "100%",
+                    maxWidth: 520,
+                    height: "auto",
+                    display: "block",
+                    objectFit: "contain",
+                    borderRadius: 0,
+                    boxShadow: "none",
+                    outline: "none",
+                    background: "transparent",
                   }}
-                >
-                  <Box sx={{ height: "100%", borderRadius: { xs: "34px", md: "43px" }, overflow: "hidden", bgcolor: "#f5f7fb", position: "relative" }}>
-                    <Box sx={{ position: "absolute", top: 9, left: "50%", transform: "translateX(-50%)", width: 92, height: 25, borderRadius: 99, bgcolor: "#080914", zIndex: 4 }} />
-                    <Box sx={{ background: "linear-gradient(145deg,#6559f5,#4438ca)", color: "#fff", px: 2.5, pt: 5.4, pb: 3.4 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography sx={{ fontSize: 11, opacity: .82 }}>Good evening, Argjend</Typography>
-                          <Typography sx={{ fontSize: 25, fontWeight: 900, letterSpacing: "-.04em" }}>Dashboard</Typography>
-                        </Box>
-                        <NotificationsNoneRoundedIcon sx={{ fontSize: 22 }} />
-                      </Stack>
-                    </Box>
-                    <Box sx={{ p: 2, display: "grid", gap: 1.5 }}>
-                      <Box sx={{ bgcolor: "#fff", borderRadius: 3, p: 1.7, boxShadow: "0 8px 24px rgba(15,23,42,.06)" }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.3 }}>
-                          <Typography sx={{ fontSize: 12, fontWeight: 800 }}>Your overview</Typography>
-                          <Typography sx={{ fontSize: 9, color: "#7166ee", fontWeight: 700 }}>This week</Typography>
-                        </Stack>
-                        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: .8 }}>
-                          {[["Workspaces","4"],["Tasks","128"],["Completed","76%"]].map(([label,value]) => (
-                            <Box key={label} sx={{ p: 1, borderRadius: 2, bgcolor: "#f8f8ff", border: "1px solid #eeeefe" }}>
-                              <Typography sx={{ fontSize: 8, color: "#64748b" }}>{label}</Typography>
-                              <Typography sx={{ fontSize: 16, fontWeight: 900 }}>{value}</Typography>
-                              <Typography sx={{ fontSize: 7, color: "#10b981", fontWeight: 800 }}>↑ 12%</Typography>
-                            </Box>
-                          ))}
-                        </Box>
-                      </Box>
-                      <Box sx={{ bgcolor: "#fff", borderRadius: 3, p: 1.7, boxShadow: "0 8px 24px rgba(15,23,42,.06)" }}>
-                        <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
-                          <Typography sx={{ fontSize: 12, fontWeight: 800 }}>Recently visited</Typography>
-                          <Typography sx={{ fontSize: 9, color: "#7166ee", fontWeight: 700 }}>View all</Typography>
-                        </Stack>
-                        {["Company Management","Dashboard & Reporting"].map((name, index) => (
-                          <Stack key={name} direction="row" spacing={1.2} alignItems="center" sx={{ py: 1, borderTop: index ? "1px solid #eef0f5" : 0 }}>
-                            <Box sx={{ width: 30, height: 30, borderRadius: 2, display: "grid", placeItems: "center", color: index ? "#0ea5e9" : "#6559f5", bgcolor: index ? "#e0f2fe" : "#eeecff" }}><FolderRoundedIcon sx={{ fontSize: 17 }} /></Box>
-                            <Box sx={{ minWidth: 0, flex: 1 }}><Typography noWrap sx={{ fontSize: 10.5, fontWeight: 800 }}>{name}</Typography><Typography sx={{ fontSize: 8, color: "#94a3b8" }}>{index ? "Main workspace" : "Updated today"}</Typography></Box>
-                            <CheckCircleRoundedIcon sx={{ color: "#22c55e", fontSize: 15 }} />
-                          </Stack>
-                        ))}
-                      </Box>
-                      <Box sx={{ bgcolor: "#fff", borderRadius: 3, p: 1.7, boxShadow: "0 8px 24px rgba(15,23,42,.06)" }}>
-                        <Typography sx={{ fontSize: 12, fontWeight: 800, mb: 1 }}>Activity</Typography>
-                        {[72,46,83,58,91,68,78].map((height,index) => <Box key={index} sx={{ display: "inline-block", verticalAlign: "bottom", width: 19, height: height / 2, mx: .45, borderRadius: "5px 5px 2px 2px", bgcolor: index === 4 ? "#6559f5" : "#dddafe" }} />)}
-                      </Box>
-                    </Box>
-                    <Stack direction="row" justifyContent="space-around" sx={{ position: "absolute", bottom: 0, left: 0, right: 0, bgcolor: "#fff", borderTop: "1px solid #e8eaf0", py: 1.2, color: "#94a3b8" }}>
-                      <HomeRoundedIcon sx={{ color: "#6559f5", fontSize: 20 }} /><FolderRoundedIcon sx={{ fontSize: 20 }} /><CheckCircleRoundedIcon sx={{ fontSize: 20 }} />
-                    </Stack>
-                  </Box>
-                </Box>
-                <Box sx={{ position: "absolute", zIndex: 2, left: { xs: 0, sm: 12, md: -12 }, top: { xs: 95, md: 125 }, bgcolor: "#fff", borderRadius: 3, p: 1.7, width: 125, boxShadow: "0 18px 40px rgba(15,23,42,.14)", transform: "rotate(-3deg)" }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 900 }}>Calendar</Typography><Typography sx={{ fontSize: 9, color: "#64748b", mt: .5 }}>3 events today</Typography>
-                </Box>
-                <Box sx={{ position: "absolute", zIndex: 2, right: { xs: -4, sm: 12, md: -18 }, bottom: { xs: 75, md: 105 }, bgcolor: "#fff", borderRadius: 3, p: 1.7, width: 132, boxShadow: "0 18px 40px rgba(15,23,42,.14)", transform: "rotate(3deg)" }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 900 }}>Tasks</Typography><Typography sx={{ fontSize: 9, color: "#64748b", my: .7 }}>128 this week</Typography><Box sx={{ height: 5, borderRadius: 99, bgcolor: "#ede9fe", overflow: "hidden" }}><Box sx={{ width: "76%", height: "100%", bgcolor: "#6559f5" }} /></Box>
-                </Box>
+                />
               </Box>
             </motion.div>
           </Box>
