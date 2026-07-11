@@ -330,17 +330,10 @@ export default function LandingPage() {
               transition={{ duration: 0.8, ease: "easeOut" }}
             >
               <Stack spacing={4}>
-                <Typography
-                  sx={{
-                    fontSize: { xs: "0.9rem", md: "1rem" },
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    color: LIGHT.primary,
-                    fontWeight: 900,
-                  }}
-                >
-                  PackageReport Platform
-                </Typography>
+                <Chip
+                  label="ALL-IN-ONE WORKSPACE"
+                  sx={{ alignSelf: "flex-start", bgcolor: "#f1efff", color: LIGHT.primaryDark, fontWeight: 900, letterSpacing: ".16em", fontSize: ".72rem", borderRadius: 2, px: .7 }}
+                />
 
                 <Typography
                   component="h1"
@@ -351,7 +344,7 @@ export default function LandingPage() {
                     letterSpacing: "-0.065em",
                   }}
                 >
-                  Run workspaces that move fast and stay crystal clear.
+                  Manage everything.<br />One place.<br /><Box component="span" sx={{ color: LIGHT.primary }}>Zero chaos.</Box>
                 </Typography>
 
                 <Typography
@@ -361,14 +354,16 @@ export default function LandingPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  Plan tasks, collaborate with teammates, track updates, and keep every package flow visible
-                  in one place. Built for teams that need speed without losing control.
+                  Organize projects, tasks, teams and deadlines without switching between multiple apps.
                 </Typography>
 
-                <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
-                  <Chip label="Task Boards" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
-                  <Chip label="Live Collaboration" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
-                  <Chip label="Automations" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                <Stack direction="row" spacing={{ xs: 1.4, sm: 2.4 }} flexWrap="wrap" useFlexGap>
+                  {["Projects", "Tasks", "Calendar", "Reports", "Team Chat"].map((feature) => (
+                    <Stack key={feature} direction="row" spacing={.65} alignItems="center">
+                      <CheckCircleRoundedIcon sx={{ fontSize: 18, color: LIGHT.primary }} />
+                      <Typography sx={{ fontSize: ".92rem", fontWeight: 700 }}>{feature}</Typography>
+                    </Stack>
+                  ))}
                 </Stack>
 
                 <Stack
