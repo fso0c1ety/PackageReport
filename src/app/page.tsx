@@ -479,12 +479,6 @@ export default function LandingPage() {
                     <Stack direction="row" justifyContent="space-around" sx={{ position: "absolute", bottom: 0, left: 0, right: 0, bgcolor: "#fff", borderTop: "1px solid #e8eaf0", py: 1.2, color: "#94a3b8" }}>
                       <HomeRoundedIcon sx={{ color: "#6559f5", fontSize: 20 }} /><FolderRoundedIcon sx={{ fontSize: 20 }} /><CheckCircleRoundedIcon sx={{ fontSize: 20 }} />
                     </Stack>
-                    <Box
-                      component="img"
-                      src="/smart-manage-mobile-dashboard.png"
-                      alt="Smart Manage real dashboard on mobile"
-                      sx={{ position: "absolute", inset: 0, zIndex: 3, width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "top center" }}
-                    />
                   </Box>
                 </Box>
                 <Box sx={{ position: "absolute", zIndex: 2, left: { xs: 0, sm: 12, md: -12 }, top: { xs: 95, md: 125 }, bgcolor: "#fff", borderRadius: 3, p: 1.7, width: 125, boxShadow: "0 18px 40px rgba(15,23,42,.14)", transform: "rotate(-3deg)" }}>
