@@ -22,6 +22,8 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
+import { AboutVisual, LaptopPreview, MapVisual, PhoneMockup } from "./LandingVisuals";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -41,17 +43,20 @@ export default function LandingPage() {
 
   const serviceItems = [
     {
-      title: "Workflow setup",
-      description: "Build structured package pipelines, task stages, and clear team ownership in one place.",
+      title: "Project Management",
+      description: "Organize projects and track their progress in real time.",
     },
     {
-      title: "Automation help",
-      description: "Reduce manual follow-ups with reminders, status rules, and repeatable automations.",
+      title: "Task Management",
+      description: "Create, assign and complete tasks efficiently.",
     },
     {
-      title: "Reporting & visibility",
-      description: "Track progress, bottlenecks, and delivery health with simple dashboards and live updates.",
+      title: "Calendar & Deadlines",
+      description: "Keep meetings, events and deadlines organized.",
     },
+    { title: "Reports", description: "Create and manage business reports in one place." },
+    { title: "Team Collaboration", description: "Work together with your team and share updates." },
+    { title: "File Management", description: "Store and organize important files securely." },
   ];
 
   const aboutValues = ["Clear visibility", "Fast collaboration", "Reliable workflow tracking"];
@@ -335,7 +340,7 @@ export default function LandingPage() {
                     fontWeight: 900,
                   }}
                 >
-                  PackageReport Platform
+                  ALL-IN-ONE WORKSPACE
                 </Typography>
 
                 <Typography
@@ -347,7 +352,7 @@ export default function LandingPage() {
                     letterSpacing: "-0.065em",
                   }}
                 >
-                  Run workspaces that move fast and stay crystal clear.
+                  Manage everything.<br />One place.<br /><Box component="span" sx={{ background: "linear-gradient(135deg,#6D4AFF,#3B82F6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Zero chaos.</Box>
                 </Typography>
 
                 <Typography
@@ -357,14 +362,11 @@ export default function LandingPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  Plan tasks, collaborate with teammates, track updates, and keep every package flow visible
-                  in one place. Built for teams that need speed without losing control.
+                  Organize projects, tasks, teams and deadlines without switching between multiple apps.
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
-                  <Chip label="Task Boards" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
-                  <Chip label="Live Collaboration" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
-                  <Chip label="Automations" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  {["Projects","Tasks","Calendar","Reports","Team Chat"].map((label) => <Stack key={label} direction="row" spacing={.6} alignItems="center"><CheckCircleRoundedIcon sx={{fontSize:18,color:"#6D4AFF"}}/><Typography sx={{fontSize:14,fontWeight:700}}>{label}</Typography></Stack>)}
                 </Stack>
 
                 <Stack
@@ -375,27 +377,27 @@ export default function LandingPage() {
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={() => navigateToAppRoute("/login", router)}
+                    onClick={() => navigateToAppRoute("/login?mode=signup", router)}
                     sx={{
                       borderRadius: 999, px: 4, py: 1.5, fontWeight: 900,
                       textTransform: "none", background: "#171a38", boxShadow: "none",
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Explore workspace
+                    Get Started
                   </Button>
 
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={() => navigateToAppRoute("/login?mode=signup", router)}
+                    onClick={() => scrollToSection("services")}
                     sx={{
                       borderRadius: 999, px: 4, py: 1.5, fontWeight: 900,
                       textTransform: "none", background: "transparent", color: LIGHT.text, border: `1px solid ${LIGHT.border}`, boxShadow: "none",
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Start free
+                    Learn More
                   </Button>
 
                 </Stack>
@@ -419,27 +421,7 @@ export default function LandingPage() {
                   overflow: "hidden",
                 }}
               >
-                <Box
-                  component="video"
-                  src="/Bost1.mp4"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  sx={{
-                    position: "relative",
-                    zIndex: 1,
-                    width: "100%",
-                    maxWidth: 520,
-                    height: "auto",
-                    display: "block",
-                    objectFit: "contain",
-                    borderRadius: 0,
-                    boxShadow: "none",
-                    outline: "none",
-                    background: "transparent",
-                  }}
-                />
+                <PhoneMockup />
               </Box>
             </motion.div>
           </Box>
@@ -453,24 +435,19 @@ export default function LandingPage() {
               <Box id="services" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
                 <Stack spacing={2.5} sx={{ mb: 3 }}>
                   <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
-                    Services
+                    SIMPLE. POWERFUL. SMART.
                   </Typography>
                   <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
-                    Tools and support to keep package operations moving.
+                    Everything you need to run your business
                   </Typography>
                   <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 760 }}>
-                    PackageReport helps teams organize workspaces, automate routine updates, and stay aligned from intake to delivery.
+                    A complete solution to manage your work, team and data in one place.
                   </Typography>
                 </Stack>
 
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-                    gap: 2,
-                  }}
-                >
-                  {serviceItems.map((item, idx) => (
+                <Box sx={{ display:"grid",gridTemplateColumns:{xs:"1fr",md:"1fr 1fr"},gap:{xs:4,md:6},alignItems:"center" }}>
+                  <LaptopPreview />
+                  <Box sx={{display:"grid",gridTemplateColumns:{xs:"1fr",sm:"repeat(2,1fr)"},gap:2}}>{serviceItems.map((item, idx) => (
                     <motion.div
                       key={item.title}
                       initial={{ opacity: 0, y: 24 }}
@@ -481,9 +458,12 @@ export default function LandingPage() {
                       <Box
                         sx={{
                           border: "1px solid rgba(15, 23, 42, 0.08)",
-                          borderRadius: 3,
+                          borderRadius: 4,
                           p: 3,
                           bgcolor: "#ffffff",
+                          height:"100%",
+                          transition:"transform .2s ease, box-shadow .2s ease",
+                          "&:hover":{transform:"translateY(-4px)",boxShadow:"0 18px 40px rgba(16,24,40,.08)"},
                         }}
                       >
                         <Typography fontWeight={800} fontSize="1.05rem" sx={{ mb: 1 }}>
@@ -495,6 +475,7 @@ export default function LandingPage() {
                       </Box>
                     </motion.div>
                   ))}
+                  </Box>
                 </Box>
               </Box>
             </motion.div>
@@ -506,15 +487,19 @@ export default function LandingPage() {
               transition={{ duration: 0.6, ease: "easeOut" }}
             >
               <Box id="about" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: { xs: 3, md: 6 }, alignItems: "center", p: { xs: 2, md: 5 }, mb: 3, bgcolor: "#F6F3FF", borderRadius: 4 }}>
+                  <AboutVisual />
+                  <Box><Typography sx={{ textTransform: "uppercase", letterSpacing: ".18em", color: "#6D4AFF", fontWeight: 800, fontSize: 12 }}>ABOUT SMART MANAGE</Typography><Typography sx={{ fontSize: { xs: 28, md: 42 }, fontWeight: 900, lineHeight: 1.08, my: 2 }}>Built to make<br/>everyday work simpler</Typography><Typography sx={{ color: "#667085", lineHeight: 1.75 }}>Smart Manage brings your projects, tasks, reports and team together in one place so you can focus on what matters most.</Typography><Button variant="contained" onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ mt: 3, background: "linear-gradient(135deg,#6D4AFF,#3B82F6)" }}>Get Started</Button></Box>
+                </Box>
                 <Stack spacing={2.5} sx={{ mb: 3 }}>
                   <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
                     About Us
                   </Typography>
                   <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
-                    Built for teams that need clarity without slowing down.
+                    Built to make everyday work simpler
                   </Typography>
                   <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 780 }}>
-                    PackageReport brings tasks, communication, and progress tracking into one clean workspace so teams can move quickly and stay aligned.
+                    Smart Manage brings your projects, tasks, reports and team together in one place so you can focus on what matters most.
                   </Typography>
                 </Stack>
 
@@ -590,11 +575,21 @@ export default function LandingPage() {
                     </motion.div>
                   ))}
                 </Box>
+                <Box sx={{ mt: 3, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.25fr .75fr" }, gap: 3 }}>
+                  <Box component="form" action="mailto:support@smart-manage.app" method="post" encType="text/plain" sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, p: 2.5, border: "1px solid #EAECF0", borderRadius: 3, bgcolor: "#fff" }}>
+                    {[["Full Name","name","text"],["Email","email","email"],["Company","company","text"],["Subject","subject","text"]].map(([label,name,type]) => <Box key={name}><Typography component="label" htmlFor={`contact-${name}`} sx={{ fontSize: 12, fontWeight: 800 }}>{label}</Typography><Box component="input" id={`contact-${name}`} name={name} type={type} required={name === "name" || name === "email"} sx={{ width: "100%", mt: .6, p: 1.2, border: "1px solid #D0D5DD", borderRadius: 2, font: "inherit" }}/></Box>)}
+                    <Box sx={{ gridColumn: "1/-1" }}><Typography component="label" htmlFor="contact-message" sx={{ fontSize: 12, fontWeight: 800 }}>Message</Typography><Box component="textarea" id="contact-message" name="message" required sx={{ width: "100%", minHeight: 90, mt: .6, p: 1.2, border: "1px solid #D0D5DD", borderRadius: 2, font: "inherit", resize: "vertical" }}/></Box>
+                    <Button type="submit" variant="contained" sx={{ gridColumn: "1/-1", background: "linear-gradient(135deg,#6D4AFF,#3B82F6)" }}>Send Message</Button>
+                  </Box>
+                  <MapVisual />
+                </Box>
               </Box>
             </motion.div>
           </Stack>
+          <Box sx={{ mt: 8, p: { xs: 3, md: 4 }, borderRadius: 4, background: "linear-gradient(135deg,#6D4AFF,#4F46E5 55%,#3B82F6)", color: "#fff", display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", gap: 3 }}><Box><Typography sx={{ fontSize: { xs: 24, md: 32 }, fontWeight: 900 }}>Ready to organize your business?</Typography><Typography sx={{ opacity: .82 }}>Join Smart Manage and bring everything together in one smart workspace.</Typography></Box><Button onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ bgcolor: "#fff", color: "#4F46E5", fontWeight: 900, px: 3, "&:hover": { bgcolor: "#F8FAFC" } }}>Get Started Free</Button></Box>
         </Container>
       </Box>
+      <Box component="footer" sx={{ bgcolor: "#0F172A", color: "#fff", py: 6 }}><Container maxWidth="xl"><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "2fr repeat(4,1fr)" }, gap: 4 }}><Box sx={{ gridColumn: { xs: "1/-1", md: "auto" } }}><Stack direction="row" spacing={1.2} alignItems="center"><Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 38, height: 38, borderRadius: 2 }}/><Typography fontWeight={900}>Smart Manage</Typography></Stack><Typography sx={{ color: "#94A3B8", fontSize: 13, mt: 2, maxWidth: 260 }}>An all-in-one workspace to manage projects, tasks, reports, files and your team.</Typography></Box>{[["Product","Features","Integrations","Updates","Pricing"],["Resources","Documentation","Help Center","Templates","Blog"],["Company","About Us","Careers","Press Kit","Contact"],["Legal","Privacy Policy","Terms of Service","Cookie Policy","Security"]].map(([head,...links]) => <Box key={head}><Typography fontWeight={900} mb={1.5}>{head}</Typography>{links.map((x) => <Typography key={x} sx={{ color: "#94A3B8", fontSize: 13, py: .45 }}>{x}</Typography>)}</Box>)}</Box><Typography sx={{ color: "#64748B", fontSize: 12, mt: 5, textAlign: "center" }}>© {new Date().getFullYear()} Smart Manage. All rights reserved.</Typography></Container></Box>
     </Box>
   );
 }
