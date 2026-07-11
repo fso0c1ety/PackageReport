@@ -4774,10 +4774,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (effectiveType === "Status") {
   const option = optionByColumnAndValue.get(col.id)?.get(String(value ?? ""));
   const color = option?.color || '#c4c4c4';
+  const contrastColor = theme.palette.getContrastText(color);
   return (
   <Box onClick={activate} sx={{
   bgcolor: color,
-  color: color.toLowerCase() === '#333333' ? '#ffffff' : theme.palette.text.primary,
+  color: contrastColor,
   borderRadius: '4px',
   textAlign: 'center',
   height: isMobile ? 28 : 30,
@@ -4801,7 +4802,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
   }}>
-  <Typography variant="body2" sx={{ fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.2)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>
+  <Typography variant="body2" sx={{ color: 'inherit', fontWeight: 600, textShadow: contrastColor === '#fff' ? '0 1px 2px rgba(0,0,0,0.28)' : 'none', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>
   {value || '\u00A0'}
   </Typography>
   </Box>
