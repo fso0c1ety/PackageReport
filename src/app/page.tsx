@@ -9,17 +9,24 @@ import {
   Button,
   Chip,
   Container,
+  Drawer,
+  IconButton,
+  Divider,
   Stack,
   Toolbar,
   Typography,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
+import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 
 export default function LandingPage() {
   const router = useRouter();
   const [showWebLanding, setShowWebLanding] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Landing page is always light — never affected by dark/light mode setting.
   const LIGHT = {
     bg: '#ffffff',
@@ -107,6 +114,7 @@ export default function LandingPage() {
   };
 
   const scrollToSection = (sectionId: string) => {
+    setMobileMenuOpen(false);
     const section = document.getElementById(sectionId);
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -128,26 +136,30 @@ export default function LandingPage() {
       sx={{
         minHeight: "100vh",
         color: LIGHT.text,
-        background: LIGHT.bg,
+        background: "linear-gradient(180deg, #fbfbff 0%, #ffffff 42%)",
         display: "flex",
         flexDirection: "column",
       }}
     >
       {/* Navigation Bar */}
       <AppBar
-        position="static"
+        position="sticky"
         color="transparent"
         elevation={0}
         sx={{
-          background: "transparent",
+          top: 0,
+          zIndex: 30,
+          background: "rgba(251,251,255,.86)",
+          backdropFilter: "blur(18px)",
+          borderBottom: "1px solid rgba(15,23,42,.07)",
           boxShadow: "none",
         }}
       >
-        <Container maxWidth="lg">
+        <Container maxWidth="xl">
           <Toolbar
             disableGutters
             sx={{
-              minHeight: 72,
+              minHeight: 78,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -165,17 +177,17 @@ export default function LandingPage() {
                 src="/icon.png"
                 alt="PackageReport logo"
                 sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "10px",
+                  width: 40,
+                  height: 40,
+                  borderRadius: "12px",
                   objectFit: "cover",
                 }}
               />
               <Typography
                 sx={{
-                  fontSize: "1.15rem",
-                  fontWeight: 800,
-                  letterSpacing: "-0.02em",
+                  fontSize: "1.18rem",
+                  fontWeight: 900,
+                  letterSpacing: "-0.04em",
                   color: LIGHT.text,
                 }}
               >
@@ -240,6 +252,7 @@ export default function LandingPage() {
                 variant="contained"
                 onClick={() => navigateToAppRoute("/login?mode=signup", router)}
                 sx={{
+                  display: { xs: "none", md: "inline-flex" },
                   borderRadius: 999,
                   px: 2.2,
                   py: 0.9,
@@ -252,19 +265,56 @@ export default function LandingPage() {
               >
                 Sign Up
               </Button>
+              <IconButton
+                aria-label="Open navigation"
+                onClick={() => setMobileMenuOpen(true)}
+                sx={{ display: { xs: "inline-flex", md: "none" }, width: 44, height: 44, border: `1px solid ${LIGHT.border}`, color: LIGHT.text }}
+              >
+                <MenuRoundedIcon />
+              </IconButton>
             </Stack>
           </Toolbar>
         </Container>
       </AppBar>
 
+      <Drawer
+        anchor="right"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        PaperProps={{ sx: { width: "min(88vw, 390px)", bgcolor: "#12152f", color: "#fff", p: 3, borderRadius: "28px 0 0 28px" } }}
+      >
+        <Stack sx={{ height: "100%" }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack direction="row" spacing={1.2} alignItems="center">
+              <Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 40, height: 40, borderRadius: 2.5 }} />
+              <Typography sx={{ fontWeight: 900, letterSpacing: "-.04em", fontSize: "1.15rem" }}>Smart Manage</Typography>
+            </Stack>
+            <IconButton aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} sx={{ color: "#fff", bgcolor: "rgba(255,255,255,.08)" }}><CloseRoundedIcon /></IconButton>
+          </Stack>
+          <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,.1)" }} />
+          <Stack spacing={.6}>
+            {[['Home','top'],['Services','services'],['About Us','about'],['Contact','contact']].map(([label,id], index) => (
+              <Button key={id} onClick={() => scrollToSection(id)} endIcon={<ArrowOutwardRoundedIcon />} sx={{ justifyContent: "space-between", color: "#fff", textTransform: "none", fontSize: "1.3rem", fontWeight: 800, py: 1.5, px: 1, borderBottom: "1px solid rgba(255,255,255,.08)", borderRadius: 0 }}>
+                <Stack direction="row" spacing={1.4}><Typography sx={{ color: "rgba(255,255,255,.35)", fontWeight: 700 }}>0{index + 1}</Typography><span>{label}</span></Stack>
+              </Button>
+            ))}
+            <Button onClick={() => navigateToAppRoute('/pricing', router)} endIcon={<ArrowOutwardRoundedIcon />} sx={{ justifyContent: "space-between", color: "#fff", textTransform: "none", fontSize: "1.3rem", fontWeight: 800, py: 1.5, px: 1, borderBottom: "1px solid rgba(255,255,255,.08)", borderRadius: 0 }}>Pricing</Button>
+          </Stack>
+          <Stack spacing={1.2} sx={{ mt: "auto" }}>
+            <Button onClick={() => navigateToAppRoute('/login', router)} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,.22)", borderRadius: 999, py: 1.35, textTransform: "none", fontWeight: 800 }}>Login</Button>
+            <Button onClick={() => navigateToAppRoute('/login?mode=signup', router)} sx={{ color: "#11152d", bgcolor: "#9ff3d9", borderRadius: 999, py: 1.4, textTransform: "none", fontWeight: 900, '&:hover': { bgcolor: '#86e8ca' } }}>Start free trial</Button>
+          </Stack>
+        </Stack>
+      </Drawer>
+
       {/* Main Content */}
-      <Box sx={{ flex: 1, py: { xs: 6, md: 8 } }}>
-        <Container maxWidth="lg">
+      <Box sx={{ flex: 1, py: { xs: 5, md: 8 } }}>
+        <Container maxWidth="xl">
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: { xs: 4, md: 6 },
+              gridTemplateColumns: { xs: "1fr", md: "1.05fr .95fr" },
+              gap: { xs: 5, md: 8 },
               alignItems: "center",
               minHeight: { md: "70vh" },
             }}
@@ -281,8 +331,8 @@ export default function LandingPage() {
                     fontSize: { xs: "0.9rem", md: "1rem" },
                     letterSpacing: "0.2em",
                     textTransform: "uppercase",
-                    color: LIGHT.textSecondary,
-                    fontWeight: 700,
+                    color: LIGHT.primary,
+                    fontWeight: 900,
                   }}
                 >
                   PackageReport Platform
@@ -291,10 +341,10 @@ export default function LandingPage() {
                 <Typography
                   component="h1"
                   sx={{
-                    fontSize: { xs: "2.2rem", md: "4rem" },
-                    lineHeight: 1.1,
+                    fontSize: { xs: "2.8rem", sm: "3.7rem", md: "5.2rem" },
+                    lineHeight: .96,
                     fontWeight: 900,
-                    letterSpacing: "-0.03em",
+                    letterSpacing: "-0.065em",
                   }}
                 >
                   Run workspaces that move fast and stay crystal clear.
@@ -327,12 +377,12 @@ export default function LandingPage() {
                     size="large"
                     onClick={() => navigateToAppRoute("/login", router)}
                     sx={{
-                      borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
-                      textTransform: "none", background: LIGHT.primary, boxShadow: "none",
+                      borderRadius: 999, px: 4, py: 1.5, fontWeight: 900,
+                      textTransform: "none", background: "#171a38", boxShadow: "none",
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Login
+                    Explore workspace
                   </Button>
 
                   <Button
@@ -340,25 +390,14 @@ export default function LandingPage() {
                     size="large"
                     onClick={() => navigateToAppRoute("/login?mode=signup", router)}
                     sx={{
-                      borderRadius: 999, px: 4, py: 1.4, fontWeight: 800,
-                      textTransform: "none", background: LIGHT.primary, boxShadow: "none",
+                      borderRadius: 999, px: 4, py: 1.5, fontWeight: 900,
+                      textTransform: "none", background: "transparent", color: LIGHT.text, border: `1px solid ${LIGHT.border}`, boxShadow: "none",
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Sign Up
+                    Start free
                   </Button>
 
-                  <Button
-                    variant="text"
-                    size="large"
-                    onClick={handleGetStarted}
-                    sx={{
-                      borderRadius: 999, px: 3, py: 1.4, fontWeight: 900,
-                      textTransform: "none", color: "#9a6d00",
-                    }}
-                  >
-                    Get Started
-                  </Button>
                 </Stack>
               </Stack>
             </motion.div>
