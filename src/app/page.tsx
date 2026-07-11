@@ -22,7 +22,6 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
-import ProductDashboardPreview from "./ProductDashboardPreview";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -348,7 +347,7 @@ export default function LandingPage() {
                     letterSpacing: "-0.065em",
                   }}
                 >
-                  Manage everything in one place
+                  Run workspaces that move fast and stay crystal clear.
                 </Typography>
 
                 <Typography
@@ -358,7 +357,8 @@ export default function LandingPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  Reports, Excel files, tasks, calendar and team activity in one clear workspace.
+                  Plan tasks, collaborate with teammates, track updates, and keep every package flow visible
+                  in one place. Built for teams that need speed without losing control.
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
@@ -382,7 +382,7 @@ export default function LandingPage() {
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Get Started
+                    Explore workspace
                   </Button>
 
                   <Button
@@ -395,7 +395,7 @@ export default function LandingPage() {
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    View Dashboard
+                    Start free
                   </Button>
 
                 </Stack>
@@ -419,7 +419,27 @@ export default function LandingPage() {
                   overflow: "hidden",
                 }}
               >
-                <Box sx={{ width: "100%", overflow: "visible", transform: { xs: "scale(.48)", sm: "scale(.72)", md: "scale(.73)", lg: "scale(.86)" }, transformOrigin: "center" }}><ProductDashboardPreview /></Box>
+                <Box
+                  component="video"
+                  src="/Bost1.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  sx={{
+                    position: "relative",
+                    zIndex: 1,
+                    width: "100%",
+                    maxWidth: 520,
+                    height: "auto",
+                    display: "block",
+                    objectFit: "contain",
+                    borderRadius: 0,
+                    boxShadow: "none",
+                    outline: "none",
+                    background: "transparent",
+                  }}
+                />
               </Box>
             </motion.div>
           </Box>
