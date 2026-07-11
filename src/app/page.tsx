@@ -41,17 +41,20 @@ export default function LandingPage() {
 
   const serviceItems = [
     {
-      title: "Workflow setup",
-      description: "Build structured package pipelines, task stages, and clear team ownership in one place.",
+      title: "Smart Report Management",
+      description: "Create and organize reports quickly.",
     },
     {
-      title: "Automation help",
-      description: "Reduce manual follow-ups with reminders, status rules, and repeatable automations.",
+      title: "Package Tracking",
+      description: "Keep package and product information organized.",
     },
     {
-      title: "Reporting & visibility",
-      description: "Track progress, bottlenecks, and delivery health with simple dashboards and live updates.",
+      title: "Secure Data",
+      description: "Keep company data protected and accessible.",
     },
+    { title: "Fast Search", description: "Find reports, products and documents easily." },
+    { title: "Export Options", description: "Export and download reports when needed." },
+    { title: "Team Management", description: "Manage users and company access." },
   ];
 
   const aboutValues = ["Clear visibility", "Fast collaboration", "Reliable workflow tracking"];
@@ -204,10 +207,10 @@ export default function LandingPage() {
               }}
             >
               <Button onClick={() => scrollToSection("top")} sx={navButtonSx}>Home</Button>
-              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Services</Button>
+              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Features</Button>
+              <Button onClick={() => scrollToSection("contact")} sx={navButtonSx}>How it works</Button>
               <Button onClick={() => scrollToSection("about")} sx={navButtonSx}>About Us</Button>
               <Button onClick={() => navigateToAppRoute("/pricing", router)} sx={navButtonSx}>Pricing</Button>
-              <Button onClick={() => scrollToSection("contact")} sx={navButtonSx}>Contact</Button>
             </Stack>
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
@@ -335,7 +338,7 @@ export default function LandingPage() {
                     fontWeight: 900,
                   }}
                 >
-                  PackageReport Platform
+                  Smart Manage · Business workspace
                 </Typography>
 
                 <Typography
@@ -347,7 +350,7 @@ export default function LandingPage() {
                     letterSpacing: "-0.065em",
                   }}
                 >
-                  Run workspaces that move fast and stay crystal clear.
+                  Manage your reports smarter
                 </Typography>
 
                 <Typography
@@ -357,14 +360,13 @@ export default function LandingPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  Plan tasks, collaborate with teammates, track updates, and keep every package flow visible
-                  in one place. Built for teams that need speed without losing control.
+                  Create, organize and manage your business reports and packages in one secure platform.
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
-                  <Chip label="Task Boards" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
-                  <Chip label="Live Collaboration" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
-                  <Chip label="Automations" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Simple" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Secure" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
+                  <Chip label="Built for modern businesses" variant="outlined" sx={{ borderColor: LIGHT.chip, color: LIGHT.text }} />
                 </Stack>
 
                 <Stack
@@ -382,7 +384,7 @@ export default function LandingPage() {
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Explore workspace
+                    Get Started
                   </Button>
 
                   <Button
@@ -395,7 +397,7 @@ export default function LandingPage() {
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Start free
+                    Sign In
                   </Button>
 
                 </Stack>
@@ -453,13 +455,13 @@ export default function LandingPage() {
               <Box id="services" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
                 <Stack spacing={2.5} sx={{ mb: 3 }}>
                   <Typography sx={{ textTransform: "uppercase", letterSpacing: "0.18em", color: "#64748b", fontWeight: 700 }}>
-                    Services
+                    Features
                   </Typography>
                   <Typography component="h2" sx={{ fontSize: { xs: "1.9rem", md: "2.8rem" }, fontWeight: 900, lineHeight: 1.1 }}>
-                    Tools and support to keep package operations moving.
+                    Everything your team needs to manage reports.
                   </Typography>
                   <Typography sx={{ color: "#475569", fontSize: "1.03rem", lineHeight: 1.8, maxWidth: 760 }}>
-                    PackageReport helps teams organize workspaces, automate routine updates, and stay aligned from intake to delivery.
+                    Secure, practical tools for organizing business data from creation to export.
                   </Typography>
                 </Stack>
 
