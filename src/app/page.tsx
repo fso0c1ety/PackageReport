@@ -13,6 +13,9 @@ import {
   IconButton,
   Divider,
   Stack,
+  Snackbar,
+  Alert,
+  CircularProgress,
   Toolbar,
   Typography,
 } from "@mui/material";
@@ -24,11 +27,16 @@ import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 import { AboutVisual, LaptopPreview, MapVisual, PhoneMockup } from "./LandingVisuals";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import emailjs from "@emailjs/browser";
 
 export default function LandingPage() {
   const router = useRouter();
   const [showWebLanding, setShowWebLanding] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [contactValues, setContactValues] = useState({ name: "", email: "", company: "", subject: "", message: "" });
+  const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
+  const [contactSending, setContactSending] = useState(false);
+  const [contactToast, setContactToast] = useState<{ open: boolean; severity: "success" | "error"; message: string }>({ open: false, severity: "success", message: "" });
   // Landing page is always light — never affected by dark/light mode setting.
   const LIGHT = {
     bg: '#ffffff',
@@ -122,6 +130,38 @@ export default function LandingPage() {
     setMobileMenuOpen(false);
     const section = document.getElementById(sectionId);
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleContactChange = (field: keyof typeof contactValues, value: string) => {
+    setContactValues((current) => ({ ...current, [field]: value }));
+    if (contactErrors[field]) setContactErrors((current) => ({ ...current, [field]: "" }));
+  };
+
+  const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!contactValues.name.trim()) errors.name = "Full name is required.";
+    if (!contactValues.email.trim()) errors.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactValues.email)) errors.email = "Enter a valid email address.";
+    if (!contactValues.subject.trim()) errors.subject = "Subject is required.";
+    if (!contactValues.message.trim()) errors.message = "Message is required.";
+    setContactErrors(errors);
+    if (Object.keys(errors).length) return;
+
+    setContactSending(true);
+    try {
+      await emailjs.send("service_5jluyqm", "template_iruhxjw", {
+        ...contactValues,
+        time: new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
+      }, "FGRqzofj81_soljPZ");
+      setContactValues({ name: "", email: "", company: "", subject: "", message: "" });
+      setContactErrors({});
+      setContactToast({ open: true, severity: "success", message: "✔ Message sent successfully." });
+    } catch {
+      setContactToast({ open: true, severity: "error", message: "Unable to send your message. Please try again." });
+    } finally {
+      setContactSending(false);
+    }
   };
 
   if (!showWebLanding) {
@@ -576,10 +616,10 @@ export default function LandingPage() {
                   ))}
                 </Box>
                 <Box sx={{ mt: 3, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.25fr .75fr" }, gap: 3 }}>
-                  <Box component="form" action="mailto:support@smart-manage.app" method="post" encType="text/plain" sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, p: 2.5, border: "1px solid #EAECF0", borderRadius: 3, bgcolor: "#fff" }}>
-                    {[["Full Name","name","text"],["Email","email","email"],["Company","company","text"],["Subject","subject","text"]].map(([label,name,type]) => <Box key={name}><Typography component="label" htmlFor={`contact-${name}`} sx={{ fontSize: 12, fontWeight: 800 }}>{label}</Typography><Box component="input" id={`contact-${name}`} name={name} type={type} required={name === "name" || name === "email"} sx={{ width: "100%", mt: .6, p: 1.2, border: "1px solid #D0D5DD", borderRadius: 2, font: "inherit" }}/></Box>)}
-                    <Box sx={{ gridColumn: "1/-1" }}><Typography component="label" htmlFor="contact-message" sx={{ fontSize: 12, fontWeight: 800 }}>Message</Typography><Box component="textarea" id="contact-message" name="message" required sx={{ width: "100%", minHeight: 90, mt: .6, p: 1.2, border: "1px solid #D0D5DD", borderRadius: 2, font: "inherit", resize: "vertical" }}/></Box>
-                    <Button type="submit" variant="contained" sx={{ gridColumn: "1/-1", background: "linear-gradient(135deg,#6D4AFF,#3B82F6)" }}>Send Message</Button>
+                  <Box component="form" noValidate onSubmit={handleContactSubmit} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, p: 2.5, border: "1px solid #EAECF0", borderRadius: 3, bgcolor: "#fff" }}>
+                    {([ ["Full Name","name","text"], ["Email","email","email"], ["Company","company","text"], ["Subject","subject","text"] ] as const).map(([label,name,type]) => <Box key={name}><Typography component="label" htmlFor={`contact-${name}`} sx={{ fontSize: 12, fontWeight: 800 }}>{label}{name !== "company" && " *"}</Typography><Box component="input" id={`contact-${name}`} name={name} type={type} value={contactValues[name]} onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleContactChange(name, event.target.value)} aria-invalid={Boolean(contactErrors[name])} aria-describedby={contactErrors[name] ? `contact-${name}-error` : undefined} sx={{ width: "100%", mt: .6, p: 1.2, border: `1px solid ${contactErrors[name] ? "#DC2626" : "#D0D5DD"}`, borderRadius: 2, font: "inherit", outline: "none", "&:focus": { borderColor: contactErrors[name] ? "#DC2626" : "#6D4AFF", boxShadow: `0 0 0 3px ${contactErrors[name] ? "rgba(220,38,38,.12)" : "rgba(109,74,255,.12)"}` } }}/>{contactErrors[name] && <Typography id={`contact-${name}-error`} sx={{ mt: .5, color: "#DC2626", fontSize: 11 }}>{contactErrors[name]}</Typography>}</Box>)}
+                    <Box sx={{ gridColumn: "1/-1" }}><Typography component="label" htmlFor="contact-message" sx={{ fontSize: 12, fontWeight: 800 }}>Message *</Typography><Box component="textarea" id="contact-message" name="message" value={contactValues.message} onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => handleContactChange("message", event.target.value)} aria-invalid={Boolean(contactErrors.message)} aria-describedby={contactErrors.message ? "contact-message-error" : undefined} sx={{ width: "100%", minHeight: 90, mt: .6, p: 1.2, border: `1px solid ${contactErrors.message ? "#DC2626" : "#D0D5DD"}`, borderRadius: 2, font: "inherit", resize: "vertical", outline: "none", "&:focus": { borderColor: contactErrors.message ? "#DC2626" : "#6D4AFF", boxShadow: `0 0 0 3px ${contactErrors.message ? "rgba(220,38,38,.12)" : "rgba(109,74,255,.12)"}` } }}/>{contactErrors.message && <Typography id="contact-message-error" sx={{ mt: .5, color: "#DC2626", fontSize: 11 }}>{contactErrors.message}</Typography>}</Box>
+                    <Button type="submit" variant="contained" disabled={contactSending} startIcon={contactSending ? <CircularProgress size={17} color="inherit" /> : undefined} sx={{ gridColumn: "1/-1", background: "linear-gradient(135deg,#6D4AFF,#3B82F6)" }}>{contactSending ? "Sending..." : "Send Message"}</Button>
                   </Box>
                   <MapVisual />
                 </Box>
@@ -590,6 +630,7 @@ export default function LandingPage() {
         </Container>
       </Box>
       <Box component="footer" sx={{ bgcolor: "#0F172A", color: "#fff", py: 6 }}><Container maxWidth="xl"><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "2fr repeat(4,1fr)" }, gap: 4 }}><Box sx={{ gridColumn: { xs: "1/-1", md: "auto" } }}><Stack direction="row" spacing={1.2} alignItems="center"><Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 38, height: 38, borderRadius: 2 }}/><Typography fontWeight={900}>Smart Manage</Typography></Stack><Typography sx={{ color: "#94A3B8", fontSize: 13, mt: 2, maxWidth: 260 }}>An all-in-one workspace to manage projects, tasks, reports, files and your team.</Typography></Box>{[["Product","Features","Integrations","Updates","Pricing"],["Resources","Documentation","Help Center","Templates","Blog"],["Company","About Us","Careers","Press Kit","Contact"],["Legal","Privacy Policy","Terms of Service","Cookie Policy","Security"]].map(([head,...links]) => <Box key={head}><Typography fontWeight={900} mb={1.5}>{head}</Typography>{links.map((x) => <Typography key={x} sx={{ color: "#94A3B8", fontSize: 13, py: .45 }}>{x}</Typography>)}</Box>)}</Box><Typography sx={{ color: "#64748B", fontSize: 12, mt: 5, textAlign: "center" }}>© {new Date().getFullYear()} Smart Manage. All rights reserved.</Typography></Container></Box>
+      <Snackbar open={contactToast.open} autoHideDuration={5000} onClose={() => setContactToast((current) => ({ ...current, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}><Alert onClose={() => setContactToast((current) => ({ ...current, open: false }))} severity={contactToast.severity} variant="filled" sx={{ width: "100%" }}>{contactToast.message}</Alert></Snackbar>
     </Box>
   );
 }
