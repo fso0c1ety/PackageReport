@@ -55,6 +55,10 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import ViewWeekIcon from "@mui/icons-material/ViewWeek";
 import HistoryIcon from "@mui/icons-material/History";
 import EventIcon from "@mui/icons-material/Event";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import BuildIcon from "@mui/icons-material/Build";
 
 // --- Styled Components ---
 
@@ -435,6 +439,42 @@ export default function DashboardPage() {
     return items.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 6);
   }, [filteredTables]);
 
+  const logisticsMetrics = useMemo(() => {
+    const metrics = { enabled: false, delayed: 0, inTransit: 0, unpaidInvoices: 0, maintenanceDue: 0 };
+    const today = new Date();
+    for (const table of filteredTables) {
+      const tableName = String(table.name || '').toLowerCase();
+      const rows = Array.isArray(table.tasks) ? table.tasks : [];
+      const columns = getSortedColumns(table);
+      const statusColumn = columns.find((column: any) => column.type === 'Status');
+      if (/loads?|trips?/.test(tableName)) {
+        metrics.enabled = true;
+        for (const row of rows) {
+          const value = String(statusColumn ? row.values?.[statusColumn.id] || '' : '').toLowerCase();
+          if (/delayed|late|overdue/.test(value)) metrics.delayed += 1;
+          if (/in transit|on trip/.test(value)) metrics.inTransit += 1;
+        }
+      }
+      if (/invoices?/.test(tableName)) {
+        metrics.enabled = true;
+        for (const row of rows) {
+          const value = String(statusColumn ? row.values?.[statusColumn.id] || '' : '').toLowerCase();
+          if (!/paid/.test(value) || /unpaid|overdue/.test(value)) metrics.unpaidInvoices += 1;
+        }
+      }
+      if (/maintenance/.test(tableName)) {
+        metrics.enabled = true;
+        const dueColumn = columns.find((column: any) => column.type === 'Date' && /due|expiry|service/i.test(column.name));
+        for (const row of rows) {
+          const statusValue = String(statusColumn ? row.values?.[statusColumn.id] || '' : '').toLowerCase();
+          const dueDate = dueColumn ? new Date(row.values?.[dueColumn.id]) : null;
+          if (/due|overdue/.test(statusValue) || (dueDate && !Number.isNaN(dueDate.getTime()) && dueDate <= today)) metrics.maintenanceDue += 1;
+        }
+      }
+    }
+    return metrics;
+  }, [filteredTables]);
+
   const statusSources = useMemo(() => {
     return filteredTables.flatMap((table: any) =>
       getSortedColumns(table)
@@ -775,6 +815,26 @@ export default function DashboardPage() {
             </Grid>
           ))}
         </Grid>
+
+        {logisticsMetrics.enabled && (
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            {[
+              { label: "Loads in transit", value: logisticsMetrics.inTransit, color: "#3b82f6", icon: <LocalShippingIcon /> },
+              { label: "Delayed loads", value: logisticsMetrics.delayed, color: "#ef4444", icon: <WarningAmberIcon /> },
+              { label: "Unpaid invoices", value: logisticsMetrics.unpaidInvoices, color: "#f59e0b", icon: <ReceiptLongIcon /> },
+              { label: "Maintenance due", value: logisticsMetrics.maintenanceDue, color: "#a855f7", icon: <BuildIcon /> },
+            ].map((metric) => (
+              <Grid key={metric.label} size={{ xs: 6, md: 3 }}>
+                <StatCard sx={{ borderTop: `3px solid ${metric.color}` }}>
+                  <Box display="flex" justifyContent="space-between" gap={1}>
+                    <Box><Typography variant="body2" color="text.secondary" fontWeight={700}>{metric.label.toUpperCase()}</Typography><Typography variant="h4" fontWeight={900} sx={{ mt: 1, color: metric.color }}>{metric.value}</Typography></Box>
+                    <Avatar sx={{ bgcolor: `${metric.color}1f`, color: metric.color, borderRadius: 3 }}>{metric.icon}</Avatar>
+                  </Box>
+                </StatCard>
+              </Grid>
+            ))}
+          </Grid>
+        )}
 
         {/* Stats Grid */}
         <Grid container spacing={2} sx={{ mb: { xs: 2, md: 4 } }}>

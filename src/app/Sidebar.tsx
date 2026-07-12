@@ -33,6 +33,7 @@ import AddLinkIcon from "@mui/icons-material/AddLink";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
+import BuildRoundedIcon from "@mui/icons-material/BuildRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -185,6 +186,8 @@ export default function Sidebar({
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [calendarReminderCount, setCalendarReminderCount] = useState(0);
+  const [maintenanceReminderCount, setMaintenanceReminderCount] = useState(0);
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
 
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -216,6 +219,23 @@ export default function Sidebar({
     const interval = window.setInterval(checkCalendarReminders, 30000);
     return () => { active = false; window.clearInterval(interval); };
   }, [showNotification]);
+
+  useEffect(() => {
+    let active = true;
+    const checkMaintenance = async () => {
+      try {
+        const response = await authenticatedFetch(getApiUrl("maintenance/reminders"), { suppressNativeErrorAlert: true });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!active) return;
+        setMaintenanceEnabled(Boolean(data.enabled));
+        setMaintenanceReminderCount(Number(data.count) || 0);
+      } catch {}
+    };
+    void checkMaintenance();
+    const interval = window.setInterval(checkMaintenance, 5 * 60 * 1000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, []);
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
@@ -448,6 +468,9 @@ export default function Sidebar({
                 onClose?.();
               }}
             />
+            {maintenanceEnabled && (
+              <SidebarItem icon={<BuildRoundedIcon fontSize="small" />} label="Maintenance" href="/maintenance" isActive={pathname === "/maintenance"} badge={maintenanceReminderCount} onClick={onClose} />
+            )}
             <SidebarItem
               icon={<GroupIcon fontSize="small" />}
               label="Team"
