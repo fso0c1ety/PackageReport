@@ -32,6 +32,7 @@ import AddIcon from "@mui/icons-material/Add";
 import AddLinkIcon from "@mui/icons-material/AddLink";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
+import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -422,6 +423,13 @@ export default function Sidebar({
               label="Home"
               href="/home"
               isActive={pathname === "/home" || pathname === "/"}
+              onClick={onClose}
+            />
+            <SidebarItem
+              icon={<CalendarMonthRoundedIcon fontSize="small" />}
+              label="Calendar & Deadlines"
+              href="/calendar"
+              isActive={pathname === "/calendar"}
               onClick={onClose}
             />
             <SidebarItem
