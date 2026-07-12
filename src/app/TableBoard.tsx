@@ -10561,6 +10561,45 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   />
   )}
 
+  {(["Email", "Phone", "Website", "Money", "Progress", "Tags", "Location", "Image", "Rating", "Color", "QR", "Barcode", "LongText"] as ColumnType[]).includes(col.type) && (
+  <TextField
+  fullWidth
+  variant="standard"
+  multiline={col.type === "LongText"}
+  minRows={col.type === "LongText" ? 2 : undefined}
+  type={["Money", "Progress", "Rating"].includes(col.type) ? "number" : "text"}
+  value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id].join(', ') : (reviewTask.values[col.id] ?? '')}
+  placeholder={col.type === "Phone" ? "+383 44 000 000" : col.type === "Email" ? "name@company.com" : col.type === "Color" ? "#6366f1" : "Empty"}
+  onChange={(event) => updateReviewTaskValue(col.id, event.target.value)}
+  onBlur={(event) => handleCellSave(reviewTask.id, col.id, col.type, event.target.value)}
+  onKeyDown={(event) => {
+  if (event.key === 'Enter' && col.type !== "LongText") {
+  event.preventDefault();
+  handleCellSave(reviewTask.id, col.id, col.type, (event.target as HTMLInputElement).value);
+  }
+  }}
+  inputProps={{
+  inputMode: ["Money", "Progress", "Rating"].includes(col.type) ? 'decimal' : col.type === "Phone" ? 'tel' : col.type === "Email" ? 'email' : 'text',
+  min: col.type === "Progress" || col.type === "Rating" ? 0 : undefined,
+  max: col.type === "Progress" ? 100 : col.type === "Rating" ? (col.settings?.maxRating || 5) : undefined,
+  }}
+  InputProps={{ disableUnderline: true, sx: { color: theme.palette.text.primary, fontSize: 14, fontWeight: 500, bgcolor: theme.palette.action.hover, borderRadius: 1, px: 1, py: 0.5, border: `1px solid ${theme.palette.divider}`, '&.Mui-focused': { borderColor: theme.palette.primary.main, boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, .18)}` } } }}
+  />
+  )}
+
+  {(col.type === "Relation" || col.type === "Connect") && (
+  <RelationCellEditor workspaceId={workspaceIdForImport} currentTableId={tableId} initialValue={reviewTask.values[col.id]} onSave={(nextValue) => { updateReviewTaskValue(col.id, nextValue); handleCellSave(reviewTask.id, col.id, col.type, nextValue); }} onCancel={() => undefined} />
+  )}
+
+  {col.type === "Formula" && (() => {
+  const result = calculateFormulaValue(col, reviewTask, columns);
+  return <Typography sx={{ width: '100%', textAlign: 'right', fontWeight: 800, color: result === null ? theme.palette.text.secondary : '#00c875' }}>{result === null ? 'Configure formula' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(result)}</Typography>;
+  })()}
+
+  {(col.type === "CreatedDate" || col.type === "UpdatedDate") && (
+  <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13 }}>{dayjs(reviewTask.values[col.id] || (reviewTask as any).created_at).isValid() ? dayjs(reviewTask.values[col.id] || (reviewTask as any).created_at).format('MMM D, YYYY HH:mm') : 'Auto'}</Typography>
+  )}
+
   {/* Country */}
   {col.type === "Country" && (
   <Autocomplete
