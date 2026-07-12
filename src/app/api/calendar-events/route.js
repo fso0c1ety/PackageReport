@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 async function ensureCalendarTable() {
   await pool.query(`CREATE TABLE IF NOT EXISTS calendar_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
     event_type TEXT NOT NULL DEFAULT 'event',
