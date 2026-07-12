@@ -15,19 +15,24 @@ function mapAutomationRow(row) {
     recipients: row.recipients,
     cols: row.cols,
     actionType: row.action_type || "email",
+    triggerType: row.trigger_type || "column_change",
+    actionConfig: row.action_config || {},
     rules: Array.isArray(row.conditions) ? row.conditions : [],
   };
 }
 
-function validateAutomationPayload({ triggerCol, recipients, cols }) {
+function validateAutomationPayload({ triggerCol, recipients, cols, actionType, actionConfig }) {
   if (!triggerCol) {
     return "Trigger column is required";
   }
-  if (!Array.isArray(recipients) || recipients.length === 0) {
+  if (["email", "notification", "both"].includes(actionType) && (!Array.isArray(recipients) || recipients.length === 0)) {
     return "At least one recipient email is required";
   }
-  if (!Array.isArray(cols) || cols.length === 0) {
+  if (["email", "notification", "both", "webhook"].includes(actionType) && (!Array.isArray(cols) || cols.length === 0)) {
     return "At least one board column must be included in the email";
+  }
+  if (actionType === "webhook" && !/^https:\/\//i.test(String(actionConfig?.webhookUrl || ""))) {
+    return "A secure HTTPS webhook URL is required";
   }
   return null;
 }
@@ -55,6 +60,8 @@ async function ensureAutomationSchema() {
       ADD COLUMN IF NOT EXISTS recipients JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS cols JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS action_type TEXT DEFAULT 'email',
+      ADD COLUMN IF NOT EXISTS trigger_type TEXT DEFAULT 'column_change',
+      ADD COLUMN IF NOT EXISTS action_config JSONB DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS conditions JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS actions JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS created_by TEXT,
@@ -109,11 +116,13 @@ export async function POST(req, { params }) {
     if (billingError) return billingError;
     await ensureAutomationSchema();
     const body = await req.json();
-    const { id, triggerCol, cols, recipients, enabled, taskIds, actionType, rules } = body || {};
+    const { id, triggerCol, triggerType, cols, recipients, enabled, taskIds, actionType, actionConfig, rules } = body || {};
+    const normalizedActionType = ["email", "notification", "both", "webhook", "create_task"].includes(actionType) ? actionType : "email";
+    const normalizedTriggerType = ["column_change", "formula_change"].includes(triggerType) ? triggerType : "column_change";
     const normalizedRules = Array.isArray(rules)
-      ? rules.filter((rule) => rule?.value && ["email", "notification", "both"].includes(rule?.actionType))
+      ? rules.filter((rule) => rule?.value && ["email", "notification", "both", "webhook", "create_task"].includes(rule?.actionType))
       : [];
-    const validationError = validateAutomationPayload({ triggerCol, recipients, cols });
+    const validationError = validateAutomationPayload({ triggerCol, recipients, cols, actionType: normalizedActionType, actionConfig });
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
@@ -130,18 +139,22 @@ export async function POST(req, { params }) {
               task_ids = $6,
               conditions = $7,
               actions = $8,
+              trigger_type = $9,
+              action_config = $10,
               updated_at = NOW()
-          WHERE id = $9 AND table_id = $10
+          WHERE id = $11 AND table_id = $12
         `,
         [
           triggerCol,
           enabled,
           toJsonArray(recipients),
           toJsonArray(cols),
-          actionType || "email",
+          normalizedActionType,
           toJsonArray(taskIds),
           JSON.stringify(normalizedRules),
           JSON.stringify(normalizedRules.map(({ value, actionType: type }) => ({ value, type }))),
+          normalizedTriggerType,
+          JSON.stringify(actionConfig || {}),
           id,
           tableId,
         ]
@@ -154,10 +167,12 @@ export async function POST(req, { params }) {
         enabled,
         toJsonArray(recipients),
         toJsonArray(cols),
-        actionType || "email",
+        normalizedActionType,
         JSON.stringify(normalizedRules),
         JSON.stringify(normalizedRules.map(({ value, actionType: type }) => ({ value, type }))),
         user.id,
+        normalizedTriggerType,
+        JSON.stringify(actionConfig || {}),
       ];
       const idType = await getAutomationIdType();
 
@@ -166,15 +181,15 @@ export async function POST(req, { params }) {
       if (["smallint", "integer", "bigint"].includes(idType)) {
         await pool.query(
           `INSERT INTO automations
-             (table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+             (table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by, trigger_type, action_config)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           values
         );
       } else {
         await pool.query(
           `INSERT INTO automations
-             (id, table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+             (id, table_id, task_ids, trigger_col, enabled, recipients, cols, action_type, conditions, actions, created_by, trigger_type, action_config)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [randomUUID(), ...values]
         );
       }

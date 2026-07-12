@@ -206,8 +206,11 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
       .map((recipient) => String(recipient || "").trim())
       .filter(Boolean);
     const actionType = matchingRule?.actionType || matchingRule?.type || automation.action_type || "email";
+    const actionConfig = automation.action_config && typeof automation.action_config === "object"
+      ? automation.action_config
+      : {};
 
-    if (recipients.length === 0) {
+    if (["email", "notification", "both"].includes(actionType) && recipients.length === 0) {
       console.warn("[AUTOMATION][NEXT] Skipping automation with no recipients:", automation.id);
       continue;
     }
@@ -277,7 +280,58 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
     const logId = logRes.rows[0]?.id;
     let successEmail = true;
     let successNotif = true;
+    let successAction = true;
     const errorMessages = [];
+
+    const workflowDelivery = (async () => {
+      try {
+        if (actionType === "webhook") {
+          const webhookUrl = String(actionConfig.webhookUrl || "");
+          if (!/^https:\/\//i.test(webhookUrl)) throw new Error("Invalid webhook URL");
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 10000);
+          try {
+            const response = await fetch(webhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                event: "row.updated",
+                workspaceId: table.workspace_id,
+                boardId: table.id,
+                boardName: table.name,
+                rowId: taskId,
+                rowName: taskName,
+                changedColumnId: triggerCol,
+                values: Object.fromEntries(automationCols.map((id) => [id, newValues?.[id]])),
+                occurredAt: new Date().toISOString(),
+              }),
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
+          } finally {
+            clearTimeout(timeout);
+          }
+        }
+
+        if (actionType === "create_task") {
+          const firstColumnId = columns[0]?.id;
+          if (!firstColumnId) throw new Error("Destination board has no columns");
+          const createdValues = {
+            [firstColumnId]: String(actionConfig.taskName || `Follow up: ${taskName}`),
+            activity: [{ text: `Created automatically from ${taskName}`, time: new Date().toISOString(), user: "Automation" }],
+          };
+          await pool.query(
+            `INSERT INTO rows (id, table_id, values, created_by, created_at)
+             VALUES ($1, $2, $3, $4, NOW())`,
+            [uuidv4(), table.id, JSON.stringify(createdValues), automation.created_by || null]
+          );
+        }
+      } catch (actionErr) {
+        successAction = false;
+        console.error("[AUTOMATION][NEXT] Workflow action failed:", actionErr);
+        errorMessages.push(`Action: ${actionErr.message || actionErr}`);
+      }
+    })();
 
     const emailDelivery = (async () => {
       if (actionType === "email" || actionType === "both") {
@@ -377,9 +431,9 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
       }
     })();
 
-    await Promise.all([emailDelivery, notificationDelivery]);
+    await Promise.all([emailDelivery, notificationDelivery, workflowDelivery]);
 
-    const finalStatus = !successEmail || !successNotif || errorMessages.length > 0 ? "error" : "sent";
+    const finalStatus = !successEmail || !successNotif || !successAction || errorMessages.length > 0 ? "error" : "sent";
     await pool.query(
       "UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3",
       [finalStatus, errorMessages.length > 0 ? errorMessages.join("; ") : null, logId]

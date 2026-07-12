@@ -1466,7 +1466,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   .catch(console.error);
   }
   }, [showEmailAutomation, tableId]);
-  const [actionType, setActionType] = useState<'email' | 'notification' | 'both'>('email');
+  const [actionType, setActionType] = useState<'email' | 'notification' | 'both' | 'webhook' | 'create_task'>('email');
+  const [automationTriggerType, setAutomationTriggerType] = useState<'column_change' | 'formula_change'>('column_change');
+  const [automationWebhookUrl, setAutomationWebhookUrl] = useState('');
+  const [automationTaskName, setAutomationTaskName] = useState('');
   const [automationTriggerValues, setAutomationTriggerValues] = useState<string[]>([]);
   const [applyToAll, setApplyToAll] = useState(true);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
@@ -12218,6 +12221,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setEmailCols([]);
   setEmailRecipients([]);
   setActionType("email");
+  setAutomationTriggerType("column_change");
+  setAutomationWebhookUrl("");
+  setAutomationTaskName("");
   setAutomationTriggerValues([]);
   setApplyToAll(true);
   setSelectedTaskIds([]);
@@ -12311,7 +12317,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Typography>
   <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
   <Chip
-  label={auto.actionType === 'both' ? 'Hybrid Action' : auto.actionType === 'notification' ? 'Internal Notification' : 'External Email'}
+  label={auto.actionType === 'both' ? 'Email + Alert' : auto.actionType === 'notification' ? 'Internal Notification' : auto.actionType === 'webhook' ? 'Webhook' : auto.actionType === 'create_task' ? 'Create Task' : 'External Email'}
   size="small"
   sx={{ bgcolor: theme.palette.action.hover, color: theme.palette.text.secondary, height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1.5 }}
   />
@@ -12362,6 +12368,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setEmailCols(auto.cols || []);
   setEmailRecipients(auto.recipients || []);
   setActionType(auto.actionType || 'email');
+  setAutomationTriggerType(auto.triggerType || 'column_change');
+  setAutomationWebhookUrl(auto.actionConfig?.webhookUrl || '');
+  setAutomationTaskName(auto.actionConfig?.taskName || '');
   setAutomationTriggerValues(Array.isArray(auto.rules) ? auto.rules.map((rule: any) => rule.value).filter(Boolean) : []);
   setApplyToAll(!auto.taskIds || auto.taskIds.length === 0);
   setSelectedTaskIds(auto.taskIds || []);
@@ -12394,7 +12403,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   
   <Stack spacing={4}>
   <Box>
-  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>1. Assign Trigger Attribute</Typography>
+  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>1. Choose Trigger</Typography>
+  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+  {[
+  { id: 'column_change', label: 'Column changes' },
+  { id: 'formula_change', label: 'Formula changes' },
+  ].map((trigger) => (
+  <Button key={trigger.id} variant={automationTriggerType === trigger.id ? 'contained' : 'outlined'} onClick={() => setAutomationTriggerType(trigger.id as any)} sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800 }}>
+  {trigger.label}
+  </Button>
+  ))}
+  </Box>
   <FormControl fullWidth sx={{ mb: 2 }}>
   <Select
   value={emailTriggerCol}
@@ -12414,7 +12433,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, backgroundImage: 'none', border: `1px solid ${theme.palette.divider}` } } }}
   >
   <MenuItem value="" disabled>Select board column...</MenuItem>
-  {columns.map(col => (
+  {columns.filter(col => automationTriggerType !== 'formula_change' || col.type === 'Formula').map(col => (
   <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
   ))}
   </Select>
@@ -12454,11 +12473,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>2. Action Strategy</Typography>
-  <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 2, mb: 4 }}>
+  <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 2, mb: 2 }}>
   {[
   { id: 'email', label: 'External Email', icon: <SendIcon /> },
   { id: 'notification', label: 'Push Alert', icon: <BoltIcon /> },
   { id: 'both', label: 'Hybrid Protocol', icon: <RocketLaunchIcon /> },
+  { id: 'webhook', label: 'Send Webhook', icon: <BoltIcon /> },
+  { id: 'create_task', label: 'Create Task', icon: <AddIcon /> },
   ].map((opt) => (
   <Box
   key={opt.id}
@@ -12481,9 +12502,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   ))}
   </Box>
+  {actionType === 'webhook' && (
+  <TextField fullWidth label="HTTPS webhook URL" placeholder="https://example.com/webhooks/smart-manage" value={automationWebhookUrl} onChange={(e) => setAutomationWebhookUrl(e.target.value)} sx={{ mb: 2 }} />
+  )}
+  {actionType === 'create_task' && (
+  <TextField fullWidth label="New task name" placeholder="Follow up: {{task}}" value={automationTaskName} onChange={(e) => setAutomationTaskName(e.target.value)} sx={{ mb: 2 }} />
+  )}
   </Box>
 
-  <Box>
+  {actionType !== 'create_task' && <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>3. Information Payload</Typography>
   <FormControl fullWidth sx={{ mb: 2 }}>
   <Select
@@ -12507,9 +12534,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   ))}
   </Select>
   </FormControl>
-  </Box>
+  </Box>}
 
-  <Box>
+  {['email', 'notification', 'both'].includes(actionType) && <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>4. Deployment Targets</Typography>
   <FormControl fullWidth sx={{ mb: 2 }}>
   <Select
@@ -12533,7 +12560,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   ))}
   </Select>
   </FormControl>
-  </Box>
+  </Box>}
 
   <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>5. Operational Scope</Typography>
@@ -12622,21 +12649,27 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   showNotification('Select a trigger column first', 'error');
   return;
   }
-  if (emailRecipients.length === 0) {
+  if (['email', 'notification', 'both'].includes(actionType) && emailRecipients.length === 0) {
   showNotification('Select at least one recipient email', 'error');
   return;
   }
-  if (emailCols.length === 0) {
+  if (actionType !== 'create_task' && emailCols.length === 0) {
   showNotification('Select at least one column to include in the email', 'error');
+  return;
+  }
+  if (actionType === 'webhook' && !/^https:\/\//i.test(automationWebhookUrl.trim())) {
+  showNotification('Enter a secure HTTPS webhook URL', 'error');
   return;
   }
   const body = {
   id: currentAutomationId,
   enabled: true,
   triggerCol: emailTriggerCol,
+  triggerType: automationTriggerType,
   cols: emailCols,
   recipients: emailRecipients,
   actionType: actionType,
+  actionConfig: { webhookUrl: automationWebhookUrl.trim(), taskName: automationTaskName.trim() },
   taskIds: applyToAll ? [] : selectedTaskIds
   ,rules: automationTriggerValues.map(value => ({ value, actionType }))
   };
