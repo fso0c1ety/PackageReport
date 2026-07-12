@@ -4647,6 +4647,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const newMsg = formatChatMessage({
   id: uuidv4(),
   sender: currentUser?.name || "User",
+  senderId: currentUser?.id,
   senderAvatar: currentUser?.avatar,
   text: chatInput,
   timestamp: new Date().toISOString(),
@@ -8953,7 +8954,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
 
   {msg.scheduledFor && (
-  <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
+  <Chip label={msg.notificationSent ? `Sent: ${new Date(msg.deliveredAt || msg.scheduledFor).toLocaleString()}` : `Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: msg.notificationSent ? 'rgba(34,197,94,.10)' : 'rgba(253, 171, 61, 0.1)', color: msg.notificationSent ? '#22c55e' : '#fdab3d', border: `1px solid ${msg.notificationSent ? 'rgba(34,197,94,.22)' : 'rgba(253,171,61,.2)'}`, fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: msg.notificationSent ? '#22c55e' : '#fdab3d', fontSize: 12 }} />} />
   )}
   </Box>
   </Box>
@@ -11155,7 +11156,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
 
   {msg.scheduledFor && (
-  <Chip label={`Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: 'rgba(253, 171, 61, 0.1)', color: '#fdab3d', border: '1px solid rgba(253, 171, 61, 0.2)', fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: '#fdab3d', fontSize: 12 }} />} />
+  <Chip label={msg.notificationSent ? `Sent: ${new Date(msg.deliveredAt || msg.scheduledFor).toLocaleString()}` : `Scheduled: ${new Date(msg.scheduledFor).toLocaleString()}`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem', bgcolor: msg.notificationSent ? 'rgba(34,197,94,.10)' : 'rgba(253, 171, 61, 0.1)', color: msg.notificationSent ? '#22c55e' : '#fdab3d', border: `1px solid ${msg.notificationSent ? 'rgba(34,197,94,.22)' : 'rgba(253,171,61,.2)'}`, fontWeight: 600 }} icon={<AccessTimeIcon style={{ color: msg.notificationSent ? '#22c55e' : '#fdab3d', fontSize: 12 }} />} />
   )}
   </Box>
   </Box>

@@ -57,6 +57,39 @@ function getFileIdentifier(file) {
   return file?.url || file?.path || file?.storagePath || file?.name || file?.originalName || null;
 }
 
+async function processDueScheduledMessages(table, rows) {
+  let anyChanged = false;
+  for (const row of rows) {
+    const values = row.values && typeof row.values === "object" ? row.values : {};
+    const messages = toArray(values.message);
+    let rowChanged = false;
+    for (const message of messages) {
+      if (!message?.scheduledFor || message.notificationSent || new Date(message.scheduledFor) > new Date()) continue;
+      let senderId = message.senderId || null;
+      if (!senderId && message.sender) {
+        const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
+        senderId = senderResult.rows[0]?.id || null;
+      }
+      const taskName = getTaskName(table, values);
+      const body = `${message.sender || "User"} scheduled a message on ${taskName}: ${message.text || "Scheduled message"}`;
+      await sendTableNotification({ table, senderId, type: "task_chat", title: "Scheduled Discussion", body, taskId: row.id, extraData: { taskName, scheduledMessageId: message.id } });
+      if (senderId) {
+        await pool.query(`INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,NULL,'task_chat',$3,FALSE,NOW())`, [uuidv4(), senderId, { subject: "Scheduled Discussion", body, tableId: table.id, workspaceId: table.workspace_id, taskId: row.id, taskName }]);
+      }
+      message.notificationSent = true;
+      message.deliveredAt = new Date().toISOString();
+      rowChanged = true;
+    }
+    if (rowChanged) {
+      values.message = messages;
+      await pool.query("UPDATE rows SET values=$1 WHERE id=$2", [JSON.stringify(values), row.id]);
+      row.values = values;
+      anyChanged = true;
+    }
+  }
+  return anyChanged;
+}
+
 async function maybeSendTaskNotifications({ table, user, taskId, oldValues, mergedValues }) {
   const messages = toArray(mergedValues?.message);
   const oldMessages = toArray(oldValues?.message);
@@ -389,6 +422,10 @@ export async function GET(req, { params }) {
       "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC",
       [tableId]
     );
+
+    const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
+    const table = tableResult.rows[0];
+    if (table) await processDueScheduledMessages(table, result.rows);
 
     return NextResponse.json(result.rows);
   } catch (err) {
