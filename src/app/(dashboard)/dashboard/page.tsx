@@ -53,6 +53,8 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import ViewWeekIcon from "@mui/icons-material/ViewWeek";
+import HistoryIcon from "@mui/icons-material/History";
+import EventIcon from "@mui/icons-material/Event";
 
 // --- Styled Components ---
 
@@ -405,6 +407,33 @@ export default function DashboardPage() {
     currency: "EUR",
     maximumFractionDigits: 2,
   }), []);
+
+  const recentActivity = useMemo(() => filteredTables
+    .flatMap((table: any) => (Array.isArray(table.tasks) ? table.tasks : []).map((task: any) => ({
+      id: task.id,
+      title: getTaskName(task, table),
+      board: table.name || "Untitled Board",
+      createdAt: task.created_at ? new Date(task.created_at) : null,
+    })))
+    .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
+    .slice(0, 6), [filteredTables]);
+
+  const upcomingDates = useMemo(() => {
+    const now = new Date();
+    const items: Array<{ id: string; title: string; board: string; date: Date }> = [];
+    for (const table of filteredTables) {
+      const dateColumns = getSortedColumns(table).filter((column: any) => column?.type === "Date");
+      for (const task of Array.isArray(table.tasks) ? table.tasks : []) {
+        for (const column of dateColumns) {
+          const date = new Date(task?.values?.[column.id]);
+          if (!Number.isNaN(date.getTime()) && date >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+            items.push({ id: `${task.id}:${column.id}`, title: getTaskName(task, table), board: table.name || "Untitled Board", date });
+          }
+        }
+      }
+    }
+    return items.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 6);
+  }, [filteredTables]);
 
   const statusSources = useMemo(() => {
     return filteredTables.flatMap((table: any) =>
@@ -945,6 +974,38 @@ export default function DashboardPage() {
             </Box>
           </StyledCard>
         </Box>
+
+        <Grid container spacing={2.5} sx={{ mb: 4 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <StyledCard sx={{ p: 2.5 }}>
+              <SectionHeader><HistoryIcon sx={{ color: "#8b5cf6" }} />Recent Activity</SectionHeader>
+              <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />}>
+                {recentActivity.map((item) => (
+                  <Box key={item.id} sx={{ py: 1.25, display: "flex", justifyContent: "space-between", gap: 2 }}>
+                    <Box minWidth={0}><Typography fontWeight={700} noWrap>{item.title}</Typography><Typography variant="caption" color="text.secondary">{item.board}</Typography></Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>{item.createdAt ? item.createdAt.toLocaleDateString() : "Recently"}</Typography>
+                  </Box>
+                ))}
+                {recentActivity.length === 0 && <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>No recent activity</Typography>}
+              </Stack>
+            </StyledCard>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <StyledCard sx={{ p: 2.5 }}>
+              <SectionHeader><EventIcon sx={{ color: "#06b6d4" }} />Upcoming Dates</SectionHeader>
+              <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />}>
+                {upcomingDates.map((item) => (
+                  <Box key={item.id} sx={{ py: 1.25, display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Avatar sx={{ bgcolor: "rgba(6,182,212,.14)", color: "#06b6d4", borderRadius: 2, width: 42, height: 42, fontSize: 13, fontWeight: 800 }}>{item.date.getDate()}</Avatar>
+                    <Box minWidth={0} flex={1}><Typography fontWeight={700} noWrap>{item.title}</Typography><Typography variant="caption" color="text.secondary">{item.board}</Typography></Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>{item.date.toLocaleDateString()}</Typography>
+                  </Box>
+                ))}
+                {upcomingDates.length === 0 && <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>No upcoming dates</Typography>}
+              </Stack>
+            </StyledCard>
+          </Grid>
+        </Grid>
 
         {/* Detailed Table */}
         <StyledCard sx={{ overflow: "hidden" }}>
