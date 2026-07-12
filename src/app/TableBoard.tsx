@@ -20,6 +20,7 @@ import DateRangeIcon from "@mui/icons-material/DateRange";
 import DescriptionIcon from "@mui/icons-material/Description";
 import PersonIcon from "@mui/icons-material/Person";
 import PublicIcon from "@mui/icons-material/Public";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
 import LinkIcon from "@mui/icons-material/Link";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -5000,6 +5001,37 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (effectiveType === "Extract") return <Box sx={{ ...commonSx, color: theme.palette.text.secondary }}>(lookup)</Box>;
 
   const text = value === null || value === undefined || value === '-' ? '' : String(value);
+  if (effectiveType === "Email") return <Box onClick={activate} sx={commonSx}><Typography noWrap sx={{ color: '#579bfc', fontSize: 13 }}>{text || 'Add email'}</Typography></Box>;
+  if (effectiveType === "Phone") return <Box onClick={activate} sx={commonSx}><Typography noWrap sx={{ color: '#00c875', fontSize: 13 }}>{text || 'Add phone'}</Typography></Box>;
+  if (effectiveType === "Website") return <Box onClick={activate} sx={commonSx}><Typography noWrap sx={{ color: '#579bfc', textDecoration: text ? 'underline' : 'none', fontSize: 13 }}>{text || 'Add website'}</Typography></Box>;
+  if (effectiveType === "Money") {
+  const amount = text ? Number(String(text).replace(/[^0-9.-]/g, '')) : NaN;
+  const formatted = Number.isFinite(amount) ? new Intl.NumberFormat(undefined, { style: 'currency', currency: col.settings?.currency || 'EUR' }).format(amount) : text;
+  return <Box onClick={activate} sx={{ ...commonSx, justifyContent: 'flex-end' }}><Typography sx={{ fontWeight: 800, color: '#00c875', fontSize: 13 }}>{formatted || '€0.00'}</Typography></Box>;
+  }
+  if (effectiveType === "Progress") {
+  const progress = Math.max(0, Math.min(100, Number(value) || 0));
+  return <Box onClick={activate} sx={{ ...commonSx, gap: 1 }}><Box sx={{ flex: 1, height: 8, borderRadius: 99, bgcolor: alpha(theme.palette.text.secondary, .18), overflow: 'hidden' }}><Box sx={{ width: `${progress}%`, height: '100%', bgcolor: progress === 100 ? '#00c875' : '#6366f1', borderRadius: 99 }} /></Box><Typography sx={{ minWidth: 34, textAlign: 'right', fontWeight: 800, fontSize: 12 }}>{progress}%</Typography></Box>;
+  }
+  if (effectiveType === "Tags") {
+  const tags = Array.isArray(value) ? value : text.split(',').map(tag => tag.trim()).filter(Boolean);
+  return <Box onClick={activate} sx={{ ...commonSx, gap: .5 }}>{tags.length ? tags.slice(0, 3).map((tag: string) => <Chip key={tag} label={tag} size="small" sx={{ height: 22, bgcolor: alpha('#ff642e', .15), color: '#ff8a5c' }} />) : <Typography color="text.secondary" fontSize={12}>Add tags</Typography>}</Box>;
+  }
+  if (effectiveType === "Location") return <Box onClick={activate} sx={{ ...commonSx, gap: .6 }}><LocationOnIcon sx={{ fontSize: 16, color: '#e2445c' }} /><Typography noWrap fontSize={13}>{text || 'Add location'}</Typography></Box>;
+  if (effectiveType === "CreatedDate" || effectiveType === "UpdatedDate") {
+  const rawDate = value || (row as any).created_at;
+  const formattedDate = rawDate && dayjs(rawDate).isValid() ? dayjs(rawDate).format('MMM D, YYYY HH:mm') : '';
+  return <Box sx={{ ...commonSx, cursor: 'default' }}><Typography color="text.secondary" fontSize={12}>{formattedDate || 'Auto'}</Typography></Box>;
+  }
+  if (effectiveType === "Image") return <Box onClick={activate} sx={commonSx}>{text ? <Box component="img" src={text} alt="Cell image" sx={{ width: 34, height: 28, borderRadius: 1, objectFit: 'cover' }} /> : <Typography color="text.secondary" fontSize={12}>Add image URL</Typography>}</Box>;
+  if (effectiveType === "Rating") {
+  const rating = Math.max(0, Math.min(col.settings?.maxRating || 5, Number(value) || 0));
+  return <Box onClick={activate} sx={{ ...commonSx, color: '#ffcb00', letterSpacing: 1 }}>{'★'.repeat(rating)}<Box component="span" sx={{ color: alpha(theme.palette.text.secondary, .25) }}>{'★'.repeat((col.settings?.maxRating || 5) - rating)}</Box></Box>;
+  }
+  if (effectiveType === "Color") return <Box onClick={activate} sx={{ ...commonSx, gap: 1 }}><Box sx={{ width: 20, height: 20, borderRadius: 1, bgcolor: text || 'transparent', border: `1px solid ${theme.palette.divider}` }} /><Typography fontSize={12}>{text || 'Pick color'}</Typography></Box>;
+  if (effectiveType === "QR") return <Box onClick={activate} sx={{ ...commonSx, gap: 1 }}><Box sx={{ width: 24, height: 24, borderRadius: .5, background: 'repeating-conic-gradient(#111 0 25%, #fff 0 50%) 50% / 6px 6px', border: '2px solid #fff' }} /><Typography noWrap fontSize={12}>{text || 'Add QR value'}</Typography></Box>;
+  if (effectiveType === "Barcode") return <Box onClick={activate} sx={{ ...commonSx, flexDirection: 'column', justifyContent: 'center', gap: .15 }}><Box sx={{ width: '82%', height: 18, background: 'repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 4px, currentColor 4px 5px, transparent 5px 8px)' }} /><Typography noWrap sx={{ fontSize: 9, letterSpacing: 1 }}>{text}</Typography></Box>;
+  if (effectiveType === "LongText") return <Box onClick={activate} sx={{ ...commonSx, whiteSpace: 'normal', alignItems: 'flex-start', py: .5 }}><Typography sx={{ fontSize: 12, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{text || 'Add text'}</Typography></Box>;
   if (effectiveType === "Doc") return <Typography variant="body2" color="primary" sx={{ textDecoration: 'underline', cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Add doc link'}</Typography>;
   if (effectiveType === "Connect" || effectiveType === "Relation") {
   const relationLabel = typeof value === 'object' && value?.label ? value.label : text;
