@@ -34,6 +34,13 @@ import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import BuildRoundedIcon from "@mui/icons-material/BuildRounded";
+import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
+import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
+import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
+import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -246,6 +253,15 @@ export default function Sidebar({
 
 
   const currentWorkspaceId = searchParams.get("id");
+  const [workspaceModules, setWorkspaceModules] = useState<string[]>([]);
+  useEffect(() => {
+    if (!currentWorkspaceId) { setWorkspaceModules([]); return; }
+    const loadModules = () => authenticatedFetch(getApiUrl(`workspaces/${currentWorkspaceId}/modules`), { suppressNativeErrorAlert: true })
+      .then((response) => response.ok ? response.json() : null).then((data) => setWorkspaceModules(Array.isArray(data?.modules) ? data.modules : [])).catch(() => setWorkspaceModules([]));
+    void loadModules();
+    window.addEventListener("workspaceModulesUpdated", loadModules);
+    return () => window.removeEventListener("workspaceModulesUpdated", loadModules);
+  }, [currentWorkspaceId]);
   // Fetch workspaces and user
   useEffect(() => {
     // Load local user immediately for fast render
@@ -456,7 +472,7 @@ export default function Sidebar({
               isActive={pathname === "/home" || pathname === "/"}
               onClick={onClose}
             />
-            <SidebarItem
+            {(!currentWorkspaceId || workspaceModules.includes("calendar")) && <SidebarItem
               icon={<CalendarMonthRoundedIcon fontSize="small" />}
               label="Calendar & Deadlines"
               href="/calendar"
@@ -467,8 +483,8 @@ export default function Sidebar({
                 void authenticatedFetch(getApiUrl("calendar-events"), { method: "PATCH", suppressNativeErrorAlert: true }).catch(() => undefined);
                 onClose?.();
               }}
-            />
-            {maintenanceEnabled && (
+            />}
+            {maintenanceEnabled && workspaceModules.includes("fleet") && (
               <SidebarItem icon={<BuildRoundedIcon fontSize="small" />} label="Maintenance" href="/maintenance" isActive={pathname === "/maintenance"} badge={maintenanceReminderCount} onClick={onClose} />
             )}
             <SidebarItem
@@ -478,13 +494,13 @@ export default function Sidebar({
               isActive={pathname === "/settings" && searchParams.get("tab") === "team"}
               onClick={onClose}
             />
-            <SidebarItem
+            {(!currentWorkspaceId || workspaceModules.includes("ai")) && <SidebarItem
               icon={<AutoAwesomeIcon fontSize="small" />}
               label="Nexus Brain"
               href="/nexusbrain-chat"
               isActive={pathname === "/nexusbrain-chat"}
               onClick={onClose}
-            />
+            />}
             <SidebarItem
               icon={<SettingsIcon fontSize="small" />}
               label="Settings"
@@ -493,6 +509,22 @@ export default function Sidebar({
               onClick={onClose}
             />
           </Box>
+
+          {currentWorkspaceId && (
+            <>
+              <InlineHeader label="Modules" />
+              <Box sx={{ display: "grid", gap: 0.55 }}>
+                <SidebarItem icon={<SettingsIcon fontSize="small" />} label="Manage Modules" href={`/modules?id=${currentWorkspaceId}`} isActive={pathname === "/modules"} onClick={onClose} />
+                {workspaceModules.includes("crm") && <SidebarItem icon={<BusinessCenterRoundedIcon fontSize="small" />} label="CRM" href={`/workspace?id=${currentWorkspaceId}&module=crm`} isActive={searchParams.get("module") === "crm"} onClick={onClose} />}
+                {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="Finance" href="/dashboard" isActive={pathname === "/dashboard"} onClick={onClose} />}
+                {workspaceModules.includes("inventory") && <SidebarItem icon={<Inventory2RoundedIcon fontSize="small" />} label="Inventory" href={`/workspace?id=${currentWorkspaceId}&module=inventory`} isActive={searchParams.get("module") === "inventory"} onClick={onClose} />}
+                {workspaceModules.includes("hr") && <SidebarItem icon={<BadgeRoundedIcon fontSize="small" />} label="HR" href={`/workspace?id=${currentWorkspaceId}&module=hr`} isActive={searchParams.get("module") === "hr"} onClick={onClose} />}
+                {workspaceModules.includes("fleet") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="Fleet" href={`/workspace?id=${currentWorkspaceId}&module=fleet`} isActive={searchParams.get("module") === "fleet"} onClick={onClose} />}
+                {workspaceModules.includes("reports") && <SidebarItem icon={<AssessmentRoundedIcon fontSize="small" />} label="Reports" href="/dashboard" isActive={pathname === "/dashboard"} onClick={onClose} />}
+                {workspaceModules.includes("documents") && <SidebarItem icon={<FolderRoundedIcon fontSize="small" />} label="Documents" href={`/workspace?id=${currentWorkspaceId}&module=documents`} isActive={searchParams.get("module") === "documents"} onClick={onClose} />}
+              </Box>
+            </>
+          )}
 
           <InlineHeader label="Workspace" />
           <Box
