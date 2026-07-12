@@ -3616,6 +3616,61 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   let newValue = valueOverride !== undefined ? valueOverride : editValue;
   const col = columns.find(c => c.id === colId);
 
+  if (col) {
+  const rawText = typeof newValue === 'string' ? newValue.trim() : newValue;
+  const rejectInvalidValue = (message: string) => {
+  showNotification(message, 'error');
+  setEditingCell(null);
+  setEditValue('');
+  };
+  if (col.type === 'Phone' && rawText && !/^\+?[0-9 ()-]{7,20}$/.test(String(rawText))) {
+  rejectInvalidValue('Enter a valid phone number using digits, spaces, +, - or parentheses.');
+  return;
+  }
+  if (col.type === 'Email' && rawText && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(rawText))) {
+  rejectInvalidValue('Enter a valid email address.');
+  return;
+  }
+  if ((col.type === 'Website' || col.type === 'Image') && rawText) {
+  const normalizedUrl = /^https?:\/\//i.test(String(rawText)) ? String(rawText) : `https://${rawText}`;
+  try {
+  const url = new URL(normalizedUrl);
+  if (!url.hostname.includes('.')) throw new Error('Invalid host');
+  newValue = normalizedUrl;
+  } catch {
+  rejectInvalidValue(col.type === 'Image' ? 'Enter a valid image URL.' : 'Enter a valid website URL.');
+  return;
+  }
+  }
+  if (['Money', 'Progress', 'Rating'].includes(col.type) && rawText !== '') {
+  const numericValue = Number(String(rawText).replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(numericValue)) {
+  rejectInvalidValue('Enter a valid number.');
+  return;
+  }
+  if (col.type === 'Progress' && (numericValue < 0 || numericValue > 100)) {
+  rejectInvalidValue('Progress must be between 0 and 100.');
+  return;
+  }
+  if (col.type === 'Rating' && (numericValue < 0 || numericValue > (col.settings?.maxRating || 5))) {
+  rejectInvalidValue(`Rating must be between 0 and ${col.settings?.maxRating || 5}.`);
+  return;
+  }
+  newValue = numericValue;
+  }
+  if (col.type === 'Color' && rawText && !/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(rawText))) {
+  rejectInvalidValue('Enter a valid HEX color, for example #6366f1.');
+  return;
+  }
+  if (col.type === 'Tags') {
+  newValue = Array.isArray(newValue) ? newValue : String(rawText || '').split(',').map((tag) => tag.trim()).filter(Boolean);
+  }
+  if (col.type === 'Barcode' && rawText && !/^[A-Za-z0-9 ._\/-]{3,64}$/.test(String(rawText))) {
+  rejectInvalidValue('Barcode contains unsupported characters.');
+  return;
+  }
+  }
+
   // Map messages if we are updating the chat column
   if (colId === 'message' || (col && col.type === 'Message')) {
   newValue = Array.isArray(newValue) ? newValue.map(formatChatMessage) : newValue;
