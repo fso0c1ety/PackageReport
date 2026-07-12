@@ -15,6 +15,15 @@ import {
 import { useTheme } from "@mui/material/styles";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import SendIcon from "@mui/icons-material/Send";
+import SummarizeIcon from "@mui/icons-material/Summarize";
+import EmailIcon from "@mui/icons-material/Email";
+import TranslateIcon from "@mui/icons-material/Translate";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import FindInPageIcon from "@mui/icons-material/FindInPage";
+import RuleIcon from "@mui/icons-material/Rule";
 import { motion } from "framer-motion";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 
@@ -23,6 +32,18 @@ type NexusMessage = {
   text: string;
   timestamp: string;
 };
+
+const AI_TOOLS = [
+  { label: "AI Summary", icon: SummarizeIcon, prompt: "Summarize the current workspace activity, priorities, risks, and next actions." },
+  { label: "AI Email", icon: EmailIcon, prompt: "Draft a professional email. Ask me only for the missing recipient, purpose, or tone." },
+  { label: "AI Translate", icon: TranslateIcon, prompt: "Translate my next text while preserving its meaning and professional tone. Ask for the target language." },
+  { label: "AI Autofill", icon: AutoFixHighIcon, prompt: "Help autofill missing workspace fields. Identify what information is required before proposing values." },
+  { label: "AI Reports", icon: AssessmentIcon, prompt: "Create a concise business report with KPIs, trends, risks, and recommended actions." },
+  { label: "Expense Analysis", icon: ReceiptLongIcon, prompt: "Analyze expenses, flag unusual costs, and suggest concrete savings opportunities." },
+  { label: "Delayed Loads", icon: LocalShippingIcon, prompt: "Analyze delayed loads, likely causes, customer impact, and recommended follow-up actions." },
+  { label: "Document Summary", icon: FindInPageIcon, prompt: "Summarize a document. Ask me to provide or select the document, then return key facts, dates, risks, and actions." },
+  { label: "Missing Fields", icon: RuleIcon, prompt: "Find missing or incomplete fields and prioritize which records need attention first." },
+] as const;
 
 const initialMessages: NexusMessage[] = [
   {
@@ -89,7 +110,7 @@ export default function NexusBrainChatPage() {
         body: JSON.stringify({
           input: text,
           systemPrompt:
-            'You are "Nexus Brain", the intelligent assistant inside Smart Manage. Reply in concise JSON with fields thought, action, params, and response. Keep the response helpful and short.',
+            'You are "Nexus Brain", the intelligent assistant inside Smart Manage. You help with summaries, professional emails, translation, autofill suggestions, reports, expense analysis, delayed loads, document summaries, and missing-field detection. Never claim to have changed workspace data unless an action result confirms it. Reply in concise JSON with fields thought, action, params, and response. Keep the response practical and short.',
           messages: messages.map((message) => ({
             role: message.role,
             content: message.text,
@@ -269,6 +290,27 @@ export default function NexusBrainChatPage() {
         </Box>
 
         <Box sx={{ p: { xs: 2, md: 2.5 }, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: "action.hover" }}>
+          <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: "auto", pb: 0.75, scrollbarWidth: "thin" }}>
+            {AI_TOOLS.map(({ label, icon: ToolIcon, prompt }) => (
+              <Chip
+                key={label}
+                icon={<ToolIcon sx={{ fontSize: "17px !important" }} />}
+                label={label}
+                disabled={isThinking}
+                onClick={() => sendMessage(prompt)}
+                sx={{
+                  flexShrink: 0,
+                  height: 36,
+                  borderRadius: 2.5,
+                  color: "primary.main",
+                  border: `1px solid ${theme.palette.primary.main}35`,
+                  bgcolor: theme.palette.mode === "dark" ? "rgba(99,102,241,0.1)" : "rgba(99,102,241,0.06)",
+                  fontWeight: 800,
+                  "&:hover": { bgcolor: theme.palette.mode === "dark" ? "rgba(99,102,241,0.2)" : "rgba(99,102,241,0.12)" },
+                }}
+              />
+            ))}
+          </Stack>
           {messages.length < 3 && (
             <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: "auto", pb: 0.5 }}>
               {["Add a task", "Send an email", "Change status"].map((suggestion) => (
