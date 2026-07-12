@@ -182,6 +182,7 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
   console.log(`[AUTOMATION][NEXT] Found ${autoResult.rows.length} matching automation(s) for task ${taskId}`);
 
   for (const automation of autoResult.rows) {
+    if (["date_arrives", "reminder"].includes(automation.trigger_type)) continue;
     const triggerCol = automation?.trigger_col;
     if (!triggerCol) {
       continue;

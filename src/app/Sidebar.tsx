@@ -206,6 +206,13 @@ export default function Sidebar({
     let active = true;
     const checkCalendarReminders = async () => {
       try {
+        const automationResponse = await authenticatedFetch(getApiUrl("automation/due"), { suppressNativeErrorAlert: true });
+        if (automationResponse.ok) {
+          const automationData = await automationResponse.json();
+          for (const run of automationData.triggered || []) {
+            showNotification(`Automation executed: ${String(run.actionType || "action").replaceAll("_", " ")}`, "success");
+          }
+        }
         const response = await authenticatedFetch(getApiUrl("calendar-events/reminders"), { suppressNativeErrorAlert: true });
         if (!response.ok) return;
         const data = await response.json();

@@ -118,7 +118,7 @@ export async function POST(req, { params }) {
     const body = await req.json();
     const { id, triggerCol, triggerType, cols, recipients, enabled, taskIds, actionType, actionConfig, rules } = body || {};
     const normalizedActionType = ["email", "notification", "both", "webhook", "create_task"].includes(actionType) ? actionType : "email";
-    const normalizedTriggerType = ["column_change", "formula_change"].includes(triggerType) ? triggerType : "column_change";
+    const normalizedTriggerType = ["column_change", "formula_change", "date_arrives", "reminder"].includes(triggerType) ? triggerType : "column_change";
     const normalizedRules = Array.isArray(rules)
       ? rules.filter((rule) => rule?.value && ["email", "notification", "both", "webhook", "create_task"].includes(rule?.actionType))
       : [];

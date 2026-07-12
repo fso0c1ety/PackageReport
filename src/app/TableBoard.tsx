@@ -1467,7 +1467,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   }, [showEmailAutomation, tableId]);
   const [actionType, setActionType] = useState<'email' | 'notification' | 'both' | 'webhook' | 'create_task'>('email');
-  const [automationTriggerType, setAutomationTriggerType] = useState<'column_change' | 'formula_change'>('column_change');
+  const [automationTriggerType, setAutomationTriggerType] = useState<'column_change' | 'formula_change' | 'date_arrives' | 'reminder'>('column_change');
+  const [automationReminderMinutes, setAutomationReminderMinutes] = useState('30');
   const [automationWebhookUrl, setAutomationWebhookUrl] = useState('');
   const [automationTaskName, setAutomationTaskName] = useState('');
   const [automationTriggerValues, setAutomationTriggerValues] = useState<string[]>([]);
@@ -12222,6 +12223,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setEmailRecipients([]);
   setActionType("email");
   setAutomationTriggerType("column_change");
+  setAutomationReminderMinutes("30");
   setAutomationWebhookUrl("");
   setAutomationTaskName("");
   setAutomationTriggerValues([]);
@@ -12369,6 +12371,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setEmailRecipients(auto.recipients || []);
   setActionType(auto.actionType || 'email');
   setAutomationTriggerType(auto.triggerType || 'column_change');
+  setAutomationReminderMinutes(String(auto.actionConfig?.minutesBefore ?? 30));
   setAutomationWebhookUrl(auto.actionConfig?.webhookUrl || '');
   setAutomationTaskName(auto.actionConfig?.taskName || '');
   setAutomationTriggerValues(Array.isArray(auto.rules) ? auto.rules.map((rule: any) => rule.value).filter(Boolean) : []);
@@ -12404,10 +12407,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Stack spacing={4}>
   <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>1. Choose Trigger</Typography>
-  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+  <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
   {[
   { id: 'column_change', label: 'Column changes' },
   { id: 'formula_change', label: 'Formula changes' },
+  { id: 'date_arrives', label: 'Date arrives' },
+  { id: 'reminder', label: 'Reminder before date' },
   ].map((trigger) => (
   <Button key={trigger.id} variant={automationTriggerType === trigger.id ? 'contained' : 'outlined'} onClick={() => setAutomationTriggerType(trigger.id as any)} sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800 }}>
   {trigger.label}
@@ -12433,11 +12438,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, backgroundImage: 'none', border: `1px solid ${theme.palette.divider}` } } }}
   >
   <MenuItem value="" disabled>Select board column...</MenuItem>
-  {columns.filter(col => automationTriggerType !== 'formula_change' || col.type === 'Formula').map(col => (
+  {columns.filter(col => automationTriggerType === 'formula_change' ? col.type === 'Formula' : ['date_arrives', 'reminder'].includes(automationTriggerType) ? col.type === 'Date' : true).map(col => (
   <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
   ))}
   </Select>
   </FormControl>
+  {automationTriggerType === 'reminder' && (
+  <TextField fullWidth type="number" label="Minutes before" value={automationReminderMinutes} onChange={(event) => setAutomationReminderMinutes(event.target.value)} inputProps={{ min: 0, max: 10080 }} sx={{ mt: 2 }} />
+  )}
   {emailTriggerCol && (columns.find(col => col.id === emailTriggerCol)?.options?.length || 0) > 0 && (
   <FormControl fullWidth>
   <Select
@@ -12669,7 +12677,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   cols: emailCols,
   recipients: emailRecipients,
   actionType: actionType,
-  actionConfig: { webhookUrl: automationWebhookUrl.trim(), taskName: automationTaskName.trim() },
+  actionConfig: { webhookUrl: automationWebhookUrl.trim(), taskName: automationTaskName.trim(), minutesBefore: Math.max(0, Number(automationReminderMinutes) || 0) },
   taskIds: applyToAll ? [] : selectedTaskIds
   ,rules: automationTriggerValues.map(value => ({ value, actionType }))
   };
