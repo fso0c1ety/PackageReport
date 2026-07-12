@@ -233,6 +233,31 @@ const stringToColor = (string: string) => {
   return color;
 }
 
+function calculateFormulaValue(column: Column, row: Row, columns: Column[]) {
+  let formula = column.settings?.formula?.trim() || "";
+  if (!formula && /profit|fitim/i.test(column.name)) {
+    const revenue = columns.find((candidate) => /^(sell rate|revenue|income|sales|te ardhura)$/i.test(candidate.name.trim()));
+    const costs = columns.find((candidate) => /^(buy rate|costs?|expenses?|kosto|shpenzime?)$/i.test(candidate.name.trim()));
+    if (revenue && costs) formula = `[${revenue.name}] - [${costs.name}]`;
+  }
+  if (!formula) return null;
+
+  const byName = new Map(columns.map((candidate) => [candidate.name.trim().toLowerCase(), candidate]));
+  const expression = formula.replace(/\[([^\]]+)\]/g, (_match, name: string) => {
+    const referencedColumn = byName.get(name.trim().toLowerCase());
+    const rawValue = referencedColumn ? row.values?.[referencedColumn.id] : 0;
+    const numericValue = Number(String(rawValue ?? 0).replace(/[^0-9.-]/g, ""));
+    return String(Number.isFinite(numericValue) ? numericValue : 0);
+  });
+  if (!/^[0-9+\-*/().\s]+$/.test(expression)) return null;
+  try {
+    const result = Function(`"use strict"; return (${expression});`)();
+    return typeof result === "number" && Number.isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
 const FastTextCellEditor = React.memo(function FastTextCellEditor({
   initialValue,
   isPrimary,
@@ -2472,6 +2497,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   rowsRef.current = rows;
   }, [rows]);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
+  const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
+  const [formulaDraft, setFormulaDraft] = useState("");
   const [editValue, setEditValue] = useState<any>("");
   const editValueRef = React.useRef(editValue);
   useEffect(() => { editValueRef.current = editValue; }, [editValue]);
@@ -3471,8 +3498,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   };
 
   // Add new column
-  const handleAddColumn = async (colType: ColumnType, label: string) => {
+  const handleAddColumn = async (colType: ColumnType, label: string, settings?: Column["settings"]) => {
   if (userPermission === 'read') return;
+  if (colType === "Formula" && !settings?.formula) {
+  setShowColSelector(false);
+  setFormulaDraft("");
+  setFormulaDialogOpen(true);
+  return;
+  }
   // Inject full country list for Country columns
   const newColumn: Column = {
   id: uuidv4(),
@@ -3487,6 +3520,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   : ["Status", "Dropdown", "People"].includes(colType)
   ? []
   : undefined,
+  settings,
   };
   const updatedColumns = [...columns, newColumn];
   setColumns(updatedColumns);
@@ -4997,7 +5031,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return <Badge badgeContent={count} max={99} sx={{ '& .MuiBadge-badge': { bgcolor: theme.palette.primary.main, color: theme.palette.text.primary, fontSize: '0.6rem', fontWeight: 700, minWidth: 15, height: 15, borderRadius: 8 } }}><Button variant="outlined" size="small" startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 14 }} />} onClick={(event) => stableHandleOpenChat(event, row.id, value || [], col.id)} sx={{ color: theme.palette.text.secondary, borderColor: theme.palette.divider, textTransform: 'none', fontSize: '0.75rem', '&:hover': { color: theme.palette.text.primary, borderColor: theme.palette.primary.main, bgcolor: 'rgba(79, 81, 192, 0.1)' } }}>Chat</Button></Badge>;
   }
 
-  if (effectiveType === "Formula") return <Box sx={{ ...commonSx, color: theme.palette.text.secondary }}>(auto)</Box>;
+  if (effectiveType === "Formula") {
+  const result = calculateFormulaValue(col, row, sortedColumns);
+  return <Box sx={{ ...commonSx, justifyContent: 'flex-end', cursor: 'default' }}><Typography sx={{ color: result === null ? theme.palette.text.secondary : '#00c875', fontWeight: 800, fontSize: 13 }}>{result === null ? 'Configure formula' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(result)}</Typography></Box>;
+  }
   if (effectiveType === "Extract") return <Box sx={{ ...commonSx, color: theme.palette.text.secondary }}>(lookup)</Box>;
 
   const text = value === null || value === undefined || value === '-' ? '' : String(value);
@@ -6424,8 +6461,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   );
   }
   if (col.type === "Formula") {
+  const result = calculateFormulaValue(col, row, sortedColumns);
   return (
-  <Typography variant="body2" color="text.secondary">(auto)</Typography>
+  <Typography variant="body2" sx={{ color: result === null ? 'text.secondary' : '#00c875', fontWeight: 800 }}>{result === null ? 'Configure formula' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(result)}</Typography>
   );
   }
   if (col.type === "Extract") {
@@ -6606,6 +6644,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // --- JSX ---
   return (
   <Box>
+  <Dialog open={formulaDialogOpen} onClose={() => setFormulaDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: theme.palette.background.paper, backgroundImage: 'none', borderRadius: 3, border: `1px solid ${theme.palette.divider}` } }}>
+  <DialogTitle sx={{ fontWeight: 800 }}>Configure formula</DialogTitle>
+  <DialogContent>
+  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Use column names inside brackets. Supported operators: +, −, ×, ÷ and parentheses.</Typography>
+  <TextField autoFocus fullWidth label="Formula" placeholder="[Revenue] - [Costs]" value={formulaDraft} onChange={(event) => setFormulaDraft(event.target.value)} helperText={`Available: ${sortedColumns.map((column) => `[${column.name}]`).join(', ')}`} />
+  </DialogContent>
+  <DialogActions sx={{ p: 2.5 }}>
+  <Button onClick={() => setFormulaDialogOpen(false)}>Cancel</Button>
+  <Button variant="contained" disabled={!formulaDraft.trim()} onClick={() => { void handleAddColumn("Formula", "Formula", { formula: formulaDraft.trim() }); setFormulaDialogOpen(false); }}>Create formula</Button>
+  </DialogActions>
+  </Dialog>
   {/* Rename Column Dialog */}
   <Dialog
   open={!!renamingColId}
