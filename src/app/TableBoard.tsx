@@ -3647,12 +3647,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const baseRow = reviewTaskRef.current?.id === rowId
   ? reviewTaskRef.current
   : sourceRows[rowIdx];
-  const updatedRow: Row = { ...baseRow, values: { ...baseRow.values, [colId]: newValue } };
+  const nextValues = { ...baseRow.values, [colId]: newValue };
+  let updatedRow: Row = { ...baseRow, values: nextValues };
+  for (const formulaColumn of columns.filter((candidate) => candidate.type === "Formula")) {
+  const result = calculateFormulaValue(formulaColumn, updatedRow, columns);
+  if (result !== null) updatedRow = { ...updatedRow, values: { ...updatedRow.values, [formulaColumn.id]: result } };
+  }
   const previousValue = baseRow.values?.[colId];
   const saveKey = `${rowId}:${colId}`;
   const saveVersion = (cellSaveVersionsRef.current[saveKey] ?? 0) + 1;
   cellSaveVersionsRef.current[saveKey] = saveVersion;
-  rowsStore.getState().updateCell(rowId, colId, newValue);
+  rowsStore.getState().upsertRow(updatedRow);
   rowsRef.current = sourceRows.map((row) => row.id === rowId ? updatedRow : row);
   broadcastTableChange('row-change', { eventType: 'UPDATE', row: updatedRow });
   if (reviewTaskRef.current?.id === rowId) {
