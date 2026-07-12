@@ -227,6 +227,7 @@ export function LoginForm() {
                     '&.Mui-focused': { color: LIGHT.secondary },
                   },
                 }}>
+                  <Typography sx={{ fontSize: '.72rem', fontWeight: 900, letterSpacing: '.12em', textTransform: 'uppercase', color: LIGHT.secondary }}>Personal details</Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                     <TextField fullWidth label="First Name" name="first_name" required value={formData.first_name} onChange={handleChange} />
                     <TextField fullWidth label="Last Name" name="last_name" required value={formData.last_name} onChange={handleChange} />
@@ -249,6 +250,7 @@ export function LoginForm() {
                       <MenuItem value="other">Other</MenuItem>
                     </TextField>
                   </Stack>
+                  <Typography sx={{ pt: .5, fontSize: '.72rem', fontWeight: 900, letterSpacing: '.12em', textTransform: 'uppercase', color: LIGHT.secondary }}>Professional details</Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                     <TextField fullWidth label="Job Title" name="job_title" value={formData.job_title} onChange={handleChange} />
                     <TextField fullWidth label="Company" name="company" value={formData.company} onChange={handleChange} />
@@ -256,6 +258,8 @@ export function LoginForm() {
                 </Stack>
               </motion.div>
             )}
+
+            {!isLogin && !twoFactorChallengeId && <Typography sx={{ fontSize: '.72rem', fontWeight: 900, letterSpacing: '.12em', textTransform: 'uppercase', color: LIGHT.secondary }}>Account details</Typography>}
 
             {!twoFactorChallengeId && <TextField
               fullWidth
@@ -281,7 +285,6 @@ export function LoginForm() {
                 },
               }}
             />}
-
             {!twoFactorChallengeId && <TextField
               fullWidth
               label="Password"
@@ -325,6 +328,13 @@ export function LoginForm() {
                 },
               }}
             />}
+
+            {!isLogin && !twoFactorChallengeId && formData.password && (
+              <Box>
+                <Stack direction="row" spacing={.6}>{[0,1,2].map((index) => { const strength = Number(formData.password.length >= 8) + Number(/[A-Z]/.test(formData.password) && /[a-z]/.test(formData.password)) + Number(/\d/.test(formData.password)); return <Box key={index} sx={{ flex: 1, height: 4, borderRadius: 4, bgcolor: index < strength ? ["#ef4444","#f59e0b","#22c55e"][strength - 1] : "#e5e7eb" }} />; })}</Stack>
+                <Typography sx={{ mt: .6, fontSize: '.72rem', color: LIGHT.textMuted }}>Password strength: {formData.password.length < 8 ? "Weak" : /[A-Z]/.test(formData.password) && /[a-z]/.test(formData.password) && /\d/.test(formData.password) ? "Strong" : "Medium"}</Typography>
+              </Box>
+            )}
 
             {twoFactorChallengeId && (
               <TextField

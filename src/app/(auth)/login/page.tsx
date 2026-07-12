@@ -63,6 +63,17 @@ export default function LoginPage() {
               <Typography sx={{ mt: 3, maxWidth: 560, color: 'rgba(255,255,255,.74)', fontSize: { xs: '1rem', md: '1.12rem' }, lineHeight: 1.7 }}>
                 Organize packages, automate follow-ups and give your whole team a clear view of what moves next.
               </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,1fr)' }, gap: 1.2, mt: 4, maxWidth: 650 }}>
+                {['Real-time reports', 'Cloud synchronization', 'Team collaboration'].map((item) => (
+                  <Stack key={item} direction="row" spacing={1} alignItems="center" sx={{ p: 1.25, borderRadius: 2.5, bgcolor: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}>
+                    <Box sx={{ width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(159,243,217,.15)' }}><CheckRoundedIcon sx={{ fontSize: 16, color: '#9ff3d9' }} /></Box>
+                    <Typography sx={{ fontSize: '.78rem', fontWeight: 800 }}>{item}</Typography>
+                  </Stack>
+                ))}
+              </Box>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2.5 }}>
+                {['1 workspace', 'Live updates', 'Secure access'].map((item) => <Typography key={item} sx={{ px: 1.2, py: .6, borderRadius: 999, bgcolor: 'rgba(9,12,35,.22)', color: 'rgba(255,255,255,.78)', fontSize: '.72rem', fontWeight: 700 }}>{item}</Typography>)}
+              </Stack>
             </Box>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ position: 'relative', zIndex: 1, mt: 5 }}>
