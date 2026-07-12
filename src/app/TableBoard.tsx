@@ -719,6 +719,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const deferredFilterText = useDeferredValue(filterText);
   // Current date for calendar view
   const [currentDate, setCurrentDate] = useState(dayjs());
+  const [calendarMoreAnchor, setCalendarMoreAnchor] = useState<HTMLElement | null>(null);
+  const [calendarMoreDate, setCalendarMoreDate] = useState<dayjs.Dayjs | null>(null);
+  const [calendarMoreTasks, setCalendarMoreTasks] = useState<any[]>([]);
   // Chat view state
   // Realtime chat typing was removed from the board hot path to avoid an
   // always-on socket connection and listeners while users work in the table.
@@ -9776,7 +9779,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
 
   <Stack spacing={0.5}>
-  {dayTasks.map(task => {
+  {dayTasks.slice(0, 3).map(task => {
   const statusVal = statusCol ? task.values[statusCol.id] : null;
   const statusOpt = statusCol?.options?.find(o => o.value === statusVal);
   const borderLeftColor = statusOpt?.color || '#0073ea';
@@ -9804,6 +9807,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Paper>
   );
   })}
+  {dayTasks.length > 3 && (
+  <Button
+  size="small"
+  onClick={(e) => {
+  e.stopPropagation();
+  setCalendarMoreAnchor(e.currentTarget);
+  setCalendarMoreDate(date);
+  setCalendarMoreTasks(dayTasks);
+  }}
+  sx={{
+  minWidth: 0,
+  justifyContent: 'flex-start',
+  px: 0.75,
+  py: 0.25,
+  color: theme.palette.text.secondary,
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  textTransform: 'none',
+  '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }
+  }}
+  >
+  +{dayTasks.length - 3} more
+  </Button>
+  )}
   </Stack>
   </Box>
   );
@@ -9815,6 +9842,38 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   );
   })()}
   </Box>
+  <Popover
+  open={Boolean(calendarMoreAnchor)}
+  anchorEl={calendarMoreAnchor}
+  onClose={() => setCalendarMoreAnchor(null)}
+  anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+  transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+  slotProps={{ paper: { sx: { width: { xs: 'min(92vw, 440px)', sm: 440 }, maxHeight: 420, p: 2, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, boxShadow: theme.shadows[12] } } }}
+  >
+  <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
+  {calendarMoreDate?.format('dddd, MMMM DD')} · {calendarMoreTasks.length} items
+  </Typography>
+  <Stack spacing={0.75}>
+  {calendarMoreTasks.map(task => {
+  const statusCol = columns.find(c => c.type === 'Status');
+  const statusVal = statusCol ? task.values[statusCol.id] : null;
+  const statusOpt = statusCol?.options?.find(o => o.value === statusVal);
+  const itemColor = statusOpt?.color || '#0073ea';
+  return (
+  <Box
+  key={task.id}
+  onClick={() => { setCalendarMoreAnchor(null); openReviewTask(task); }}
+  sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.1, borderRadius: 2, bgcolor: theme.palette.action.hover, borderLeft: `4px solid ${itemColor}`, cursor: 'pointer', '&:hover': { filter: 'brightness(1.12)' } }}
+  >
+  <Typography noWrap sx={{ flex: 1, fontSize: '0.85rem', fontWeight: 700 }}>
+  {columns[0] ? task.values[columns[0].id] : 'Untitled'}
+  </Typography>
+  {statusVal && <Chip label={statusVal} size="small" sx={{ height: 23, bgcolor: `${itemColor}22`, color: theme.palette.text.primary, fontWeight: 700 }} />}
+  </Box>
+  );
+  })}
+  </Stack>
+  </Popover>
   </Box>
   ) : workspaceView === 'doc' ? (
   <Box sx={{ mt: 4, mb: 4, height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
