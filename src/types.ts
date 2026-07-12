@@ -17,7 +17,23 @@ export type ColumnType =
   | 'Country'
   | 'Message'
   | 'Link'
-  | 'Number';
+  | 'Number'
+  | 'Email'
+  | 'Phone'
+  | 'Website'
+  | 'Money'
+  | 'Progress'
+  | 'Tags'
+  | 'Location'
+  | 'CreatedDate'
+  | 'UpdatedDate'
+  | 'Image'
+  | 'Rating'
+  | 'Color'
+  | 'QR'
+  | 'Barcode'
+  | 'LongText'
+  | 'Relation';
 
 export interface ColumnOption {
   value: string;
@@ -36,6 +52,14 @@ export interface Column {
   icon?: string;
   color?: string;
   options?: ColumnOption[]; // For Dropdown/Status/People
+  settings?: {
+    currency?: string;
+    precision?: number;
+    relationTableId?: string;
+    relationDisplayColumnId?: string;
+    formula?: string;
+    maxRating?: number;
+  };
 }
 
 export interface Row {

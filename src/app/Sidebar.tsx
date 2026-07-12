@@ -36,6 +36,7 @@ import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
+import { WORKSPACE_TEMPLATES, type WorkspaceTemplateKey } from "../workspaceTemplates";
 
 // --- Components ---
 
@@ -188,6 +189,8 @@ export default function Sidebar({
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<WorkspaceTemplateKey>("blank");
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -273,48 +276,29 @@ export default function Sidebar({
   }, [billingStatus]);
 
   const handleCreateWorkspace = async () => {
-    if (!newWorkspaceName.trim()) return;
+    if (!newWorkspaceName.trim() || isCreatingWorkspace) return;
+    setIsCreatingWorkspace(true);
     try {
       const wsRes = await authenticatedFetch(getApiUrl("workspaces"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newWorkspaceName }),
+        body: JSON.stringify({ name: newWorkspaceName.trim(), templateKey: selectedTemplateKey }),
       });
 
       if (!wsRes.ok) throw new Error("Failed to create workspace");
       const ws = await wsRes.json();
-      // Auto-create table
-      let table = null;
-      let attempts = 0;
-      while (!table && attempts < 3) {
-        try {
-          const tableRes = await authenticatedFetch(
-            getApiUrl(`workspaces/${ws.id}/tables`),
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: `${ws.name} Table` }),
-            }
-          );
-          if (tableRes.ok) {
-            table = await tableRes.json();
-          } else {
-            await new Promise((r) => setTimeout(r, 500));
-          }
-        } catch {
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        attempts++;
-      }
 
       setDialogOpen(false);
       setNewWorkspaceName("");
+      setSelectedTemplateKey("blank");
       window.dispatchEvent(new CustomEvent("workspaceUpdated"));
-      if (table && onClose) onClose(); // Close drawer on mobile if open
-      if (table) navigateToAppRoute(`/workspace?id=${ws.id}`, router);
+      if (onClose) onClose();
+      navigateToAppRoute(`/workspace?id=${ws.id}`, router);
       showNotification("Workspace created successfully!", "success");
     } catch {
       showNotification("Failed to create workspace. Please try again.", "error");
+    } finally {
+      setIsCreatingWorkspace(false);
     }
   };
 
@@ -600,13 +584,13 @@ export default function Sidebar({
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        maxWidth="xs"
+        maxWidth="md"
         fullWidth
         PaperProps={{
           sx: {
             bgcolor: theme.palette.background.paper,
             color: theme.palette.text.primary,
-            borderRadius: 3,
+            borderRadius: 4,
             border: `1px solid ${theme.palette.divider}`,
             backgroundImage: 'none'
           }
@@ -619,9 +603,12 @@ export default function Sidebar({
         }}
       >
         <DialogTitle sx={{ color: theme.palette.text.primary, fontWeight: 600, pb: 1, borderBottom: 'none' }}>
-          Create New Workspace
+          Create a workspace
         </DialogTitle>
         <DialogContent sx={{ pb: 3, pt: 1 }}>
+          <Typography sx={{ color: "text.secondary", mb: 2.25, fontSize: 14 }}>
+            Choose a ready-made setup or start with a blank workspace. You can customize every board later.
+          </Typography>
           <TextField
             autoFocus
             label="Workspace Name"
@@ -643,8 +630,48 @@ export default function Sidebar({
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main }
               }
             }}
-            sx={{ mt: 1 }}
+            sx={{ mb: 2.5 }}
           />
+          <Typography sx={{ fontWeight: 800, fontSize: 13, mb: 1.25, letterSpacing: ".02em" }}>
+            SELECT A TEMPLATE
+          </Typography>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
+            {WORKSPACE_TEMPLATES.map((template) => {
+              const selected = selectedTemplateKey === template.key;
+              return (
+                <Button
+                  key={template.key}
+                  onClick={() => setSelectedTemplateKey(template.key)}
+                  aria-pressed={selected}
+                  sx={{
+                    p: 1.5,
+                    minHeight: 92,
+                    justifyContent: "flex-start",
+                    alignItems: "flex-start",
+                    textAlign: "left",
+                    textTransform: "none",
+                    borderRadius: 3,
+                    color: "text.primary",
+                    border: `1px solid ${selected ? template.color : alpha(theme.palette.text.primary, 0.1)}`,
+                    bgcolor: selected ? alpha(template.color, 0.13) : alpha(theme.palette.background.default, 0.42),
+                    boxShadow: selected ? `0 0 0 1px ${alpha(template.color, 0.3)}` : "none",
+                    transition: "transform .18s ease, border-color .18s ease, background-color .18s ease",
+                    "&:hover": { bgcolor: alpha(template.color, 0.1), borderColor: alpha(template.color, 0.72), transform: "translateY(-2px)" },
+                  }}
+                >
+                  <Box sx={{ display: "flex", gap: 1.25, width: "100%" }}>
+                    <Box sx={{ width: 38, height: 38, borderRadius: 2.2, bgcolor: alpha(template.color, 0.16), display: "grid", placeItems: "center", fontSize: 21, flexShrink: 0 }}>
+                      {template.icon}
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.25 }}>{template.name}</Typography>
+                      <Typography sx={{ color: "text.secondary", fontSize: 12, mt: .55, lineHeight: 1.35 }}>{template.description}</Typography>
+                    </Box>
+                  </Box>
+                </Button>
+              );
+            })}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button
@@ -655,7 +682,7 @@ export default function Sidebar({
           </Button>
           <Button
             onClick={handleCreateWorkspace}
-            disabled={!newWorkspaceName.trim()}
+            disabled={!newWorkspaceName.trim() || isCreatingWorkspace}
             variant="contained"
             sx={{
               bgcolor: theme.palette.primary.main,
@@ -666,7 +693,7 @@ export default function Sidebar({
               fontWeight: 600
             }}
           >
-            Create
+            {isCreatingWorkspace ? "Creating..." : "Create workspace"}
           </Button>
         </DialogActions>
       </Dialog>

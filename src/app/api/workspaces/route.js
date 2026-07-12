@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireWritableSubscription } from "../_lib/billing";
+import { getWorkspaceTemplate } from "../../../workspaceTemplates";
 
 export const runtime = "nodejs";
 
@@ -61,41 +62,37 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
+    const template = getWorkspaceTemplate(body?.templateKey);
     const newWorkspace = {
       id: uuidv4(),
       name: body?.name || "Untitled Workspace",
       owner_id: user.id,
     };
 
-    await pool.query("INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3)", [
-      newWorkspace.id,
-      newWorkspace.name,
-      newWorkspace.owner_id,
-    ]);
-
-    const defaultTableId = uuidv4();
-    const columns = [
-      { id: uuidv4(), name: "Text", type: "Text", order: 0 },
-      {
-        id: uuidv4(),
-        name: "Status",
-        type: "Status",
-        order: 1,
-        options: [
-          { value: "Started", color: "#1976d2" },
-          { value: "Working on it", color: "#fdab3d" },
-          { value: "Done", color: "#00c875" },
-        ],
-      },
-      { id: uuidv4(), name: "Date", type: "Date", order: 2 },
-    ];
-
-    await pool.query(
-      "INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1, $2, $3, $4, $5)",
-      [defaultTableId, `${newWorkspace.name} Table`, newWorkspace.id, JSON.stringify(columns), Date.now()]
-    );
-
-    return NextResponse.json(newWorkspace);
+    const client = await pool.connect();
+    const createdBoards = [];
+    try {
+      await client.query("BEGIN");
+      await client.query("INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3)", [newWorkspace.id, newWorkspace.name, newWorkspace.owner_id]);
+      for (const board of template.boards) {
+        const tableId = uuidv4();
+        const columns = board.columns.map((column, order) => ({ ...column, id: uuidv4(), order }));
+        await client.query("INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1,$2,$3,$4,$5)", [tableId, board.name, newWorkspace.id, JSON.stringify(columns), Date.now()]);
+        for (const seedRow of board.rows || []) {
+          const values = {};
+          for (const column of columns) if (Object.prototype.hasOwnProperty.call(seedRow, column.name)) values[column.id] = seedRow[column.name];
+          await client.query("INSERT INTO rows(id,table_id,values,created_by,created_at) VALUES($1,$2,$3,$4,NOW())", [uuidv4(), tableId, JSON.stringify(values), user.id]);
+        }
+        createdBoards.push({ id: tableId, name: board.name });
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    return NextResponse.json({ ...newWorkspace, templateKey: template.key, boards: createdBoards });
   } catch (err) {
     console.error("[WORKSPACES][POST] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

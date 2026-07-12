@@ -19,6 +19,21 @@ import FunctionsIcon from "@mui/icons-material/Functions";
 import InfoIcon from "@mui/icons-material/Info";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
 import FlagIcon from '@mui/icons-material/Flag';
+import EmailIcon from '@mui/icons-material/Email';
+import PhoneIcon from '@mui/icons-material/Phone';
+import LanguageIcon from '@mui/icons-material/Language';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import SellIcon from '@mui/icons-material/Sell';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import ImageIcon from '@mui/icons-material/Image';
+import StarIcon from '@mui/icons-material/Star';
+import PaletteIcon from '@mui/icons-material/Palette';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
+import ViewWeekIcon from '@mui/icons-material/ViewWeek';
+import NotesIcon from '@mui/icons-material/Notes';
+import LinkIcon from '@mui/icons-material/Link';
+import UpdateIcon from '@mui/icons-material/Update';
 
 interface ColumnTypeSelectorProps {
   onSelect: (type: ColumnType, label: string) => void;
@@ -40,6 +55,22 @@ const columnOptions = [
   { label: "Extract info", icon: <InfoIcon />, color: '#579bfc', type: 'Extract' },
   { label: "Priority", icon: <PriorityHighIcon />, color: '#e2445c', type: 'Priority' },
   { label: "Country", icon: <FlagIcon />, color: '#1976d2', type: 'Country' },
+  { label: "Email", icon: <EmailIcon />, color: '#579bfc', type: 'Email' },
+  { label: "Phone", icon: <PhoneIcon />, color: '#00c875', type: 'Phone' },
+  { label: "Website", icon: <LanguageIcon />, color: '#0073ea', type: 'Website' },
+  { label: "Money", icon: <PaymentsIcon />, color: '#00a86b', type: 'Money' },
+  { label: "Progress", icon: <DonutLargeIcon />, color: '#a25ddc', type: 'Progress' },
+  { label: "Tags", icon: <SellIcon />, color: '#ff642e', type: 'Tags' },
+  { label: "Location", icon: <LocationOnIcon />, color: '#e2445c', type: 'Location' },
+  { label: "Created date", icon: <DateRangeIcon />, color: '#00d2d2', type: 'CreatedDate' },
+  { label: "Updated date", icon: <UpdateIcon />, color: '#66ccff', type: 'UpdatedDate' },
+  { label: "Image", icon: <ImageIcon />, color: '#ff158a', type: 'Image' },
+  { label: "Rating", icon: <StarIcon />, color: '#ffcb00', type: 'Rating' },
+  { label: "Color", icon: <PaletteIcon />, color: '#784bd1', type: 'Color' },
+  { label: "QR code", icon: <QrCode2Icon />, color: '#323338', type: 'QR' },
+  { label: "Barcode", icon: <ViewWeekIcon />, color: '#676879', type: 'Barcode' },
+  { label: "Long text", icon: <NotesIcon />, color: '#579bfc', type: 'LongText' },
+  { label: "Connect boards", icon: <LinkIcon />, color: '#a25ddc', type: 'Relation' },
 ];
 
 const StyledSearchInput = styled(InputBase)(({ theme }) => ({

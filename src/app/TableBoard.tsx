@@ -4927,8 +4927,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const text = value === null || value === undefined || value === '-' ? '' : String(value);
   if (effectiveType === "Doc") return <Typography variant="body2" color="primary" sx={{ textDecoration: 'underline', cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Add doc link'}</Typography>;
-  if (effectiveType === "Connect") return <Typography variant="body2" color="secondary" sx={{ cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Link to board/row'}</Typography>;
-  if (effectiveType === "Number" || effectiveType === "Numbers") {
+  if (effectiveType === "Connect" || effectiveType === "Relation") return <Typography variant="body2" color="secondary" sx={{ cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Link to board/row'}</Typography>;
+  if (["Number", "Numbers", "Money", "Progress", "Rating"].includes(effectiveType)) {
   return <Box onClick={activate} sx={{ cursor: canEdit ? 'pointer' : 'default', minHeight: isMobile ? 34 : 38, width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', borderRadius: 2, px: isMobile ? 1 : 1.5, ml: -1, transition: 'var(--board-cell-transition)', '&:hover': { bgcolor: canEdit ? theme.palette.action.hover : 'transparent', boxShadow: canEdit ? `0 0 0 1px ${theme.palette.divider}` : 'none' } }}><Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>{text}</Typography></Box>;
   }
   const isFirstColumn = sortedColumns[0]?.id === col.id;
@@ -6057,7 +6057,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
 
   // Numbers
-  if (col.type === "Numbers" || col.type === "Number") {
+  if (["Numbers", "Number", "Money", "Progress", "Rating"].includes(col.type)) {
   return (
   <LocalDraftTextField
   fullWidth
@@ -6243,7 +6243,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Typography>
   );
   }
-  if (col.type === "Connect") {
+  if (col.type === "Connect" || col.type === "Relation") {
   return (
   <Typography variant="body2" color="secondary" sx={{
   cursor: userPermission !== 'read' ? 'pointer' : 'default',
@@ -6310,7 +6310,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
 
 
-  if (col.type === "Number" || col.type === "Numbers") {
+  if (["Number", "Numbers", "Money", "Progress", "Rating"].includes(col.type)) {
   const numberText = (value === '' || value === null || value === undefined || value === '-') ? '' : String(value);
   return (
   <Box
