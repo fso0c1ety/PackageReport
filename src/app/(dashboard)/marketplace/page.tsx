@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { alpha, Box, Button, Chip, CircularProgress, Rating, Stack, TextField, Typography } from "@mui/material";
+import { alpha, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Rating, Stack, TextField, Typography } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
+import PublishRoundedIcon from "@mui/icons-material/PublishRounded";
 import { useTheme } from "@mui/material/styles";
 import { WORKSPACE_TEMPLATES, type WorkspaceTemplateKey } from "../../../workspaceTemplates";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
@@ -17,6 +18,8 @@ const categories: Record<WorkspaceTemplateKey, string> = {
   retail_store: "Retail", manufacturing: "Manufacturing", hr_employees: "HR", blank: "General",
 };
 
+type CommunityTemplate = { id: string; name: string; description: string; category: string; template_key: WorkspaceTemplateKey; author_name?: string; downloads: number; featured: boolean; rating: number; review_count: number };
+
 export default function MarketplacePage() {
   const theme = useTheme();
   const router = useRouter();
@@ -24,11 +27,33 @@ export default function MarketplacePage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [installing, setInstalling] = useState<string | null>(null);
+  const [community, setCommunity] = useState<CommunityTemplate[]>([]);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [draft, setDraft] = useState({ name: "", description: "", category: "General", templateKey: "blank" as WorkspaceTemplateKey });
   const categoryOptions = ["All", ...Array.from(new Set(Object.values(categories)))];
   const templates = useMemo(() => WORKSPACE_TEMPLATES.filter((template) =>
     (category === "All" || categories[template.key] === category) &&
     `${template.name} ${template.description}`.toLowerCase().includes(query.toLowerCase())
   ), [category, query]);
+
+  const loadCommunity = async () => {
+    const response = await authenticatedFetch(getApiUrl("marketplace"), { suppressNativeErrorAlert: true });
+    if (response.ok) setCommunity(await response.json());
+  };
+  useEffect(() => { void loadCommunity(); }, []);
+
+  const publishTemplate = async () => {
+    setPublishing(true);
+    try {
+      const response = await authenticatedFetch(getApiUrl("marketplace"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "Unable to publish template");
+      showNotification("Template published successfully", "success"); setPublishOpen(false);
+      setDraft({ name: "", description: "", category: "General", templateKey: "blank" }); await loadCommunity();
+    } catch (error) { showNotification(error instanceof Error ? error.message : "Unable to publish template", "error"); }
+    finally { setPublishing(false); }
+  };
 
   const installTemplate = async (templateKey: WorkspaceTemplateKey, name: string) => {
     setInstalling(templateKey);
@@ -53,7 +78,7 @@ export default function MarketplacePage() {
         <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: "-0.05em", fontSize: { xs: "2.2rem", md: "3.4rem" } }}>Start with a proven workflow.</Typography>
         <Typography sx={{ mt: 1, color: "text.secondary", fontSize: "1.05rem" }}>Install complete boards, columns, formulas and sample data in one click.</Typography>
       </Box>
-      <TextField value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search templates..." InputProps={{ startAdornment: <SearchRoundedIcon sx={{ mr: 1, color: "text.secondary" }} /> }} sx={{ minWidth: { md: 320 }, alignSelf: { md: "flex-end" }, "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
+      <Stack direction={{ xs: "column", sm: "row" }} gap={1.5} alignSelf={{ md: "flex-end" }}><TextField value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search templates..." InputProps={{ startAdornment: <SearchRoundedIcon sx={{ mr: 1, color: "text.secondary" }} /> }} sx={{ minWidth: { md: 300 }, "& .MuiOutlinedInput-root": { borderRadius: 3 } }} /><Button variant="contained" startIcon={<PublishRoundedIcon />} onClick={() => setPublishOpen(true)} sx={{ borderRadius: 3, fontWeight: 900, whiteSpace: "nowrap" }}>Publish template</Button></Stack>
     </Stack>
     <Stack direction="row" gap={1} sx={{ overflowX: "auto", pb: 2, mb: 2 }}>
       {categoryOptions.map((item) => <Chip key={item} label={item} clickable color={category === item ? "primary" : "default"} variant={category === item ? "filled" : "outlined"} onClick={() => setCategory(item)} sx={{ fontWeight: 800 }} />)}
@@ -67,5 +92,7 @@ export default function MarketplacePage() {
         <Button fullWidth variant="contained" startIcon={installing === template.key ? <CircularProgress size={16} color="inherit" /> : <DownloadRoundedIcon />} disabled={Boolean(installing)} onClick={() => installTemplate(template.key, template.name)} sx={{ borderRadius: 3, py: 1.2, fontWeight: 900, bgcolor: template.color, "&:hover": { bgcolor: template.color, filter: "brightness(.9)" } }}>{installing === template.key ? "Installing..." : "Use template"}</Button>
       </Box>)}
     </Box>
+    {community.length > 0 && <><Typography variant="h4" sx={{ fontWeight: 950, mt: 6, mb: 2.5 }}>Community templates</Typography><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,1fr)", lg: "repeat(3,1fr)" }, gap: 2.5 }}>{community.filter(item => (category === "All" || item.category === category) && `${item.name} ${item.description}`.toLowerCase().includes(query.toLowerCase())).map(item => <Box key={item.id} sx={{ p: 3, borderRadius: 5, border: `1px solid ${theme.palette.divider}`, bgcolor: "background.paper" }}><Chip label={item.featured ? "Featured community" : item.category} size="small" color={item.featured ? "primary" : "default"} /><Typography variant="h6" sx={{ mt: 2, fontWeight: 950 }}>{item.name}</Typography><Typography sx={{ color: "text.secondary", minHeight: 52, mt: .75 }}>{item.description}</Typography><Typography variant="caption" sx={{ color: "text.secondary" }}>By {item.author_name || "Smart Manage creator"}</Typography><Stack direction="row" alignItems="center" gap={1} sx={{ my: 2 }}><Rating value={Number(item.rating)} readOnly size="small" /><Typography variant="caption">{item.review_count} reviews · {item.downloads} installs</Typography></Stack><Button fullWidth variant="contained" onClick={() => installTemplate(item.template_key, item.name)} disabled={Boolean(installing)} sx={{ borderRadius: 3, fontWeight: 900 }}>Use template</Button></Box>)}</Box></>}
+    <Dialog open={publishOpen} onClose={() => !publishing && setPublishOpen(false)} fullWidth maxWidth="sm"><DialogTitle sx={{ fontWeight: 950 }}>Publish to Marketplace</DialogTitle><DialogContent sx={{ display: "grid", gap: 2, pt: "12px !important" }}><TextField label="Template name" value={draft.name} onChange={e => setDraft(v => ({ ...v, name: e.target.value }))} required /><TextField label="Description" multiline minRows={3} value={draft.description} onChange={e => setDraft(v => ({ ...v, description: e.target.value }))} required /><TextField select label="Category" value={draft.category} onChange={e => setDraft(v => ({ ...v, category: e.target.value }))}>{categoryOptions.filter(v => v !== "All").map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}</TextField><TextField select label="Base template" value={draft.templateKey} onChange={e => setDraft(v => ({ ...v, templateKey: e.target.value as WorkspaceTemplateKey }))}>{WORKSPACE_TEMPLATES.map(v => <MenuItem key={v.key} value={v.key}>{v.icon} {v.name}</MenuItem>)}</TextField></DialogContent><DialogActions sx={{ p: 3 }}><Button onClick={() => setPublishOpen(false)}>Cancel</Button><Button variant="contained" disabled={publishing || !draft.name.trim() || !draft.description.trim()} onClick={publishTemplate}>{publishing ? "Publishing..." : "Publish"}</Button></DialogActions></Dialog>
   </Box>;
 }
