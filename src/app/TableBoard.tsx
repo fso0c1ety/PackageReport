@@ -145,6 +145,80 @@ const BOARD_HEADER_HEIGHT = 36;
 const BOARD_ROW_HEIGHT_DESKTOP = 36;
 const BOARD_ROW_HEIGHT_MOBILE = 40;
 
+type RelationValue = { tableId: string; rowId: string; label: string; tableName?: string };
+type RelationOption = RelationValue & { key: string };
+
+function RelationCellEditor({
+  workspaceId,
+  currentTableId,
+  initialValue,
+  onSave,
+  onCancel,
+}: {
+  workspaceId: string | null;
+  currentTableId: string | null;
+  initialValue: RelationValue | string | null | undefined;
+  onSave: (value: RelationValue | null) => void;
+  onCancel: () => void;
+}) {
+  const [options, setOptions] = React.useState<RelationOption[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let active = true;
+    if (!workspaceId) {
+      setLoading(false);
+      return;
+    }
+    authenticatedFetch(getApiUrl(`/tables?workspaceId=${encodeURIComponent(workspaceId)}`), { suppressNativeErrorAlert: true })
+      .then((response) => response.ok ? response.json() : [])
+      .then((tables) => {
+        if (!active || !Array.isArray(tables)) return;
+        const nextOptions: RelationOption[] = [];
+        for (const table of tables) {
+          if (table.id === currentTableId) continue;
+          const columns = Array.isArray(table.columns) ? table.columns : [];
+          const primaryColumn = [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+          const rows = Array.isArray(table.tasks) ? table.tasks : [];
+          for (const row of rows) {
+            const rawLabel = primaryColumn ? row.values?.[primaryColumn.id] : "";
+            nextOptions.push({
+              key: `${table.id}:${row.id}`,
+              tableId: table.id,
+              rowId: row.id,
+              tableName: table.name,
+              label: String(rawLabel || "Untitled row"),
+            });
+          }
+        }
+        setOptions(nextOptions);
+      })
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [currentTableId, workspaceId]);
+
+  const selected = typeof initialValue === "object" && initialValue?.rowId
+    ? { ...initialValue, key: `${initialValue.tableId}:${initialValue.rowId}` }
+    : null;
+
+  return (
+    <Autocomplete
+      openOnFocus
+      loading={loading}
+      options={options}
+      value={selected}
+      groupBy={(option) => option.tableName || "Board"}
+      getOptionLabel={(option) => option.label}
+      isOptionEqualToValue={(option, value) => option.key === value.key}
+      onChange={(_event, option) => onSave(option ? { tableId: option.tableId, rowId: option.rowId, label: option.label, tableName: option.tableName } : null)}
+      renderInput={(params) => <TextField {...params} autoFocus size="small" placeholder="Search a row to connect..." />}
+      noOptionsText={loading ? "Loading boards..." : "No rows available in other boards"}
+      onClose={(_event, reason) => { if (reason === "escape") onCancel(); }}
+      sx={{ minWidth: 260 }}
+    />
+  );
+}
+
 const stringToColor = (string: string) => {
   let hash = 0;
   for (let i = 0; i < string.length; i++) {
@@ -4927,7 +5001,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const text = value === null || value === undefined || value === '-' ? '' : String(value);
   if (effectiveType === "Doc") return <Typography variant="body2" color="primary" sx={{ textDecoration: 'underline', cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Add doc link'}</Typography>;
-  if (effectiveType === "Connect" || effectiveType === "Relation") return <Typography variant="body2" color="secondary" sx={{ cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Link to board/row'}</Typography>;
+  if (effectiveType === "Connect" || effectiveType === "Relation") {
+  const relationLabel = typeof value === 'object' && value?.label ? value.label : text;
+  return <Typography variant="body2" color="secondary" noWrap sx={{ cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem', width: '100%' }} onClick={activate}>{relationLabel || 'Link to board/row'}</Typography>;
+  }
   if (["Number", "Numbers", "Money", "Progress", "Rating"].includes(effectiveType)) {
   return <Box onClick={activate} sx={{ cursor: canEdit ? 'pointer' : 'default', minHeight: isMobile ? 34 : 38, width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', borderRadius: 2, px: isMobile ? 1 : 1.5, ml: -1, transition: 'var(--board-cell-transition)', '&:hover': { bgcolor: canEdit ? theme.palette.action.hover : 'transparent', boxShadow: canEdit ? `0 0 0 1px ${theme.palette.divider}` : 'none' } }}><Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>{text}</Typography></Box>;
   }
@@ -6025,6 +6102,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
 
   // Date
+  if (col.type === "Relation" || col.type === "Connect") {
+  return (
+  <RelationCellEditor
+  workspaceId={workspaceIdForImport}
+  currentTableId={tableId}
+  initialValue={editValue}
+  onSave={(nextValue) => handleCellSave(row.id, col.id, col.type, nextValue)}
+  onCancel={() => {
+  setEditingCell(null);
+  setEditValue("");
+  }}
+  />
+  );
+  }
+
+  // Date
   if (col.type === "Date") {
   return (
   <Box sx={{ width: '100%', height: isMobile ? 38 : 44, borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
@@ -6249,7 +6342,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   cursor: userPermission !== 'read' ? 'pointer' : 'default',
   fontSize: isMobile ? '0.75rem' : '0.875rem'
   }} onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value)}>
-  {value ? value : 'Link to board/row'}
+  {typeof value === 'object' && value?.label ? value.label : (value || 'Link to board/row')}
   </Typography>
   );
   }
