@@ -49,6 +49,10 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import PeopleIcon from "@mui/icons-material/People";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import ViewWeekIcon from "@mui/icons-material/ViewWeek";
 
 // --- Styled Components ---
 
@@ -294,6 +298,22 @@ function taskHasPerson(task: any, selectedPersonValue: string) {
   });
 }
 
+function parseMetricValue(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value !== "string") return 0;
+  const normalized = value.replace(/[^0-9,.-]/g, "").replace(/,(?=\d{1,2}$)/, ".");
+  const parsed = Number(normalized.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function metricKind(columnName: string) {
+  const name = columnName.trim().toLowerCase();
+  if (/profit|margin|fitim/.test(name)) return "profit";
+  if (/expense|cost|buy rate|fuel|parking|toll|maintenance|shpenzim|kosto/.test(name)) return "expenses";
+  if (/revenue|sell rate|income|sales|amount|value|total|te ardhura/.test(name)) return "revenue";
+  return null;
+}
+
 
 
 export default function DashboardPage() {
@@ -357,6 +377,34 @@ export default function DashboardPage() {
       ? tables.filter((table: any) => normalizeWorkspaceId(table) === selectedWorkspace)
       : tables;
   }, [tables, selectedWorkspace]);
+
+  const financialMetrics = useMemo(() => {
+    const totals = { revenue: 0, expenses: 0, profit: 0, hasProfitColumn: false };
+    for (const table of filteredTables) {
+      const metricColumns = getSortedColumns(table)
+        .map((column: any) => ({ column, kind: metricKind(String(column?.name || "")) }))
+        .filter((entry: any) => entry.kind && ["Money", "Number", "Numbers", "Formula"].includes(entry.column?.type));
+      for (const task of Array.isArray(table.tasks) ? table.tasks : []) {
+        for (const { column, kind } of metricColumns) {
+          const value = parseMetricValue(task?.values?.[column.id]);
+          if (kind === "revenue") totals.revenue += value;
+          if (kind === "expenses") totals.expenses += value;
+          if (kind === "profit") {
+            totals.profit += value;
+            totals.hasProfitColumn = true;
+          }
+        }
+      }
+    }
+    if (!totals.hasProfitColumn) totals.profit = totals.revenue - totals.expenses;
+    return totals;
+  }, [filteredTables]);
+
+  const currencyFormatter = useMemo(() => new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 2,
+  }), []);
 
   const statusSources = useMemo(() => {
     return filteredTables.flatMap((table: any) =>
@@ -672,6 +720,32 @@ export default function DashboardPage() {
             </FormControl>
           </Box>
         )}
+
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          {[
+            { label: "Revenue", value: financialMetrics.revenue, color: "#22c55e", icon: <TrendingUpIcon /> },
+            { label: "Expenses", value: financialMetrics.expenses, color: "#f97316", icon: <TrendingDownIcon /> },
+            { label: "Profit", value: financialMetrics.profit, color: financialMetrics.profit < 0 ? "#ef4444" : "#6366f1", icon: <AccountBalanceWalletIcon /> },
+            { label: "Boards", value: filteredTables.length, color: "#06b6d4", icon: <ViewWeekIcon />, count: true },
+          ].map((metric) => (
+            <Grid key={metric.label} size={{ xs: 6, md: 3 }}>
+              <StatCard sx={{ borderTop: `3px solid ${metric.color}` }}>
+                <Box display="flex" justifyContent="space-between" gap={1}>
+                  <Box minWidth={0}>
+                    <Typography variant="body2" color="text.secondary" fontWeight={700}>{metric.label.toUpperCase()}</Typography>
+                    <Typography variant="h5" fontWeight={800} noWrap sx={{ mt: 1, color: metric.color }}>
+                      {metric.count ? metric.value : currencyFormatter.format(metric.value)}
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: `${metric.color}1f`, color: metric.color, borderRadius: 3 }}>{metric.icon}</Avatar>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5 }}>
+                  {selectedWorkspace ? "Selected workspace" : "All accessible workspaces"}
+                </Typography>
+              </StatCard>
+            </Grid>
+          ))}
+        </Grid>
 
         {/* Stats Grid */}
         <Grid container spacing={2} sx={{ mb: { xs: 2, md: 4 } }}>
