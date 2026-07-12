@@ -59,9 +59,10 @@ interface SidebarItemProps {
   href: string;
   isActive?: boolean;
   onClick?: () => void;
+  badge?: number;
 }
 
-function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps) {
+function SidebarItem({ icon, label, href, isActive, onClick, badge = 0 }: SidebarItemProps) {
   const theme = useTheme();
   const resolvedHref = getAppHref(href);
 
@@ -123,7 +124,7 @@ function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps)
             letterSpacing: "-0.01em",
           }}
         />
-        <CircleRoundedIcon sx={{ fontSize: 9, color: isActive ? theme.palette.primary.main : "transparent" }} />
+        {badge > 0 ? <Box sx={{ minWidth: 22, height: 22, px: .65, borderRadius: 99, bgcolor: "#ef4444", color: "#fff", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 900 }}>{badge > 99 ? "99+" : badge}</Box> : <CircleRoundedIcon sx={{ fontSize: 9, color: isActive ? theme.palette.primary.main : "transparent" }} />}
       </ListItemButton>
     </Link>
   );
@@ -182,10 +183,36 @@ export default function Sidebar({
   const { showNotification } = useNotification();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  const [calendarReminderCount, setCalendarReminderCount] = useState(0);
 
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const checkCalendarReminders = async () => {
+      try {
+        const response = await authenticatedFetch(getApiUrl("calendar-events/reminders"), { suppressNativeErrorAlert: true });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!active) return;
+        setCalendarReminderCount(Number(data.count) || 0);
+        for (const event of data.triggered || []) {
+          const message = `${event.event_type || "Event"}: ${event.title}`;
+          showNotification(message, "info");
+          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            new Notification("Calendar reminder", { body: message, icon: "/icon.png", tag: `calendar-${event.id}` });
+          }
+        }
+      } catch {
+        // Reminder polling should never interrupt navigation.
+      }
+    };
+    void checkCalendarReminders();
+    const interval = window.setInterval(checkCalendarReminders, 30000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [showNotification]);
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<{ id: string; name: string } | null>(null);
@@ -430,7 +457,12 @@ export default function Sidebar({
               label="Calendar & Deadlines"
               href="/calendar"
               isActive={pathname === "/calendar"}
-              onClick={onClose}
+              badge={calendarReminderCount}
+              onClick={() => {
+                setCalendarReminderCount(0);
+                void authenticatedFetch(getApiUrl("calendar-events"), { method: "PATCH", suppressNativeErrorAlert: true }).catch(() => undefined);
+                onClose?.();
+              }}
             />
             <SidebarItem
               icon={<GroupIcon fontSize="small" />}

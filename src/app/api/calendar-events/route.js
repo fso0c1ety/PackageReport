@@ -17,6 +17,9 @@ async function ensureCalendarTable() {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await pool.query("CREATE INDEX IF NOT EXISTS calendar_events_user_start_idx ON calendar_events(user_id, starts_at)");
+  await pool.query(`ALTER TABLE calendar_events
+    ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reminder_read_at TIMESTAMPTZ`);
 }
 
 export async function GET(req) {
@@ -75,5 +78,18 @@ export async function DELETE(req) {
   } catch (error) {
     console.error("[CALENDAR][DELETE]", error);
     return NextResponse.json({ error: "Unable to delete event" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req) {
+  const user = getAuthenticatedUser(req);
+  if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    await ensureCalendarTable();
+    await pool.query("UPDATE calendar_events SET reminder_read_at=NOW() WHERE user_id=$1 AND reminder_sent_at IS NOT NULL AND reminder_read_at IS NULL", [user.id]);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[CALENDAR][PATCH]", error);
+    return NextResponse.json({ error: "Unable to mark reminders read" }, { status: 500 });
   }
 }
