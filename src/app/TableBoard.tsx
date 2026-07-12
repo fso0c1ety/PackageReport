@@ -9779,7 +9779,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
 
   <Stack spacing={0.5}>
-  {dayTasks.slice(0, 3).map(task => {
+  {dayTasks.slice(0, 1).map(task => {
   const statusVal = statusCol ? task.values[statusCol.id] : null;
   const statusOpt = statusCol?.options?.find(o => o.value === statusVal);
   const borderLeftColor = statusOpt?.color || '#0073ea';
@@ -9807,7 +9807,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Paper>
   );
   })}
-  {dayTasks.length > 3 && (
+  {dayTasks.length > 1 && (
   <Button
   size="small"
   onClick={(e) => {
@@ -9818,6 +9818,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   sx={{
   minWidth: 0,
+  width: '100%',
+  position: 'relative',
+  zIndex: 2,
   justifyContent: 'flex-start',
   px: 0.75,
   py: 0.25,
@@ -9828,7 +9831,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover }
   }}
   >
-  +{dayTasks.length - 3} more
+  +{dayTasks.length - 1} more
   </Button>
   )}
   </Stack>
