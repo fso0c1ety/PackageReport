@@ -41,6 +41,7 @@ import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
+import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -508,6 +509,13 @@ export default function Sidebar({
               isActive={pathname === "/nexusbrain-chat"}
               onClick={onClose}
             />}
+            <SidebarItem
+              icon={<StorefrontRoundedIcon fontSize="small" />}
+              label="Template Marketplace"
+              href="/marketplace"
+              isActive={pathname === "/marketplace"}
+              onClick={onClose}
+            />
             <SidebarItem
               icon={<SettingsIcon fontSize="small" />}
               label="Settings"
