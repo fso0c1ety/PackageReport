@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../../_lib/billing";
+import { writeAuditLog } from "../../../../../_lib/audit";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ export async function PUT(req, { params }) {
 
     const tableResult = await pool.query(
       `
-        SELECT t.shared_users
+        SELECT t.shared_users, t.workspace_id, t.name
         FROM tables t
         JOIN workspaces w ON t.workspace_id = w.id
         WHERE t.id = $1 AND w.owner_id = $2
@@ -59,6 +60,16 @@ export async function PUT(req, { params }) {
       JSON.stringify(nextSharedUsers),
       tableId,
     ]);
+
+    await writeAuditLog({
+      actorId: user.id,
+      action: "member.role_changed",
+      entityType: "member",
+      entityId: teammateId,
+      tableId,
+      workspaceId: table.workspace_id,
+      metadata: { role: role || null, permission, tableName: table.name },
+    });
 
     return NextResponse.json({ success: true, permission, role: role || null });
   } catch (err) {

@@ -51,6 +51,7 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
+import HistoryIcon from "@mui/icons-material/History";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -95,7 +96,8 @@ export default function SettingsPage() {
     notifications: 2,
     security: 3,
     team: 4,
-    billing: 5
+    billing: 5,
+    audit: 6
   };
 
   const initialTab = searchParams.get("tab");
@@ -144,6 +146,8 @@ export default function SettingsPage() {
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
 
   // Teammates State
   const [teammates, setTeammates] = useState<any[]>([]);
@@ -167,6 +171,20 @@ export default function SettingsPage() {
   const [selectedTeammateForAccess, setSelectedTeammateForAccess] = useState<any | null>(null);
   const [boardSearchQuery, setBoardSearchQuery] = useState("");
   const { showNotification } = useNotification();
+
+  useEffect(() => {
+    if (tabValue !== 6) return;
+    const loadAuditLogs = async () => {
+      setLoadingAuditLogs(true);
+      try {
+        const response = await authenticatedFetch(getApiUrl("audit"));
+        if (response.ok) setAuditLogs(await response.json());
+      } finally {
+        setLoadingAuditLogs(false);
+      }
+    };
+    void loadAuditLogs();
+  }, [tabValue]);
 
   useEffect(() => {
     if (user?.id) {
@@ -728,6 +746,7 @@ export default function SettingsPage() {
           <Tab icon={<SecurityIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Security" />
           <Tab icon={<GroupIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Team" />
           <Tab icon={<CreditCardIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Billing" />
+          <Tab icon={<HistoryIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Audit Log" />
         </Tabs>
 
         {/* PROFILE TAB */}
@@ -1336,6 +1355,41 @@ export default function SettingsPage() {
                 })}
               </Box>
             </>
+          )}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={6}>
+          <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>Audit Log</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            Security timeline for invitations, role changes and administrative actions.
+          </Typography>
+          {loadingAuditLogs ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box>
+          ) : auditLogs.length === 0 ? (
+            <Paper sx={{ p: 4, borderRadius: 3, bgcolor: panelBg, textAlign: "center" }}>
+              <HistoryIcon sx={{ fontSize: 40, color: "text.secondary", mb: 1 }} />
+              <Typography fontWeight={800}>No enterprise activity yet</Typography>
+              <Typography variant="body2" color="text.secondary">New invitations and role changes will appear here.</Typography>
+            </Paper>
+          ) : (
+            <List sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+              {auditLogs.map((entry) => (
+                <Paper key={entry.id} sx={{ p: 2.5, borderRadius: 3, bgcolor: panelBg }}>
+                  <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={1}>
+                    <Box>
+                      <Typography fontWeight={800}>
+                        {entry.action === "member.invited" ? "Member invited" : entry.action === "member.role_changed" ? "Member role changed" : entry.action}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {entry.actor_name || entry.actor_email || "Unknown user"} · {entry.table_name || "Board"}
+                        {entry.metadata?.role ? ` · ${entry.metadata.role}` : ""}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">{new Date(entry.created_at).toLocaleString()}</Typography>
+                  </Stack>
+                </Paper>
+              ))}
+            </List>
           )}
         </TabPanel>
 

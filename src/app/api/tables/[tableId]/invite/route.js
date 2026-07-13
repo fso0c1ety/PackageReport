@@ -7,6 +7,7 @@ import {
 } from "../../../_lib/server";
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { requireWritableSubscription } from "../../../_lib/billing";
+import { writeAuditLog } from "../../../_lib/audit";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,7 @@ export async function POST(req, { params }) {
 
     const tableRes = await pool.query(
       `
-        SELECT t.id, t.name
+        SELECT t.id, t.name, t.workspace_id
         FROM tables t
         JOIN workspaces w ON w.id = t.workspace_id
         WHERE t.id = $1
@@ -66,6 +67,7 @@ export async function POST(req, { params }) {
     }
 
     const tableName = tableRes.rows[0].name;
+    const workspaceId = tableRes.rows[0].workspace_id;
     const notifId = uuidv4();
 
     await pool.query(
@@ -82,6 +84,16 @@ export async function POST(req, { params }) {
         false,
       ]
     );
+
+    await writeAuditLog({
+      actorId: user.id,
+      action: "member.invited",
+      entityType: "member",
+      entityId: String(recipientId),
+      tableId,
+      workspaceId,
+      metadata: { role, permission, tableName },
+    });
 
     // Push notification (best-effort).
     try {
