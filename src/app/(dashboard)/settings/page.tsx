@@ -161,6 +161,7 @@ export default function SettingsPage() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [apiKeyName, setApiKeyName] = useState("Production integration");
   const [newApiKey, setNewApiKey] = useState("");
+  const [webhooks,setWebhooks]=useState<any[]>([]); const [webhookName,setWebhookName]=useState("Board updates"); const [webhookUrl,setWebhookUrl]=useState(""); const [webhookSecret,setWebhookSecret]=useState("");
 
   // Teammates State
   const [teammates, setTeammates] = useState<any[]>([]);
@@ -204,9 +205,13 @@ export default function SettingsPage() {
   }, [tabValue, user?.id]);
 
   const loadApiKeys = async () => { const r=await authenticatedFetch(getApiUrl("api-keys")); if(r.ok)setApiKeys(await r.json()); };
-  useEffect(()=>{if(tabValue===8)void loadApiKeys();},[tabValue]);
+  const loadWebhooks=async()=>{const r=await authenticatedFetch(getApiUrl("webhooks"));if(r.ok)setWebhooks(await r.json());};
+  useEffect(()=>{if(tabValue===8){void loadApiKeys();void loadWebhooks();}},[tabValue]);
   const createApiKey = async()=>{const r=await authenticatedFetch(getApiUrl("api-keys"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:apiKeyName})});const d=await r.json();if(r.ok){setNewApiKey(d.key);void loadApiKeys();showNotification("API key created. Copy it now.","success");}else showNotification(d.error,"error");};
   const revokeApiKey = async(id:string)=>{await authenticatedFetch(getApiUrl(`api-keys?id=${id}`),{method:"DELETE"});void loadApiKeys();};
+  const createWebhook=async()=>{const r=await authenticatedFetch(getApiUrl("webhooks"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:webhookName,url:webhookUrl,events:["board.updated","task.created","task.updated"]})});const d=await r.json();if(r.ok){setWebhookSecret(d.signingSecret);setWebhookUrl("");void loadWebhooks();showNotification("Webhook created","success");}else showNotification(d.error,"error");};
+  const deleteWebhook=async(id:string)=>{await authenticatedFetch(getApiUrl(`webhooks?id=${id}`),{method:"DELETE"});void loadWebhooks();};
+  const testWebhook=async(id:string)=>{const r=await authenticatedFetch(getApiUrl("webhooks/deliver-test"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});const d=await r.json();showNotification(d.success?`Webhook delivered (${d.status})`:`Delivery failed (${d.status})`,d.success?"success":"error");void loadWebhooks();};
 
   const handlePublicShare = async (enable: boolean) => {
     if (!shareTableId) return;
@@ -1462,6 +1467,10 @@ export default function SettingsPage() {
           {newApiKey&&<Alert severity="warning" sx={{mt:2}}><Typography fontWeight={800}>Copy this key now</Typography><Typography sx={{wordBreak:"break-all",fontFamily:"monospace"}}>{newApiKey}</Typography><Button size="small" onClick={()=>navigator.clipboard.writeText(newApiKey)}>Copy</Button></Alert>}</Paper>
           <List sx={{display:"flex",flexDirection:"column",gap:1}}>{apiKeys.map(k=><Paper key={k.id} sx={{p:2,borderRadius:2,bgcolor:panelBg,display:"flex",justifyContent:"space-between",alignItems:"center"}}><Box><Typography fontWeight={800}>{k.name}</Typography><Typography variant="body2" color="text.secondary">{k.key_prefix}… · Created {new Date(k.created_at).toLocaleDateString()}</Typography></Box><Button color="error" onClick={()=>void revokeApiKey(k.id)}>Revoke</Button></Paper>)}</List>
           <Alert severity="info" sx={{mt:3,maxWidth:760}}>GET /api/v1/boards with header <strong>x-api-key</strong></Alert>
+          <Typography variant="h6" fontWeight={900} sx={{mt:4,mb:1}}>Signed Webhooks</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{mb:2}}>Deliver board and task events to a public HTTPS endpoint with an HMAC signature.</Typography>
+          <Paper sx={{p:3,borderRadius:3,bgcolor:panelBg,maxWidth:760}}><Stack gap={1.5}><TextField label="Webhook name" value={webhookName} onChange={e=>setWebhookName(e.target.value)} sx={fieldSx}/><TextField label="HTTPS endpoint" placeholder="https://example.com/webhooks/smart-manage" value={webhookUrl} onChange={e=>setWebhookUrl(e.target.value)} sx={fieldSx}/><Button variant="contained" disabled={!webhookName.trim()||!webhookUrl.trim()} onClick={()=>void createWebhook()}>Add webhook</Button>{webhookSecret&&<Alert severity="warning"><Typography fontWeight={800}>Copy signing secret now</Typography><Typography sx={{fontFamily:"monospace",wordBreak:"break-all"}}>{webhookSecret}</Typography></Alert>}</Stack></Paper>
+          <List sx={{display:"flex",flexDirection:"column",gap:1,mt:2,maxWidth:760}}>{webhooks.map(h=><Paper key={h.id} sx={{p:2,borderRadius:2,bgcolor:panelBg}}><Stack direction={{xs:"column",sm:"row"}} justifyContent="space-between" gap={1}><Box><Typography fontWeight={800}>{h.name}</Typography><Typography variant="body2" color="text.secondary" sx={{wordBreak:"break-all"}}>{h.url}</Typography><Typography variant="caption">Last status: {h.last_status||"Never delivered"}</Typography></Box><Stack direction="row" gap={1}><Button onClick={()=>void testWebhook(h.id)}>Test</Button><Button color="error" onClick={()=>void deleteWebhook(h.id)}>Delete</Button></Stack></Stack></Paper>)}</List>
         </TabPanel>
 
       </Paper>
