@@ -192,8 +192,8 @@ export default function SettingsPage() {
   }, [tabValue]);
 
   useEffect(() => {
-    if (tabValue === 7) void fetchWorkspaces();
-  }, [tabValue]);
+    if (tabValue === 7 && user?.id) void fetchWorkspaces();
+  }, [tabValue, user?.id]);
 
   const handlePublicShare = async (enable: boolean) => {
     if (!shareTableId) return;
@@ -315,7 +315,7 @@ export default function SettingsPage() {
       const res = await authenticatedFetch(getApiUrl('workspaces'));
       if (res.ok) {
         const data = await res.json();
-        const ownedWorkspaces = data.filter((ws: any) => ws.owner_id === user?.id);
+        const ownedWorkspaces = data.filter((ws: any) => String(ws.owner_id) === String(user?.id));
         setInviteWorkspaces(ownedWorkspaces);
         if (ownedWorkspaces.length > 0) {
             setSelectedInviteWs(ownedWorkspaces[0].id);
