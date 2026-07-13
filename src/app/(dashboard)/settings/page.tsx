@@ -53,6 +53,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import HistoryIcon from "@mui/icons-material/History";
 import LinkIcon from "@mui/icons-material/Link";
+import KeyIcon from "@mui/icons-material/Key";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -99,7 +100,8 @@ export default function SettingsPage() {
     team: 4,
     billing: 5,
     audit: 6,
-    sharing: 7
+    sharing: 7,
+    api: 8
   };
 
   const initialTab = searchParams.get("tab");
@@ -153,6 +155,9 @@ export default function SettingsPage() {
   const [shareTableId, setShareTableId] = useState("");
   const [shareToken, setShareToken] = useState("");
   const [sharingBusy, setSharingBusy] = useState(false);
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [apiKeyName, setApiKeyName] = useState("Production integration");
+  const [newApiKey, setNewApiKey] = useState("");
 
   // Teammates State
   const [teammates, setTeammates] = useState<any[]>([]);
@@ -194,6 +199,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (tabValue === 7 && user?.id) void fetchWorkspaces();
   }, [tabValue, user?.id]);
+
+  const loadApiKeys = async () => { const r=await authenticatedFetch(getApiUrl("api-keys")); if(r.ok)setApiKeys(await r.json()); };
+  useEffect(()=>{if(tabValue===8)void loadApiKeys();},[tabValue]);
+  const createApiKey = async()=>{const r=await authenticatedFetch(getApiUrl("api-keys"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:apiKeyName})});const d=await r.json();if(r.ok){setNewApiKey(d.key);void loadApiKeys();showNotification("API key created. Copy it now.","success");}else showNotification(d.error,"error");};
+  const revokeApiKey = async(id:string)=>{await authenticatedFetch(getApiUrl(`api-keys?id=${id}`),{method:"DELETE"});void loadApiKeys();};
 
   const handlePublicShare = async (enable: boolean) => {
     if (!shareTableId) return;
@@ -771,6 +781,7 @@ export default function SettingsPage() {
           <Tab icon={<CreditCardIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Billing" />
           <Tab icon={<HistoryIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Audit Log" />
           <Tab icon={<LinkIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Public Sharing" />
+          <Tab icon={<KeyIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="API & Integrations" />
         </Tabs>
 
         {/* PROFILE TAB */}
@@ -1436,6 +1447,15 @@ export default function SettingsPage() {
               </Stack>
             </Stack>
           </Paper>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={8}>
+          <Typography variant="h5" fontWeight={800} sx={{mb:1}}>API & Integrations</Typography>
+          <Typography color="text.secondary" sx={{mb:3}}>Connect external systems securely. Keys are shown only once.</Typography>
+          <Paper sx={{p:3,borderRadius:3,bgcolor:panelBg,maxWidth:760,mb:3}}><Stack direction={{xs:"column",sm:"row"}} gap={1}><TextField fullWidth label="Key name" value={apiKeyName} onChange={e=>setApiKeyName(e.target.value)} sx={fieldSx}/><Button variant="contained" disabled={!apiKeyName.trim()} onClick={()=>void createApiKey()}>Create key</Button></Stack>
+          {newApiKey&&<Alert severity="warning" sx={{mt:2}}><Typography fontWeight={800}>Copy this key now</Typography><Typography sx={{wordBreak:"break-all",fontFamily:"monospace"}}>{newApiKey}</Typography><Button size="small" onClick={()=>navigator.clipboard.writeText(newApiKey)}>Copy</Button></Alert>}</Paper>
+          <List sx={{display:"flex",flexDirection:"column",gap:1}}>{apiKeys.map(k=><Paper key={k.id} sx={{p:2,borderRadius:2,bgcolor:panelBg,display:"flex",justifyContent:"space-between",alignItems:"center"}}><Box><Typography fontWeight={800}>{k.name}</Typography><Typography variant="body2" color="text.secondary">{k.key_prefix}… · Created {new Date(k.created_at).toLocaleDateString()}</Typography></Box><Button color="error" onClick={()=>void revokeApiKey(k.id)}>Revoke</Button></Paper>)}</List>
+          <Alert severity="info" sx={{mt:3,maxWidth:760}}>GET /api/v1/boards with header <strong>x-api-key</strong></Alert>
         </TabPanel>
 
       </Paper>

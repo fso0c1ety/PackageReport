@@ -1,0 +1,9 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
+import { getAuthenticatedUser, pool } from "../_lib/server";
+
+async function ensureSchema(){await pool.query(`CREATE TABLE IF NOT EXISTS api_keys(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,name TEXT NOT NULL,key_hash TEXT UNIQUE NOT NULL,key_prefix TEXT NOT NULL,last_used_at TIMESTAMPTZ,created_at TIMESTAMPTZ DEFAULT NOW(),revoked_at TIMESTAMPTZ)`)}
+const hash=(value)=>createHash("sha256").update(value).digest("hex");
+export async function GET(req){const user=getAuthenticatedUser(req);if(!user?.id)return NextResponse.json({error:"Unauthorized"},{status:401});await ensureSchema();const r=await pool.query("SELECT id,name,key_prefix,last_used_at,created_at FROM api_keys WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC",[String(user.id)]);return NextResponse.json(r.rows)}
+export async function POST(req){const user=getAuthenticatedUser(req);if(!user?.id)return NextResponse.json({error:"Unauthorized"},{status:401});await ensureSchema();const body=await req.json();const name=String(body?.name||"").trim();if(!name)return NextResponse.json({error:"Name is required"},{status:400});const key=`sm_live_${randomBytes(32).toString("base64url")}`;const id=randomUUID();await pool.query("INSERT INTO api_keys(id,user_id,name,key_hash,key_prefix) VALUES($1,$2,$3,$4,$5)",[id,String(user.id),name,hash(key),key.slice(0,16)]);return NextResponse.json({id,name,key},{status:201})}
+export async function DELETE(req){const user=getAuthenticatedUser(req);if(!user?.id)return NextResponse.json({error:"Unauthorized"},{status:401});await ensureSchema();const id=new URL(req.url).searchParams.get("id");await pool.query("UPDATE api_keys SET revoked_at=NOW() WHERE id=$1 AND user_id=$2",[id,String(user.id)]);return NextResponse.json({success:true})}
