@@ -1,0 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
+import { pool } from "../../../../_lib/server";
+async function ensure(){await pool.query(`CREATE TABLE IF NOT EXISTS portal_comments(id TEXT PRIMARY KEY,table_id TEXT NOT NULL,client_name TEXT NOT NULL,message TEXT NOT NULL,created_at TIMESTAMPTZ DEFAULT NOW())`)}
+async function board(token){const r=await pool.query("SELECT id,public_share_comments FROM tables WHERE public_share_enabled=TRUE AND public_share_token=$1",[token]);return r.rows[0]}
+export async function GET(_req,{params}){await ensure();const {token}=await params;const b=await board(token);if(!b)return NextResponse.json({error:"Unavailable"},{status:404});const r=await pool.query("SELECT id,client_name,message,created_at FROM portal_comments WHERE table_id=$1 ORDER BY created_at DESC LIMIT 100",[b.id]);return NextResponse.json(r.rows)}
+export async function POST(req,{params}){await ensure();const {token}=await params;const b=await board(token);if(!b||!b.public_share_comments)return NextResponse.json({error:"Feedback disabled"},{status:403});const body=await req.json();const name=String(body.name||"").trim().slice(0,80),message=String(body.message||"").trim().slice(0,1000);if(!name||!message)return NextResponse.json({error:"Name and message required"},{status:400});await pool.query("INSERT INTO portal_comments(id,table_id,client_name,message) VALUES($1,$2,$3,$4)",[randomUUID(),b.id,name,message]);return NextResponse.json({success:true},{status:201})}

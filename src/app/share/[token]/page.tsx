@@ -1,18 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Alert, Box, CircularProgress, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
-
-export default function PublicBoardPage() {
-  const { token } = useParams<{token:string}>();
-  const [board,setBoard] = useState<any>(null);
-  const [error,setError] = useState("");
-  useEffect(()=>{ fetch(`/api/public/boards/${encodeURIComponent(token)}`).then(async r=>{if(!r.ok) throw new Error("This shared link is unavailable or has been disabled."); setBoard(await r.json());}).catch(e=>setError(e.message)); },[token]);
-  if(error) return <Box sx={{p:4,maxWidth:700,mx:"auto"}}><Alert severity="error">{error}</Alert></Box>;
-  if(!board) return <Box sx={{display:"grid",placeItems:"center",minHeight:"100vh"}}><CircularProgress/></Box>;
-  const columns = Array.isArray(board.columns) ? board.columns : [];
-  return <Box sx={{p:{xs:2,md:5},minHeight:"100vh",bgcolor:"background.default"}}>
-    <Box sx={{maxWidth:1500,mx:"auto"}}><Typography variant="overline" color="primary" fontWeight={800}>Smart Manage · View only</Typography><Typography variant="h3" fontWeight={900} sx={{mb:3}}>{board.name}</Typography>
-    <TableContainer component={Paper} sx={{borderRadius:3}}><Table><TableHead><TableRow>{columns.map((c:any)=><TableCell key={c.id} sx={{fontWeight:800}}>{c.name}</TableCell>)}</TableRow></TableHead><TableBody>{board.rows.map((r:any)=><TableRow key={r.id}>{columns.map((c:any)=><TableCell key={c.id}>{typeof r.values?.[c.id]==="object" ? JSON.stringify(r.values[c.id]) : String(r.values?.[c.id] ?? "")}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer></Box>
-  </Box>;
-}
+import { Alert, Box, Button, CircularProgress, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
+export default function ClientPortal(){const {token}=useParams<{token:string}>();const[board,setBoard]=useState<any>();const[comments,setComments]=useState<any[]>([]);const[name,setName]=useState("");const[message,setMessage]=useState("");const[error,setError]=useState("");
+const loadComments=()=>fetch(`/api/public/boards/${encodeURIComponent(token)}/comments`).then(r=>r.ok?r.json():[]).then(setComments);
+useEffect(()=>{fetch(`/api/public/boards/${encodeURIComponent(token)}`).then(async r=>{if(!r.ok)throw new Error("This shared link is unavailable or has been disabled.");const data=await r.json();setBoard(data);if(data.public_share_comments)void loadComments();}).catch(e=>setError(e.message));},[token]);
+const submit=async()=>{const r=await fetch(`/api/public/boards/${encodeURIComponent(token)}/comments`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,message})});if(r.ok){setMessage("");void loadComments();}};
+if(error)return <Box sx={{p:4,maxWidth:700,mx:"auto"}}><Alert severity="error">{error}</Alert></Box>;if(!board)return <Box sx={{display:"grid",placeItems:"center",minHeight:"100vh"}}><CircularProgress/></Box>;const cols=Array.isArray(board.columns)?board.columns:[];
+return <Box sx={{p:{xs:2,md:5},minHeight:"100vh",bgcolor:"background.default"}}><Box sx={{maxWidth:1500,mx:"auto"}}><Typography variant="overline" color="primary" fontWeight={800}>Smart Manage · Client Portal</Typography><Typography variant="h3" fontWeight={900}>{board.public_share_title||board.name}</Typography>{board.public_share_welcome&&<Typography color="text.secondary" sx={{mb:3}}>{board.public_share_welcome}</Typography>}
+<TableContainer component={Paper} sx={{borderRadius:3,overflowX:"auto"}}><Table><TableHead><TableRow>{cols.map((c:any)=><TableCell key={c.id} sx={{fontWeight:800}}>{c.name}</TableCell>)}</TableRow></TableHead><TableBody>{board.rows.map((r:any)=><TableRow key={r.id}>{cols.map((c:any)=><TableCell key={c.id}>{typeof r.values?.[c.id]==="object"?JSON.stringify(r.values[c.id]):String(r.values?.[c.id]??"")}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>
+{board.public_share_comments&&<Paper sx={{p:3,borderRadius:3,mt:3}}><Typography variant="h6" fontWeight={900} sx={{mb:2}}>Client feedback</Typography><Stack gap={1.5}><TextField label="Your name" value={name} onChange={e=>setName(e.target.value)}/><TextField label="Message" multiline minRows={3} value={message} onChange={e=>setMessage(e.target.value)}/><Button variant="contained" disabled={!name.trim()||!message.trim()} onClick={()=>void submit()}>Send feedback</Button>{comments.map(c=><Box key={c.id} sx={{p:2,borderRadius:2,bgcolor:"action.hover"}}><Typography fontWeight={800}>{c.client_name}</Typography><Typography>{c.message}</Typography><Typography variant="caption" color="text.secondary">{new Date(c.created_at).toLocaleString()}</Typography></Box>)}</Stack></Paper>}</Box></Box>}

@@ -155,6 +155,9 @@ export default function SettingsPage() {
   const [shareTableId, setShareTableId] = useState("");
   const [shareToken, setShareToken] = useState("");
   const [sharingBusy, setSharingBusy] = useState(false);
+  const [portalTitle,setPortalTitle]=useState("Client Portal");
+  const [portalWelcome,setPortalWelcome]=useState("Welcome. Review the latest board information below.");
+  const [portalComments,setPortalComments]=useState(true);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [apiKeyName, setApiKeyName] = useState("Production integration");
   const [newApiKey, setNewApiKey] = useState("");
@@ -209,7 +212,7 @@ export default function SettingsPage() {
     if (!shareTableId) return;
     setSharingBusy(true);
     try {
-      const response = await authenticatedFetch(getApiUrl(`tables/${shareTableId}/public-share`), { method: enable ? "POST" : "DELETE" });
+      const response = await authenticatedFetch(getApiUrl(`tables/${shareTableId}/public-share`), { method: enable ? "POST" : "DELETE", headers:enable?{"Content-Type":"application/json"}:undefined, body:enable?JSON.stringify({title:portalTitle,welcome:portalWelcome,allowComments:portalComments}):undefined });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to update public link");
       setShareToken(data.token || "");
@@ -1439,6 +1442,9 @@ export default function SettingsPage() {
               <TextField select label="Board" value={shareTableId} onChange={(e)=>{setShareTableId(e.target.value);setShareToken("");}} SelectProps={{native:true}} disabled={!selectedInviteWs} sx={fieldSx}>
                 <option value="">Select board</option>{inviteTables.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
               </TextField>
+              <TextField label="Portal title" value={portalTitle} onChange={e=>setPortalTitle(e.target.value)} sx={fieldSx}/>
+              <TextField label="Welcome message" value={portalWelcome} onChange={e=>setPortalWelcome(e.target.value)} multiline minRows={2} sx={fieldSx}/>
+              <Box sx={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><Box><Typography fontWeight={800}>Client feedback</Typography><Typography variant="body2" color="text.secondary">Allow clients to leave portal comments</Typography></Box><Switch checked={portalComments} onChange={e=>setPortalComments(e.target.checked)}/></Box>
               {shareToken && <TextField value={`${window.location.origin}/share/${shareToken}`} InputProps={{readOnly:true}} />}
               <Stack direction={{xs:"column",sm:"row"}} gap={1}>
                 <Button variant="contained" disabled={!shareTableId||sharingBusy} onClick={()=>void handlePublicShare(true)}>{sharingBusy?<CircularProgress size={20}/>:shareToken?"Regenerate access":"Enable public link"}</Button>
