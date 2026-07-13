@@ -10,6 +10,8 @@ export async function GET(req) {
   }
 
   try {
+    const prefResult = await pool.query("SELECT notification_preferences FROM users WHERE id=$1", [user.id]);
+    const categories = prefResult.rows[0]?.notification_preferences?.categories || {};
     const result = await pool.query(
       `
         SELECT n.*, u.name as sender_name, u.avatar as sender_avatar
@@ -22,8 +24,10 @@ export async function GET(req) {
       [user.id]
     );
 
+    const categoryFor = (type) => type === "security" || type === "login" ? "security" : type === "comment" || type === "chat" ? "comments" : type === "deadline" || type === "calendar" ? "deadlines" : type === "billing" ? "billing" : "assignments";
+    const visibleRows = result.rows.filter((notification) => categories[categoryFor(notification.type)] !== false);
     const notifications = await Promise.all(
-      result.rows.map(async (notification) => {
+      visibleRows.map(async (notification) => {
         const data = notification.data || {};
 
         if (!data.workspaceId && data.tableId) {

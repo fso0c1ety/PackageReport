@@ -136,6 +136,7 @@ export default function SettingsPage() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const [advancedNotifications,setAdvancedNotifications]=useState<any>({categories:{assignments:true,comments:true,deadlines:true,security:true,billing:true},digest:"instant",quietHours:{enabled:false,start:"22:00",end:"07:00",timezone:"Europe/Warsaw"}});
 
   // Security State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -185,6 +186,9 @@ export default function SettingsPage() {
   const [selectedTeammateForAccess, setSelectedTeammateForAccess] = useState<any | null>(null);
   const [boardSearchQuery, setBoardSearchQuery] = useState("");
   const { showNotification } = useNotification();
+
+  useEffect(()=>{if(tabValue===2)authenticatedFetch(getApiUrl("notification-preferences")).then(r=>r.ok?r.json():null).then(p=>p&&setAdvancedNotifications(p));},[tabValue]);
+  const saveAdvancedNotifications=async(next:any)=>{setAdvancedNotifications(next);setSavingNotificationSettings(true);try{const r=await authenticatedFetch(getApiUrl("notification-preferences"),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});if(!r.ok)throw new Error();showNotification("Notification preferences saved","success");}catch{showNotification("Unable to save notification preferences","error");}finally{setSavingNotificationSettings(false);}};
 
   useEffect(() => {
     if (tabValue !== 6) return;
@@ -1017,6 +1021,7 @@ export default function SettingsPage() {
                     <Switch edge="end" onChange={toggleTheme} checked={mode === 'dark'} color="primary" />
                 </Paper>
             </Box>
+            <Paper sx={{p:3,borderRadius:3,bgcolor:panelBg,maxWidth:700,mt:3}}><Typography variant="h6" fontWeight={900} sx={{mb:2}}>Advanced delivery controls</Typography><Stack gap={1}>{Object.entries(advancedNotifications.categories||{}).map(([key,value])=><Box key={key} sx={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><Typography sx={{textTransform:"capitalize"}}>{key}</Typography><Switch checked={Boolean(value)} disabled={key==="security"} onChange={e=>void saveAdvancedNotifications({...advancedNotifications,categories:{...advancedNotifications.categories,[key]:e.target.checked}})}/></Box>)}<TextField select label="Digest frequency" value={advancedNotifications.digest} onChange={e=>void saveAdvancedNotifications({...advancedNotifications,digest:e.target.value})} sx={fieldSx}><MenuItem value="instant">Instant</MenuItem><MenuItem value="daily">Daily digest</MenuItem><MenuItem value="weekly">Weekly digest</MenuItem></TextField><Box sx={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><Box><Typography fontWeight={800}>Quiet hours</Typography><Typography variant="body2" color="text.secondary">Pause non-security alerts during these hours</Typography></Box><Switch checked={advancedNotifications.quietHours?.enabled||false} onChange={e=>void saveAdvancedNotifications({...advancedNotifications,quietHours:{...advancedNotifications.quietHours,enabled:e.target.checked}})}/></Box>{advancedNotifications.quietHours?.enabled&&<Stack direction={{xs:"column",sm:"row"}} gap={1}><TextField type="time" label="Start" value={advancedNotifications.quietHours.start} onChange={e=>setAdvancedNotifications({...advancedNotifications,quietHours:{...advancedNotifications.quietHours,start:e.target.value}})} InputLabelProps={{shrink:true}}/><TextField type="time" label="End" value={advancedNotifications.quietHours.end} onChange={e=>void saveAdvancedNotifications({...advancedNotifications,quietHours:{...advancedNotifications.quietHours,end:e.target.value}})} InputLabelProps={{shrink:true}}/></Stack>}</Stack></Paper>
         </TabPanel>
 
         {/* NOTIFICATIONS TAB */}
