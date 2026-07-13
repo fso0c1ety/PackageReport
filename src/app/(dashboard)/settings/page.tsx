@@ -52,6 +52,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import HistoryIcon from "@mui/icons-material/History";
+import LinkIcon from "@mui/icons-material/Link";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -97,7 +98,8 @@ export default function SettingsPage() {
     security: 3,
     team: 4,
     billing: 5,
-    audit: 6
+    audit: 6,
+    sharing: 7
   };
 
   const initialTab = searchParams.get("tab");
@@ -148,6 +150,9 @@ export default function SettingsPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+  const [shareTableId, setShareTableId] = useState("");
+  const [shareToken, setShareToken] = useState("");
+  const [sharingBusy, setSharingBusy] = useState(false);
 
   // Teammates State
   const [teammates, setTeammates] = useState<any[]>([]);
@@ -185,6 +190,24 @@ export default function SettingsPage() {
     };
     void loadAuditLogs();
   }, [tabValue]);
+
+  useEffect(() => {
+    if (tabValue === 7) void fetchWorkspaces();
+  }, [tabValue]);
+
+  const handlePublicShare = async (enable: boolean) => {
+    if (!shareTableId) return;
+    setSharingBusy(true);
+    try {
+      const response = await authenticatedFetch(getApiUrl(`tables/${shareTableId}/public-share`), { method: enable ? "POST" : "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to update public link");
+      setShareToken(data.token || "");
+      showNotification(enable ? "Public view-only link enabled" : "Public link disabled", "success");
+    } catch (error:any) {
+      showNotification(error.message, "error");
+    } finally { setSharingBusy(false); }
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -747,6 +770,7 @@ export default function SettingsPage() {
           <Tab icon={<GroupIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Team" />
           <Tab icon={<CreditCardIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Billing" />
           <Tab icon={<HistoryIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Audit Log" />
+          <Tab icon={<LinkIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Public Sharing" />
         </Tabs>
 
         {/* PROFILE TAB */}
@@ -1391,6 +1415,27 @@ export default function SettingsPage() {
               ))}
             </List>
           )}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={7}>
+          <Typography variant="h5" fontWeight={800} sx={{mb:1}}>Public Sharing</Typography>
+          <Typography color="text.secondary" sx={{mb:3}}>Create a secure, view-only link for clients without giving account access.</Typography>
+          <Paper sx={{p:3,borderRadius:3,bgcolor:panelBg,maxWidth:720}}>
+            <Stack gap={2}>
+              <TextField select label="Workspace" value={selectedInviteWs} onChange={(e)=>{setSelectedInviteWs(e.target.value); setShareTableId(""); setShareToken(""); void fetchTablesForInvite(e.target.value);}} SelectProps={{native:true}} sx={fieldSx}>
+                <option value="">Select workspace</option>{inviteWorkspaces.map(ws=><option key={ws.id} value={ws.id}>{ws.name}</option>)}
+              </TextField>
+              <TextField select label="Board" value={shareTableId} onChange={(e)=>{setShareTableId(e.target.value);setShareToken("");}} SelectProps={{native:true}} disabled={!selectedInviteWs} sx={fieldSx}>
+                <option value="">Select board</option>{inviteTables.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+              </TextField>
+              {shareToken && <TextField value={`${window.location.origin}/share/${shareToken}`} InputProps={{readOnly:true}} />}
+              <Stack direction={{xs:"column",sm:"row"}} gap={1}>
+                <Button variant="contained" disabled={!shareTableId||sharingBusy} onClick={()=>void handlePublicShare(true)}>{sharingBusy?<CircularProgress size={20}/>:shareToken?"Regenerate access":"Enable public link"}</Button>
+                {shareToken && <Button variant="outlined" onClick={()=>navigator.clipboard.writeText(`${window.location.origin}/share/${shareToken}`)}>Copy link</Button>}
+                {shareToken && <Button color="error" onClick={()=>void handlePublicShare(false)}>Disable</Button>}
+              </Stack>
+            </Stack>
+          </Paper>
         </TabPanel>
 
       </Paper>
