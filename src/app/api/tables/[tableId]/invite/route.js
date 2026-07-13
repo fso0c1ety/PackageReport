@@ -10,6 +10,13 @@ import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
+const ROLE_PERMISSIONS = {
+  admin: "admin",
+  manager: "edit",
+  employee: "edit",
+  guest: "read",
+};
+
 export async function POST(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -24,19 +31,38 @@ export async function POST(req, { params }) {
 
     // Support both keys used across the app/history.
     const recipientId = body?.recipientId || body?.userId;
-    const permission = body?.permission || "edit";
+    const role = ROLE_PERMISSIONS[body?.role] ? body.role : "employee";
+    const permission = ROLE_PERMISSIONS[role];
 
     if (!recipientId) {
       return NextResponse.json({ error: "Recipient ID is required" }, { status: 400 });
     }
 
     const tableRes = await pool.query(
-      "SELECT id, name FROM tables WHERE id = $1",
-      [tableId]
+      `
+        SELECT t.id, t.name
+        FROM tables t
+        JOIN workspaces w ON w.id = t.workspace_id
+        WHERE t.id = $1
+          AND (
+            w.owner_id = $2
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS member
+              WHERE member->>'userId' = $2
+                AND (
+                  member->>'role' = 'admin'
+                  OR (member->>'role' IS NULL AND member->>'permission' = 'admin')
+                )
+            )
+          )
+        LIMIT 1
+      `,
+      [tableId, String(user.id)]
     );
 
     if (!tableRes.rows[0]) {
-      return NextResponse.json({ error: "Table not found" }, { status: 404 });
+      return NextResponse.json({ error: "Only owners and admins can invite members" }, { status: 403 });
     }
 
     const tableName = tableRes.rows[0].name;
@@ -52,7 +78,7 @@ export async function POST(req, { params }) {
         recipientId,
         user.id,
         "invite",
-        JSON.stringify({ tableId, tableName, permission }),
+        JSON.stringify({ tableId, tableName, permission, role }),
         false,
       ]
     );
@@ -91,7 +117,7 @@ export async function POST(req, { params }) {
           tokens,
           "Table Invite",
           `${senderName} requests you to share this table: ${tableName}`,
-          { type: "invite", notificationId: notifId, tableId, permission }
+          { type: "invite", notificationId: notifId, tableId, permission, role }
         );
       }
     } catch (pushErr) {

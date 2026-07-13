@@ -33,7 +33,7 @@ export async function POST(req) {
     let sharedUsers = Array.isArray(table.shared_users) ? table.shared_users : [];
 
     if (!sharedUsers.some((entry) => String(entry?.userId) === String(user.id))) {
-      sharedUsers = [...sharedUsers, { userId: String(user.id), permission: "edit" }];
+      sharedUsers = [...sharedUsers, { userId: String(user.id), permission: "edit", role: "employee" }];
       await pool.query(
         "UPDATE tables SET shared_users = $1::jsonb WHERE id = $2",
         [JSON.stringify(sharedUsers), table.id]

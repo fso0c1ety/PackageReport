@@ -30,7 +30,7 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: "Not an invite" }, { status: 400 });
     }
 
-    const { tableId, permission } = notification.data || {};
+    const { tableId, permission, role } = notification.data || {};
     if (!tableId) {
       return NextResponse.json({ error: "Invalid invite data" }, { status: 400 });
     }
@@ -48,7 +48,7 @@ export async function POST(req, { params }) {
       }
 
       if (!sharedUsers.some((u) => u.userId === user.id)) {
-        sharedUsers.push({ userId: user.id, permission: permission || "edit" });
+        sharedUsers.push({ userId: user.id, permission: permission || "edit", role: role || "employee" });
         await pool.query("UPDATE tables SET shared_users = $1::jsonb WHERE id = $2", [
           JSON.stringify(sharedUsers),
           tableId,

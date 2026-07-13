@@ -36,8 +36,9 @@ export async function GET(req, { params }) {
 
     const table = accessRes.rows[0];
     const ownerId = table.owner_id;
+    const sharedEntries = Array.isArray(table.shared_users) ? table.shared_users : [];
     const sharedUsers = Array.isArray(table.shared_users)
-      ? table.shared_users.map((entry) => entry?.userId).filter(Boolean)
+      ? sharedEntries.map((entry) => entry?.userId).filter(Boolean)
       : [];
 
     const memberIds = [...new Set([ownerId, ...sharedUsers])];
@@ -57,7 +58,14 @@ export async function GET(req, { params }) {
           `https://ui-avatars.com/api/?name=${encodeURIComponent(
             row.name
           )}&background=random&color=fff&bold=true`,
-        role: row.id === ownerId ? "owner" : "member",
+        role: row.id === ownerId
+          ? "owner"
+          : sharedEntries.find((entry) => String(entry?.userId) === String(row.id))?.role ||
+            (sharedEntries.find((entry) => String(entry?.userId) === String(row.id))?.permission === "admin"
+              ? "admin"
+              : sharedEntries.find((entry) => String(entry?.userId) === String(row.id))?.permission === "read"
+                ? "guest"
+                : "employee"),
       }))
       .sort((a, b) => {
         if (a.role === "owner") return -1;

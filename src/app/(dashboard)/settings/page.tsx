@@ -157,7 +157,7 @@ export default function SettingsPage() {
   const [selectedInviteWs, setSelectedInviteWs] = useState<string>("");
   const [inviteTables, setInviteTables] = useState<any[]>([]);
   const [selectedInviteTable, setSelectedInviteTable] = useState<string>("");
-  const [invitePermission, setInvitePermission] = useState<'edit' | 'read' | 'admin'>('edit');
+  const [invitePermission, setInvitePermission] = useState<'admin' | 'manager' | 'employee' | 'guest'>('employee');
   const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
@@ -363,20 +363,20 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newPermission: string) => {
+  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newRole: string) => {
     try {
         const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/teammates/${teammateId}/permission`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ permission: newPermission })
+            body: JSON.stringify({ role: newRole })
         });
         
         if (res.ok) {
-            showNotification(`Updated access level to ${newPermission}`, "success");
+            showNotification(`Updated role to ${newRole}`, "success");
             // Refresh local state to reflect change in the dialog
             if (selectedTeammateForAccess) {
               const updatedAccess = selectedTeammateForAccess.access.map((a: any) => 
-                a.tableId === tableId ? { ...a, permission: newPermission } : a
+                a.tableId === tableId ? { ...a, role: newRole } : a
               );
               setSelectedTeammateForAccess({ ...selectedTeammateForAccess, access: updatedAccess });
             }
@@ -406,7 +406,7 @@ export default function SettingsPage() {
             body: JSON.stringify({
               recipientId: selectedUser.id,
               userId: selectedUser.id,
-              permission: invitePermission,
+              role: invitePermission,
             })
         });
 
@@ -1444,55 +1444,25 @@ export default function SettingsPage() {
                     )}
                 </TextField>
 
-                {/* Permission Selection */}
+                {/* Enterprise role selection */}
                 <Box>
                   <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Permission Level
+                    Enterprise role
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                      size="small"
-                      fullWidth
-                      onClick={() => setInvitePermission('edit')}
-                      sx={{
-                        bgcolor: invitePermission === 'edit' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
-                        color: invitePermission === 'edit' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
-                        boxShadow: invitePermission === 'edit' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
-                      }}
-                    >
-                      Editable
-                    </Button>
-                    <Button
-                      size="small"
-                      fullWidth
-                      onClick={() => setInvitePermission('read')}
-                      sx={{
-                        bgcolor: invitePermission === 'read' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
-                        color: invitePermission === 'read' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
-                        boxShadow: invitePermission === 'read' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
-                      }}
-                    >
-                      Read-only
-                    </Button>
-                    <Button
-                      size="small"
-                      fullWidth
-                      onClick={() => setInvitePermission('admin')}
-                      sx={{
-                        bgcolor: invitePermission === 'admin' ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5),
-                        color: invitePermission === 'admin' ? theme.palette.primary.main : theme.palette.text.secondary,
-                        borderRadius: 2, textTransform: 'none', fontWeight: 600, py: 1,
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
-                        boxShadow: invitePermission === 'admin' ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
-                      }}
-                    >
-                      Admin
-                    </Button>
-                  </Box>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={invitePermission}
+                    onChange={(event) => setInvitePermission(event.target.value as 'admin' | 'manager' | 'employee' | 'guest')}
+                    SelectProps={{ native: true }}
+                    sx={fieldSx}
+                  >
+                    <option value="admin">Admin — manage board and members</option>
+                    <option value="manager">Manager — manage board content</option>
+                    <option value="employee">Employee — create and edit content</option>
+                    <option value="guest">Guest — view only</option>
+                  </TextField>
                 </Box>
 
                 {/* Invite Code Display */}
@@ -1619,7 +1589,7 @@ export default function SettingsPage() {
                             <TextField
                                 select
                                 size="small"
-                                value={a.permission}
+                                value={a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee')}
                                 onChange={(e) => handleUpdateGranularPermission(selectedTeammateForAccess.id, a.tableId, e.target.value)}
                                 SelectProps={{ native: true }}
                                 sx={{ 
@@ -1627,9 +1597,10 @@ export default function SettingsPage() {
                                     '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.85rem', fontWeight: 700, bgcolor: inputBg, '& fieldset': { border: 'none' }, '&:hover fieldset': { border: 'none' }, '&.Mui-focused fieldset': { border: 'none' } }
                                 }}
                             >
-                                <option value="read">Read Only</option>
-                                <option value="edit">Editor</option>
                                 <option value="admin">Admin</option>
+                                <option value="manager">Manager</option>
+                                <option value="employee">Employee</option>
+                                <option value="guest">Guest</option>
                             </TextField>
                         </Box>
                     </Paper>
