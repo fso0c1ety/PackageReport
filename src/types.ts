@@ -2,8 +2,10 @@
 export type ColumnType =
   | 'Status'
   | 'Dropdown'
+  | 'MultiSelect'
   | 'Text'
   | 'Date'
+  | 'DateRange'
   | 'People'
   | 'Numbers'
   | 'Files'
@@ -33,7 +35,12 @@ export type ColumnType =
   | 'QR'
   | 'Barcode'
   | 'LongText'
-  | 'Relation';
+  | 'Relation'
+  | 'Lookup'
+  | 'Rollup'
+  | 'AutoNumber'
+  | 'CreatedBy'
+  | 'LastUpdatedBy';
 
 export interface ColumnOption {
   value: string;
@@ -49,6 +56,9 @@ export interface Column {
   fixed?: boolean;
   width?: number;
   hidden?: boolean;
+  frozen?: boolean;
+  required?: boolean;
+  defaultValue?: unknown;
   icon?: string;
   color?: string;
   options?: ColumnOption[]; // For Dropdown/Status/People
@@ -59,6 +69,15 @@ export interface Column {
     relationDisplayColumnId?: string;
     formula?: string;
     maxRating?: number;
+    lookupColumnId?: string;
+    rollupColumnId?: string;
+    rollupFunction?: 'SUM' | 'COUNT' | 'COUNT_UNIQUE' | 'AVERAGE' | 'MIN' | 'MAX' | 'EARLIEST_DATE' | 'LATEST_DATE' | 'PERCENT_COMPLETE';
+    dateFormat?: string;
+    allowedFileTypes?: string[];
+    permissions?: {
+      viewRoles?: string[];
+      editRoles?: string[];
+    };
   };
 }
 

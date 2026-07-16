@@ -33,7 +33,10 @@ test("generic column defaults are deterministic", () => {
     type: "email",
     position: 2,
     width: 180,
+    hidden: false,
+    frozen: false,
     required: false,
+    defaultValue: null,
     settings: {},
   });
 });

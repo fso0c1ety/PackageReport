@@ -18,6 +18,22 @@ function inferColumnType(values) {
     return { type: "Text" };
   }
 
+  if (samples.every((value) => /^-?\d+(?:[.,]\d+)?$/.test(value))) {
+    return { type: "Numbers" };
+  }
+
+  if (samples.every((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))) {
+    return { type: "Email" };
+  }
+
+  if (samples.every((value) => /^\+?[0-9 ()-]{7,20}$/.test(value))) {
+    return { type: "Phone" };
+  }
+
+  if (samples.every((value) => /^(?:https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(value))) {
+    return { type: "Website" };
+  }
+
   const allDates = samples.every((value) => !Number.isNaN(Date.parse(value)));
   if (allDates) {
     return { type: "Date" };
@@ -56,6 +72,26 @@ function getDeclaredColumnType(value) {
     DATE: "Date",
     DROPDOWN: "Dropdown",
     COUNTRY: "Country",
+    EMAIL: "Email",
+    PHONE: "Phone",
+    WEBSITE: "Website",
+    MONEY: "Money",
+    CURRENCY: "Money",
+    PEOPLE: "People",
+    FILES: "Files",
+    IMAGE: "Image",
+    RATING: "Rating",
+    COLOR: "Color",
+    "QR CODE": "QR",
+    BARCODE: "Barcode",
+    "LONG TEXT": "LongText",
+    TAGS: "Tags",
+    LOCATION: "Location",
+    "DATE RANGE": "DateRange",
+    "MULTI SELECT": "MultiSelect",
+    RELATION: "Relation",
+    LOOKUP: "Lookup",
+    ROLLUP: "Rollup",
   };
   return typeMap[normalizeMondayValue(value)] || null;
 }

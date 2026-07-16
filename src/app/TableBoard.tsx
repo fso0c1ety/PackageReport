@@ -94,6 +94,9 @@ import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import PushPinIcon from "@mui/icons-material/PushPin";
 import LogoutIcon from "@mui/icons-material/Logout";
 import GroupIcon from "@mui/icons-material/Group";
 import ColumnTypeSelector from "./ColumnTypeSelector";
@@ -4570,6 +4573,35 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }));
   };
 
+  const persistColumnMutation = (mutate: (columns: Column[]) => Column[]) => {
+  if (userPermission === 'read') return;
+  setColumns((current) => {
+  const updated = mutate(current).map((column, index) => ({ ...column, order: index }));
+  void authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ columns: updated }),
+  }).catch(() => showNotification('Unable to save column settings.', 'error'));
+  return updated;
+  });
+  };
+
+  const handleDuplicateColumn = (colId: string) => persistColumnMutation((current) => {
+  const sourceIndex = current.findIndex((column) => column.id === colId);
+  if (sourceIndex < 0) return current;
+  const source = current[sourceIndex];
+  const duplicate: Column = { ...source, id: uuidv4(), name: `${source.name} copy`, fixed: false, frozen: false };
+  return [...current.slice(0, sourceIndex + 1), duplicate, ...current.slice(sourceIndex + 1)];
+  });
+
+  const handleHideColumn = (colId: string) => persistColumnMutation((current) =>
+  current.map((column) => column.id === colId ? { ...column, hidden: true } : column)
+  );
+
+  const handleFreezeColumn = (colId: string) => persistColumnMutation((current) =>
+  current.map((column) => column.id === colId ? { ...column, frozen: !column.frozen, fixed: !column.frozen } : column)
+  );
+
   const handleEditStatusLabel = (colId: string, idx: number, newValue: string) => {
   // Also update the local state while typing
   setLabelEdits(prev => ({
@@ -7774,6 +7806,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   >
   <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><EditIcon fontSize="small" /></ListItemIcon>
   <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Rename</Typography>
+  </MenuItem>
+
+  <MenuItem onClick={() => { if (colMenuId) handleDuplicateColumn(colMenuId); handleColMenuClose(); }} sx={{ color: theme.palette.text.primary, py: 1.5, px: 2, gap: 1.5 }}>
+  <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><ContentCopyIcon fontSize="small" /></ListItemIcon>
+  <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Duplicate Column</Typography>
+  </MenuItem>
+
+  <MenuItem onClick={() => { if (colMenuId) handleFreezeColumn(colMenuId); handleColMenuClose(); }} sx={{ color: theme.palette.text.primary, py: 1.5, px: 2, gap: 1.5 }}>
+  <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><PushPinIcon fontSize="small" /></ListItemIcon>
+  <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>{columns.find(column => column.id === colMenuId)?.frozen ? 'Unfreeze Column' : 'Freeze Column'}</Typography>
+  </MenuItem>
+
+  <MenuItem onClick={() => { if (colMenuId) handleHideColumn(colMenuId); handleColMenuClose(); }} sx={{ color: theme.palette.text.primary, py: 1.5, px: 2, gap: 1.5 }}>
+  <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><VisibilityOffIcon fontSize="small" /></ListItemIcon>
+  <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Hide Column</Typography>
   </MenuItem>
 
   <Divider sx={{ my: 1, borderColor: theme.palette.divider }} />

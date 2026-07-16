@@ -34,6 +34,12 @@ import ViewWeekIcon from '@mui/icons-material/ViewWeek';
 import NotesIcon from '@mui/icons-material/Notes';
 import LinkIcon from '@mui/icons-material/Link';
 import UpdateIcon from '@mui/icons-material/Update';
+import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+import DateRangeOutlinedIcon from '@mui/icons-material/DateRangeOutlined';
+import ManageSearchIcon from '@mui/icons-material/ManageSearch';
+import CalculateIcon from '@mui/icons-material/Calculate';
+import PinIcon from '@mui/icons-material/Pin';
+import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 
 interface ColumnTypeSelectorProps {
   onSelect: (type: ColumnType, label: string) => void;
@@ -45,7 +51,9 @@ const columnOptions = [
   { label: "Text", icon: <TextFieldsIcon />, color: '#579bfc', type: 'Text' },
   { label: "People", icon: <PeopleIcon />, color: '#0073ea', type: 'People' },
   { label: "Dropdown", icon: <ArrowDropDownCircleIcon />, color: '#ffcb00', type: 'Dropdown' },
+  { label: "Multi-select", icon: <PlaylistAddCheckIcon />, color: '#ffcb00', type: 'MultiSelect' },
   { label: "Date", icon: <DateRangeIcon />, color: '#00d2d2', type: 'Date' },
+  { label: "Date range", icon: <DateRangeOutlinedIcon />, color: '#00b8d9', type: 'DateRange' },
   { label: "Numbers", icon: <NumbersIcon />, color: '#fdab3d', type: 'Numbers' },
   // Super useful (Rest)
   { label: "Files", icon: <InsertDriveFileIcon />, color: '#579bfc', type: 'Files' },
@@ -71,6 +79,11 @@ const columnOptions = [
   { label: "Barcode", icon: <ViewWeekIcon />, color: '#676879', type: 'Barcode' },
   { label: "Long text", icon: <NotesIcon />, color: '#579bfc', type: 'LongText' },
   { label: "Connect boards", icon: <LinkIcon />, color: '#a25ddc', type: 'Relation' },
+  { label: "Lookup", icon: <ManageSearchIcon />, color: '#7e57c2', type: 'Lookup' },
+  { label: "Rollup", icon: <CalculateIcon />, color: '#5c6bc0', type: 'Rollup' },
+  { label: "Auto number", icon: <PinIcon />, color: '#676879', type: 'AutoNumber' },
+  { label: "Created by", icon: <PersonAddAltIcon />, color: '#0073ea', type: 'CreatedBy' },
+  { label: "Last updated by", icon: <UpdateIcon />, color: '#66ccff', type: 'LastUpdatedBy' },
 ];
 
 const StyledSearchInput = styled(InputBase)(({ theme }) => ({

@@ -17,7 +17,10 @@ function normalizeColumn(column, index = 0) {
     type: column.type || "text",
     position: Number.isFinite(column.position) ? column.position : index,
     width: Number.isFinite(column.width) ? column.width : 180,
+    hidden: Boolean(column.hidden),
+    frozen: Boolean(column.frozen || column.fixed),
     required: Boolean(column.required),
+    defaultValue: column.defaultValue ?? null,
     settings: parseJson(column.settings || column.config, {}),
   };
 }
