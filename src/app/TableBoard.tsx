@@ -856,6 +856,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   try { storedUserId = currentUser?.id || JSON.parse(window.localStorage.getItem('user') || '{}')?.id || 'anonymous'; } catch {}
   const key = `smart-manage:board-preferences:${storedUserId}:${tableId}`;
   skipPreferenceSaveRef.current = true;
+  window.queueMicrotask(() => { skipPreferenceSaveRef.current = false; });
   try {
   const saved = JSON.parse(window.localStorage.getItem(key) || '{}');
   if (typeof saved.filterText === 'string') setFilterText(saved.filterText);
@@ -868,7 +869,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [tableId, currentUser?.id]);
   useEffect(() => {
   if (!loadedPreferencesRef.current || typeof window === 'undefined') return;
-  if (skipPreferenceSaveRef.current) { skipPreferenceSaveRef.current = false; return; }
+  if (skipPreferenceSaveRef.current) return;
   window.localStorage.setItem(loadedPreferencesRef.current, JSON.stringify({ filterText, filterPerson, filterStatus, selectedView: workspaceView, density: 'comfortable' }));
   }, [filterText, filterPerson, filterStatus, workspaceView]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
