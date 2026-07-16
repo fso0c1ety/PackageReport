@@ -220,6 +220,7 @@ export default function HomeDashboard() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isWorkspaceGalleryOpen, setIsWorkspaceGalleryOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, ws: any) => {
@@ -533,6 +534,7 @@ export default function HomeDashboard() {
                 size="small"
                 variant="text"
                 disableRipple
+                onClick={() => setIsWorkspaceGalleryOpen(true)}
                 sx={{
                   color: theme.palette.text.secondary,
                   background: "transparent",
@@ -602,7 +604,7 @@ export default function HomeDashboard() {
                     </Box>
                   </Grid>
                 )
-                : workspaces.map((ws) => {
+                : workspaces.slice(0, 4).map((ws) => {
                   const isShared = currentUser && ws.owner_id && ws.owner_id !== currentUser.id;
                   return (
                   <Grid size={{ xs: 6, sm: 6, md: 6 }} key={ws.id}>
@@ -730,6 +732,100 @@ export default function HomeDashboard() {
             </MenuItem>
         )}
       </Menu>
+
+      <Dialog
+        open={isWorkspaceGalleryOpen}
+        onClose={() => setIsWorkspaceGalleryOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 4,
+            maxHeight: "86vh",
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, pb: 1 }}>
+          <Box>
+            <Typography variant="h6" fontWeight={800}>Workspace Gallery</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Browse and open all your workspaces · {workspaces.length} total
+            </Typography>
+          </Box>
+          <Button onClick={() => setIsWorkspaceGalleryOpen(false)} color="inherit" size="small">Close</Button>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Grid container spacing={2}>
+            {workspaces.map((ws) => {
+              const isShared = currentUser && ws.owner_id && ws.owner_id !== currentUser.id;
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={ws.id}>
+                  <StyledCard
+                    onClick={() => {
+                      setIsWorkspaceGalleryOpen(false);
+                      navigateToAppRoute(`/workspace?id=${ws.id}`, router);
+                    }}
+                    sx={{
+                      cursor: "pointer",
+                      height: "100%",
+                      minHeight: 170,
+                      p: 2.5,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      textAlign: "center",
+                      gap: 1.5,
+                      position: "relative",
+                      border: isShared ? "1px dashed rgba(99, 102, 241, 0.55)" : `1px solid ${theme.palette.divider}`,
+                      transition: "transform .2s, border-color .2s, background-color .2s",
+                      "&:hover": {
+                        transform: "translateY(-3px)",
+                        borderColor: "#6366f1",
+                        bgcolor: "rgba(99, 102, 241, 0.06)",
+                      },
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      aria-label={`Workspace actions for ${ws.name}`}
+                      onClick={(event) => handleMenuOpen(event, ws)}
+                      sx={{ position: "absolute", top: 8, right: 8, color: "text.secondary" }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                    {isShared && <Chip label="Shared" size="small" sx={{ position: "absolute", top: 10, left: 10, height: 20, fontSize: ".65rem" }} />}
+                    <AvatarGroup
+                      max={4}
+                      sx={{
+                        justifyContent: "center",
+                        "& .MuiAvatar-root": { width: 38, height: 38, fontSize: 13, border: `2px solid ${theme.palette.background.paper}` },
+                      }}
+                    >
+                      <Avatar src={getAvatarUrl(ws.owner_avatar, ws.owner_name || ws.name)} alt={ws.owner_name || ws.name} />
+                      {(ws.members || []).map((member: any) => (
+                        <Avatar key={member.id} src={getAvatarUrl(member.avatar, member.name)} alt={member.name}>
+                          {member.name?.[0] || "?"}
+                        </Avatar>
+                      ))}
+                    </AvatarGroup>
+                    <Box sx={{ width: "100%", minWidth: 0 }}>
+                      <Typography variant="subtitle1" fontWeight={800} noWrap>{ws.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block", mt: .5 }}>
+                        {isShared ? `Owned by ${ws.owner_name || "Unknown"}` : (ws.type || "General Workspace")}
+                      </Typography>
+                    </Box>
+                  </StyledCard>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isRenameOpen}
