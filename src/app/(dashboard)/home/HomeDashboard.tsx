@@ -30,7 +30,7 @@ import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { authenticatedFetch, getApiUrl, getAppHref, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
-import { v4 as uuidv4 } from "uuid";
+import { WORKSPACE_TEMPLATES, type WorkspaceTemplate } from "../../../workspaceTemplates";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import NotificationsnoneIcon from "@mui/icons-material/NotificationsNone";
 import AddIcon from "@mui/icons-material/Add";
@@ -157,153 +157,45 @@ function getLastWorkspace() {
 // --- Main Component ---
 
 
-const TEMPLATES = [
-  {
-    title: "Project Tracker",
-    color: "#e11d48",
-    icon: "📊",
-    columns: [
-      { name: "Priority", type: "Dropdown", options: [{value: "High"}, {value: "Medium"}, {value: "Low"}] },
-      { name: "Due Date", type: "Date" },
-      { name: "Owner", type: "People" },
-      { name: "Status", type: "Status", options: [{value: "Stuck"}, {value: "Working on it"}, {value: "Done"}] },
-    ]
-  },
-  {
-    title: "CRM & Sales",
-    color: "#2563eb",
-    icon: "💼",
-    columns: [
-      { name: "Stage", type: "Status", options: [{value: "Lead"}, {value: "Contacted"}, {value: "Negotiation"}, {value: "Won"}, {value: "Lost"}] },
-      { name: "Deal Value", type: "Numbers" },
-      { name: "Sales Rep", type: "People" },
-      { name: "Last Contact", type: "Date" },
-    ]
-  },
-  {
-    title: "Content Calendar",
-    color: "#d97706",
-    icon: "📅",
-    columns: [
-      { name: "Platform", type: "Dropdown", options: [{value: "Blog"}, {value: "LinkedIn"}, {value: "Twitter"}, {value: "Instagram"}] },
-      { name: "Author", type: "People" },
-      { name: "Publish Date", type: "Date" },
-      { name: "Status", type: "Status", options: [{value: "Idea"}, {value: "Drafting"}, {value: "Scheduled"}, {value: "Published"}] },
-    ]
-  },
-  {
-    title: "Software Development",
-    color: "#10b981",
-    icon: "🖥️",
-    columns: [
-      { name: "Assignee", type: "People" },
-      { name: "Type", type: "Dropdown", options: [{value: "Feature"}, {value: "Bug"}, {value: "Task"}] },
-      { name: "Priority", type: "Status", options: [{value: "Critical"}, {value: "High"}, {value: "Normal"}, {value: "Low"}] },
-      { name: "Status", type: "Status", options: [{value: "Backlog"}, {value: "In Progress"}, {value: "Code Review"}, {value: "Done"}] },
-    ]
-  },
-  {
-    title: "Event Planning",
-    color: "#8b5cf6",
-    icon: "🎉",
-    columns: [
-      { name: "Date", type: "Date" },
-      { name: "Location", type: "Text" },
-      { name: "Budget", type: "Numbers" },
-      { name: "Status", type: "Status", options: [{value: "Planning"}, {value: "Booked"}, {value: "Confirmed"}, {value: "Done"}] },
-    ]
-  },
-  {
-    title: "HR & Recruiting",
-    color: "#ec4899",
-    icon: "👥",
-    columns: [
-      { name: "Position", type: "Dropdown", options: [{value: "Engineering"}, {value: "Product"}, {value: "Sales"}, {value: "Marketing"}] },
-      { name: "Candidate", type: "Text" },
-      { name: "Interviewer", type: "People" },
-      { name: "Status", type: "Status", options: [{value: "Applied"}, {value: "Screening"}, {value: "Interview"}, {value: "Offer"}, {value: "Hired"}] },
-    ]
-  },
-  {
-    title: "Agile Sprint",
-    color: "#3b82f6",
-    icon: "🔄",
-    columns: [
-      { name: "Story Points", type: "Numbers" },
-      { name: "Sprint", type: "Dropdown", options: [{value: "Sprint 1"}, {value: "Sprint 2"}, {value: "Sprint 3"}] },
-      { name: "Assignee", type: "People" },
-      { name: "Status", type: "Status", options: [{value: "To Do"}, {value: "In Progress"}, {value: "Blocked"}, {value: "Done"}] },
-    ]
-  },
-  {
-    title: "Personal Finance",
-    color: "#22c55e", 
-    icon: "💰",
-    columns: [
-       { name: "Category", type: "Dropdown", options: [{value: "Housing"}, {value: "Food"}, {value: "Transport"}, {value: "Entertainment"}] },
-       { name: "Amount", type: "Numbers" },
-       { name: "Due Date", type: "Date" },
-       { name: "Status", type: "Status", options: [{value: "Pending"}, {value: "Paid"}] },
-    ]
-  },
-  {
-    title: "Marketing Campaign",
-    color: "#f59e0b",
-    icon: "📢",
-    columns: [
-       { name: "Channel", type: "Dropdown", options: [{value: "Social Media"}, {value: "Email"}, {value: "SEO"}, {value: "PPC"}] },
-       { name: "Budget", type: "Numbers" },
-       { name: "Launch Date", type: "Date" },
-       { name: "Status", type: "Status", options: [{value: "Planning"}, {value: "Active"}, {value: "Paused"}, {value: "Completed"}] },
-    ]
-  },
-];
+const TEMPLATES = WORKSPACE_TEMPLATES;
 
 export default function HomeDashboard() {
   const theme = useTheme();
   const router = useRouter();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [isCreatingTemplate, setIsCreatingTemplate] = useState<string | null>(null);
-  const [pendingTemplate, setPendingTemplate] = useState<typeof TEMPLATES[0] | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<WorkspaceTemplate | null>(null);
   const [isWorkspacePickerOpen, setIsWorkspacePickerOpen] = useState(false);
-  const [templateTargetWorkspace, setTemplateTargetWorkspace] = useState<string>("");
+  const [templateWorkspaceName, setTemplateWorkspaceName] = useState("");
 
-  const handleOpenTemplatePicker = (template: typeof TEMPLATES[0]) => {
+  const handleOpenTemplatePicker = (template: WorkspaceTemplate) => {
     setPendingTemplate(template);
-    setTemplateTargetWorkspace(workspaces[0]?.id || "");
+    setTemplateWorkspaceName(`${template.name} Workspace`);
     setIsWorkspacePickerOpen(true);
   };
 
   const handleConfirmTemplateCreate = async () => {
-    if (!pendingTemplate || !templateTargetWorkspace) return;
+    if (!pendingTemplate || !templateWorkspaceName.trim()) return;
     setIsWorkspacePickerOpen(false);
 
     try {
-      setIsCreatingTemplate(pendingTemplate.title);
-
-      const newTablePayload = {
-        name: pendingTemplate.title,
-        workspaceId: templateTargetWorkspace,
-        columns: pendingTemplate.columns.map((col, idx) => ({
-          id: uuidv4(),
-          name: col.name,
-          type: col.type,
-          order: idx,
-          options: (col as any).options || undefined
-        }))
-      };
-
-      const res = await authenticatedFetch(getApiUrl("tables"), {
+      setIsCreatingTemplate(pendingTemplate.name);
+      const res = await authenticatedFetch(getApiUrl("workspaces"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTablePayload),
+        body: JSON.stringify({
+          name: templateWorkspaceName.trim(),
+          templateKey: pendingTemplate.key,
+        }),
       });
 
       if (res.ok) {
-        const newTable = await res.json();
-        navigateToAppRoute(`/workspace?id=${templateTargetWorkspace}&tableId=${newTable.id}`, router);
+        const newWorkspace = await res.json();
+        setWorkspaces((current) => [...current, newWorkspace]);
+        const firstBoardId = newWorkspace.boards?.[0]?.id;
+        navigateToAppRoute(`/workspace?id=${newWorkspace.id}${firstBoardId ? `&tableId=${firstBoardId}` : ""}`, router);
       } else {
-        console.error("Failed to create template table");
+        console.error("Failed to create template workspace");
       }
     } catch (err) {
       console.error(err);
@@ -964,7 +856,7 @@ export default function HomeDashboard() {
 
             <Grid container spacing={3}>
               {TEMPLATES.slice(0, 3).map((template) => (
-                <Grid size={{ md: 6, lg: 4 }} key={template.title}>
+                <Grid size={{ md: 6, lg: 4 }} key={template.key}>
                   <StyledCard
                     onClick={() => handleOpenTemplatePicker(template)}
                     sx={{
@@ -983,7 +875,7 @@ export default function HomeDashboard() {
                       position: "relative"
                     }}
                   >
-                    {isCreatingTemplate === template.title && (
+                    {isCreatingTemplate === template.name && (
                         <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.3)", zIndex: 10, borderRadius: 2 }}>
                             <CircularProgress size={24} color="inherit" />
                         </Box>
@@ -1002,7 +894,7 @@ export default function HomeDashboard() {
                     </Avatar>
                     <Box>
                       <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "1.1rem" }}>
-                        {template.title}
+                        {template.name}
                       </Typography>
                       <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: "block", mt: 0.5, fontSize: "0.85rem" }}>
                         Ready-to-use template
@@ -1143,7 +1035,7 @@ export default function HomeDashboard() {
         <DialogContent sx={{ p: 3 }}>
             <Grid container spacing={3}>
               {TEMPLATES.map((template) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.title}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.key}>
                   <StyledCard
                     onClick={() => {
                         handleOpenTemplatePicker(template);
@@ -1161,12 +1053,12 @@ export default function HomeDashboard() {
                       border: "1px dashed rgba(255,255,255,0.1)",
                       transition: "all 0.2s",
                       "&:hover": { borderColor: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.05)", transform: "translateY(-2px)" },
-                      opacity: isCreatingTemplate === template.title ? 1 : (isCreatingTemplate ? 0.5 : 1),
+                      opacity: isCreatingTemplate === template.name ? 1 : (isCreatingTemplate ? 0.5 : 1),
                       pointerEvents: isCreatingTemplate ? "none" : "auto",
                       position: "relative"
                     }}
                   >
-                    {isCreatingTemplate === template.title && (
+                    {isCreatingTemplate === template.name && (
                         <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.3)", zIndex: 10, borderRadius: 2 }}>
                             <CircularProgress size={24} color="inherit" />
                         </Box>
@@ -1185,10 +1077,10 @@ export default function HomeDashboard() {
                     </Avatar>
                     <Box>
                       <Typography variant="subtitle2" fontWeight={700}>
-                        {template.title}
+                        {template.name}
                       </Typography>
                       <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.5, lineHeight: 1.2, display: "block" }}>
-                        {template.columns.length} columns pre-configured
+                        {template.boards.length} {template.boards.length === 1 ? "board" : "boards"} pre-configured
                       </Typography>
                     </Box>
                   </StyledCard>
@@ -1229,81 +1121,37 @@ export default function HomeDashboard() {
             )}
             <Box>
               <Typography variant="h6" fontWeight={800} sx={{ fontSize: '1.05rem' }}>
-                Create &ldquo;{pendingTemplate?.title}&rdquo;
+                Create &ldquo;{pendingTemplate?.name}&rdquo;
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Choose a workspace for this board
+                Create a complete workspace with its ready-to-use boards
               </Typography>
             </Box>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {workspaces.map((ws) => (
-              <Card
-                key={ws.id}
-                onClick={() => setTemplateTargetWorkspace(ws.id)}
-                sx={{
-                  cursor: 'pointer',
-                  p: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  borderRadius: 3,
-                  border: templateTargetWorkspace === ws.id
-                    ? '2px solid #6366f1'
-                    : `1px solid ${theme.palette.divider}`,
-                  bgcolor: templateTargetWorkspace === ws.id
-                    ? 'rgba(99, 102, 241, 0.08)'
-                    : theme.palette.action.hover,
-                  transition: 'all 0.15s',
-                  boxShadow: 'none',
-                  '&:hover': {
-                    borderColor: '#6366f1',
-                    bgcolor: 'rgba(99, 102, 241, 0.05)'
-                  }
-                }}
-              >
-                <Avatar
-                  sx={{
-                    bgcolor: templateTargetWorkspace === ws.id ? '#6366f1' : '#3a3b5a',
-                    width: 40,
-                    height: 40,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  {ws.name?.[0] || 'W'}
-                </Avatar>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle2" fontWeight={700} noWrap>
-                    {ws.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {ws.tables?.length || 0} boards
-                  </Typography>
-                </Box>
-                {templateTargetWorkspace === ws.id && (
-                  <Box
-                    sx={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      bgcolor: '#6366f1',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: 14,
-                      fontWeight: 700
-                    }}
-                  >
-                    &#10003;
-                  </Box>
-                )}
-              </Card>
-            ))}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Workspace name"
+              value={templateWorkspaceName}
+              onChange={(event) => setTemplateWorkspaceName(event.target.value)}
+              inputProps={{ maxLength: 120 }}
+            />
+            {pendingTemplate && (
+              <Box sx={{ p: 2, borderRadius: 3, bgcolor: theme.palette.action.hover }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  {pendingTemplate.description}
+                </Typography>
+                <Typography variant="caption" fontWeight={800} color="text.secondary">
+                  {pendingTemplate.boards.length} {pendingTemplate.boards.length === 1 ? "BOARD" : "BOARDS"}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {pendingTemplate.boards.map((board) => board.name).join(" · ")}
+                </Typography>
+              </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1 }}>
@@ -1316,7 +1164,7 @@ export default function HomeDashboard() {
           <Button
             variant="contained"
             onClick={handleConfirmTemplateCreate}
-            disabled={!templateTargetWorkspace || isCreatingTemplate !== null}
+            disabled={!templateWorkspaceName.trim() || isCreatingTemplate !== null}
             sx={{
               bgcolor: '#6366f1',
               '&:hover': { bgcolor: '#4f46e5' },
@@ -1326,7 +1174,7 @@ export default function HomeDashboard() {
               px: 3
             }}
           >
-            {isCreatingTemplate ? <CircularProgress size={18} color="inherit" /> : 'Create Board'}
+            {isCreatingTemplate ? <CircularProgress size={18} color="inherit" /> : 'Create Workspace'}
           </Button>
         </DialogActions>
       </Dialog>
