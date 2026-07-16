@@ -813,7 +813,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // Workspace view state
-  const [workspaceView, setWorkspaceView] = useState<'table' | 'kanban' | 'gantt' | 'calendar' | 'doc' | 'gallery'>('table');
+  type WorkspaceView = 'table' | 'kanban' | 'timeline' | 'calendar' | 'doc' | 'gallery' | 'map' | 'chart' | 'form' | 'dashboard';
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('table');
+  const loadedViewTableRef = React.useRef<string | null>(null);
+  useEffect(() => {
+  if (!tableId || typeof window === 'undefined') return;
+  const saved = window.localStorage.getItem(`smart-manage:board-view:${tableId}`) as WorkspaceView | null;
+  const supported: WorkspaceView[] = ['table', 'kanban', 'timeline', 'calendar', 'doc', 'gallery', 'map', 'chart', 'form', 'dashboard'];
+  setWorkspaceView(saved && supported.includes(saved) ? saved : 'table');
+  loadedViewTableRef.current = tableId;
+  }, [tableId]);
+  useEffect(() => {
+  if (!tableId || loadedViewTableRef.current !== tableId || typeof window === 'undefined') return;
+  window.localStorage.setItem(`smart-manage:board-view:${tableId}`, workspaceView);
+  }, [tableId, workspaceView]);
   const [filterText, setFilterText] = useState("");
   const [filterPerson, setFilterPerson] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
@@ -8621,14 +8634,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   </MenuItem>
   <MenuItem
-  onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('gantt'); }}
+  onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView('timeline'); }}
   sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: theme.palette.action.hover } }}
   >
   <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(253, 171, 61, 0.1)', display: 'flex' }}>
   <InsertDriveFileIcon sx={{ color: '#fdab3d', fontSize: 20 }} />
   </Box>
   <Box>
-  <Typography sx={{ color: theme.palette.text.primary, fontSize: 14, fontWeight: 500 }}>Gantt</Typography>
+  <Typography sx={{ color: theme.palette.text.primary, fontSize: 14, fontWeight: 500 }}>Timeline</Typography>
   <Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>Timeline view</Typography>
   </Box>
   </MenuItem>
@@ -8668,6 +8681,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>Asset gallery</Typography>
   </Box>
   </MenuItem>
+  {(['map', 'chart', 'form', 'dashboard'] as WorkspaceView[]).map((view) => (
+  <MenuItem key={view} onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView(view); }} sx={{ py: 1.25, px: 2, gap: 1.5 }}>
+  <Box sx={{ p: .5, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, .1), display: 'flex' }}><InsertDriveFileIcon sx={{ color: theme.palette.primary.main, fontSize: 20 }} /></Box>
+  <Box><Typography sx={{ textTransform: 'capitalize', color: theme.palette.text.primary, fontSize: 14, fontWeight: 500 }}>{view}</Typography><Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>Saved board view</Typography></Box>
+  </MenuItem>
+  ))}
   </Menu>
   </Box>
 
@@ -10289,7 +10308,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   />
   </Box>
   </Box>
-  ) : workspaceView === 'gantt' ? (
+  ) : workspaceView === 'timeline' ? (
   <Box sx={{ mt: 4, mb: 4 }}>
   {/* Find Timeline column */}
   {(() => {
@@ -10440,6 +10459,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   </Box>
   </Box>
+  ) : ['map', 'chart', 'form', 'dashboard'].includes(workspaceView) ? (
+  <Paper sx={{ mt: 4, p: 5, borderRadius: 4, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+  <Typography variant="h5" sx={{ textTransform: 'capitalize', fontWeight: 900, mb: 1 }}>{workspaceView} view</Typography>
+  <Typography color="text.secondary">This saved view is ready for its specialized Phase {workspaceView === 'map' ? '6' : '7'} renderer. Your selected view is remembered per board.</Typography>
+  </Paper>
   ) : null
   }
 
