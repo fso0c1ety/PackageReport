@@ -2,6 +2,8 @@
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import { evaluateBoardFormula } from "../lib/safeFormula";
 import MapBoardView from "./board/views/MapBoardView";
+import ChartBoardView from "./board/views/ChartBoardView";
+import FormBoardView from "./board/views/FormBoardView";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -3200,6 +3202,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   } finally {
   pendingTaskCreationsRef.current.delete(optimisticTask.id);
   }
+  };
+
+  const handleFormSubmission = async (submittedValues: Record<string, any>) => {
+  if (userPermission === 'read') throw new Error('Read-only access');
+  const optimisticTask: Row = { id: uuidv4(), values: submittedValues, created_by: currentUser?.id };
+  const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(optimisticTask) });
+  if (!res.ok) throw new Error(await res.text().catch(() => 'Unable to submit form'));
+  const created = await res.json();
+  setRows((previous) => [...previous.filter((row) => row.id !== 'placeholder'), created]);
+  broadcastTableChange('row-change', { eventType: 'INSERT', row: created });
   };
 
   useEffect(() => {
@@ -10462,7 +10474,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   ) : workspaceView === 'map' ? (
   <MapBoardView rows={filteredRows} columns={sortedColumns} onOpenRow={(row) => openReviewTask(row)} />
-  ) : ['chart', 'form', 'dashboard'].includes(workspaceView) ? (
+  ) : workspaceView === 'chart' ? (
+  <ChartBoardView rows={filteredRows} columns={sortedColumns} />
+  ) : workspaceView === 'form' ? (
+  <FormBoardView columns={sortedColumns} onSubmit={handleFormSubmission} />
+  ) : workspaceView === 'dashboard' ? (
   <Paper sx={{ mt: 4, p: 5, borderRadius: 4, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
   <Typography variant="h5" sx={{ textTransform: 'capitalize', fontWeight: 900, mb: 1 }}>{workspaceView} view</Typography>
   <Typography color="text.secondary">This saved view is ready for its specialized Phase 7 renderer. Your selected view is remembered per board.</Typography>
