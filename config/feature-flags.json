@@ -1,0 +1,16 @@
+{
+  "universalTemplates": false,
+  "universalColumns": false,
+  "relationColumns": false,
+  "formulaEngine": false,
+  "dashboardBuilder": false,
+  "mapView": false,
+  "calendarView": true,
+  "kanbanView": true,
+  "timelineView": false,
+  "galleryView": false,
+  "formView": false,
+  "automationBuilder": false,
+  "templateMarketplace": true,
+  "enterprisePermissions": false
+}
