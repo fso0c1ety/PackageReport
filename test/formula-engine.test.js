@@ -20,6 +20,13 @@ test("formula engine calculates an age from a date of birth", () => {
   assert.ok(age >= 6 && age <= 7);
 });
 
+test("formula engine calculates inventory values from structured money cells", () => {
+  const context = { values: { "Current Stock": 25, "Purchase Price": { amount: 4.5, currency: "EUR" }, Capacity: 100 } };
+  assert.equal(evaluateFormula("[Current Stock] * [Purchase Price]", context), 112.5);
+  assert.equal(evaluateFormula("[Capacity] - [Current Stock]", context), 75);
+  assert.equal(evaluateFormula("SUM([Purchase Price], 5.5)", context), 10);
+});
+
 test("formula dependencies are extracted and circular references detected", () => {
   assert.deepEqual(extractDependencies("[Revenue] - [Costs]"), ["Revenue", "Costs"]);
   assert.deepEqual(detectCircularDependencies({ A: "[B] + 1", B: "[C]", C: "[A]" }), ["A", "B", "C", "A"]);

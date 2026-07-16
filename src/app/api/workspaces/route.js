@@ -99,7 +99,8 @@ export async function POST(req) {
         await client.query("INSERT INTO dashboards(id,workspace_id,owner_id,name,description,layout,settings) VALUES($1,$2,$3,$4,$5,$6,$7)", [dashboardId, newWorkspace.id, user.id, dashboard.name, template.description, JSON.stringify([]), JSON.stringify({ templateId: template.id })]);
         if (available.widgets) for (const [position, widget] of dashboard.widgets.entries()) {
           const sourceBoard = widget.sourceBoard ? createdBoards.find((board) => board.name === widget.sourceBoard) : null;
-          await client.query("INSERT INTO dashboard_widgets(id,dashboard_id,type,title,config,position) VALUES($1,$2,$3,$4,$5,$6)", [uuidv4(), dashboardId, widget.type, String(widget.title || widget.type), JSON.stringify({ ...widget, sourceTableId: sourceBoard?.id || null }), JSON.stringify({ index: position, size: 'medium' })]);
+          const sourceColumn = widget.sourceColumn && widget.sourceBoard ? createdBoardColumns.get(widget.sourceBoard)?.find((column) => column.name === widget.sourceColumn) : null;
+          await client.query("INSERT INTO dashboard_widgets(id,dashboard_id,type,title,config,position) VALUES($1,$2,$3,$4,$5,$6)", [uuidv4(), dashboardId, widget.type, String(widget.title || widget.type), JSON.stringify({ ...widget, sourceTableId: sourceBoard?.id || null, columnId: sourceColumn?.id || null }), JSON.stringify({ index: position, size: 'medium' })]);
         }
       }
       if (available.modules) {
@@ -124,7 +125,7 @@ export async function POST(req) {
             trigger: JSON.stringify(automation),
             trigger_type: automation.trigger,
             trigger_col: triggerColumn?.id || null,
-            conditions: JSON.stringify([{ column: automation.column || null, value: automation.value || null, days: automation.days || null, compareTo: automation.compareTo || null }]),
+            conditions: JSON.stringify([{ column: automation.column || null, value: automation.value || null, operator: automation.operator || null, days: automation.days || null, compareTo: automation.compareTo || null }]),
             actions: JSON.stringify([{ type: automation.action }]),
             action_type: automation.action,
             action_config: JSON.stringify(automation),

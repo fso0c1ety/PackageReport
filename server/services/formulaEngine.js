@@ -1,14 +1,16 @@
+const toNumber = (value) => Number(value?.amount ?? value?.value ?? value);
+
 const FUNCTIONS = {
-  SUM: (...values) => values.flat(Infinity).map(Number).filter(Number.isFinite).reduce((a, b) => a + b, 0),
-  AVG: (...values) => { const nums = values.flat(Infinity).map(Number).filter(Number.isFinite); return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0; },
-  MIN: (...values) => Math.min(...values.flat(Infinity).map(Number).filter(Number.isFinite)),
-  MAX: (...values) => Math.max(...values.flat(Infinity).map(Number).filter(Number.isFinite)),
+  SUM: (...values) => values.flat(Infinity).map(toNumber).filter(Number.isFinite).reduce((a, b) => a + b, 0),
+  AVG: (...values) => { const nums = values.flat(Infinity).map(toNumber).filter(Number.isFinite); return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0; },
+  MIN: (...values) => Math.min(...values.flat(Infinity).map(toNumber).filter(Number.isFinite)),
+  MAX: (...values) => Math.max(...values.flat(Infinity).map(toNumber).filter(Number.isFinite)),
   COUNT: (...values) => values.flat(Infinity).filter((value) => value !== null && value !== undefined && value !== "").length,
   IF: (condition, yes, no) => condition ? yes : no,
   AND: (...values) => values.every(Boolean),
   OR: (...values) => values.some(Boolean),
-  ROUND: (value, digits = 0) => Number(Number(value).toFixed(Number(digits))),
-  ABS: (value) => Math.abs(Number(value)),
+  ROUND: (value, digits = 0) => Number(toNumber(value).toFixed(toNumber(digits))),
+  ABS: (value) => Math.abs(toNumber(value)),
   TODAY: () => new Date(new Date().toDateString()),
   NOW: () => new Date(),
   DATE_DIFF: (a, b) => Math.round((new Date(a) - new Date(b)) / 86400000),
@@ -57,11 +59,11 @@ function evaluateFormula(source, context = {}) {
       return name === "RELATED" || name === "ROLLUP" ? fn(...args, context) : fn(...args);
     }
     if (token.type === "(") { take("("); const value = comparison(); take(")"); return value; }
-    if (token.type === "-") { take("-"); return -Number(primary()); }
+    if (token.type === "-") { take("-"); return -toNumber(primary()); }
     throw new Error(`Unexpected token: ${token.type}`);
   }
-  function multiply() { let value = primary(); while (["*", "/", "%"].includes(peek()?.type)) { const op = take().type; const right = Number(primary()); value = op === "*" ? Number(value) * right : op === "/" ? Number(value) / right : Number(value) % right; } return value; }
-  function add() { let value = multiply(); while (["+", "-"].includes(peek()?.type)) { const op = take().type; const right = multiply(); value = op === "+" ? Number(value) + Number(right) : Number(value) - Number(right); } return value; }
+  function multiply() { let value = primary(); while (["*", "/", "%"].includes(peek()?.type)) { const op = take().type; const right = toNumber(primary()); value = op === "*" ? toNumber(value) * right : op === "/" ? toNumber(value) / right : toNumber(value) % right; } return value; }
+  function add() { let value = multiply(); while (["+", "-"].includes(peek()?.type)) { const op = take().type; const right = multiply(); value = op === "+" ? toNumber(value) + toNumber(right) : toNumber(value) - toNumber(right); } return value; }
   function comparison() { let value = add(); while ([">", "<", ">=", "<=", "==", "!="].includes(peek()?.type)) { const op = take().type; const right = add(); value = ({ ">": value > right, "<": value < right, ">=": value >= right, "<=": value <= right, "==": value === right, "!=": value !== right })[op]; } return value; }
   const result = comparison();
   if (index !== tokens.length) throw new Error("Unexpected formula input");
