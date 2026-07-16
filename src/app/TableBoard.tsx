@@ -849,11 +849,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [currentUser, setCurrentUser] = useState<any>(null);
   const currentUserRef = React.useRef<any>(null);
   const loadedPreferencesRef = React.useRef<string | null>(null);
+  const skipPreferenceSaveRef = React.useRef(false);
   useEffect(() => {
   if (!tableId || typeof window === 'undefined') return;
   let storedUserId = currentUser?.id || 'anonymous';
   try { storedUserId = currentUser?.id || JSON.parse(window.localStorage.getItem('user') || '{}')?.id || 'anonymous'; } catch {}
   const key = `smart-manage:board-preferences:${storedUserId}:${tableId}`;
+  skipPreferenceSaveRef.current = true;
   try {
   const saved = JSON.parse(window.localStorage.getItem(key) || '{}');
   if (typeof saved.filterText === 'string') setFilterText(saved.filterText);
@@ -866,6 +868,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [tableId, currentUser?.id]);
   useEffect(() => {
   if (!loadedPreferencesRef.current || typeof window === 'undefined') return;
+  if (skipPreferenceSaveRef.current) { skipPreferenceSaveRef.current = false; return; }
   window.localStorage.setItem(loadedPreferencesRef.current, JSON.stringify({ filterText, filterPerson, filterStatus, selectedView: workspaceView, density: 'comfortable' }));
   }, [filterText, filterPerson, filterStatus, workspaceView]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
