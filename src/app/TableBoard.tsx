@@ -848,6 +848,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const currentUserRef = React.useRef<any>(null);
+  const loadedPreferencesRef = React.useRef<string | null>(null);
+  useEffect(() => {
+  if (!tableId || typeof window === 'undefined') return;
+  let storedUserId = currentUser?.id || 'anonymous';
+  try { storedUserId = currentUser?.id || JSON.parse(window.localStorage.getItem('user') || '{}')?.id || 'anonymous'; } catch {}
+  const key = `smart-manage:board-preferences:${storedUserId}:${tableId}`;
+  try {
+  const saved = JSON.parse(window.localStorage.getItem(key) || '{}');
+  if (typeof saved.filterText === 'string') setFilterText(saved.filterText);
+  if (Array.isArray(saved.filterPerson)) setFilterPerson(saved.filterPerson);
+  if (Array.isArray(saved.filterStatus)) setFilterStatus(saved.filterStatus);
+  const supported: WorkspaceView[] = ['table', 'kanban', 'timeline', 'calendar', 'doc', 'gallery', 'map', 'chart', 'form', 'dashboard'];
+  if (supported.includes(saved.selectedView)) setWorkspaceView(saved.selectedView);
+  } catch {}
+  loadedPreferencesRef.current = key;
+  }, [tableId, currentUser?.id]);
+  useEffect(() => {
+  if (!loadedPreferencesRef.current || typeof window === 'undefined') return;
+  window.localStorage.setItem(loadedPreferencesRef.current, JSON.stringify({ filterText, filterPerson, filterStatus, selectedView: workspaceView, density: 'comfortable' }));
+  }, [filterText, filterPerson, filterStatus, workspaceView]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const mobileStickyFirstColumnInset = isMobile ? 18 : 0;
