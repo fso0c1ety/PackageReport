@@ -1,6 +1,7 @@
 "use client";
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import { evaluateBoardFormula } from "../lib/safeFormula";
+import MapBoardView from "./board/views/MapBoardView";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -10459,10 +10460,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   </Box>
   </Box>
-  ) : ['map', 'chart', 'form', 'dashboard'].includes(workspaceView) ? (
+  ) : workspaceView === 'map' ? (
+  <MapBoardView rows={filteredRows} columns={sortedColumns} onOpenRow={(row) => openReviewTask(row)} />
+  ) : ['chart', 'form', 'dashboard'].includes(workspaceView) ? (
   <Paper sx={{ mt: 4, p: 5, borderRadius: 4, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
   <Typography variant="h5" sx={{ textTransform: 'capitalize', fontWeight: 900, mb: 1 }}>{workspaceView} view</Typography>
-  <Typography color="text.secondary">This saved view is ready for its specialized Phase {workspaceView === 'map' ? '6' : '7'} renderer. Your selected view is remembered per board.</Typography>
+  <Typography color="text.secondary">This saved view is ready for its specialized Phase 7 renderer. Your selected view is remembered per board.</Typography>
   </Paper>
   ) : null
   }
