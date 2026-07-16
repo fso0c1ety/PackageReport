@@ -4,6 +4,7 @@ import { evaluateBoardFormula } from "../lib/safeFormula";
 import MapBoardView from "./board/views/MapBoardView";
 import ChartBoardView from "./board/views/ChartBoardView";
 import FormBoardView from "./board/views/FormBoardView";
+import DashboardBoardView from "./board/views/DashboardBoardView";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -10501,10 +10502,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   ) : workspaceView === 'form' ? (
   <FormBoardView columns={sortedColumns} onSubmit={handleFormSubmission} />
   ) : workspaceView === 'dashboard' ? (
-  <Paper sx={{ mt: 4, p: 5, borderRadius: 4, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
-  <Typography variant="h5" sx={{ textTransform: 'capitalize', fontWeight: 900, mb: 1 }}>{workspaceView} view</Typography>
-  <Typography color="text.secondary">This saved view is ready for its specialized Phase 7 renderer. Your selected view is remembered per board.</Typography>
-  </Paper>
+  <DashboardBoardView tableId={tableId} rows={filteredRows} columns={sortedColumns} />
   ) : null
   }
 

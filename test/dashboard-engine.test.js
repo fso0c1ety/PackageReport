@@ -1,0 +1,5 @@
+import test from 'node:test'; import assert from 'node:assert/strict';
+import { calculateWidget, normalizeDashboard, reorderWidgets } from '../server/services/dashboardEngine.js';
+test('dashboard widgets aggregate universal numeric values',()=>{const rows=[{values:{amount:{amount:40}}},{values:{amount:60}}];assert.equal(calculateWidget(rows,{columnId:'amount',aggregation:'sum'}),100);assert.equal(calculateWidget(rows,{columnId:'amount',aggregation:'average'}),50);});
+test('dashboard configuration normalizes size, permissions and position',()=>{const dashboard=normalizeDashboard({name:'Finance',widgets:[{id:'b',type:'chart',position:1},{id:'a',type:'kpi',position:0,size:'large'}]});assert.deepEqual(dashboard.widgets.map((w)=>w.id),['a','b']);assert.equal(dashboard.widgets[0].size,'large');assert.ok(dashboard.widgets[0].permissions.view.includes('owner'));});
+test('dashboard widgets reorder without losing configuration',()=>{const result=reorderWidgets([{id:'a'},{id:'b'},{id:'c'}],2,0);assert.deepEqual(result.map((w)=>w.id),['c','a','b']);assert.deepEqual(result.map((w)=>w.position),[0,1,2]);});
