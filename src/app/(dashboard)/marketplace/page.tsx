@@ -22,6 +22,7 @@ const categories: Record<WorkspaceTemplateKey, string> = {
 };
 
 type CommunityTemplate = { id: string; name: string; description: string; category: string; template_key: WorkspaceTemplateKey; author_name?: string; downloads: number; featured: boolean; rating: number; review_count: number };
+const templateCategory = (template: (typeof WORKSPACE_TEMPLATES)[number]) => template.category ?? categories[template.key] ?? "General";
 
 export default function MarketplacePage() {
   const theme = useTheme();
@@ -37,9 +38,9 @@ export default function MarketplacePage() {
   const [reviewDraft, setReviewDraft] = useState({ rating: 5, review: "" });
   const [savingReview, setSavingReview] = useState(false);
   const [draft, setDraft] = useState({ name: "", description: "", category: "General", templateKey: "blank" as WorkspaceTemplateKey });
-  const categoryOptions = ["All", ...Array.from(new Set(Object.values(categories)))];
+  const categoryOptions = ["All", ...Array.from(new Set(WORKSPACE_TEMPLATES.map(templateCategory)))];
   const templates = useMemo(() => WORKSPACE_TEMPLATES.filter((template) =>
-    (category === "All" || categories[template.key] === category) &&
+    (category === "All" || templateCategory(template) === category) &&
     `${template.name} ${template.description}`.toLowerCase().includes(query.toLowerCase())
   ), [category, query]);
 

@@ -1,24 +1,10 @@
-export type WorkspaceTemplateKey =
-  | "freight_broker"
-  | "fleet_management"
-  | "crm_sales"
-  | "project_management"
-  | "construction"
-  | "dental_clinic"
-  | "retail_store"
-  | "manufacturing"
-  | "hr_employees"
-  | "customs_brokerage"
-  | "courier_delivery"
-  | "warehouse_distribution"
-  | "kindergarten_nursery"
-  | "blank";
+export type WorkspaceTemplateKey = string;
 
 type SeedColumn = {
   name: string;
   type: string;
   options?: Array<{ value: string; color: string }>;
-  settings?: { formula?: string; currency?: string };
+  settings?: { formula?: string; currency?: string; relationBoard?: string };
 };
 
 type SeedBoard = {
@@ -33,6 +19,7 @@ export type WorkspaceTemplate = {
   name: string;
   description: string;
   color: string;
+  category?: string;
   boards: SeedBoard[];
   views?: Array<{ boardName: string; name: string; type: string; isDefault?: boolean; config?: Record<string, unknown> }>;
   dashboardWidgets?: Array<Record<string, unknown>>;
@@ -63,6 +50,74 @@ const board = (name: string, columns: SeedColumn[], rows: SeedBoard["rows"] = []
   columns: [{ name: "Name", type: "Text" }, ...columns],
   rows,
 });
+
+const industryTemplate = (key: string, icon: string, name: string, category: string, color: string, boardNames: string[]): WorkspaceTemplate => {
+  const primaryBoard = boardNames[0];
+  return {
+    key, icon, name, category, color,
+    description: `${name} operations, records, finance, documents and reporting`,
+    boards: boardNames.map((boardName, index) => board(boardName, [
+      { name: `${boardName.replace(/s$/, "")} ID`, type: "AutoNumber" },
+      ...(index ? [{ name: primaryBoard, type: "Relation", settings: { relationBoard: primaryBoard } } as SeedColumn] : []),
+      { name: "Owner", type: "People" },
+      { name: "Date", type: "Date" },
+      { name: "Amount", type: "Money", settings: { currency: "EUR" } },
+      { name: "Cost", type: "Money", settings: { currency: "EUR" } },
+      { name: "Net Value", type: "Formula", settings: { formula: "[Amount] - [Cost]" } },
+      { name: "Documents", type: "Files" },
+      status(["New", "In Progress", "Completed", "Cancelled"]),
+    ], index === 0 ? [{ Name: `Sample ${boardName.replace(/s$/, "")}`, Status: "New" }] : [])),
+    views: [
+      { boardName: primaryBoard, name: `${primaryBoard} Table`, type: "table", isDefault: true },
+      { boardName: primaryBoard, name: `${primaryBoard} Pipeline`, type: "kanban", config: { groupBy: "Status" } },
+      { boardName: primaryBoard, name: `${primaryBoard} Calendar`, type: "calendar", config: { dateColumn: "Date" } },
+    ],
+    dashboardWidgets: [
+      { type: "kpi", title: `Total ${primaryBoard}`, sourceBoard: primaryBoard, aggregation: "count" },
+      { type: "status", title: `${primaryBoard} by Status`, sourceBoard: primaryBoard },
+      { type: "revenue", title: "Total Value", sourceBoard: primaryBoard, sourceColumn: "Amount", aggregation: "sum" },
+      { type: "profit", title: "Net Value", sourceBoard: primaryBoard, sourceColumn: "Net Value", aggregation: "sum" },
+      { type: "activity", title: "Recent Activity", sourceBoard: primaryBoard },
+    ],
+    automations: [
+      { trigger: "status_changes", board: primaryBoard, column: "Status", value: "Completed", action: "notify_manager" },
+      { trigger: "date_arrives", board: primaryBoard, column: "Date", action: "notify_owner" },
+    ],
+  };
+};
+
+const ADDITIONAL_INDUSTRY_TEMPLATES: WorkspaceTemplate[] = [
+  industryTemplate("medical_clinic", "\u{1FA7A}", "Medical Clinic", "Healthcare", "#0ea5e9", ["Patients", "Appointments", "Doctors", "Treatments", "Prescriptions", "Billing"]),
+  industryTemplate("pharmacy", "\u{1F48A}", "Pharmacy", "Healthcare", "#10b981", ["Medicines", "Sales", "Purchases", "Suppliers", "Prescriptions", "Inventory"]),
+  industryTemplate("laboratory", "\u{1F9EA}", "Laboratory", "Healthcare", "#06b6d4", ["Patients", "Lab Orders", "Samples", "Tests", "Results", "Billing"]),
+  industryTemplate("physiotherapy", "\u{1F9B4}", "Physiotherapy", "Healthcare", "#14b8a6", ["Patients", "Sessions", "Therapists", "Treatment Plans", "Exercises", "Billing"]),
+  industryTemplate("veterinary_clinic", "\u{1F43E}", "Veterinary Clinic", "Healthcare", "#22c55e", ["Animals", "Owners", "Appointments", "Treatments", "Vaccinations", "Billing"]),
+  industryTemplate("private_school", "\u{1F3EB}", "Private School", "Education", "#6366f1", ["Students", "Classes", "Teachers", "Attendance", "Grades", "Fees"]),
+  industryTemplate("training_center", "\u{1F393}", "Training Center", "Education", "#8b5cf6", ["Students", "Courses", "Trainers", "Enrollments", "Attendance", "Payments"]),
+  industryTemplate("language_school", "\u{1F5E3}", "Language School", "Education", "#a855f7", ["Students", "Courses", "Levels", "Teachers", "Exams", "Payments"]),
+  industryTemplate("student_management", "\u{1F4DA}", "Student Management", "Education", "#4f46e5", ["Students", "Programs", "Enrollments", "Attendance", "Assessments", "Documents"]),
+  industryTemplate("restaurant", "\u{1F37D}", "Restaurant", "Retail & Services", "#ef4444", ["Menu Items", "Orders", "Tables", "Reservations", "Inventory", "Suppliers"]),
+  industryTemplate("cafe", "\u2615", "Cafe", "Retail & Services", "#92400e", ["Products", "Orders", "Tables", "Shifts", "Inventory", "Suppliers"]),
+  industryTemplate("hotel", "\u{1F3E8}", "Hotel", "Retail & Services", "#0f766e", ["Guests", "Rooms", "Reservations", "Services", "Housekeeping", "Payments"]),
+  industryTemplate("beauty_salon", "\u{1F487}", "Beauty Salon", "Retail & Services", "#ec4899", ["Clients", "Appointments", "Services", "Staff", "Products", "Payments"]),
+  industryTemplate("car_service", "\u{1F527}", "Car Service", "Retail & Services", "#475569", ["Customers", "Vehicles", "Service Orders", "Parts", "Mechanics", "Invoices"]),
+  industryTemplate("car_rental", "\u{1F697}", "Car Rental", "Retail & Services", "#0284c7", ["Customers", "Vehicles", "Reservations", "Rentals", "Inspections", "Payments"]),
+  industryTemplate("cleaning_company", "\u{1F9F9}", "Cleaning Company", "Retail & Services", "#0891b2", ["Clients", "Sites", "Jobs", "Teams", "Schedules", "Invoices"]),
+  industryTemplate("architecture_studio", "\u{1F4D0}", "Architecture Studio", "Construction & Property", "#f59e0b", ["Clients", "Projects", "Design Phases", "Drawings", "Approvals", "Invoices"]),
+  industryTemplate("property_management", "\u{1F3E2}", "Property Management", "Construction & Property", "#d97706", ["Properties", "Units", "Tenants", "Leases", "Maintenance", "Payments"]),
+  industryTemplate("real_estate_agency", "\u{1F3E0}", "Real Estate Agency", "Construction & Property", "#ca8a04", ["Properties", "Leads", "Viewings", "Agents", "Offers", "Contracts"]),
+  industryTemplate("maintenance_company", "\u{1F6E0}", "Maintenance Company", "Construction & Property", "#64748b", ["Clients", "Assets", "Work Orders", "Technicians", "Parts", "Invoices"]),
+  industryTemplate("accounting_office", "\u{1F9FE}", "Accounting Office", "Professional Services", "#059669", ["Clients", "Engagements", "Transactions", "Tax Filings", "Documents", "Invoices"]),
+  industryTemplate("law_office", "\u2696", "Law Office", "Professional Services", "#334155", ["Clients", "Cases", "Hearings", "Tasks", "Documents", "Billing"]),
+  industryTemplate("marketing_agency", "\u{1F4E3}", "Marketing Agency", "Professional Services", "#db2777", ["Clients", "Campaigns", "Content", "Tasks", "Budgets", "Reports"]),
+  industryTemplate("software_agency", "\u{1F4BB}", "Software Agency", "Professional Services", "#2563eb", ["Clients", "Projects", "Sprints", "Issues", "Releases", "Invoices"]),
+  industryTemplate("recruitment_agency", "\u{1F50E}", "Recruitment Agency", "Professional Services", "#7c3aed", ["Clients", "Vacancies", "Candidates", "Interviews", "Placements", "Invoices"]),
+  industryTemplate("production_management", "\u{1F3ED}", "Production Management", "Manufacturing", "#64748b", ["Products", "Production Orders", "Work Centers", "Shifts", "Output", "Reports"]),
+  industryTemplate("raw_materials", "\u{1F9F1}", "Raw Materials", "Manufacturing", "#78716c", ["Materials", "Suppliers", "Purchases", "Receipts", "Consumption", "Inventory"]),
+  industryTemplate("quality_control", "\u2705", "Quality Control", "Manufacturing", "#16a34a", ["Products", "Inspections", "Tests", "Defects", "Corrective Actions", "Reports"]),
+  industryTemplate("machine_maintenance", "\u2699", "Machine Maintenance", "Manufacturing", "#475569", ["Machines", "Maintenance Plans", "Work Orders", "Technicians", "Parts", "Downtime"]),
+  industryTemplate("orders_distribution", "\u{1F69A}", "Orders & Distribution", "Manufacturing", "#0369a1", ["Customers", "Orders", "Products", "Shipments", "Routes", "Deliveries"]),
+];
 
 export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
   { key: "freight_broker", icon: "\u{1F4E6}", name: "Logistics - Freight Broker", description: "Clients, carriers, loads, invoices and dispatch reporting", color: "#2563eb", boards: [
@@ -101,7 +156,7 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
   ]},
   { key: "courier_delivery", icon: "\u{1F4E8}", name: "Courier & Delivery", description: "Customers, orders, routes, drivers, vehicles, deliveries and payments", color: "#0284c7", boards: [
     board("Customers", [{ name: "Phone", type: "Phone" }, { name: "Email", type: "Email" }, { name: "Address", type: "Location" }, status(["Active", "Inactive"]) ]),
-    board("Orders", [{ name: "Order ID", type: "Text" }, { name: "Customer", type: "Relation" }, { name: "Pickup", type: "Location" }, { name: "Delivery", type: "Location" }, { name: "Delivery Date", type: "Date" }, { name: "Driver", type: "Relation" }, { name: "Price", type: "Money" }, status(["New", "Assigned", "In Transit", "Delivered", "Failed"]) ]),
+    board("Orders", [{ name: "Order ID", type: "Text" }, { name: "Customer", type: "Relation" }, { name: "Pickup", type: "Location" }, { name: "Delivery", type: "Location" }, { name: "Delivery Date", type: "Date" }, { name: "Driver", type: "Relation" }, { name: "Price", type: "Money" }, { name: "Delivery Cost", type: "Money" }, { name: "Profit", type: "Formula", settings: { formula: "[Price] - [Delivery Cost]" } }, status(["New", "Assigned", "In Transit", "Delivered", "Failed"]) ]),
     board("Drivers", [{ name: "Phone", type: "Phone" }, { name: "Vehicle", type: "Relation" }, { name: "License Expiry", type: "Date" }, status(["Available", "Delivering", "Off Duty"]) ]),
     board("Vehicles", [{ name: "Plate", type: "Text" }, { name: "Type", type: "Dropdown" }, { name: "Capacity", type: "Numbers" }, { name: "Insurance Expiry", type: "Date" }, status(["Available", "On Route", "Service"]) ]),
     board("Routes", [{ name: "Driver", type: "Relation" }, { name: "Vehicle", type: "Relation" }, { name: "Date", type: "Date" }, { name: "Orders", type: "Relation" }, { name: "Progress", type: "Progress" }, status(["Planned", "Active", "Completed"]) ]),
@@ -167,7 +222,8 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
     { trigger: "date_before", board: "Documents", column: "Expiry Date", days: 30, action: "notify_manager" },
     { trigger: "status_changes", board: "Attendance", column: "Present / Absent", value: "Absent", action: "notify_educator" },
   ]},
-  { key: "blank", icon: "\u2728", name: "Blank Workspace", description: "Start clean and build your own workflow", color: "#a855f7", boards: [board("Main Board", [{ name: "Owner", type: "People" }, status(), { name: "Date", type: "Date" }])]},
+  ...ADDITIONAL_INDUSTRY_TEMPLATES,
+  { key: "blank", icon: "\u2728", name: "Blank Workspace", category: "General", description: "Start clean and build your own workflow", color: "#a855f7", boards: [board("Main Board", [{ name: "Owner", type: "People" }, status(), { name: "Date", type: "Date" }])]},
 ];
 
 export const getWorkspaceTemplate = (key?: string) =>
@@ -175,23 +231,63 @@ export const getWorkspaceTemplate = (key?: string) =>
   ?? WORKSPACE_TEMPLATES.find((template) => template.key === "blank")!;
 
 const categoryFor = (key: WorkspaceTemplateKey) => ["freight_broker", "fleet_management", "customs_brokerage", "courier_delivery", "warehouse_distribution"].includes(key) ? "Logistics" : key === "kindergarten_nursery" ? "Education" : key === "crm_sales" ? "Sales" : key === "project_management" ? "Projects" : key === "dental_clinic" ? "Healthcare" : key === "retail_store" ? "Retail" : key === "construction" ? "Construction" : key === "manufacturing" ? "Manufacturing" : key === "hr_employees" ? "HR" : "Other";
-const modulesFor = (category: string) => ({ Logistics: ["logistics", "calendar", "finance", "documents", "reports"], Sales: ["crm", "calendar", "finance", "reports"], Projects: ["projects", "calendar", "documents", "reports"], Healthcare: ["crm", "calendar", "inventory", "finance", "documents"], Retail: ["inventory", "finance", "crm", "reports"], Construction: ["projects", "inventory", "finance", "documents", "reports"], Manufacturing: ["inventory", "maintenance", "finance", "reports"], HR: ["hr", "calendar", "documents"], Other: ["calendar", "documents"] } as Record<string, string[]>)[category] || ["calendar", "documents"];
+const modulesFor = (category: string) => ({ Logistics: ["logistics", "calendar", "finance", "documents", "reports"], Sales: ["crm", "calendar", "finance", "reports"], Projects: ["projects", "calendar", "documents", "reports"], Healthcare: ["crm", "calendar", "inventory", "finance", "documents"], Education: ["crm", "calendar", "finance", "documents", "reports"], Retail: ["inventory", "finance", "crm", "reports"], "Retail & Services": ["inventory", "calendar", "finance", "crm", "reports"], Construction: ["projects", "inventory", "finance", "documents", "reports"], "Construction & Property": ["projects", "calendar", "finance", "documents", "reports"], "Professional Services": ["crm", "projects", "calendar", "finance", "documents", "reports"], Manufacturing: ["inventory", "maintenance", "finance", "reports"], HR: ["hr", "calendar", "documents"], Other: ["calendar", "documents"] } as Record<string, string[]>)[category] || ["calendar", "documents"];
 
 export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateManifest => {
   const template = getWorkspaceTemplate(key);
-  const category = categoryFor(template.key);
+  const category = template.category ?? categoryFor(template.key);
+  const hasFormula = template.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Formula"));
+  const hasRelation = template.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Relation"));
+  const boards = template.boards.map((seedBoard, index) => ({
+    ...seedBoard,
+    columns: [
+      ...seedBoard.columns,
+      ...(!hasFormula && index === 0 ? [{ name: "Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Cost", type: "Money", settings: { currency: "EUR" } }, { name: "Net Value", type: "Formula", settings: { formula: "[Amount] - [Cost]" } }] : []),
+      ...(!hasRelation && index === 1 ? [{ name: template.boards[0].name, type: "Relation", settings: { relationBoard: template.boards[0].name } }] : []),
+    ],
+  }));
+  const primaryBoard = boards[0];
+  const statusColumn = primaryBoard?.columns.find((column) => column.type === "Status");
+  const dateColumn = primaryBoard?.columns.find((column) => column.type === "Date");
+  const defaultAutomations = [
+    ...(statusColumn ? [{ trigger: "status_changes", board: primaryBoard.name, column: statusColumn.name, value: statusColumn.options?.at(-1)?.value, action: "notify_manager" }] : []),
+    ...(dateColumn ? [{ trigger: "date_arrives", board: primaryBoard.name, column: dateColumn.name, action: "notify_owner" }] : []),
+  ];
   return {
     ...template,
+    boards,
     id: template.key,
     category,
     modules: modulesFor(category),
-    views: template.views ?? template.boards.flatMap((seedBoard) => [
+    views: template.views ?? boards.flatMap((seedBoard) => [
       { boardName: seedBoard.name, name: "Table", type: "table", isDefault: true },
       ...(seedBoard.columns.some((column) => column.type === "Status") ? [{ boardName: seedBoard.name, name: "Kanban", type: "kanban" }] : []),
       ...(seedBoard.columns.some((column) => column.type === "Date") ? [{ boardName: seedBoard.name, name: "Calendar", type: "calendar" }] : []),
     ]),
     dashboards: [{ name: `${template.name} Overview`, widgets: template.dashboardWidgets ?? [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
-    automations: template.automations ?? [],
+    automations: template.automations?.length ? template.automations : defaultAutomations,
     roles: [{ key: "owner", name: "Owner", permissions: ["*"] }, { key: "admin", name: "Admin", permissions: ["manage_workspace"] }, { key: "employee", name: "Employee", permissions: ["view", "edit"] }],
   };
 };
+
+export const validateWorkspaceTemplateCatalog = () => {
+  const errors: string[] = [];
+  const keys = new Set<string>();
+  for (const template of WORKSPACE_TEMPLATES) {
+    if (keys.has(template.key)) errors.push(`Duplicate template key: ${template.key}`);
+    keys.add(template.key);
+    const manifest = getWorkspaceTemplateManifest(template.key);
+    if (!manifest.boards.length) errors.push(`${template.key}: boards are required`);
+    if (template.key !== "blank" && manifest.boards.length < 2) errors.push(`${template.key}: multiple boards are required`);
+    if (template.key !== "blank" && !manifest.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Relation"))) errors.push(`${template.key}: relation column is required`);
+    if (template.key !== "blank" && !manifest.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Formula"))) errors.push(`${template.key}: formula column is required`);
+    if (!manifest.views.length) errors.push(`${template.key}: views are required`);
+    if (!manifest.dashboards[0]?.widgets.length) errors.push(`${template.key}: dashboard widgets are required`);
+    if (template.key !== "blank" && !manifest.automations.length) errors.push(`${template.key}: automations are required`);
+    if (!manifest.roles.length) errors.push(`${template.key}: roles are required`);
+  }
+  return { valid: errors.length === 0, errors, count: WORKSPACE_TEMPLATES.length };
+};
+
+export const WORKSPACE_TEMPLATE_CATALOG_STATUS = validateWorkspaceTemplateCatalog();
+if (!WORKSPACE_TEMPLATE_CATALOG_STATUS.valid) throw new Error(`Invalid workspace template catalog: ${WORKSPACE_TEMPLATE_CATALOG_STATUS.errors.join("; ")}`);
