@@ -1,5 +1,6 @@
 "use client";
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
+import { evaluateBoardFormula } from "../lib/safeFormula";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -161,8 +162,8 @@ function RelationCellEditor({
 }: {
   workspaceId: string | null;
   currentTableId: string | null;
-  initialValue: RelationValue | string | null | undefined;
-  onSave: (value: RelationValue | null) => void;
+  initialValue: RelationValue | RelationValue[] | string | null | undefined;
+  onSave: (value: RelationValue[]) => void;
   onCancel: () => void;
 }) {
   const [options, setOptions] = React.useState<RelationOption[]>([]);
@@ -201,12 +202,12 @@ function RelationCellEditor({
     return () => { active = false; };
   }, [currentTableId, workspaceId]);
 
-  const selected = typeof initialValue === "object" && initialValue?.rowId
-    ? { ...initialValue, key: `${initialValue.tableId}:${initialValue.rowId}` }
-    : null;
+  const initialRelations = Array.isArray(initialValue) ? initialValue : (typeof initialValue === "object" && initialValue?.rowId ? [initialValue] : []);
+  const selected = initialRelations.map((item) => ({ ...item, key: `${item.tableId}:${item.rowId}` }));
 
   return (
     <Autocomplete
+      multiple
       openOnFocus
       loading={loading}
       options={options}
@@ -214,7 +215,7 @@ function RelationCellEditor({
       groupBy={(option) => option.tableName || "Board"}
       getOptionLabel={(option) => option.label}
       isOptionEqualToValue={(option, value) => option.key === value.key}
-      onChange={(_event, option) => onSave(option ? { tableId: option.tableId, rowId: option.rowId, label: option.label, tableName: option.tableName } : null)}
+      onChange={(_event, selectedOptions) => onSave(selectedOptions.map((option) => ({ tableId: option.tableId, rowId: option.rowId, label: option.label, tableName: option.tableName })))}
       renderInput={(params) => <TextField {...params} autoFocus size="small" placeholder="Search a row to connect..." />}
       noOptionsText={loading ? "Loading boards..." : "No rows available in other boards"}
       onClose={(_event, reason) => { if (reason === "escape") onCancel(); }}
@@ -245,16 +246,13 @@ function calculateFormulaValue(column: Column, row: Row, columns: Column[]) {
   }
   if (!formula) return null;
 
-  const byName = new Map(columns.map((candidate) => [candidate.name.trim().toLowerCase(), candidate]));
-  const expression = formula.replace(/\[([^\]]+)\]/g, (_match, name: string) => {
-    const referencedColumn = byName.get(name.trim().toLowerCase());
-    const rawValue = referencedColumn ? row.values?.[referencedColumn.id] : 0;
+  const values = Object.fromEntries(columns.map((candidate) => {
+    const rawValue = row.values?.[candidate.id];
     const numericValue = Number(String(rawValue ?? 0).replace(/[^0-9.-]/g, ""));
-    return String(Number.isFinite(numericValue) ? numericValue : 0);
-  });
-  if (!/^[0-9+\-*/().\s]+$/.test(expression)) return null;
+    return [candidate.name.trim(), Number.isFinite(numericValue) ? numericValue : rawValue];
+  }));
   try {
-    const result = Function(`"use strict"; return (${expression});`)();
+    const result = evaluateBoardFormula(formula, { values });
     return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;
@@ -5127,6 +5125,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return <Badge badgeContent={count} max={99} sx={{ '& .MuiBadge-badge': { bgcolor: theme.palette.primary.main, color: theme.palette.text.primary, fontSize: '0.6rem', fontWeight: 700, minWidth: 15, height: 15, borderRadius: 8 } }}><Button variant="outlined" size="small" startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 14 }} />} onClick={(event) => stableHandleOpenChat(event, row.id, value || [], col.id)} sx={{ color: theme.palette.text.secondary, borderColor: theme.palette.divider, textTransform: 'none', fontSize: '0.75rem', '&:hover': { color: theme.palette.text.primary, borderColor: theme.palette.primary.main, bgcolor: 'rgba(79, 81, 192, 0.1)' } }}>Chat</Button></Badge>;
   }
 
+  if (effectiveType === "Relation" || effectiveType === "Connect") {
+  const relations: RelationValue[] = Array.isArray(value) ? value : (value && typeof value === 'object' && value.rowId ? [value] : []);
+  return <Box onClick={activate} sx={{ ...commonSx, gap: .5, overflow: 'hidden' }}>{relations.length ? relations.slice(0, 2).map((relation) => <Chip key={`${relation.tableId}:${relation.rowId}`} label={relation.label} size="small" sx={{ height: 23, maxWidth: 130 }} />) : <Typography color="text.secondary" fontSize={12}>Connect rows</Typography>}{relations.length > 2 && <Typography fontSize={11} fontWeight={800}>+{relations.length - 2}</Typography>}</Box>;
+  }
+
+  if (effectiveType === "Lookup" || effectiveType === "Rollup") {
+  const displayed = Array.isArray(value) ? value.join(', ') : value;
+  return <Box sx={{ ...commonSx, cursor: 'default' }}><Typography noWrap sx={{ color: '#579bfc', fontWeight: 700, fontSize: 12 }}>{displayed === null || displayed === undefined || displayed === '' ? 'Configure relation' : String(displayed)}</Typography></Box>;
+  }
+
   if (effectiveType === "Formula") {
   const result = calculateFormulaValue(col, row, sortedColumns);
   return <Box sx={{ ...commonSx, justifyContent: 'flex-end', cursor: 'default' }}><Typography sx={{ color: result === null ? theme.palette.text.secondary : '#00c875', fontWeight: 800, fontSize: 13 }}>{result === null ? 'Configure formula' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(result)}</Typography></Box>;
@@ -5166,10 +5174,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (effectiveType === "Barcode") return <Box onClick={activate} sx={{ ...commonSx, flexDirection: 'column', justifyContent: 'center', gap: .15 }}><Box sx={{ width: '82%', height: 18, background: 'repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 4px, currentColor 4px 5px, transparent 5px 8px)' }} /><Typography noWrap sx={{ fontSize: 9, letterSpacing: 1 }}>{text}</Typography></Box>;
   if (effectiveType === "LongText") return <Box onClick={activate} sx={{ ...commonSx, whiteSpace: 'normal', alignItems: 'flex-start', py: .5 }}><Typography sx={{ fontSize: 12, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{text || 'Add text'}</Typography></Box>;
   if (effectiveType === "Doc") return <Typography variant="body2" color="primary" sx={{ textDecoration: 'underline', cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem' }} onClick={activate}>{text || 'Add doc link'}</Typography>;
-  if (effectiveType === "Connect" || effectiveType === "Relation") {
-  const relationLabel = typeof value === 'object' && value?.label ? value.label : text;
-  return <Typography variant="body2" color="secondary" noWrap sx={{ cursor: canEdit ? 'pointer' : 'default', fontSize: isMobile ? '0.75rem' : '0.875rem', width: '100%' }} onClick={activate}>{relationLabel || 'Link to board/row'}</Typography>;
-  }
   if (["Number", "Numbers", "Money", "Progress", "Rating"].includes(effectiveType)) {
   return <Box onClick={activate} sx={{ cursor: canEdit ? 'pointer' : 'default', minHeight: isMobile ? 34 : 38, width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', borderRadius: 2, px: isMobile ? 1 : 1.5, ml: -1, transition: 'var(--board-cell-transition)', '&:hover': { bgcolor: canEdit ? theme.palette.action.hover : 'transparent', boxShadow: canEdit ? `0 0 0 1px ${theme.palette.divider}` : 'none' } }}><Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>{text}</Typography></Box>;
   }
@@ -6280,6 +6284,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   />
   );
+  }
+
+  if (col.type === "Lookup" || col.type === "Rollup") {
+  const displayed = Array.isArray(value) ? value.join(', ') : value;
+  return <Typography variant="body2" color="primary">{displayed === null || displayed === undefined || displayed === '' ? 'Configure relation' : String(displayed)}</Typography>;
   }
 
   // Date
