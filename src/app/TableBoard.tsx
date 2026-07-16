@@ -2489,6 +2489,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const setRows = React.useCallback((updater: React.SetStateAction<Row[]>) => {
   rowsStore.getState().replaceRows(updater);
   }, [rowsStore]);
+  const [selectedRowIds, setSelectedRowIds] = React.useState<Set<string>>(() => new Set());
+  React.useEffect(() => {
+  const available = new Set(rows.map((row) => row.id));
+  setSelectedRowIds((current) => {
+  const next = new Set([...current].filter((id) => available.has(id)));
+  return next.size === current.size ? current : next;
+  });
+  }, [rows]);
   const broadcastTableChange = React.useCallback((event: 'row-change' | 'row-order', payload: Record<string, any>) => {
   const channel = tableRealtimeChannelRef.current;
   if (!channel) return;
@@ -3177,6 +3185,50 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   showNotification("Failed to create task. Please try again.", "error");
   } finally {
   pendingTaskCreationsRef.current.delete(optimisticTask.id);
+  }
+  };
+
+  useEffect(() => {
+  const handleTableShortcut = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null;
+  const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+  event.preventDefault();
+  document.querySelector<HTMLInputElement>('input[placeholder="Search tasks..."]')?.focus();
+  return;
+  }
+  if (event.key === 'Escape') {
+  setEditingCell(null);
+  setEditAnchorEl(null);
+  return;
+  }
+  if (!isTyping && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'n') {
+  event.preventDefault();
+  void handleAddTask(false);
+  }
+  };
+  window.addEventListener('keydown', handleTableShortcut);
+  return () => window.removeEventListener('keydown', handleTableShortcut);
+  });
+
+  const handleDuplicateSelectedRows = async () => {
+  if (!tableId || userPermission === 'read' || selectedRowIds.size === 0) return;
+  const sources = rowsRef.current.filter((row) => selectedRowIds.has(row.id));
+  try {
+  const createdRows = await Promise.all(sources.map(async (row) => {
+  const copy: Row = { ...row, id: uuidv4(), values: { ...row.values }, created_by: currentUser?.id };
+  const firstColumn = [...columns].sort((a, b) => a.order - b.order)[0];
+  if (firstColumn && typeof copy.values[firstColumn.id] === 'string') copy.values[firstColumn.id] = `${copy.values[firstColumn.id]} (copy)`;
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(copy) });
+  if (!response.ok) throw new Error(`Failed to duplicate row (${response.status})`);
+  return response.json();
+  }));
+  setRows((current) => [...current.filter((row) => row.id !== 'placeholder'), ...createdRows]);
+  setSelectedRowIds(new Set(createdRows.map((row) => row.id)));
+  showNotification(`Duplicated ${createdRows.length} row${createdRows.length === 1 ? '' : 's'}`, 'success');
+  } catch (error) {
+  console.error('Bulk duplicate failed', error);
+  showNotification('Unable to duplicate selected rows', 'error');
   }
   };
 
@@ -4143,7 +4195,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return [...columns].sort((a, b) => a.order - b.order);
   }, [columns]);
 
-  const handleExportExcel = React.useCallback(async () => {
+  const handleExportExcel = React.useCallback(async (onlyRowIds?: Set<string>) => {
   if (!tableId || sortedColumns.length === 0 || isExportingExcel) return;
 
   setIsExportingExcel(true);
@@ -4155,7 +4207,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const safeSheetName = (boardTitle || 'Workspace Table').replace(/[\\/*?:[\]]/g, ' ').slice(0, 31) || 'Table';
   const worksheet = workbook.addWorksheet(safeSheetName);
-  const exportRows = rows.filter((row) => !row.archived && row.id !== 'placeholder');
+  const exportRows = rows.filter((row) => !row.archived && row.id !== 'placeholder' && (!onlyRowIds || onlyRowIds.has(row.id)));
   const totalColumns = Math.max(1, sortedColumns.length);
 
   worksheet.addRow([boardTitle || 'Workspace Table', '', 'This spreadsheet was created using Smart Manage']);
@@ -7981,7 +8033,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Tooltip title="Export table to Excel">
   <span>
   <IconButton
-  onClick={handleExportExcel}
+  onClick={() => void handleExportExcel()}
   disabled={isExportingExcel || sortedColumns.length === 0}
   aria-label="Export table to Excel"
   sx={{
@@ -8637,6 +8689,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   />
   <Box sx={{ position: 'relative' }}>
+  {selectedRowIds.size > 0 && (
+  <Paper elevation={4} sx={{ position: 'absolute', top: -52, left: 8, zIndex: 150, px: 1.25, py: .75, display: 'flex', alignItems: 'center', gap: 1, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+  <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{selectedRowIds.size} selected</Typography>
+  <Button size="small" variant="outlined" onClick={() => void handleDuplicateSelectedRows()}>Duplicate</Button>
+  <Button size="small" variant="contained" onClick={() => void handleExportExcel(selectedRowIds)}>Export selected</Button>
+  <Button size="small" onClick={() => setSelectedRowIds(new Set())}>Clear</Button>
+  </Paper>
+  )}
   <TableContainer component={Paper} sx={{ 
   bgcolor: 'transparent', 
   boxShadow: 'none', 
@@ -8728,7 +8788,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   bgcolor: `${theme.palette.background.paper} !important`,
   borderRight: `1px solid ${theme.palette.divider}`
   }}
+  >
+  <Checkbox
+  size="small"
+  checked={filteredRowIds.length > 0 && filteredRowIds.every((id) => selectedRowIds.has(id))}
+  indeterminate={selectedRowIds.size > 0 && !filteredRowIds.every((id) => selectedRowIds.has(id))}
+  onChange={(event) => setSelectedRowIds(event.target.checked ? new Set(filteredRowIds) : new Set())}
+  inputProps={{ 'aria-label': 'Select all visible rows' }}
+  sx={{ p: .5 }}
   />
+  </TableCell>
   {displayedHeaderColumns.map((col, index) => (
   <Draggable key={col.id} draggableId={col.id} index={index} isDragDisabled>
   {(provided, snapshot) => {
@@ -9051,6 +9120,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   zIndex: 1
   })
   }}>
+  <Checkbox
+  size="small"
+  checked={selectedRowIds.has(row.id)}
+  onClick={(event) => event.stopPropagation()}
+  onChange={(event) => setSelectedRowIds((current) => {
+  const next = new Set(current);
+  if (event.target.checked) next.add(row.id); else next.delete(row.id);
+  return next;
+  })}
+  inputProps={{ 'aria-label': `Select row ${rowIndex + 1}` }}
+  sx={{ position: 'absolute', left: 1, bottom: 0, p: .25, zIndex: 4, '& .MuiSvgIcon-root': { fontSize: 16 } }}
+  />
   {/* Creator Avatar on Highlighted Task */}
   {row.created_by && (() => {
   const creator = row.created_by ? tableMemberById.get(row.created_by) : undefined;
