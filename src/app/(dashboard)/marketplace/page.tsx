@@ -15,7 +15,9 @@ import { useNotification } from "../../NotificationContext";
 const categories: Record<WorkspaceTemplateKey, string> = {
   freight_broker: "Logistics", fleet_management: "Logistics", crm_sales: "Sales",
   project_management: "Projects", construction: "Construction", dental_clinic: "Healthcare",
-  retail_store: "Retail", manufacturing: "Manufacturing", hr_employees: "HR", blank: "General",
+  retail_store: "Retail", manufacturing: "Manufacturing", hr_employees: "HR",
+  customs_brokerage: "Logistics", courier_delivery: "Logistics", warehouse_distribution: "Logistics",
+  blank: "General",
 };
 
 type CommunityTemplate = { id: string; name: string; description: string; category: string; template_key: WorkspaceTemplateKey; author_name?: string; downloads: number; featured: boolean; rating: number; review_count: number };
