@@ -32,6 +32,16 @@ export type WorkspaceTemplate = {
   boards: SeedBoard[];
 };
 
+export type WorkspaceTemplateManifest = WorkspaceTemplate & {
+  id: WorkspaceTemplateKey;
+  category: string;
+  modules: string[];
+  views: Array<{ boardName: string; name: string; type: string; isDefault?: boolean }>;
+  dashboards: Array<{ name: string; widgets: Array<Record<string, unknown>> }>;
+  automations: Array<Record<string, unknown>>;
+  roles: Array<{ key: string; name: string; permissions: string[] }>;
+};
+
 const status = (values = ["New", "In Progress", "Done"]): SeedColumn => ({
   name: "Status",
   type: "Status",
@@ -78,3 +88,25 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
 export const getWorkspaceTemplate = (key?: string) =>
   WORKSPACE_TEMPLATES.find((template) => template.key === key)
   ?? WORKSPACE_TEMPLATES.find((template) => template.key === "blank")!;
+
+const categoryFor = (key: WorkspaceTemplateKey) => key.startsWith("freight") || key.startsWith("fleet") ? "Logistics" : key === "crm_sales" ? "Sales" : key === "project_management" ? "Projects" : key === "dental_clinic" ? "Healthcare" : key === "retail_store" ? "Retail" : key === "construction" ? "Construction" : key === "manufacturing" ? "Manufacturing" : key === "hr_employees" ? "HR" : "Other";
+const modulesFor = (category: string) => ({ Logistics: ["logistics", "calendar", "finance", "documents", "reports"], Sales: ["crm", "calendar", "finance", "reports"], Projects: ["projects", "calendar", "documents", "reports"], Healthcare: ["crm", "calendar", "inventory", "finance", "documents"], Retail: ["inventory", "finance", "crm", "reports"], Construction: ["projects", "inventory", "finance", "documents", "reports"], Manufacturing: ["inventory", "maintenance", "finance", "reports"], HR: ["hr", "calendar", "documents"], Other: ["calendar", "documents"] } as Record<string, string[]>)[category] || ["calendar", "documents"];
+
+export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateManifest => {
+  const template = getWorkspaceTemplate(key);
+  const category = categoryFor(template.key);
+  return {
+    ...template,
+    id: template.key,
+    category,
+    modules: modulesFor(category),
+    views: template.boards.flatMap((seedBoard) => [
+      { boardName: seedBoard.name, name: "Table", type: "table", isDefault: true },
+      ...(seedBoard.columns.some((column) => column.type === "Status") ? [{ boardName: seedBoard.name, name: "Kanban", type: "kanban" }] : []),
+      ...(seedBoard.columns.some((column) => column.type === "Date") ? [{ boardName: seedBoard.name, name: "Calendar", type: "calendar" }] : []),
+    ]),
+    dashboards: [{ name: `${template.name} Overview`, widgets: [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
+    automations: [],
+    roles: [{ key: "owner", name: "Owner", permissions: ["*"] }, { key: "admin", name: "Admin", permissions: ["manage_workspace"] }, { key: "employee", name: "Employee", permissions: ["view", "edit"] }],
+  };
+};
