@@ -17,6 +17,7 @@ const categories: Record<WorkspaceTemplateKey, string> = {
   project_management: "Projects", construction: "Construction", dental_clinic: "Healthcare",
   retail_store: "Retail", manufacturing: "Manufacturing", hr_employees: "HR",
   customs_brokerage: "Logistics", courier_delivery: "Logistics", warehouse_distribution: "Logistics",
+  kindergarten_nursery: "Education",
   blank: "General",
 };
 

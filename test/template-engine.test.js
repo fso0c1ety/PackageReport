@@ -27,3 +27,15 @@ test("template plans use stable relations and optional sample data", () => {
   const samplePlan = createTemplatePlan(template, { idFactory: () => `sample-${++sequence}`, includeSampleData: true });
   assert.equal(samplePlan.boards[0].rows.length, 1);
 });
+
+test("template plans preserve custom views, dashboards and automations", () => {
+  const plan = createTemplatePlan({
+    ...template,
+    views: [{ boardName: "Deals", name: "Pipeline", type: "kanban", config: { groupBy: "Status" } }],
+    dashboards: [{ name: "CRM Overview", widgets: [{ type: "kpi", title: "Open deals" }] }],
+    automations: [{ trigger: "date_arrives", board: "Deals", action: "notify_manager" }],
+  }, { idFactory: (() => { let sequence = 0; return () => `custom-${++sequence}`; })() });
+  assert.equal(plan.views[0].config.groupBy, "Status");
+  assert.equal(plan.dashboards[0].widgets[0].title, "Open deals");
+  assert.equal(plan.automations[0].action, "notify_manager");
+});

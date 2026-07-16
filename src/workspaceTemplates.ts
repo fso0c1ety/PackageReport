@@ -11,6 +11,7 @@ export type WorkspaceTemplateKey =
   | "customs_brokerage"
   | "courier_delivery"
   | "warehouse_distribution"
+  | "kindergarten_nursery"
   | "blank";
 
 type SeedColumn = {
@@ -33,20 +34,23 @@ export type WorkspaceTemplate = {
   description: string;
   color: string;
   boards: SeedBoard[];
+  views?: Array<{ boardName: string; name: string; type: string; isDefault?: boolean; config?: Record<string, unknown> }>;
+  dashboardWidgets?: Array<Record<string, unknown>>;
+  automations?: Array<Record<string, unknown>>;
 };
 
 export type WorkspaceTemplateManifest = WorkspaceTemplate & {
   id: WorkspaceTemplateKey;
   category: string;
   modules: string[];
-  views: Array<{ boardName: string; name: string; type: string; isDefault?: boolean }>;
+  views: Array<{ boardName: string; name: string; type: string; isDefault?: boolean; config?: Record<string, unknown> }>;
   dashboards: Array<{ name: string; widgets: Array<Record<string, unknown>> }>;
   automations: Array<Record<string, unknown>>;
   roles: Array<{ key: string; name: string; permissions: string[] }>;
 };
 
-const status = (values = ["New", "In Progress", "Done"]): SeedColumn => ({
-  name: "Status",
+const status = (values = ["New", "In Progress", "Done"], name = "Status"): SeedColumn => ({
+  name,
   type: "Status",
   options: values.map((value, index) => ({
     value,
@@ -114,6 +118,39 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
     board("Warehouses", [{ name: "Code", type: "Text" }, { name: "Location", type: "Location" }, { name: "Manager", type: "People" }, { name: "Capacity", type: "Numbers" }, status(["Active", "Full", "Inactive"]) ]),
     board("Inventory Counts", [{ name: "Warehouse", type: "Relation" }, { name: "Product", type: "Relation" }, { name: "Expected", type: "Numbers" }, { name: "Counted", type: "Numbers" }, { name: "Variance", type: "Formula", settings: { formula: "[Counted] - [Expected]" } }, { name: "Count Date", type: "Date" }, { name: "Counter", type: "People" }]),
   ]},
+  { key: "kindergarten_nursery", icon: "\u{1F9F8}", name: "Kindergarten / Nursery Management", description: "Children, parents, groups, attendance, fees, employees, meals and documents", color: "#f97316", boards: [
+    board("Children", [{ name: "Child ID", type: "AutoNumber" }, { name: "Full Name", type: "Text" }, { name: "Date of Birth", type: "Date" }, { name: "Age", type: "Formula", settings: { formula: "ROUND(DAYS_BETWEEN(TODAY(), [Date of Birth]) / 365, 0)" } }, { name: "Parent", type: "Relation" }, { name: "Group", type: "Relation" }, { name: "Allergies", type: "Tags" }, { name: "Medical Notes", type: "LongText" }, { name: "Enrollment Date", type: "Date" }, { name: "Photo", type: "Image" }, { name: "Documents", type: "Files" }, status(["Enrolled", "Waiting", "Inactive"]) ]),
+    board("Parents", [{ name: "Phone", type: "Phone" }, { name: "Email", type: "Email" }, { name: "Address", type: "Location" }, { name: "Children", type: "Relation" }, { name: "Emergency Contact", type: "Phone" }, status(["Paid", "Partially Paid", "Unpaid"], "Payment Status") ]),
+    board("Groups", [{ name: "Age Range", type: "Text" }, { name: "Educator", type: "People" }, { name: "Assistant", type: "People" }, { name: "Capacity", type: "Numbers" }, { name: "Children Count", type: "Rollup" }, { name: "Room", type: "Text" }, status(["Open", "Full", "Closed"]) ]),
+    board("Attendance", [{ name: "Child", type: "Relation" }, { name: "Date", type: "Date" }, { name: "Arrival Time", type: "Text" }, { name: "Departure Time", type: "Text" }, { name: "Reason", type: "Text" }, { name: "Notes", type: "LongText" }, status(["Present", "Absent", "Excused"], "Present / Absent") ]),
+    board("Payments", [{ name: "Child", type: "Relation" }, { name: "Parent", type: "Relation" }, { name: "Month", type: "Date" }, { name: "Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Discount", type: "Money", settings: { currency: "EUR" } }, { name: "Paid Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Remaining Amount", type: "Formula", settings: { formula: "[Amount] - [Discount] - [Paid Amount]" } }, { name: "Due Date", type: "Date" }, status(["Paid", "Partially Paid", "Unpaid", "Overdue"], "Payment Status") ]),
+    board("Employees", [{ name: "Position", type: "Dropdown" }, { name: "Phone", type: "Phone" }, { name: "Email", type: "Email" }, { name: "Contract", type: "Files" }, { name: "Schedule", type: "Timeline" }, { name: "Salary", type: "Money", settings: { currency: "EUR" } }, { name: "Documents", type: "Files" }, status(["Active", "Leave", "Inactive"]) ]),
+    board("Meals", [{ name: "Date", type: "Date" }, { name: "Breakfast", type: "LongText" }, { name: "Lunch", type: "LongText" }, { name: "Snack", type: "LongText" }, { name: "Allergens", type: "Tags" }, { name: "Assigned Groups", type: "Relation" }]),
+    board("Documents", [{ name: "Child", type: "Relation" }, { name: "Document Type", type: "Dropdown" }, { name: "Upload Date", type: "Date" }, { name: "Expiry Date", type: "Date" }, { name: "File", type: "Files" }, status(["Valid", "Missing", "Expiring", "Expired"]) ]),
+  ], views: [
+    { boardName: "Children", name: "Children Table", type: "table", isDefault: true },
+    { boardName: "Attendance", name: "Attendance Calendar", type: "calendar", isDefault: true, config: { dateColumn: "Date" } },
+    { boardName: "Groups", name: "Groups Kanban", type: "kanban", isDefault: true, config: { groupBy: "Status" } },
+    { boardName: "Payments", name: "Payments Table", type: "table", isDefault: true },
+    { boardName: "Children", name: "Birthday Calendar", type: "calendar", config: { dateColumn: "Date of Birth" } },
+    { boardName: "Employees", name: "Employee Schedule", type: "timeline", isDefault: true, config: { timelineColumn: "Schedule" } },
+  ], dashboardWidgets: [
+    { type: "kpi", title: "Children Present Today", sourceBoard: "Attendance", filter: { status: "Present", date: "today" } },
+    { type: "kpi", title: "Children Absent Today", sourceBoard: "Attendance", filter: { status: "Absent", date: "today" } },
+    { type: "kpi", title: "Unpaid Monthly Fees", sourceBoard: "Payments", aggregation: "sum", sourceColumn: "Remaining Amount" },
+    { type: "calendar", title: "Upcoming Birthdays", sourceBoard: "Children", sourceColumn: "Date of Birth" },
+    { type: "progress", title: "Group Occupancy", sourceBoard: "Groups", sourceColumn: "Children Count" },
+    { type: "kpi", title: "Monthly Income", sourceBoard: "Payments", aggregation: "sum", sourceColumn: "Paid Amount" },
+    { type: "kpi", title: "Pending Documents", sourceBoard: "Documents", filter: { status: "Missing" } },
+    { type: "status", title: "Employee Attendance", sourceBoard: "Employees" },
+    { type: "table", title: "Today's Meals", sourceBoard: "Meals", filter: { date: "today" } },
+  ], automations: [
+    { trigger: "date_arrives", board: "Payments", column: "Due Date", action: "notify_manager" },
+    { trigger: "date_before", board: "Children", column: "Date of Birth", days: 3, action: "notify_educator" },
+    { trigger: "formula_threshold", board: "Groups", column: "Children Count", compareTo: "Capacity", action: "block_enrollment" },
+    { trigger: "date_before", board: "Documents", column: "Expiry Date", days: 30, action: "notify_manager" },
+    { trigger: "status_changes", board: "Attendance", column: "Present / Absent", value: "Absent", action: "notify_educator" },
+  ]},
   { key: "blank", icon: "\u2728", name: "Blank Workspace", description: "Start clean and build your own workflow", color: "#a855f7", boards: [board("Main Board", [{ name: "Owner", type: "People" }, status(), { name: "Date", type: "Date" }])]},
 ];
 
@@ -121,7 +158,7 @@ export const getWorkspaceTemplate = (key?: string) =>
   WORKSPACE_TEMPLATES.find((template) => template.key === key)
   ?? WORKSPACE_TEMPLATES.find((template) => template.key === "blank")!;
 
-const categoryFor = (key: WorkspaceTemplateKey) => ["freight_broker", "fleet_management", "customs_brokerage", "courier_delivery", "warehouse_distribution"].includes(key) ? "Logistics" : key === "crm_sales" ? "Sales" : key === "project_management" ? "Projects" : key === "dental_clinic" ? "Healthcare" : key === "retail_store" ? "Retail" : key === "construction" ? "Construction" : key === "manufacturing" ? "Manufacturing" : key === "hr_employees" ? "HR" : "Other";
+const categoryFor = (key: WorkspaceTemplateKey) => ["freight_broker", "fleet_management", "customs_brokerage", "courier_delivery", "warehouse_distribution"].includes(key) ? "Logistics" : key === "kindergarten_nursery" ? "Education" : key === "crm_sales" ? "Sales" : key === "project_management" ? "Projects" : key === "dental_clinic" ? "Healthcare" : key === "retail_store" ? "Retail" : key === "construction" ? "Construction" : key === "manufacturing" ? "Manufacturing" : key === "hr_employees" ? "HR" : "Other";
 const modulesFor = (category: string) => ({ Logistics: ["logistics", "calendar", "finance", "documents", "reports"], Sales: ["crm", "calendar", "finance", "reports"], Projects: ["projects", "calendar", "documents", "reports"], Healthcare: ["crm", "calendar", "inventory", "finance", "documents"], Retail: ["inventory", "finance", "crm", "reports"], Construction: ["projects", "inventory", "finance", "documents", "reports"], Manufacturing: ["inventory", "maintenance", "finance", "reports"], HR: ["hr", "calendar", "documents"], Other: ["calendar", "documents"] } as Record<string, string[]>)[category] || ["calendar", "documents"];
 
 export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateManifest => {
@@ -132,13 +169,13 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
     id: template.key,
     category,
     modules: modulesFor(category),
-    views: template.boards.flatMap((seedBoard) => [
+    views: template.views ?? template.boards.flatMap((seedBoard) => [
       { boardName: seedBoard.name, name: "Table", type: "table", isDefault: true },
       ...(seedBoard.columns.some((column) => column.type === "Status") ? [{ boardName: seedBoard.name, name: "Kanban", type: "kanban" }] : []),
       ...(seedBoard.columns.some((column) => column.type === "Date") ? [{ boardName: seedBoard.name, name: "Calendar", type: "calendar" }] : []),
     ]),
-    dashboards: [{ name: `${template.name} Overview`, widgets: [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
-    automations: [],
+    dashboards: [{ name: `${template.name} Overview`, widgets: template.dashboardWidgets ?? [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
+    automations: template.automations ?? [],
     roles: [{ key: "owner", name: "Owner", permissions: ["*"] }, { key: "admin", name: "Admin", permissions: ["manage_workspace"] }, { key: "employee", name: "Employee", permissions: ["view", "edit"] }],
   };
 };

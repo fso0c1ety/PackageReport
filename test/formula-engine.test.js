@@ -15,6 +15,11 @@ test("formula engine supports relation and rollup context", () => {
   assert.equal(evaluateFormula('ROLLUP("Revenue")', context), 300);
 });
 
+test("formula engine calculates an age from a date of birth", () => {
+  const age = evaluateFormula("ROUND(DAYS_BETWEEN(TODAY(), [Date of Birth]) / 365, 0)", { values: { "Date of Birth": "2020-01-01" } });
+  assert.ok(age >= 6 && age <= 7);
+});
+
 test("formula dependencies are extracted and circular references detected", () => {
   assert.deepEqual(extractDependencies("[Revenue] - [Costs]"), ["Revenue", "Costs"]);
   assert.deepEqual(detectCircularDependencies({ A: "[B] + 1", B: "[C]", C: "[A]" }), ["A", "B", "C", "A"]);
