@@ -26,6 +26,31 @@ async function getAccessibleTable(tableId, userId) {
   return result.rows[0] || null;
 }
 
+async function canManageColumns(tableId, userId) {
+  const result = await pool.query(
+    `
+      SELECT 1
+      FROM tables t
+      JOIN workspaces w ON t.workspace_id = w.id
+      WHERE t.id = $1
+        AND (
+          w.owner_id = $2
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
+            WHERE elem->>'userId' = $2
+              AND (
+                elem->>'role' IN ('admin', 'manager')
+                OR COALESCE((elem->'capabilities'->>'manageColumns')::boolean, false)
+              )
+          )
+        )
+    `,
+    [tableId, userId]
+  );
+  return result.rows.length > 0;
+}
+
 export async function GET(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -64,9 +89,9 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ error: "columns must be an array" }, { status: 400 });
     }
 
-    const table = await getAccessibleTable(tableId, user.id);
-    if (!table) {
-      return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
+    const allowed = await canManageColumns(tableId, user.id);
+    if (!allowed) {
+      return NextResponse.json({ error: "You do not have permission to manage columns" }, { status: 403 });
     }
 
     await pool.query(

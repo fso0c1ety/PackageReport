@@ -4,7 +4,7 @@ import { requireWritableSubscription } from "../../../../_lib/billing";
 
 export const runtime = "nodejs";
 
-async function canAccessTable(tableId, userId) {
+async function canAccessTable(tableId, userId, requireEdit = false) {
   const accessRes = await pool.query(
     `
       SELECT t.id
@@ -15,12 +15,19 @@ async function canAccessTable(tableId, userId) {
           w.owner_id = $2
           OR EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(t.shared_users) AS elem
+            FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
             WHERE elem->>'userId' = $2
+              AND (
+                NOT $3::boolean
+                OR (
+                  COALESCE(elem->>'permission', 'edit') <> 'read'
+                  AND COALESCE((elem->'capabilities'->>'editRows')::boolean, true)
+                )
+              )
           )
         )
     `,
-    [tableId, userId]
+    [tableId, userId, requireEdit]
   );
 
   return accessRes.rows.length > 0;
@@ -68,7 +75,7 @@ export async function DELETE(req, { params }) {
     const billingError = await requireWritableSubscription(user.id, { tableId });
     if (billingError) return billingError;
 
-    const allowed = await canAccessTable(tableId, user.id);
+    const allowed = await canAccessTable(tableId, user.id, true);
     if (!allowed) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }

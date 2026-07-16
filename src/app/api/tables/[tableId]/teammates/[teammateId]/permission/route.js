@@ -12,6 +12,12 @@ const ROLE_PERMISSIONS = {
   employee: "edit",
   guest: "read",
 };
+const DEFAULT_CAPABILITIES = {
+  admin: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
+  manager: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
+  employee: { editRows: true, comment: true, uploadFiles: true, export: false, manageColumns: false },
+  guest: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
+};
 
 export async function PUT(req, { params }) {
   const user = getAuthenticatedUser(req);
@@ -26,6 +32,14 @@ export async function PUT(req, { params }) {
     const body = await req.json();
     const role = body?.role;
     const permission = role ? ROLE_PERMISSIONS[role] : body?.permission;
+    const capabilities = role
+      ? Object.fromEntries(
+          Object.keys(DEFAULT_CAPABILITIES.admin).map((key) => [
+            key,
+            body.capabilities?.[key] ?? DEFAULT_CAPABILITIES[role][key],
+          ])
+        )
+      : undefined;
 
     if (!VALID_PERMISSIONS.has(permission) || (role && !ROLE_PERMISSIONS[role])) {
       return NextResponse.json({ error: "Invalid permission" }, { status: 400 });
@@ -50,10 +64,10 @@ export async function PUT(req, { params }) {
     const sharedUsers = Array.isArray(table.shared_users) ? table.shared_users : [];
     const nextSharedUsers = sharedUsers.map((entry) => {
       if (typeof entry === "string") {
-        return entry === teammateId ? { userId: teammateId, permission, ...(role ? { role } : {}) } : entry;
+        return entry === teammateId ? { userId: teammateId, permission, ...(role ? { role, capabilities } : {}) } : entry;
       }
 
-      return entry?.userId === teammateId ? { ...entry, permission, ...(role ? { role } : {}) } : entry;
+      return entry?.userId === teammateId ? { ...entry, permission, ...(role ? { role, capabilities } : {}) } : entry;
     });
 
     await pool.query("UPDATE tables SET shared_users = $1::jsonb WHERE id = $2", [
@@ -71,7 +85,7 @@ export async function PUT(req, { params }) {
       metadata: { role: role || null, permission, tableName: table.name },
     });
 
-    return NextResponse.json({ success: true, permission, role: role || null });
+    return NextResponse.json({ success: true, permission, role: role || null, capabilities });
   } catch (err) {
     console.error("[TABLE TEAMMATE PERMISSION][PUT] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

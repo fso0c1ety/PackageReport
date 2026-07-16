@@ -511,8 +511,10 @@ export async function POST(req, { params }) {
             w.owner_id = $2
             OR EXISTS (
               SELECT 1
-              FROM jsonb_array_elements(t.shared_users) AS elem
+              FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
               WHERE elem->>'userId' = $2
+                AND COALESCE(elem->>'permission', 'edit') <> 'read'
+                AND COALESCE((elem->'capabilities'->>'editRows')::boolean, true)
             )
           )
       `,
@@ -570,8 +572,10 @@ export async function PUT(req, { params }) {
             w.owner_id = $2
             OR EXISTS (
               SELECT 1
-              FROM jsonb_array_elements(t.shared_users) AS elem
+              FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
               WHERE elem->>'userId' = $2
+                AND COALESCE(elem->>'permission', 'edit') <> 'read'
+                AND COALESCE((elem->'capabilities'->>'editRows')::boolean, true)
             )
           )
       `,

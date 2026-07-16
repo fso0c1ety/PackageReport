@@ -66,6 +66,21 @@ interface TabPanelProps {
   value: number;
 }
 
+const BOARD_CAPABILITY_LABELS: Record<string, string> = {
+  editRows: "Edit rows",
+  comment: "Comment",
+  uploadFiles: "Upload files",
+  export: "Export data",
+  manageColumns: "Manage columns",
+};
+
+const BOARD_ROLE_CAPABILITIES: Record<string, Record<string, boolean>> = {
+  admin: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
+  manager: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
+  employee: { editRows: true, comment: true, uploadFiles: true, export: false, manageColumns: false },
+  guest: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
+};
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
 
@@ -78,7 +93,7 @@ function TabPanel(props: TabPanelProps) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
           {children}
         </Box>
       )}
@@ -426,12 +441,12 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newRole: string) => {
+  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newRole: string, capabilities?: Record<string, boolean>) => {
     try {
         const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/teammates/${teammateId}/permission`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: newRole })
+            body: JSON.stringify({ role: newRole, capabilities })
         });
         
         if (res.ok) {
@@ -439,7 +454,7 @@ export default function SettingsPage() {
             // Refresh local state to reflect change in the dialog
             if (selectedTeammateForAccess) {
               const updatedAccess = selectedTeammateForAccess.access.map((a: any) => 
-                a.tableId === tableId ? { ...a, role: newRole } : a
+                a.tableId === tableId ? { ...a, role: newRole, ...(capabilities ? { capabilities } : {}) } : a
               );
               setSelectedTeammateForAccess({ ...selectedTeammateForAccess, access: updatedAccess });
             }
@@ -736,7 +751,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 1000, mx: "auto", p: { xs: 2, md: 4 } }}>
+    <Box sx={{ maxWidth: 1000, mx: "auto", p: { xs: 1, sm: 2, md: 4 }, overflowX: "hidden" }}>
       <Typography variant="h4" fontWeight={800} sx={{ mb: 4, letterSpacing: '-0.5px' }}>
         Account Settings
       </Typography>
@@ -761,7 +776,7 @@ export default function SettingsPage() {
             scrollButtons="auto"
             TabIndicatorProps={{ style: { display: "none" } }} // Hide the standard underline
             sx={{ 
-              p: 1.5,
+              p: { xs: 0.75, sm: 1.5 },
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.18)',
               '& .MuiTab-root': {
                 minHeight: 44,
@@ -770,7 +785,7 @@ export default function SettingsPage() {
                 fontSize: 14,
                 borderRadius: 999,
                 margin: '0 4px',
-                padding: '8px 20px',
+                padding: { xs: '7px 12px', sm: '8px 20px' },
                 color: theme.palette.text.secondary,
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
@@ -1689,7 +1704,7 @@ export default function SettingsPage() {
             </Box>
             <Divider sx={{ mt: 3, opacity: 0.5 }} />
         </DialogTitle>
-        <DialogContent sx={{ p: 4, pt: 0, flex: 1, overflowY: 'auto' }}>
+        <DialogContent sx={{ p: { xs: 2, sm: 4 }, pt: 0, flex: 1, overflowY: 'auto' }}>
             <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 2, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                     Shared Access
@@ -1715,7 +1730,7 @@ export default function SettingsPage() {
                     <Paper 
                         key={a.tableId} 
                         variant="outlined" 
-                        sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: panelBg, boxShadow: 'none' }}
+                        sx={{ p: 2.5, borderRadius: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'flex-start' }, justifyContent: 'space-between', gap: 2, bgcolor: panelBg, boxShadow: 'none' }}
                     >
                         <Box>
                             <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', mb: 0.5, letterSpacing: '0.5px' }}>
@@ -1724,7 +1739,7 @@ export default function SettingsPage() {
                             <Typography variant="subtitle1" fontWeight={800}>{a.tableName}</Typography>
                         </Box>
                         
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.25, minWidth: { sm: 320 } }}>
                             <TextField
                                 select
                                 size="small"
@@ -1741,12 +1756,34 @@ export default function SettingsPage() {
                                 <option value="employee">Employee</option>
                                 <option value="guest">Guest</option>
                             </TextField>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
+                              {Object.entries(BOARD_CAPABILITY_LABELS).map(([key, label]) => {
+                                const role = a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee');
+                                const current = { ...BOARD_ROLE_CAPABILITIES[role], ...(a.capabilities || {}) };
+                                return (
+                                  <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                    <Typography variant="caption" fontWeight={700}>{label}</Typography>
+                                    <Switch
+                                      size="small"
+                                      checked={Boolean(current[key])}
+                                      onChange={(event) => handleUpdateGranularPermission(
+                                        selectedTeammateForAccess.id,
+                                        a.tableId,
+                                        role,
+                                        { ...current, [key]: event.target.checked }
+                                      )}
+                                      inputProps={{ 'aria-label': `${label} for ${a.tableName}` }}
+                                    />
+                                  </Box>
+                                );
+                              })}
+                            </Box>
                         </Box>
                     </Paper>
                 ))}
             </List>
         </DialogContent>
-        <DialogActions sx={{ p: 4, pt: 2 }}>
+        <DialogActions sx={{ p: { xs: 2, sm: 4 }, pt: 2 }}>
             <Button 
                 fullWidth 
                 variant="outlined" 

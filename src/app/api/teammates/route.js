@@ -32,7 +32,8 @@ export async function GET(req) {
                 WHEN elem->>'permission' = 'read' THEN 'guest'
                 ELSE 'employee'
               END
-            ) as role
+            ) as role,
+            elem->'capabilities' as capabilities
           FROM owned_tables ot
           CROSS JOIN LATERAL jsonb_array_elements(ot.shared_users) AS elem
           UNION ALL
@@ -43,7 +44,8 @@ export async function GET(req) {
             NULL as table_name,
             NULL as workspace_name,
             'edit' as permission,
-            'employee' as role
+            'employee' as role,
+            NULL::jsonb as capabilities
           FROM notifications n
           WHERE n.sender_id = $1 AND n.type = 'invite'
       ),
@@ -57,7 +59,8 @@ export async function GET(req) {
                 'tableName', table_name,
                 'workspaceName', workspace_name,
                 'permission', permission,
-                'role', role
+                'role', role,
+                'capabilities', capabilities
               )
             ) FILTER (WHERE table_id IS NOT NULL) as access
           FROM all_collaborators
