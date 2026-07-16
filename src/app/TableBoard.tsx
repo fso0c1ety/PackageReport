@@ -852,9 +852,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const skipPreferenceSaveRef = React.useRef(false);
   useEffect(() => {
   if (!tableId || typeof window === 'undefined') return;
-  let storedUserId = currentUser?.id || 'anonymous';
-  try { storedUserId = currentUser?.id || JSON.parse(window.localStorage.getItem('user') || '{}')?.id || 'anonymous'; } catch {}
-  const key = `smart-manage:board-preferences:${storedUserId}:${tableId}`;
+  const key = `smart-manage:board-preferences:${tableId}`;
   skipPreferenceSaveRef.current = true;
   window.queueMicrotask(() => { skipPreferenceSaveRef.current = false; });
   try {
@@ -866,7 +864,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (supported.includes(saved.selectedView)) setWorkspaceView(saved.selectedView);
   } catch {}
   loadedPreferencesRef.current = key;
-  }, [tableId, currentUser?.id]);
+  }, [tableId]);
   useEffect(() => {
   if (!loadedPreferencesRef.current || typeof window === 'undefined') return;
   if (skipPreferenceSaveRef.current) return;
