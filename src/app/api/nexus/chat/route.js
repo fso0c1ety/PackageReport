@@ -134,7 +134,9 @@ export async function POST(req) {
     }
 
     console.warn(`[NEXUS][POST] Upstream AI unavailable, using fallback: ${lastErrorMessage}`);
-    return NextResponse.json(buildFallbackCompletion(buildGracefulPayload(input)));
+    const providerFallback = aiContext.buildDeterministicInsight(capability, context);
+    await pool.query("INSERT INTO ai_action_logs(id,user_id,workspace_id,capability,input_summary,status,metadata) VALUES($1,$2,$3,$4,$5,'provider_fallback',$6::jsonb)", [randomUUID(), String(user.id), workspaceId, capability, input.slice(0,500), JSON.stringify({ boardCount: context.boards.length, rowCount: context.rows.length, providerUnavailable: true })]);
+    return NextResponse.json(buildFallbackCompletion(providerFallback));
   } catch (err) {
     console.error("[NEXUS][POST] Error:", err);
     return NextResponse.json(buildFallbackCompletion(buildGracefulPayload(input)));
