@@ -10,6 +10,10 @@ export async function GET(req) {
   }
 
   try {
+    const url = new URL(req.url);
+    const typeFilter = String(url.searchParams.get("type") || "").trim();
+    const workspaceFilter = String(url.searchParams.get("workspaceId") || "").trim();
+    const unreadOnly = url.searchParams.get("unread") === "true";
     const prefResult = await pool.query("SELECT notification_preferences FROM users WHERE id=$1", [user.id]);
     const categories = prefResult.rows[0]?.notification_preferences?.categories || {};
     const result = await pool.query(
@@ -18,10 +22,15 @@ export async function GET(req) {
         FROM notifications n
         LEFT JOIN users u ON n.sender_id = u.id
         WHERE n.recipient_id = $1
+          AND ($2 = '' OR n.type = $2)
+          AND ($3 = '' OR n.data->>'workspaceId' = $3 OR EXISTS (
+            SELECT 1 FROM tables filter_table WHERE filter_table.id = n.data->>'tableId' AND filter_table.workspace_id = $3
+          ))
+          AND (NOT $4::boolean OR n.read = FALSE)
         ORDER BY n.read ASC, n.created_at DESC
         LIMIT 50
       `,
-      [user.id]
+      [user.id, typeFilter, workspaceFilter, unreadOnly]
     );
 
     const categoryFor = (type) => type === "security" || type === "login" ? "security" : type === "comment" || type === "chat" ? "comments" : type === "deadline" || type === "calendar" ? "deadlines" : type === "billing" ? "billing" : "assignments";

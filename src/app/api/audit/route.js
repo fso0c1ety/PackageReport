@@ -9,6 +9,9 @@ export async function GET(req) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    const url = new URL(req.url);
+    const action = String(url.searchParams.get("action") || "").trim();
+    const workspaceId = String(url.searchParams.get("workspaceId") || "").trim();
     await ensureEnterpriseAuditSchema();
     const result = await pool.query(`
       SELECT l.id, l.action, l.entity_type, l.entity_id, l.table_id, l.workspace_id,
@@ -23,9 +26,11 @@ export async function GET(req) {
         WHERE owned.owner_id = $1
           AND owned.id = COALESCE(l.workspace_id, t.workspace_id)
       )
+      AND ($2 = '' OR l.action = $2)
+      AND ($3 = '' OR COALESCE(l.workspace_id, t.workspace_id) = $3)
       ORDER BY l.created_at DESC
       LIMIT 100
-    `, [String(user.id)]);
+    `, [String(user.id), action, workspaceId]);
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error("[AUDIT][GET] Error:", error);
