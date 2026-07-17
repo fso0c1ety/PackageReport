@@ -505,7 +505,7 @@ export default function Sidebar({
             {(!currentWorkspaceId || workspaceModules.includes("ai")) && <SidebarItem
               icon={<AutoAwesomeIcon fontSize="small" />}
               label="Nexus Brain"
-              href="/nexusbrain-chat"
+              href={currentWorkspaceId ? `/nexusbrain-chat?id=${currentWorkspaceId}` : "/nexusbrain-chat"}
               isActive={pathname === "/nexusbrain-chat"}
               onClick={onClose}
             />}

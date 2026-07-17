@@ -59,6 +59,7 @@ import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import BuildIcon from "@mui/icons-material/Build";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 
 // --- Styled Components ---
 
@@ -647,6 +648,8 @@ export default function DashboardPage() {
             Track project health, team velocity, and task completion
           </Typography>
         </Box>
+        <Stack direction="row" spacing={1}>
+        <Button variant="contained" startIcon={<AutoAwesomeIcon />} disabled={!selectedWorkspace} onClick={() => { window.location.href = `/nexusbrain-chat?id=${encodeURIComponent(selectedWorkspace)}`; }} sx={{ textTransform: 'none', fontWeight: 800 }}>AI Report</Button>
         <Button
           variant="outlined"
           startIcon={<DownloadIcon />}
@@ -660,6 +663,7 @@ export default function DashboardPage() {
         >
           Export Report
         </Button>
+        </Stack>
       </HeaderSection>
 
       <ContentSection>

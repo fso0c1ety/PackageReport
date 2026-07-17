@@ -5,6 +5,7 @@ import { inferWorkspaceModules, moduleStorageShape, normalizeWorkspaceModules, W
 
 export const runtime = "nodejs";
 async function ensureModulesTable() {
+  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE");
   await pool.query(`CREATE TABLE IF NOT EXISTS workspace_modules (workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, module_key TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (workspace_id,module_key))`);
   const result = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_modules'");
   return moduleStorageShape(result.rows.map((row) => row.column_name));
@@ -56,5 +57,6 @@ export async function PUT(req, { params }) {
   } else {
     await pool.query("INSERT INTO workspace_modules(workspace_id,modules,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(workspace_id) DO UPDATE SET modules=EXCLUDED.modules,updated_at=NOW()", [workspaceId, JSON.stringify(modules)]);
   }
+  await pool.query("UPDATE workspaces SET ai_enabled=$1 WHERE id=$2", [modules.includes("ai"), workspaceId]);
   return NextResponse.json({ workspaceId, modules });
 }

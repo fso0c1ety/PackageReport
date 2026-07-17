@@ -26,6 +26,7 @@ import FindInPageIcon from "@mui/icons-material/FindInPage";
 import RuleIcon from "@mui/icons-material/Rule";
 import { motion } from "framer-motion";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
+import { useSearchParams } from "next/navigation";
 
 type NexusMessage = {
   role: "assistant" | "user";
@@ -34,15 +35,18 @@ type NexusMessage = {
 };
 
 const AI_TOOLS = [
-  { label: "AI Summary", icon: SummarizeIcon, prompt: "Summarize the current workspace activity, priorities, risks, and next actions." },
-  { label: "AI Email", icon: EmailIcon, prompt: "Draft a professional email. Ask me only for the missing recipient, purpose, or tone." },
-  { label: "AI Translate", icon: TranslateIcon, prompt: "Translate my next text while preserving its meaning and professional tone. Ask for the target language." },
-  { label: "AI Autofill", icon: AutoFixHighIcon, prompt: "Help autofill missing workspace fields. Identify what information is required before proposing values." },
-  { label: "AI Reports", icon: AssessmentIcon, prompt: "Create a concise business report with KPIs, trends, risks, and recommended actions." },
-  { label: "Expense Analysis", icon: ReceiptLongIcon, prompt: "Analyze expenses, flag unusual costs, and suggest concrete savings opportunities." },
-  { label: "Delayed Loads", icon: LocalShippingIcon, prompt: "Analyze delayed loads, likely causes, customer impact, and recommended follow-up actions." },
-  { label: "Document Summary", icon: FindInPageIcon, prompt: "Summarize a document. Ask me to provide or select the document, then return key facts, dates, risks, and actions." },
-  { label: "Missing Fields", icon: RuleIcon, prompt: "Find missing or incomplete fields and prioritize which records need attention first." },
+  { label: "AI Summary", capability: "summary", icon: SummarizeIcon, prompt: "Summarize the current workspace activity, priorities, risks, and next actions." },
+  { label: "AI Email", capability: "email", icon: EmailIcon, prompt: "Draft a professional email. Ask me only for the missing recipient, purpose, or tone." },
+  { label: "AI Translate", capability: "translate", icon: TranslateIcon, prompt: "Translate my next text while preserving its meaning and professional tone. Ask for the target language." },
+  { label: "AI Autofill", capability: "autofill", icon: AutoFixHighIcon, prompt: "Help autofill missing workspace fields. Identify what information is required before proposing values." },
+  { label: "AI Reports", capability: "reports", icon: AssessmentIcon, prompt: "Create a concise business report with KPIs, trends, risks, and recommended actions." },
+  { label: "Expense Analysis", capability: "expense_analysis", icon: ReceiptLongIcon, prompt: "Analyze expenses, flag unusual costs, and suggest concrete savings opportunities." },
+  { label: "Delayed Loads", capability: "delayed_loads", icon: LocalShippingIcon, prompt: "Analyze delayed loads, likely causes, customer impact, and recommended follow-up actions." },
+  { label: "Document Summary", capability: "document_summary", icon: FindInPageIcon, prompt: "Summarize a document. Ask me to provide or select the document, then return key facts, dates, risks, and actions." },
+  { label: "Missing Fields", capability: "missing_fields", icon: RuleIcon, prompt: "Find missing or incomplete fields and prioritize which records need attention first." },
+  { label: "Data Cleanup", capability: "data_cleanup", icon: RuleIcon, prompt: "Find duplicate, inconsistent, or malformed data and recommend safe cleanup steps." },
+  { label: "Formula Assistant", capability: "formula_assistant", icon: AutoFixHighIcon, prompt: "Help me create or debug a board formula using the available columns." },
+  { label: "Automation Assistant", capability: "automation_assistant", icon: AutoAwesomeIcon, prompt: "Design a safe WHEN / IF / THEN automation for this workspace." },
 ] as const;
 
 const initialMessages: NexusMessage[] = [
@@ -67,10 +71,20 @@ function readAssistantResponse(data: any) {
 
 export default function NexusBrainChatPage() {
   const theme = useTheme();
+  const searchParams = useSearchParams();
+  const [workspaceId, setWorkspaceId] = useState(searchParams.get("id") || "");
   const [messages, setMessages] = useState<NexusMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (workspaceId) return;
+    authenticatedFetch(getApiUrl("/workspaces"), { suppressNativeErrorAlert: true })
+      .then((response) => response.ok ? response.json() : [])
+      .then((items) => { if (Array.isArray(items) && items[0]?.id) setWorkspaceId(String(items[0].id)); })
+      .catch(() => undefined);
+  }, [workspaceId]);
 
   useEffect(() => {
     try {
@@ -89,7 +103,7 @@ export default function NexusBrainChatPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  const sendMessage = async (forcedText?: string) => {
+  const sendMessage = async (forcedText?: string, capability = "summary") => {
     const text = (forcedText || input).trim();
     if (!text || isThinking) return;
 
@@ -109,6 +123,8 @@ export default function NexusBrainChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: text,
+          workspaceId,
+          capability,
           systemPrompt:
             'You are "Nexus Brain", the intelligent assistant inside Smart Manage. You help with summaries, professional emails, translation, autofill suggestions, reports, expense analysis, delayed loads, document summaries, and missing-field detection. Never claim to have changed workspace data unless an action result confirms it. Reply in concise JSON with fields thought, action, params, and response. Keep the response practical and short.',
           messages: messages.map((message) => ({
@@ -291,13 +307,13 @@ export default function NexusBrainChatPage() {
 
         <Box sx={{ p: { xs: 2, md: 2.5 }, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: "action.hover" }}>
           <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: "auto", pb: 0.75, scrollbarWidth: "thin" }}>
-            {AI_TOOLS.map(({ label, icon: ToolIcon, prompt }) => (
+            {AI_TOOLS.map(({ label, capability, icon: ToolIcon, prompt }) => (
               <Chip
                 key={label}
                 icon={<ToolIcon sx={{ fontSize: "17px !important" }} />}
                 label={label}
                 disabled={isThinking}
-                onClick={() => sendMessage(prompt)}
+                onClick={() => sendMessage(prompt, capability)}
                 sx={{
                   flexShrink: 0,
                   height: 36,

@@ -2330,6 +2330,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
   input: "Generate invoice from selected tasks and options.",
+  workspaceId: workspaceIdForImport,
+  capability: 'reports',
   systemPrompt,
   messages: []
   })
@@ -2443,6 +2445,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
   input,
+  workspaceId: workspaceIdForImport,
+  capability: /report/i.test(input) ? 'reports' : /translate/i.test(input) ? 'translate' : /formula/i.test(input) ? 'formula_assistant' : /automation|workflow/i.test(input) ? 'automation_assistant' : /missing|incomplete/i.test(input) ? 'missing_fields' : 'summary',
   systemPrompt: assistantSystemPrompt,
   messages: parsedHistory
   })
