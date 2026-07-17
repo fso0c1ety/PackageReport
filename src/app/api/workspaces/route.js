@@ -38,7 +38,8 @@ export async function GET(req) {
         WHERE w.owner_id = $1 OR EXISTS (
           SELECT 1
           FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
-          WHERE COALESCE(elem->>'userId', elem #>> '{}') = $1
+          WHERE elem->>'userId' = $1
+             OR (jsonb_typeof(elem) = 'string' AND trim(both '"' from elem::text) = $1)
         )
       `,
       [user.id]

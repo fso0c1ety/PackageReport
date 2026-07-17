@@ -22,7 +22,8 @@ async function authorize(workspaceId, userId, ownerOnly = false) {
   if (ownerOnly) return false;
   const shared = await pool.query(`SELECT 1 FROM tables WHERE workspace_id=$1 AND EXISTS (
     SELECT 1 FROM jsonb_array_elements(COALESCE(shared_users,'[]'::jsonb)) member
-    WHERE COALESCE(member->>'userId', member #>> '{}')=$2
+    WHERE member->>'userId'=$2
+       OR (jsonb_typeof(member)='string' AND trim(both '"' from member::text)=$2)
   ) LIMIT 1`, [workspaceId, String(userId)]);
   return shared.rowCount > 0;
 }
