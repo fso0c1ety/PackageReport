@@ -25,8 +25,7 @@ export async function GET(req, { params }) {
        WHERE workspace_id = $1
          AND EXISTS (
            SELECT 1 FROM jsonb_array_elements(COALESCE(shared_users, '[]'::jsonb)) AS elem
-           WHERE elem->>'userId' = $2
-              OR (jsonb_typeof(elem) = 'string' AND trim(both '"' from elem::text) = $2)
+           WHERE COALESCE(elem->>'userId', elem #>> '{}') = $2
          )`,
       [workspaceId, user.id]
     );
@@ -43,8 +42,7 @@ export async function GET(req, { params }) {
        WHERE workspace_id = $1
          AND ($2 = $3 OR EXISTS (
            SELECT 1 FROM jsonb_array_elements(COALESCE(shared_users, '[]'::jsonb)) AS elem
-           WHERE elem->>'userId' = $3
-              OR (jsonb_typeof(elem) = 'string' AND trim(both '"' from elem::text) = $3)
+           WHERE COALESCE(elem->>'userId', elem #>> '{}') = $3
          ))`,
       [workspaceId, workspace.owner_id, user.id]
     );
