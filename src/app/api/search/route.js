@@ -24,7 +24,7 @@ export async function GET(req) {
       SELECT 'board',a.id,a.name,'Board',a.workspace_id,a.id,2 FROM accessible a WHERE a.name ILIKE $2 ESCAPE '\\'
       UNION ALL
       SELECT 'row',r.id,COALESCE(NULLIF(r.values->>'name',''),NULLIF(r.values->>'title',''),'Matching row'),a.name,a.workspace_id,a.id,3
-      FROM rows r JOIN accessible a ON a.id=r.table_id WHERE r.values::text ILIKE $2 ESCAPE '\\' LIMIT 20
+      FROM rows r JOIN accessible a ON a.id=r.table_id WHERE r.values::text ILIKE $2 ESCAPE '\\'
       UNION ALL
       SELECT 'user',u.id,u.name,u.email,NULL,NULL,4 FROM users u WHERE u.name ILIKE $2 ESCAPE '\\' OR u.email ILIKE $2 ESCAPE '\\'
     ) SELECT * FROM hits ORDER BY rank,title LIMIT 30
