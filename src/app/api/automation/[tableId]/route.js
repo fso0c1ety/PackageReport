@@ -190,7 +190,7 @@ export async function POST(req, { params }) {
       ? rules.filter((rule) => rule?.value && ["email", "notification", "both", "webhook", "create_task"].includes(rule?.actionType))
       : [];
     const effectiveTriggerCol = triggerCol || definition.trigger.columnId;
-    const legacyDeliveryAction = ["email", "notification", "both", "webhook", "create_task"].includes(normalizedActionType);
+    const legacyDeliveryAction = !body?.definition && ["email", "notification", "both", "webhook", "create_task"].includes(normalizedActionType);
     const validationError = legacyDeliveryAction ? validateAutomationPayload({ triggerCol: effectiveTriggerCol, recipients, cols, actionType: normalizedActionType, actionConfig }) : null;
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
