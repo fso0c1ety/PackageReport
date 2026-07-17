@@ -4,9 +4,7 @@ import { requireWritableSubscription } from "../../../_lib/billing";
 import { inferWorkspaceModules, moduleStorageShape, normalizeWorkspaceModules, WORKSPACE_MODULES } from "../../../../../../server/services/moduleEngine";
 
 export const runtime = "nodejs";
-async function ensureModulesTable() {
-  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE");
-  await pool.query(`CREATE TABLE IF NOT EXISTS workspace_modules (workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, module_key TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (workspace_id,module_key))`);
+async function getModulesStorageShape() {
   const result = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_modules'");
   return moduleStorageShape(result.rows.map((row) => row.column_name));
 }
@@ -31,7 +29,7 @@ export async function GET(req, { params }) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await params;
   if (!(await authorize(workspaceId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const shape = await ensureModulesTable();
+  const shape = await getModulesStorageShape();
   const result = shape === "rows"
     ? await pool.query("SELECT module_key FROM workspace_modules WHERE workspace_id=$1 AND enabled=TRUE ORDER BY module_key", [workspaceId])
     : await pool.query("SELECT modules FROM workspace_modules WHERE workspace_id=$1", [workspaceId]);
@@ -50,7 +48,7 @@ export async function PUT(req, { params }) {
   if (billingError) return billingError;
   const body = await req.json();
   const modules = normalizeWorkspaceModules(body.modules);
-  const shape = await ensureModulesTable();
+  const shape = await getModulesStorageShape();
   if (shape === "rows") {
     await pool.query("UPDATE workspace_modules SET enabled=FALSE,updated_at=NOW() WHERE workspace_id=$1", [workspaceId]);
     for (const moduleKey of modules) await pool.query("INSERT INTO workspace_modules(workspace_id,module_key,enabled,settings,updated_at) VALUES($1,$2,TRUE,'{}'::jsonb,NOW()) ON CONFLICT(workspace_id,module_key) DO UPDATE SET enabled=TRUE,updated_at=NOW()", [workspaceId, moduleKey]);
