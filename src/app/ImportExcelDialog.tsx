@@ -35,7 +35,7 @@ export default function ImportExcelDialog({
   const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId || "");
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [result, setResult] = useState<{ rowCount: number; tableName: string } | null>(null);
+  const [result, setResult] = useState<{ rowCount: number; tableName: string; duplicateCount?: number; errorCount?: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,7 +89,7 @@ export default function ImportExcelDialog({
       }
 
       const data = await res.json();
-      setResult({ rowCount: data.rowCount, tableName: data.tableName });
+      setResult({ rowCount: data.rowCount, tableName: data.tableName, duplicateCount: data.report?.duplicates?.length || 0, errorCount: data.report?.errors?.length || 0 });
       setStage("done");
     } catch (err: any) {
       setErrorMsg(err.message || "Import failed");
@@ -112,7 +112,7 @@ export default function ImportExcelDialog({
     onClose();
   };
 
-  const accepted = ".xlsx,.xls,.csv";
+  const accepted = ".xlsx,.xls,.csv,.json";
 
   return (
     <Dialog
@@ -134,7 +134,7 @@ export default function ImportExcelDialog({
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 0 }}>
         <TableChartIcon sx={{ color: "#4f8ef7" }} />
         <Typography component="span" variant="h6" fontWeight={700} sx={{ flex: 1 }}>
-          Import from Excel
+          Import Data
         </Typography>
         {stage !== "importing" && (
           <IconButton size="small" onClick={handleClose} sx={{ color: "rgba(255,255,255,0.5)" }}>
@@ -151,6 +151,11 @@ export default function ImportExcelDialog({
             <Typography variant="h5" fontWeight={700} gutterBottom>
               Import Complete!
             </Typography>
+            {(result.duplicateCount || result.errorCount) ? (
+              <Alert severity={result.errorCount ? "warning" : "info"} sx={{ mt: 2, textAlign: "left" }}>
+                Import report: {result.duplicateCount || 0} duplicate rows skipped, {result.errorCount || 0} invalid rows skipped.
+              </Alert>
+            ) : null}
             <Typography sx={{ color: "rgba(255,255,255,0.6)", mb: 2 }}>
               Table <b style={{ color: "#fff" }}>"{result.tableName}"</b> created with{" "}
               <b style={{ color: "#4f8ef7" }}>{result.rowCount}</b> rows.
@@ -219,7 +224,7 @@ export default function ImportExcelDialog({
                     Drag & drop or click to browse
                   </Typography>
                   <Stack direction="row" gap={0.8} justifyContent="center">
-                    {[".xlsx", ".xls", ".csv"].map(ext => (
+                    {[".xlsx", ".xls", ".csv", ".json"].map(ext => (
                       <Chip key={ext} label={ext} size="small" sx={{ backgroundColor: "rgba(79,142,247,0.15)", color: "#4f8ef7", fontWeight: 600, fontSize: 11 }} />
                     ))}
                   </Stack>
