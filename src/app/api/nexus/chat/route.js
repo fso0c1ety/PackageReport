@@ -76,7 +76,7 @@ export async function POST(req) {
     if (access.rows[0].ai_enabled === false) return NextResponse.json({ error: "AI is disabled for this workspace" }, { status: 403 });
     const tablesResult = await pool.query("SELECT id,name,columns,doc_content FROM tables WHERE workspace_id=$1 AND (EXISTS(SELECT 1 FROM workspaces w WHERE w.id=$1 AND w.owner_id=$2) OR COALESCE(shared_users,'[]'::jsonb) @> $3::jsonb)", [workspaceId, String(user.id), JSON.stringify([{ userId: String(user.id) }])]);
     const tableIds = tablesResult.rows.map((table) => String(table.id));
-    const rowsResult = tableIds.length ? await pool.query("SELECT id,table_id,values FROM rows WHERE table_id=ANY($1) AND archived_at IS NULL ORDER BY updated_at DESC NULLS LAST,created_at DESC LIMIT 100", [tableIds]) : { rows: [] };
+    const rowsResult = tableIds.length ? await pool.query("SELECT id,table_id,values FROM rows WHERE table_id::text=ANY($1::text[]) AND archived_at IS NULL ORDER BY created_at DESC LIMIT 100", [tableIds]) : { rows: [] };
     const context = aiContext.buildWorkspaceContext({ workspace: access.rows[0], tables: tablesResult.rows, rows: rowsResult.rows });
     const contextText = JSON.stringify(context).slice(0, 50000);
     const systemPrompt = `${body?.systemPrompt || "You are Nexus Brain."}\nCapability: ${capability}. Use only the authorized workspace context below. Never reveal another workspace or claim a write occurred.\nWORKSPACE_CONTEXT:${contextText}`;
