@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { requireWritableSubscription } from "../../_lib/billing";
-import { analyzeImportRows, applyColumnMapping, normalizeImportHeaders, parseTemplateJson } from "../../_lib/importLifecycle";
 
 export const runtime = "nodejs";
 
@@ -131,17 +130,15 @@ export async function POST(req) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const isTemplateJson = String(file.name || "").toLowerCase().endsWith(".json");
-    const templateData = isTemplateJson ? parseTemplateJson(buffer.toString("utf8")) : null;
-    const workbook = isTemplateJson ? null : XLSX.read(buffer, { type: "buffer", cellDates: true });
-    const firstSheetName = templateData?.name || workbook?.SheetNames[0];
+    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    const firstSheetName = workbook.SheetNames[0];
 
     if (!firstSheetName) {
       return NextResponse.json({ error: "Workbook is empty" }, { status: 400 });
     }
 
-    const worksheet = workbook?.Sheets[firstSheetName];
-    const rawRows = templateData ? [templateData.headers, ...templateData.rows] : XLSX.utils.sheet_to_json(worksheet, {
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawRows = XLSX.utils.sheet_to_json(worksheet, {
       header: 1,
       defval: "",
       raw: false,
@@ -169,8 +166,8 @@ export async function POST(req) {
     const declaredTypeRow = mondayHeaderRowIndex >= 0 && Array.isArray(rawRows[headerRowIndex - 1])
       ? rawRows[headerRowIndex - 1]
       : [];
-    const initialHeaders = normalizeImportHeaders(headerRow.map((value, index) => normalizeHeader(value, index)));
-    const initialDataRows = rawRows.slice(headerRowIndex + 1).filter((row) => {
+    const headers = headerRow.map((value, index) => normalizeHeader(value, index));
+    const dataRows = rawRows.slice(headerRowIndex + 1).filter((row) => {
       if (!Array.isArray(row) || !row.some((cell) => String(cell ?? "").trim() !== "")) return false;
       const firstCell = normalizeMondayValue(row[0]);
       const normalized = row.map(normalizeMondayValue);
@@ -182,15 +179,6 @@ export async function POST(req) {
       ) return false;
       return true;
     });
-    const mapping = JSON.parse(String(formData.get("columnMapping") || "{}"));
-    const mapped = applyColumnMapping(initialHeaders, initialDataRows, mapping);
-    const headers = mapped.headers;
-    const analysis = analyzeImportRows(headers, mapped.rows);
-    const dataRows = analysis.accepted;
-
-    if (String(formData.get("preview") || "") === "true") {
-      return NextResponse.json({ preview: true, headers, rows: dataRows.slice(0, 25), report: { total: analysis.total, accepted: dataRows.length, duplicates: analysis.duplicates, errors: analysis.errors } });
-    }
 
     const columns = headers.map((header, columnIndex) => {
       const inferred = inferColumnType(dataRows.map((row) => row?.[columnIndex]));
@@ -222,10 +210,7 @@ export async function POST(req) {
     const tableId = randomUUID();
     const tableName = requestedTableName || firstSheetName || "Imported Table";
 
-    const client = await pool.connect();
-    try {
-    await client.query("BEGIN");
-    await client.query(
+    await pool.query(
       "INSERT INTO tables (id, name, workspace_id, columns, created_at, shared_users) VALUES ($1, $2, $3, $4, $5, $6)",
       [tableId, tableName, workspaceId, JSON.stringify(columns), Date.now(), JSON.stringify([])]
     );
@@ -251,18 +236,11 @@ export async function POST(req) {
 
       values.order = rowCount;
 
-      await client.query(
+      await pool.query(
         "INSERT INTO rows (id, table_id, values, created_by, created_at) VALUES ($1, $2, $3, $4, NOW())",
         [randomUUID(), tableId, JSON.stringify(values), user.id]
       );
       rowCount += 1;
-    }
-    await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
     }
 
     return NextResponse.json({
@@ -271,7 +249,6 @@ export async function POST(req) {
       tableName,
       rowCount,
       columns,
-      report: { total: analysis.total, accepted: rowCount, duplicates: analysis.duplicates, errors: analysis.errors },
     });
   } catch (err) {
     console.error("[IMPORT EXCEL][POST] Error:", err);
