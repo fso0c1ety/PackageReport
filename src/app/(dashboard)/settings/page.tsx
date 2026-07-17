@@ -79,6 +79,8 @@ const BOARD_ROLE_CAPABILITIES: Record<string, Record<string, boolean>> = {
   manager: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
   employee: { editRows: true, comment: true, uploadFiles: true, export: false, manageColumns: false },
   guest: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
+  client: { editRows: false, comment: true, uploadFiles: true, export: false, manageColumns: false },
+  custom: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
 };
 
 function TabPanel(props: TabPanelProps) {
@@ -1614,6 +1616,8 @@ export default function SettingsPage() {
                   >
                     <option value="admin">Admin — manage board and members</option>
                     <option value="manager">Manager — manage board content</option>
+                    <option value="client">Client — portal feedback and files</option>
+                    <option value="custom">Custom — configure board access</option>
                     <option value="employee">Employee — create and edit content</option>
                     <option value="guest">Guest — view only</option>
                   </TextField>
@@ -1753,6 +1757,8 @@ export default function SettingsPage() {
                             >
                                 <option value="admin">Admin</option>
                                 <option value="manager">Manager</option>
+                                <option value="client">Client</option>
+                                <option value="custom">Custom</option>
                                 <option value="employee">Employee</option>
                                 <option value="guest">Guest</option>
                             </TextField>
