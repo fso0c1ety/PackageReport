@@ -20,7 +20,11 @@ async function ensureMarketplaceTables() {
     UNIQUE(template_id, user_id)
   )`);
   await pool.query(`ALTER TABLE marketplace_templates ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published', ADD COLUMN IF NOT EXISTS manifest JSONB NOT NULL DEFAULT '{}'::jsonb, ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1, ADD COLUMN IF NOT EXISTS official BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS marketplace_reports(id TEXT PRIMARY KEY,template_id TEXT NOT NULL REFERENCES marketplace_templates(id) ON DELETE CASCADE,user_id TEXT NOT NULL,reason TEXT NOT NULL,details TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS marketplace_reports(id TEXT PRIMARY KEY,template_id TEXT NOT NULL REFERENCES marketplace_templates(id) ON DELETE CASCADE,user_id TEXT NOT NULL,reason TEXT NOT NULL,details TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  } catch (error) {
+    if (!["42710", "42P07"].includes(error?.code)) throw error;
+  }
 }
 
 export async function GET(req) {
