@@ -6,27 +6,10 @@ import marketplaceEngine from "../../../../server/services/marketplaceEngine.cjs
 
 export const runtime = "nodejs";
 
-async function ensureMarketplaceTables() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS marketplace_templates (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL,
-    category TEXT NOT NULL, template_key TEXT NOT NULL, author_id TEXT NOT NULL,
-    downloads INTEGER NOT NULL DEFAULT 0, featured BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS marketplace_reviews (
-    id TEXT PRIMARY KEY, template_id TEXT NOT NULL REFERENCES marketplace_templates(id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    review TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(template_id, user_id)
-  )`);
-  await pool.query(`ALTER TABLE marketplace_templates ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published', ADD COLUMN IF NOT EXISTS manifest JSONB NOT NULL DEFAULT '{}'::jsonb, ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1, ADD COLUMN IF NOT EXISTS official BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
-}
-
 export async function GET(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    await ensureMarketplaceTables();
     const url = new URL(req.url); const mine = url.searchParams.get("mine") === "true";
     const { rows } = await pool.query(`SELECT mt.*, u.name AS author_name,(mt.author_id=$1) AS is_mine,
       COALESCE(AVG(mr.rating), 0)::float AS rating, COUNT(mr.id)::int AS review_count
@@ -45,7 +28,6 @@ export async function POST(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    await ensureMarketplaceTables();
     const body = await req.json();
     const name = marketplaceEngine.sanitizeText(body?.name,100);
     const description = marketplaceEngine.sanitizeText(body?.description,1000);
