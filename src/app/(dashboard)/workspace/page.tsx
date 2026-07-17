@@ -184,18 +184,13 @@ function WorkspaceContent() {
       tasks: /task|work item|todo/i, maintenance: /maintenance|service|repair|oil|tire|insurance|registration|tachograph/i,
     };
     const boardModule = (name: string) => Object.entries(patterns).find(([, pattern]) => pattern.test(name))?.[0];
-    const moduleFilteredTables = Array.isArray(allTables) && enabledModules
+    const data = Array.isArray(allTables) && enabledModules
       ? allTables.filter((table: any) => {
           const requiredModule = boardModule(String(table.name || ""));
           if (moduleParam) return requiredModule === moduleParam;
           return !requiredModule || enabledModules.includes(requiredModule);
         })
       : allTables;
-    // Legacy workspaces may predate module metadata. Never make an existing
-    // workspace look empty solely because its stored module list is stale.
-    const data = !moduleParam && Array.isArray(allTables) && allTables.length > 0 && moduleFilteredTables.length === 0
-      ? allTables
-      : moduleFilteredTables;
     setTables(data);
     setSelected((prev) => {
       if (tableIdParam && data.some((table: any) => table.id === tableIdParam)) return tableIdParam;
