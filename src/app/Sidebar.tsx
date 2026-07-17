@@ -21,6 +21,7 @@ import {
   TextField,
   Typography,
   alpha,
+  Switch,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
@@ -202,6 +203,7 @@ export default function Sidebar({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<WorkspaceTemplateKey>("blank");
+  const [includeSampleData, setIncludeSampleData] = useState(true);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
   useEffect(() => {
@@ -327,7 +329,7 @@ export default function Sidebar({
       const wsRes = await authenticatedFetch(getApiUrl("workspaces"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newWorkspaceName.trim(), templateKey: selectedTemplateKey }),
+        body: JSON.stringify({ name: newWorkspaceName.trim(), templateKey: selectedTemplateKey, includeSampleData }),
       });
 
       if (!wsRes.ok) throw new Error("Failed to create workspace");
@@ -748,6 +750,7 @@ export default function Sidebar({
               );
             })}
           </Box>
+          {(() => { const selectedTemplate = WORKSPACE_TEMPLATES.find(template => template.key === selectedTemplateKey); return selectedTemplate ? <Box sx={{mt:2,p:1.6,borderRadius:2.5,bgcolor:alpha(selectedTemplate.color,.08),border:`1px solid ${alpha(selectedTemplate.color,.2)}`}}><Typography fontWeight={800}>Preview · {selectedTemplate.name}</Typography><Typography variant="body2" color="text.secondary" sx={{mt:.5}}>{selectedTemplate.description}</Typography><Box sx={{display:"flex",alignItems:"center",justifyContent:"space-between",mt:1}}><Typography variant="body2">Include helpful sample data</Typography><Switch checked={includeSampleData} onChange={event=>setIncludeSampleData(event.target.checked)} inputProps={{"aria-label":"Include sample data"}}/></Box></Box>:null; })()}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, borderTop: 'none' }}>
           <Button
