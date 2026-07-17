@@ -190,8 +190,85 @@ async function deliverAutomation({ automation, table, rowId, values }) {
   return { success: true, logId };
 }
 
+function assertSafeWebhookUrl(value) {
+  const url = new URL(String(value || ""));
+  const host = url.hostname.toLowerCase();
+  if (url.protocol !== "https:" || url.username || url.password || host === "localhost" || host.endsWith(".local") || /^127\.|^10\.|^192\.168\.|^169\.254\.|^0\.|^::1$/.test(host)) {
+    throw new Error("Unsafe webhook URL");
+  }
+  return url.toString();
+}
+
+async function executeBuilderAction({ action, automation, table, rowId, values, actorId = null }) {
+  const config = action?.config && typeof action.config === "object" ? action.config : {};
+  const columnId = action?.columnId || config.columnId;
+  switch (action?.type) {
+    case "send_email":
+    case "send_notification": {
+      const recipients = Array.isArray(config.recipients) ? config.recipients : parseJsonArray(automation.recipients);
+      return deliverAutomation({ automation: { ...automation, action_type: action.type === "send_email" ? "email" : "notification", recipients, cols: config.columns || automation.cols }, table, rowId, values });
+    }
+    case "update_field":
+    case "assign_user": {
+      if (!columnId) throw new Error("Target column is required");
+      await db.query("UPDATE rows SET values=jsonb_set(COALESCE(values,'{}'::jsonb),$1,$2::jsonb,true),updated_at=NOW() WHERE id=$3 AND table_id=$4", [`{${columnId}}`, JSON.stringify(config.value ?? action.value ?? null), rowId, table.id]);
+      return { success: true, action: action.type };
+    }
+    case "create_row":
+    case "create_task": {
+      const targetTableId = String(config.tableId || table.id);
+      const newRowId = uuidv4();
+      const rowValues = config.values && typeof config.values === "object" ? config.values : { task: config.taskName || `Follow up: ${values?.task || rowId}` };
+      await db.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,NOW(),NOW())", [newRowId, targetTableId, rowValues, actorId]);
+      return { success: true, rowId: newRowId, tableId: targetTableId };
+    }
+    case "duplicate_row": {
+      const newRowId = uuidv4();
+      await db.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) SELECT $1,table_id,values,$2,NOW(),NOW() FROM rows WHERE id=$3 AND table_id=$4", [newRowId, actorId, rowId, table.id]);
+      return { success: true, rowId: newRowId };
+    }
+    case "move_row": {
+      if (!config.tableId) throw new Error("Destination board is required");
+      await db.query("UPDATE rows SET table_id=$1,updated_at=NOW() WHERE id=$2 AND table_id=$3", [String(config.tableId), rowId, table.id]);
+      return { success: true, tableId: String(config.tableId) };
+    }
+    case "create_relation": {
+      if (!columnId || !config.targetTableId || !config.targetRowId) throw new Error("Relation target is required");
+      const relationId = uuidv4();
+      await db.query("INSERT INTO row_relations(id,source_row_id,source_column_id,target_table_id,target_row_id,created_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(source_row_id,source_column_id,target_row_id) DO NOTHING", [relationId, rowId, columnId, config.targetTableId, config.targetRowId, actorId]);
+      return { success: true, relationId };
+    }
+    case "add_comment": {
+      const body = String(config.body || action.value || "Automated update").trim().slice(0, 5000);
+      await db.query("INSERT INTO item_comments(id,row_id,user_id,body,created_at,updated_at) VALUES($1,$2,$3,$4,NOW(),NOW())", [uuidv4(), rowId, actorId, body]);
+      return { success: true };
+    }
+    case "call_webhook": {
+      const webhookUrl = assertSafeWebhookUrl(config.webhookUrl);
+      const response = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json", "user-agent": "SmartManage-Automation/2.0" }, body: JSON.stringify({ automationId: automation.id, tableId: table.id, rowId, values }) });
+      if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
+      return { success: true, status: response.status };
+    }
+    case "archive_row": {
+      await db.query("UPDATE rows SET archived_at=NOW(),updated_at=NOW() WHERE id=$1 AND table_id=$2", [rowId, table.id]);
+      return { success: true };
+    }
+    default:
+      throw new Error(`Unsupported automation action: ${action?.type}`);
+  }
+}
+
+async function executeBuilderActions({ actions, automation, table, rowId, values, actorId = null }) {
+  const results = [];
+  for (const action of actions || []) results.push(await executeBuilderAction({ action, automation, table, rowId, values, actorId }));
+  return results;
+}
+
 module.exports = {
   buildAutomationEmail,
   deliverAutomation,
+  executeBuilderAction,
+  executeBuilderActions,
+  assertSafeWebhookUrl,
   parseJsonArray,
 };

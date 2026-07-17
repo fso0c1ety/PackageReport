@@ -9,6 +9,8 @@ import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { sendEmail } from "../../../_lib/mailer";
 import { requireWritableSubscription } from "../../../_lib/billing";
+import automationBuilder from "../../../../../../server/services/automationBuilderEngine.cjs";
+import { isSafePublicHttpsUrl } from "../../../_lib/security";
 
 export const runtime = "nodejs";
 
@@ -163,7 +165,7 @@ async function maybeSendTaskNotifications({ table, user, taskId, oldValues, merg
   }
 }
 
-async function runAutomations({ table, taskId, oldValues, newValues }) {
+async function runAutomations({ table, taskId, oldValues, newValues, currentUserId, eventType = "row_updated" }) {
   const autoResult = await pool.query(
     `
       SELECT * FROM automations
@@ -182,34 +184,32 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
   console.log(`[AUTOMATION][NEXT] Found ${autoResult.rows.length} matching automation(s) for task ${taskId}`);
 
   for (const automation of autoResult.rows) {
-    if (["date_arrives", "reminder"].includes(automation.trigger_type)) continue;
-    const triggerCol = automation?.trigger_col;
-    if (!triggerCol) {
-      continue;
-    }
-
-    if (JSON.stringify(oldValues?.[triggerCol]) === JSON.stringify(newValues?.[triggerCol])) {
-      continue;
-    }
+    const hasDefinition = automation.definition && typeof automation.definition === "object" && Object.keys(automation.definition).length > 0;
+    const definition = hasDefinition ? automationBuilder.normalizeAutomationDefinition(automation.definition) : null;
+    const triggerCol = definition?.trigger?.columnId || automation?.trigger_col;
+    if (definition && ["date_arrives", "date_approaching", "reminder"].includes(definition.trigger.type)) continue;
+    if (!definition && ["date_arrives", "reminder"].includes(automation.trigger_type)) continue;
+    const parsedColumns = Array.isArray(table.columns) ? table.columns : (typeof table.columns === "string" ? JSON.parse(table.columns || "[]") : []);
+    const triggerColumn = parsedColumns.find((column) => column.id === triggerCol);
+    const plan = definition ? automationBuilder.buildExecutionPlan(definition, { type: eventType, columnType: triggerColumn?.type, oldValues, newValues }, { currentUserId }) : null;
+    if (definition && !plan.matched) continue;
+    if (!definition && (!triggerCol || JSON.stringify(oldValues?.[triggerCol]) === JSON.stringify(newValues?.[triggerCol]))) continue;
     const rules = toArray(automation.conditions);
-    const matchingRule = rules.find(
-      (rule) => String(rule?.value) === String(newValues?.[triggerCol])
-    );
-    if (rules.length > 0 && !matchingRule) {
-      continue;
-    }
+    const matchingRule = definition ? null : rules.find((rule) => String(rule?.value) === String(newValues?.[triggerCol]));
+    if (!definition && rules.length > 0 && !matchingRule) continue;
 
     const subject = `Task updated: ${table.name}`;
     const taskName = getTaskName(table, newValues);
-    const columns = Array.isArray(table.columns) ? table.columns : [];
+    const columns = parsedColumns;
     const automationCols = toArray(automation.cols);
     const recipients = toArray(automation.recipients)
       .map((recipient) => String(recipient || "").trim())
       .filter(Boolean);
-    const actionType = matchingRule?.actionType || matchingRule?.type || automation.action_type || "email";
-    const actionConfig = automation.action_config && typeof automation.action_config === "object"
-      ? automation.action_config
-      : {};
+    const primaryAction = definition ? plan.actions[0] : null;
+    const actionAliases = { send_email: "email", send_notification: "notification", call_webhook: "webhook" };
+    const rawActionType = primaryAction?.type || matchingRule?.actionType || matchingRule?.type || automation.action_type || "email";
+    const actionType = actionAliases[rawActionType] || rawActionType;
+    const actionConfig = primaryAction?.config || (automation.action_config && typeof automation.action_config === "object" ? automation.action_config : {});
 
     if (["email", "notification", "both"].includes(actionType) && recipients.length === 0) {
       console.warn("[AUTOMATION][NEXT] Skipping automation with no recipients:", automation.id);
@@ -256,6 +256,16 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
   </div>
 </div>`;
 
+    const runId = uuidv4();
+    const idempotencyKey = `${automation.id}:${taskId}:${eventType}:${JSON.stringify(newValues)}`.slice(0, 1000);
+    const runInsert = await pool.query(
+      `INSERT INTO automation_runs(id,automation_id,table_id,row_id,idempotency_key,trigger_type,input,actions,status,started_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,'running',NOW())
+       ON CONFLICT(idempotency_key) DO NOTHING RETURNING id`,
+      [runId, String(automation.id), String(table.id), String(taskId), idempotencyKey, definition?.trigger?.type || automation.trigger_type || eventType, JSON.stringify({ oldValues, newValues, currentUserId, eventType }), JSON.stringify(definition ? plan.actions : [{ type: actionType, config: actionConfig }])]
+    );
+    if (runInsert.rows.length === 0) continue;
+
     const timestampTypeResult = await pool.query(`
       SELECT data_type
       FROM information_schema.columns
@@ -288,7 +298,7 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
       try {
         if (actionType === "webhook") {
           const webhookUrl = String(actionConfig.webhookUrl || "");
-          if (!/^https:\/\//i.test(webhookUrl)) throw new Error("Invalid webhook URL");
+          if (!isSafePublicHttpsUrl(webhookUrl)) throw new Error("Invalid or unsafe webhook URL");
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 10000);
           try {
@@ -326,6 +336,40 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
              VALUES ($1, $2, $3, $4, NOW())`,
             [uuidv4(), table.id, JSON.stringify(createdValues), automation.created_by || null]
           );
+        }
+
+        if (actionType === "create_row") {
+          const targetTableId = String(actionConfig.tableId || table.id);
+          await pool.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,NOW(),NOW())", [uuidv4(), targetTableId, JSON.stringify(actionConfig.values || {}), automation.created_by || currentUserId || null]);
+        }
+
+        if (actionType === "update_field" || actionType === "assign_user") {
+          const targetColumn = primaryAction?.columnId || actionConfig.columnId;
+          if (!targetColumn) throw new Error("Target column is required");
+          await pool.query("UPDATE rows SET values=jsonb_set(COALESCE(values,'{}'::jsonb),$1,$2::jsonb,true),updated_at=NOW() WHERE id=$3 AND table_id=$4", [`{${targetColumn}}`, JSON.stringify(actionConfig.value ?? primaryAction?.value ?? null), taskId, table.id]);
+        }
+
+        if (actionType === "duplicate_row") {
+          await pool.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) SELECT $1,table_id,values,$2,NOW(),NOW() FROM rows WHERE id=$3 AND table_id=$4", [uuidv4(), automation.created_by || currentUserId || null, taskId, table.id]);
+        }
+
+        if (actionType === "move_row") {
+          if (!actionConfig.tableId) throw new Error("Destination board is required");
+          await pool.query("UPDATE rows SET table_id=$1,updated_at=NOW() WHERE id=$2 AND table_id=$3", [String(actionConfig.tableId), taskId, table.id]);
+        }
+
+        if (actionType === "create_relation") {
+          const targetColumn = primaryAction?.columnId || actionConfig.columnId;
+          if (!targetColumn || !actionConfig.targetTableId || !actionConfig.targetRowId) throw new Error("Relation target is required");
+          await pool.query("INSERT INTO row_relations(id,source_row_id,source_column_id,target_table_id,target_row_id,created_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(source_row_id,source_column_id,target_row_id) DO NOTHING", [uuidv4(), taskId, targetColumn, actionConfig.targetTableId, actionConfig.targetRowId, automation.created_by || currentUserId || null]);
+        }
+
+        if (actionType === "add_comment") {
+          await pool.query("INSERT INTO item_comments(id,row_id,user_id,body,created_at,updated_at) VALUES($1,$2,$3,$4,NOW(),NOW())", [uuidv4(), taskId, automation.created_by || currentUserId || null, String(actionConfig.body || primaryAction?.value || "Automated update").slice(0,5000)]);
+        }
+
+        if (actionType === "archive_row") {
+          await pool.query("UPDATE rows SET archived_at=NOW(),updated_at=NOW() WHERE id=$1 AND table_id=$2", [taskId, table.id]);
         }
       } catch (actionErr) {
         successAction = false;
@@ -439,6 +483,14 @@ async function runAutomations({ table, taskId, oldValues, newValues }) {
       "UPDATE activity_logs SET status = $1, error_message = $2 WHERE id = $3",
       [finalStatus, errorMessages.length > 0 ? errorMessages.join("; ") : null, logId]
     );
+    await pool.query(
+      "UPDATE automation_runs SET status=$1,error_message=$2,output=$3::jsonb,finished_at=NOW() WHERE id=$4",
+      [finalStatus === "sent" ? "success" : "failed", errorMessages.length ? errorMessages.join("; ") : null, JSON.stringify({ activityLogId: logId }), runId]
+    );
+    await pool.query(
+      "UPDATE automations SET last_run_at=NOW(),run_count=COALESCE(run_count,0)+1,failure_count=COALESCE(failure_count,0)+$1 WHERE id=$2",
+      [finalStatus === "sent" ? 0 : 1, automation.id]
+    );
   }
 }
 
@@ -536,6 +588,13 @@ export async function POST(req, { params }) {
       `,
       [newTaskId, tableId, JSON.stringify(values), user.id]
     );
+
+    try {
+      const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
+      if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: values, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created" });
+    } catch (automationErr) {
+      console.error("[TABLE TASKS][POST] Automation processing failed after task creation:", automationErr);
+    }
 
     return NextResponse.json(insertRes.rows[0], { status: 201 });
   } catch (err) {
@@ -658,6 +717,7 @@ export async function PUT(req, { params }) {
         taskId: id,
         oldValues,
         newValues: mergedValues,
+        currentUserId: user.id,
       });
     } catch (automationErr) {
       console.error("[TABLE TASKS][PUT] Automation processing failed after task save:", automationErr);

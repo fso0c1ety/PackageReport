@@ -136,6 +136,9 @@ interface TableBoardProps {
   initialTab?: string | null;
 }
 type InvoiceTemplate = 'classic' | 'modern' | 'minimal';
+type AutomationTriggerType = 'row_created' | 'status_changed' | 'field_changed' | 'date_arrives' | 'date_approaching' | 'formula_changed' | 'reminder' | 'form_submitted' | 'relation_added' | 'row_moved' | 'column_change' | 'formula_change';
+type AutomationActionType = 'send_notification' | 'send_email' | 'create_row' | 'create_task' | 'update_field' | 'assign_user' | 'move_row' | 'duplicate_row' | 'create_relation' | 'add_comment' | 'call_webhook' | 'archive_row' | 'email' | 'notification' | 'both' | 'webhook';
+type AutomationConditionType = '' | 'status_equals' | 'number_greater_than' | 'field_empty' | 'date_overdue' | 'person_current_user' | 'relation_exists' | 'formula_matches';
 
 const initialRows: Row[] = [
   {
@@ -1493,7 +1496,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (showEmailAutomation && tableId) {
   authenticatedFetch(getApiUrl(`/automation/${tableId}`))
   .then(res => res.ok ? res.json() : [])
-  .then(data => setAutomations(Array.isArray(data) ? data : []))
+  .then(data => {
+  const items = Array.isArray(data) ? data : [];
+  setAutomations(items);
+  setAutomationLogs(items.flatMap((item: any) => Array.isArray(item.history) ? item.history.map((run: any) => ({ ...run, automationName: item.name || item.definition?.name })) : []));
+  })
   .catch(console.error);
 
   // Fetch Automation Activity Logs
@@ -1501,13 +1508,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   .then(res => res.ok ? res.json() : [])
   .then(data => {
   const filtered = Array.isArray(data) ? data.filter((log: any) => log.tableId === tableId) : [];
-  setAutomationLogs(filtered);
+  setAutomationLogs(previous => [...previous.filter((log: any) => log.automation_id), ...filtered]);
   })
   .catch(console.error);
   }
   }, [showEmailAutomation, tableId]);
-  const [actionType, setActionType] = useState<'email' | 'notification' | 'both' | 'webhook' | 'create_task'>('email');
-  const [automationTriggerType, setAutomationTriggerType] = useState<'column_change' | 'formula_change' | 'date_arrives' | 'reminder'>('column_change');
+  const [actionType, setActionType] = useState<AutomationActionType>('send_notification');
+  const [automationTriggerType, setAutomationTriggerType] = useState<AutomationTriggerType>('field_changed');
+  const [automationName, setAutomationName] = useState('New automation');
+  const [automationConditionType, setAutomationConditionType] = useState<AutomationConditionType>('');
+  const [automationConditionColumn, setAutomationConditionColumn] = useState('');
+  const [automationConditionValue, setAutomationConditionValue] = useState('');
+  const [automationTargetColumn, setAutomationTargetColumn] = useState('');
+  const [automationActionValue, setAutomationActionValue] = useState('');
   const [automationReminderMinutes, setAutomationReminderMinutes] = useState('30');
   const [automationWebhookUrl, setAutomationWebhookUrl] = useState('');
   const [automationTaskName, setAutomationTaskName] = useState('');
@@ -12421,8 +12434,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setEmailTriggerCol("");
   setEmailCols([]);
   setEmailRecipients([]);
-  setActionType("email");
-  setAutomationTriggerType("column_change");
+  setActionType("send_notification");
+  setAutomationTriggerType("field_changed");
+  setAutomationName("New automation");
+  setAutomationConditionType("");
+  setAutomationConditionColumn("");
+  setAutomationConditionValue("");
+  setAutomationTargetColumn("");
+  setAutomationActionValue("");
   setAutomationReminderMinutes("30");
   setAutomationWebhookUrl("");
   setAutomationTaskName("");
@@ -12515,11 +12534,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   <Box sx={{ flex: 1 }}>
   <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: theme.palette.text.primary }}>
-  When <Box component="span" sx={{ color: theme.palette.primary.main }}>{columns.find(c => c.id === auto.triggerCol)?.name || 'Column'}</Box> updates
+  {auto.name || auto.definition?.name || 'Automation'}
+  </Typography>
+  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+  WHEN {String(auto.definition?.trigger?.type || auto.triggerType || 'field_changed').replaceAll('_', ' ')}
+  {auto.definition?.conditions?.length ? ` - IF ${auto.definition.conditions.length} condition${auto.definition.conditions.length === 1 ? '' : 's'}` : ''}
+  {' - THEN '}{String(auto.definition?.actions?.[0]?.type || auto.actionType || 'send_notification').replaceAll('_', ' ')}
   </Typography>
   <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
   <Chip
-  label={auto.actionType === 'both' ? 'Email + Alert' : auto.actionType === 'notification' ? 'Internal Notification' : auto.actionType === 'webhook' ? 'Webhook' : auto.actionType === 'create_task' ? 'Create Task' : 'External Email'}
+  label={`${auto.runCount || 0} runs${auto.failureCount ? ` / ${auto.failureCount} failed` : ''}`}
   size="small"
   sx={{ bgcolor: theme.palette.action.hover, color: theme.palette.text.secondary, height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1.5 }}
   />
@@ -12552,11 +12576,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   onChange={async (e) => {
   const newEnabled = e.target.checked;
   setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: newEnabled } : a));
-  await authenticatedFetch(getApiUrl(`/automation/${tableId}`), {
-  method: 'POST',
+  const response = await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), {
+  method: 'PATCH',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ ...auto, enabled: newEnabled })
+  body: JSON.stringify({ operation: 'set_enabled', enabled: newEnabled })
   });
+  if (!response.ok) setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, enabled: !newEnabled } : a));
   }}
   sx={{
   '& .MuiSwitch-switchBase.Mui-checked': { color: theme.palette.primary.main },
@@ -12569,8 +12594,14 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setEmailTriggerCol(auto.triggerCol);
   setEmailCols(auto.cols || []);
   setEmailRecipients(auto.recipients || []);
-  setActionType(auto.actionType || 'email');
-  setAutomationTriggerType(auto.triggerType || 'column_change');
+  setActionType((auto.definition?.actions?.[0]?.type || auto.actionType || 'send_notification') as AutomationActionType);
+  setAutomationTriggerType((auto.definition?.trigger?.type || auto.triggerType || 'field_changed') as AutomationTriggerType);
+  setAutomationName(auto.definition?.name || auto.name || 'Automation');
+  setAutomationConditionType((auto.definition?.conditions?.[0]?.type || '') as AutomationConditionType);
+  setAutomationConditionColumn(auto.definition?.conditions?.[0]?.columnId || '');
+  setAutomationConditionValue(String(auto.definition?.conditions?.[0]?.value ?? ''));
+  setAutomationTargetColumn(auto.definition?.actions?.[0]?.columnId || '');
+  setAutomationActionValue(String(auto.definition?.actions?.[0]?.config?.value ?? auto.definition?.actions?.[0]?.value ?? ''));
   setAutomationReminderMinutes(String(auto.actionConfig?.minutesBefore ?? 30));
   setAutomationWebhookUrl(auto.actionConfig?.webhookUrl || '');
   setAutomationTaskName(auto.actionConfig?.taskName || '');
@@ -12583,6 +12614,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   >
   <SettingsIcon fontSize="small" />
   </IconButton>
+  <IconButton
+  title="Duplicate automation"
+  onClick={async () => {
+  const response = await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'duplicate' }) });
+  if (response.ok) {
+  const refreshed = await authenticatedFetch(getApiUrl(`/automation/${tableId}`)).then(result => result.json());
+  setAutomations(Array.isArray(refreshed) ? refreshed : []);
+  showNotification('Automation duplicated', 'success');
+  } else showNotification('Unable to duplicate automation', 'error');
+  }}
+  sx={{ color: theme.palette.text.secondary }}
+  ><ContentCopyIcon fontSize="small" /></IconButton>
+  {auto.history?.[0]?.status === 'failed' && <Button size="small" onClick={async () => {
+  const response = await authenticatedFetch(getApiUrl(`/automation/${tableId}/${auto.id}`), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'retry', runId: auto.history[0].id }) });
+  showNotification(response.ok ? 'Retry queued' : 'Unable to retry', response.ok ? 'success' : 'error');
+  }}>Retry</Button>}
   <IconButton
   onClick={async () => {
   if (confirm('Permanently delete this flow?')) {
@@ -12603,23 +12650,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   ) : (
   <Box sx={{ maxWidth: isMobile ? '100%' : 640 }}>
   <Typography variant="overline" sx={{ color: theme.palette.primary.main, fontWeight: 900, mb: 1, display: 'block', letterSpacing: '0.1em' }}>SEQUENCE DESIGNER</Typography>
+  <TextField fullWidth label="Automation name" value={automationName} onChange={(event) => setAutomationName(event.target.value)} sx={{ mb: 3 }} />
   
   <Stack spacing={4}>
   <Box>
-  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>1. Choose Trigger</Typography>
+  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 900 }}>WHEN - Choose Trigger</Typography>
   <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
   {[
-  { id: 'column_change', label: 'Column changes' },
-  { id: 'formula_change', label: 'Formula changes' },
+  { id: 'row_created', label: 'Row is created' },
+  { id: 'status_changed', label: 'Status changes' },
+  { id: 'field_changed', label: 'Field changes' },
   { id: 'date_arrives', label: 'Date arrives' },
+  { id: 'date_approaching', label: 'Date approaches' },
+  { id: 'formula_changed', label: 'Formula changes' },
   { id: 'reminder', label: 'Reminder before date' },
+  { id: 'form_submitted', label: 'Form submitted' },
+  { id: 'relation_added', label: 'Relation is added' },
+  { id: 'row_moved', label: 'Row is moved' },
   ].map((trigger) => (
   <Button key={trigger.id} variant={automationTriggerType === trigger.id ? 'contained' : 'outlined'} onClick={() => setAutomationTriggerType(trigger.id as any)} sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800 }}>
   {trigger.label}
   </Button>
   ))}
   </Box>
-  <FormControl fullWidth sx={{ mb: 2 }}>
+  {['status_changed','field_changed','date_arrives','date_approaching','formula_changed','reminder'].includes(automationTriggerType) && <><FormControl fullWidth sx={{ mb: 2 }}>
   <Select
   value={emailTriggerCol}
   onChange={e => {
@@ -12638,7 +12692,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   MenuProps={{ PaperProps: { sx: { bgcolor: theme.palette.background.paper, backgroundImage: 'none', border: `1px solid ${theme.palette.divider}` } } }}
   >
   <MenuItem value="" disabled>Select board column...</MenuItem>
-  {columns.filter(col => automationTriggerType === 'formula_change' ? col.type === 'Formula' : ['date_arrives', 'reminder'].includes(automationTriggerType) ? col.type === 'Date' : true).map(col => (
+  {columns.filter(col => automationTriggerType === 'formula_changed' ? col.type === 'Formula' : ['date_arrives', 'date_approaching', 'reminder'].includes(automationTriggerType) ? col.type === 'Date' : true).map(col => (
   <MenuItem key={col.id} value={col.id}>{col.name}</MenuItem>
   ))}
   </Select>
@@ -12677,17 +12731,34 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Select>
   </FormControl>
   )}
+  </>}
   </Box>
 
   <Box>
-  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>2. Action Strategy</Typography>
+  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 900 }}>IF — Optional Conditions</Typography>
+  <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1.5, mb: 2 }}>
+  <FormControl fullWidth><Select displayEmpty value={automationConditionType} onChange={(event) => setAutomationConditionType(event.target.value as AutomationConditionType)}><MenuItem value="">No condition</MenuItem><MenuItem value="status_equals">Status equals</MenuItem><MenuItem value="number_greater_than">Number is greater than</MenuItem><MenuItem value="field_empty">Field is empty</MenuItem><MenuItem value="date_overdue">Date is overdue</MenuItem><MenuItem value="person_current_user">Person equals current user</MenuItem><MenuItem value="relation_exists">Relation exists</MenuItem><MenuItem value="formula_matches">Formula result matches</MenuItem></Select></FormControl>
+  {automationConditionType && <FormControl fullWidth><Select displayEmpty value={automationConditionColumn} onChange={(event) => setAutomationConditionColumn(event.target.value)}><MenuItem value="" disabled>Select condition column...</MenuItem>{columns.map((column) => <MenuItem key={column.id} value={column.id}>{column.name}</MenuItem>)}</Select></FormControl>}
+  </Box>
+  {automationConditionType && !['field_empty','date_overdue','person_current_user','relation_exists'].includes(automationConditionType) && <TextField fullWidth label="Condition value" value={automationConditionValue} onChange={(event) => setAutomationConditionValue(event.target.value)} sx={{ mb: 3 }} />}
+  </Box>
+
+  <Box>
+  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 900 }}>THEN — Action Strategy</Typography>
   <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 2, mb: 2 }}>
   {[
-  { id: 'email', label: 'External Email', icon: <SendIcon /> },
-  { id: 'notification', label: 'Push Alert', icon: <BoltIcon /> },
-  { id: 'both', label: 'Hybrid Protocol', icon: <RocketLaunchIcon /> },
-  { id: 'webhook', label: 'Send Webhook', icon: <BoltIcon /> },
+  { id: 'send_notification', label: 'Send Notification', icon: <BoltIcon /> },
+  { id: 'send_email', label: 'Send Email', icon: <SendIcon /> },
+  { id: 'create_row', label: 'Create Row', icon: <AddIcon /> },
   { id: 'create_task', label: 'Create Task', icon: <AddIcon /> },
+  { id: 'update_field', label: 'Update Field', icon: <EditIcon /> },
+  { id: 'assign_user', label: 'Assign User', icon: <PersonIcon /> },
+  { id: 'move_row', label: 'Move Row', icon: <ArrowForwardIcon /> },
+  { id: 'duplicate_row', label: 'Duplicate Row', icon: <ContentCopyIcon /> },
+  { id: 'create_relation', label: 'Create Relation', icon: <LinkIcon /> },
+  { id: 'add_comment', label: 'Add Comment', icon: <ChatBubbleOutlineIcon /> },
+  { id: 'call_webhook', label: 'Call Webhook', icon: <BoltIcon /> },
+  { id: 'archive_row', label: 'Archive Row', icon: <VisibilityOffIcon /> },
   ].map((opt) => (
   <Box
   key={opt.id}
@@ -12710,15 +12781,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   ))}
   </Box>
-  {actionType === 'webhook' && (
+  {actionType === 'call_webhook' && (
   <TextField fullWidth label="HTTPS webhook URL" placeholder="https://example.com/webhooks/smart-manage" value={automationWebhookUrl} onChange={(e) => setAutomationWebhookUrl(e.target.value)} sx={{ mb: 2 }} />
   )}
   {actionType === 'create_task' && (
   <TextField fullWidth label="New task name" placeholder="Follow up: {{task}}" value={automationTaskName} onChange={(e) => setAutomationTaskName(e.target.value)} sx={{ mb: 2 }} />
   )}
+  {['update_field','assign_user','create_relation'].includes(actionType) && <FormControl fullWidth sx={{ mb: 2 }}><Select displayEmpty value={automationTargetColumn} onChange={(event) => setAutomationTargetColumn(event.target.value)}><MenuItem value="" disabled>Select target column...</MenuItem>{columns.map((column) => <MenuItem key={column.id} value={column.id}>{column.name}</MenuItem>)}</Select></FormControl>}
+  {['update_field','assign_user','add_comment'].includes(actionType) && <TextField fullWidth label={actionType === 'add_comment' ? 'Comment' : 'New value'} value={automationActionValue} onChange={(event) => setAutomationActionValue(event.target.value)} sx={{ mb: 2 }} />}
   </Box>
 
-  {actionType !== 'create_task' && <Box>
+  {!['create_task','create_row','duplicate_row','archive_row','move_row','add_comment'].includes(actionType) && <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>3. Information Payload</Typography>
   <FormControl fullWidth sx={{ mb: 2 }}>
   <Select
@@ -12744,7 +12817,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </FormControl>
   </Box>}
 
-  {['email', 'notification', 'both'].includes(actionType) && <Box>
+  {['send_email', 'send_notification'].includes(actionType) && <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>4. Deployment Targets</Typography>
   <FormControl fullWidth sx={{ mb: 2 }}>
   <Select
@@ -12853,31 +12926,49 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   variant="contained"
   fullWidth={isMobile}
   onClick={async () => {
-  if (!emailTriggerCol) {
+  const columnTriggers = ['status_changed','field_changed','date_arrives','date_approaching','formula_changed','reminder'];
+  if (columnTriggers.includes(automationTriggerType) && !emailTriggerCol) {
   showNotification('Select a trigger column first', 'error');
   return;
   }
-  if (['email', 'notification', 'both'].includes(actionType) && emailRecipients.length === 0) {
+  if (automationConditionType && !automationConditionColumn) {
+  showNotification('Select a condition column', 'error');
+  return;
+  }
+  if (['send_email', 'send_notification'].includes(actionType) && emailRecipients.length === 0) {
   showNotification('Select at least one recipient email', 'error');
   return;
   }
-  if (actionType !== 'create_task' && emailCols.length === 0) {
-  showNotification('Select at least one column to include in the email', 'error');
+  if (['send_email', 'send_notification', 'call_webhook'].includes(actionType) && emailCols.length === 0) {
+  showNotification('Select at least one column to include', 'error');
   return;
   }
-  if (actionType === 'webhook' && !/^https:\/\//i.test(automationWebhookUrl.trim())) {
+  if (actionType === 'call_webhook' && !/^https:\/\//i.test(automationWebhookUrl.trim())) {
   showNotification('Enter a secure HTTPS webhook URL', 'error');
   return;
   }
+  if (['update_field','assign_user','create_relation'].includes(actionType) && !automationTargetColumn) {
+  showNotification('Select a target column', 'error');
+  return;
+  }
+  const actionConfig = { webhookUrl: automationWebhookUrl.trim(), taskName: automationTaskName.trim(), minutesBefore: Math.max(0, Number(automationReminderMinutes) || 0), value: automationActionValue, body: automationActionValue, recipients: emailRecipients, columns: emailCols };
+  const definition = {
+  name: automationName.trim() || 'Automation', enabled: true,
+  trigger: { type: automationTriggerType, columnId: columnTriggers.includes(automationTriggerType) ? emailTriggerCol : null, config: { minutesBefore: Math.max(0, Number(automationReminderMinutes) || 0) } },
+  conditions: automationConditionType ? [{ type: automationConditionType, columnId: automationConditionColumn, value: automationConditionValue }] : [],
+  actions: [{ type: actionType, columnId: automationTargetColumn || null, value: automationActionValue || null, config: actionConfig }],
+  };
   const body = {
   id: currentAutomationId,
+  name: definition.name,
+  definition,
   enabled: true,
   triggerCol: emailTriggerCol,
   triggerType: automationTriggerType,
   cols: emailCols,
   recipients: emailRecipients,
   actionType: actionType,
-  actionConfig: { webhookUrl: automationWebhookUrl.trim(), taskName: automationTaskName.trim(), minutesBefore: Math.max(0, Number(automationReminderMinutes) || 0) },
+  actionConfig,
   taskIds: applyToAll ? [] : selectedTaskIds
   ,rules: automationTriggerValues.map(value => ({ value, actionType }))
   };

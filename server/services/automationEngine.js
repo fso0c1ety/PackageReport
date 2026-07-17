@@ -1,7 +1,10 @@
 const { v4: uuidv4 } = require("uuid");
 const db = require("../db");
 const logger = require("../utils/logger");
-const { deliverAutomation } = require("./automationDelivery");
+const { deliverAutomation, executeBuilderActions } = require("./automationDelivery");
+const automationBuilder = require("./automationBuilderEngine.cjs");
+
+const executionRateLimit = automationBuilder.createAutomationRateLimiter({ limit: 100, windowMs: 60_000 });
 
 function changed(oldValues, newValues, columnId) {
   return JSON.stringify(oldValues?.[columnId]) !== JSON.stringify(newValues?.[columnId]);
@@ -12,8 +15,7 @@ async function createRun({ automationId, tableId, rowId, idempotencyKey }) {
     `
       INSERT INTO automation_runs (id, automation_id, table_id, row_id, idempotency_key, status, started_at)
       VALUES ($1, $2, $3, $4, $5, 'running', NOW())
-      ON CONFLICT (idempotency_key) DO UPDATE
-      SET idempotency_key = automation_runs.idempotency_key
+      ON CONFLICT (idempotency_key) DO NOTHING
       RETURNING *
     `,
     [uuidv4(), automationId, tableId, rowId, idempotencyKey]
@@ -28,7 +30,7 @@ async function finishRun(runId, status, errorMessage = null) {
   );
 }
 
-async function runForRowChange({ table, rowId, oldValues, newValues, eventId }) {
+async function runForRowChange({ table, rowId, oldValues, newValues, eventId, depth = 0, actorId = null }) {
   const result = await db.query(
     `
       SELECT *
@@ -46,8 +48,19 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId }) 
   );
 
   for (const automation of result.rows) {
+    const rate = executionRateLimit(`table:${table.id}`);
+    if (!rate.allowed) {
+      logger.warn("automation_rate_limited", { automationId: automation.id, tableId: table.id });
+      continue;
+    }
     const triggerCol = automation.trigger_col;
-    if (!triggerCol || !changed(oldValues, newValues, triggerCol)) continue;
+    const storedDefinition = automation.definition && Object.keys(automation.definition).length ? automation.definition : null;
+    const definition = storedDefinition ? automationBuilder.normalizeAutomationDefinition(storedDefinition) : null;
+    const tableColumns = Array.isArray(table.columns) ? table.columns : (typeof table.columns === "string" ? JSON.parse(table.columns || "[]") : []);
+    const triggerColumn = tableColumns.find((column) => column.id === (definition?.trigger?.columnId || triggerCol));
+    const plan = definition ? automationBuilder.buildExecutionPlan(definition, { type: "row_updated", oldValues, newValues, columnType: triggerColumn?.type }, { currentUserId: actorId }) : null;
+    if (definition && !plan.matched) continue;
+    if (!definition && (!triggerCol || !changed(oldValues, newValues, triggerCol))) continue;
     const rules = Array.isArray(automation.conditions) ? automation.conditions : [];
     const matchingRule = rules.find((rule) => String(rule?.value) === String(newValues?.[triggerCol]));
     if (rules.length > 0 && !matchingRule) continue;
@@ -65,15 +78,13 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId }) 
       idempotencyKey,
     });
 
-    if (run.status !== "running") continue;
+    if (!run || run.status !== "running") continue;
 
     try {
-      const delivery = await deliverAutomation({
-        automation: effectiveAutomation,
-        table,
-        rowId,
-        values: newValues,
-      });
+      if (depth >= 5) throw new Error("Automation loop depth exceeded");
+      const delivery = definition
+        ? { success: true, results: await executeBuilderActions({ actions: plan.actions, automation: effectiveAutomation, table, rowId, values: newValues, actorId }) }
+        : await deliverAutomation({ automation: effectiveAutomation, table, rowId, values: newValues });
 
       if (delivery.skipped) {
         await finishRun(run.id, "skipped", delivery.reason || "skipped");
@@ -87,9 +98,11 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId }) 
       }
 
       await finishRun(run.id, "success");
+      await db.query("UPDATE automations SET last_run_at=NOW(),run_count=COALESCE(run_count,0)+1 WHERE id=$1", [automation.id]);
       logger.info("automation_run_success", { automationId: automation.id, tableId: table.id, rowId });
     } catch (err) {
       await finishRun(run.id, "failed", err.message);
+      await db.query("UPDATE automations SET last_run_at=NOW(),run_count=COALESCE(run_count,0)+1,failure_count=COALESCE(failure_count,0)+1 WHERE id=$1", [automation.id]);
       logger.error("automation_run_failed", {
         automationId: automation.id,
         tableId: table.id,
