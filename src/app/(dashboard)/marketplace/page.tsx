@@ -197,6 +197,13 @@ export default function MarketplacePage() {
     showNotification(response.ok ? "Template reported for moderation" : "Unable to report template", response.ok ? "success" : "error");
   };
 
+  const deleteTemplate = async (item: CommunityTemplate) => {
+    if (!window.confirm(`Delete ${item.name}?`)) return;
+    const response = await authenticatedFetch(getApiUrl(`marketplace/${item.id}`), { method: "DELETE" });
+    showNotification(response.ok ? "Template deleted" : "Unable to delete template", response.ok ? "success" : "error");
+    if (response.ok) await loadCommunity();
+  };
+
   const installTemplate = async (
     templateKey: WorkspaceTemplateKey,
     name: string,
@@ -539,6 +546,7 @@ export default function MarketplacePage() {
                       Rate & review
                     </Button>
                     <Button variant="text" color="error" onClick={() => reportTemplate(item)}>Report</Button>
+                    {item.is_mine && <Button variant="text" color="error" onClick={() => deleteTemplate(item)}>Delete</Button>}
                   </Stack>
                 </Box>
               ))}
