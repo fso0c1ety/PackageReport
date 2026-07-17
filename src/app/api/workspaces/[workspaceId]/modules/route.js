@@ -1,27 +1,19 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireWritableSubscription } from "../../../_lib/billing";
+import { inferWorkspaceModules, moduleStorageShape, normalizeWorkspaceModules, WORKSPACE_MODULES } from "../../../../../../server/services/moduleEngine";
 
 export const runtime = "nodejs";
-const ALL_MODULES = ["crm", "finance", "calendar", "inventory", "hr", "fleet", "logistics", "ai", "reports", "documents", "settings"];
-
 async function ensureModulesTable() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS workspace_modules (workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE, modules JSONB NOT NULL DEFAULT '[]'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS workspace_modules (workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, module_key TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (workspace_id,module_key))`);
+  const result = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_modules'");
+  return moduleStorageShape(result.rows.map((row) => row.column_name));
 }
 
 async function inferModules(workspaceId) {
   const result = await pool.query("SELECT LOWER(name) AS name FROM tables WHERE workspace_id = $1", [workspaceId]);
   const names = result.rows.map((row) => row.name);
-  const modules = new Set(["calendar", "ai", "settings"]);
-  if (names.some((name) => /clients|contacts|companies|deals/.test(name))) modules.add("crm");
-  if (names.some((name) => /invoice|expense|fuel|report/.test(name))) modules.add("finance");
-  if (names.some((name) => /product|inventory|material/.test(name))) modules.add("inventory");
-  if (names.some((name) => /employee|leave|driver/.test(name))) modules.add("hr");
-  if (names.some((name) => /truck|driver|trip|maintenance|fuel/.test(name))) modules.add("fleet");
-  if (names.some((name) => /load|carrier|truck|trip|fleet/.test(name))) modules.add("logistics");
-  if (names.some((name) => /report/.test(name))) modules.add("reports");
-  if (names.some((name) => /document|file/.test(name))) modules.add("documents");
-  return [...modules];
+  return inferWorkspaceModules(names);
 }
 
 async function authorize(workspaceId, userId, ownerOnly = false) {
@@ -38,10 +30,14 @@ export async function GET(req, { params }) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await params;
   if (!(await authorize(workspaceId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  await ensureModulesTable();
-  const result = await pool.query("SELECT modules FROM workspace_modules WHERE workspace_id=$1", [workspaceId]);
-  const modules = result.rows[0]?.modules || await inferModules(workspaceId);
-  return NextResponse.json({ workspaceId, modules, available: ALL_MODULES });
+  const shape = await ensureModulesTable();
+  const result = shape === "rows"
+    ? await pool.query("SELECT module_key FROM workspace_modules WHERE workspace_id=$1 AND enabled=TRUE ORDER BY module_key", [workspaceId])
+    : await pool.query("SELECT modules FROM workspace_modules WHERE workspace_id=$1", [workspaceId]);
+  const stored = shape === "rows" ? result.rows.map((row) => row.module_key) : result.rows[0]?.modules;
+  const modules = stored == null || result.rowCount === 0 ? await inferModules(workspaceId) : normalizeWorkspaceModules(stored);
+  const owner = await pool.query("SELECT owner_id FROM workspaces WHERE id=$1", [workspaceId]);
+  return NextResponse.json({ workspaceId, modules, available: WORKSPACE_MODULES, canManage: String(owner.rows[0]?.owner_id) === String(user.id) });
 }
 
 export async function PUT(req, { params }) {
@@ -52,8 +48,13 @@ export async function PUT(req, { params }) {
   const billingError = await requireWritableSubscription(user.id, { workspaceId });
   if (billingError) return billingError;
   const body = await req.json();
-  const modules = [...new Set((Array.isArray(body.modules) ? body.modules : []).filter((module) => ALL_MODULES.includes(module)))];
-  await ensureModulesTable();
-  await pool.query("INSERT INTO workspace_modules(workspace_id,modules,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(workspace_id) DO UPDATE SET modules=EXCLUDED.modules,updated_at=NOW()", [workspaceId, JSON.stringify(modules)]);
+  const modules = normalizeWorkspaceModules(body.modules);
+  const shape = await ensureModulesTable();
+  if (shape === "rows") {
+    await pool.query("UPDATE workspace_modules SET enabled=FALSE,updated_at=NOW() WHERE workspace_id=$1", [workspaceId]);
+    for (const moduleKey of modules) await pool.query("INSERT INTO workspace_modules(workspace_id,module_key,enabled,settings,updated_at) VALUES($1,$2,TRUE,'{}'::jsonb,NOW()) ON CONFLICT(workspace_id,module_key) DO UPDATE SET enabled=TRUE,updated_at=NOW()", [workspaceId, moduleKey]);
+  } else {
+    await pool.query("INSERT INTO workspace_modules(workspace_id,modules,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(workspace_id) DO UPDATE SET modules=EXCLUDED.modules,updated_at=NOW()", [workspaceId, JSON.stringify(modules)]);
+  }
   return NextResponse.json({ workspaceId, modules });
 }

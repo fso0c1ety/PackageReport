@@ -535,8 +535,12 @@ export default function Sidebar({
                 {workspaceModules.includes("inventory") && <SidebarItem icon={<Inventory2RoundedIcon fontSize="small" />} label="Inventory" href={`/workspace?id=${currentWorkspaceId}&module=inventory`} isActive={searchParams.get("module") === "inventory"} onClick={onClose} />}
                 {workspaceModules.includes("hr") && <SidebarItem icon={<BadgeRoundedIcon fontSize="small" />} label="HR" href={`/workspace?id=${currentWorkspaceId}&module=hr`} isActive={searchParams.get("module") === "hr"} onClick={onClose} />}
                 {workspaceModules.includes("fleet") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="Fleet" href={`/workspace?id=${currentWorkspaceId}&module=fleet`} isActive={searchParams.get("module") === "fleet"} onClick={onClose} />}
+                {workspaceModules.includes("logistics") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="Logistics" href={`/workspace?id=${currentWorkspaceId}&module=logistics`} isActive={searchParams.get("module") === "logistics"} onClick={onClose} />}
+                {workspaceModules.includes("tasks") && <SidebarItem icon={<BusinessCenterRoundedIcon fontSize="small" />} label="Tasks" href={`/workspace?id=${currentWorkspaceId}&module=tasks`} isActive={searchParams.get("module") === "tasks"} onClick={onClose} />}
+                {workspaceModules.includes("customers") && <SidebarItem icon={<GroupIcon fontSize="small" />} label="Customers" href={`/workspace?id=${currentWorkspaceId}&module=customers`} isActive={searchParams.get("module") === "customers"} onClick={onClose} />}
                 {workspaceModules.includes("reports") && <SidebarItem icon={<AssessmentRoundedIcon fontSize="small" />} label="Reports" href="/dashboard" isActive={pathname === "/dashboard"} onClick={onClose} />}
                 {workspaceModules.includes("documents") && <SidebarItem icon={<FolderRoundedIcon fontSize="small" />} label="Documents" href={`/workspace?id=${currentWorkspaceId}&module=documents`} isActive={searchParams.get("module") === "documents"} onClick={onClose} />}
+                {workspaceModules.includes("maintenance") && <SidebarItem icon={<BuildRoundedIcon fontSize="small" />} label="Maintenance" href="/maintenance" isActive={pathname === "/maintenance"} onClick={onClose} />}
               </Box>
             </>
           )}

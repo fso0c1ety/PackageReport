@@ -12,6 +12,8 @@ const MODULES = [
   ["hr", "HR", "Employees, leave and onboarding"], ["fleet", "Fleet", "Trucks, drivers and maintenance"],
   ["logistics", "Logistics", "Loads, carriers and dispatch"], ["ai", "AI", "Nexus Brain and AI tools"],
   ["reports", "Reports", "Dashboards, charts and KPIs"], ["documents", "Documents", "Files and document workflows"],
+  ["tasks", "Tasks", "Tasks, work items and personal work"], ["customers", "Customers", "Customer and client records"],
+  ["maintenance", "Maintenance", "Service, insurance and equipment reminders"],
   ["settings", "Settings", "Workspace configuration"],
 ] as const;
 
@@ -21,12 +23,13 @@ export default function ModulesPage() {
   const [enabled, setEnabled] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [canManage, setCanManage] = useState(false);
 
   useEffect(() => {
     if (!workspaceId) { setLoading(false); return; }
     authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((data) => setEnabled(Array.isArray(data.modules) ? data.modules : []))
+      .then((data) => { setEnabled(Array.isArray(data.modules) ? data.modules : []); setCanManage(Boolean(data.canManage)); })
       .catch(() => showNotification("Unable to load workspace modules.", "error"))
       .finally(() => setLoading(false));
   }, [showNotification, workspaceId]);
@@ -44,5 +47,5 @@ export default function ModulesPage() {
   };
 
   if (!workspaceId) return <Alert severity="info">Select a workspace before managing modules.</Alert>;
-  return <Box sx={{ maxWidth: 1050, mx: "auto", p: { xs: 2, md: 4 } }}><Typography variant="h4" fontWeight={900}>Business Modules</Typography><Typography color="text.secondary" mb={3}>Enable only the tools this workspace needs. Your existing boards and data are never deleted.</Typography>{loading ? <CircularProgress /> : <><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 1.5 }}>{MODULES.map(([key, name, description]) => <Card key={key} sx={{ p: 2, borderRadius: 3, bgcolor: "action.hover" }}><Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}><Box><Typography fontWeight={800}>{name}</Typography><Typography variant="body2" color="text.secondary">{description}</Typography></Box><Switch checked={enabled.includes(key)} onChange={(_, checked) => setEnabled((current) => checked ? [...new Set([...current, key])] : current.filter((item) => item !== key))} /></Stack></Card>)}</Box><Button variant="contained" disabled={saving} onClick={save} sx={{ mt: 3, px: 4 }}>{saving ? "Saving..." : "Save modules"}</Button></>}</Box>;
+  return <Box sx={{ maxWidth: 1050, mx: "auto", p: { xs: 2, md: 4 } }}><Typography variant="h4" fontWeight={900}>Business Modules</Typography><Typography color="text.secondary" mb={3}>Enable only the tools this workspace needs. Disabling a module only hides its tools; all boards and data remain safe and return when it is enabled again.</Typography>{loading ? <CircularProgress /> : <>{!canManage && <Alert severity="info" sx={{ mb: 2 }}>Only the workspace owner can change modules. You can view the current configuration.</Alert>}<Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 1.5 }}>{MODULES.map(([key, name, description]) => <Card key={key} sx={{ p: 2, borderRadius: 3, bgcolor: "action.hover" }}><Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}><Box><Typography fontWeight={800}>{name}</Typography><Typography variant="body2" color="text.secondary">{description}</Typography></Box><Switch disabled={!canManage} checked={enabled.includes(key)} onChange={(_, checked) => setEnabled((current) => checked ? [...new Set([...current, key])] : current.filter((item) => item !== key))} /></Stack></Card>)}</Box>{canManage && <Button variant="contained" disabled={saving} onClick={save} sx={{ mt: 3, px: 4 }}>{saving ? "Saving..." : "Save modules"}</Button>}</>}</Box>;
 }

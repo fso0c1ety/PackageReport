@@ -16,6 +16,7 @@ function WorkspaceContent() {
   const tableIdParam = searchParams.get('tableId');
   const taskIdParam = searchParams.get('taskId');
   const tabParam = searchParams.get('tab');
+  const moduleParam = searchParams.get('module');
   const theme = useTheme();
   
   // Set last opened workspace in localStorage for HomeDashboard
@@ -165,11 +166,31 @@ function WorkspaceContent() {
   const fetchTables = async () => {
     if (!workspaceId) return;
     setLoading(true);
-    const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`));
+    const [res, modulesRes] = await Promise.all([
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`)),
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true }),
+    ]);
     if (!res.ok) {
       throw new Error(`Failed to fetch tables (${res.status})`);
     }
-    const data = await res.json();
+    const allTables = await res.json();
+    const modulesData = modulesRes.ok ? await modulesRes.json() : null;
+    const enabledModules = Array.isArray(modulesData?.modules) ? modulesData.modules : null;
+    const patterns: Record<string, RegExp> = {
+      crm: /lead|deal|pipeline|contact|compan/i, customers: /customer|client/i,
+      finance: /invoice|expense|payment|revenue|finance|account/i, inventory: /product|stock|inventory|material|warehouse/i,
+      hr: /employee|leave|staff|human resource/i, fleet: /truck|driver|trip|vehicle|fleet|fuel/i,
+      logistics: /load|carrier|freight|dispatch/i, documents: /document|file|pod|contract/i,
+      tasks: /task|work item|todo/i, maintenance: /maintenance|service|repair|oil|tire|insurance|registration|tachograph/i,
+    };
+    const boardModule = (name: string) => Object.entries(patterns).find(([, pattern]) => pattern.test(name))?.[0];
+    const data = Array.isArray(allTables) && enabledModules
+      ? allTables.filter((table: any) => {
+          const requiredModule = boardModule(String(table.name || ""));
+          if (moduleParam) return requiredModule === moduleParam;
+          return !requiredModule || enabledModules.includes(requiredModule);
+        })
+      : allTables;
     setTables(data);
     setSelected((prev) => {
       if (tableIdParam && data.some((table: any) => table.id === tableIdParam)) return tableIdParam;
@@ -198,7 +219,7 @@ function WorkspaceContent() {
     return () => {
       window.removeEventListener('workspaceUpdated', handleUpdate);
     };
-  }, [workspaceId]);
+  }, [moduleParam, workspaceId]);
 
   const handleAddTable = async () => {
     setCreating(true);
