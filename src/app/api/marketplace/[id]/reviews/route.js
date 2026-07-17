@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import marketplaceEngine from "../../../../../../server/services/marketplaceEngine.cjs";
 
 export const runtime = "nodejs";
 
@@ -19,8 +20,9 @@ export async function POST(req, { params }) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const rating = Math.max(1, Math.min(5, Number(body?.rating) || 0));
-    const review = String(body?.review || "").trim().slice(0, 1000);
+    const rating = Number(body?.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 });
+    const review = marketplaceEngine.sanitizeText(body?.review, 1000);
     const reviewId = randomUUID();
     const { rows } = await pool.query(`INSERT INTO marketplace_reviews(id,template_id,user_id,rating,review)
       VALUES($1,$2,$3,$4,$5) ON CONFLICT(template_id,user_id) DO UPDATE SET rating=EXCLUDED.rating,

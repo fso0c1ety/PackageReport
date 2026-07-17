@@ -1,0 +1,6 @@
+const CATEGORIES=Object.freeze(["Logistics","Sales","Projects","Healthcare","Education","Retail","Construction","Manufacturing","Professional Services","Other"]);
+const FORBIDDEN_KEYS=new Set(["script","scripts","code","javascript","html","component","eval","executable"]);
+function sanitizeText(value,max=1000){return String(value||"").replace(/<[^>]*>/g,"").replace(/[\u0000-\u001f]/g," ").replace(/\s+/g," ").trim().slice(0,max)}
+function validateManifest(manifest,allowedKeys=[]){if(!manifest||typeof manifest!=="object"||Array.isArray(manifest))return{valid:false,error:"Invalid manifest"};const walk=(value)=>{if(!value||typeof value!=="object")return true;for(const [key,child] of Object.entries(value)){if(FORBIDDEN_KEYS.has(key.toLowerCase())||typeof child==="function")return false;if(!walk(child))return false}return true};if(!walk(manifest))return{valid:false,error:"Executable content is not allowed"};if(manifest.templateKey&&!allowedKeys.includes(String(manifest.templateKey)))return{valid:false,error:"Unknown template key"};return{valid:true,manifest:{templateKey:String(manifest.templateKey||"blank"),version:Math.max(1,Number(manifest.version)||1)}}}
+function normalizeCategory(value){const category=sanitizeText(value,60);return CATEGORIES.includes(category)?category:"Other"}
+module.exports={CATEGORIES,sanitizeText,validateManifest,normalizeCategory};

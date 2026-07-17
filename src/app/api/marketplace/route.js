@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { WORKSPACE_TEMPLATES } from "../../../workspaceTemplates";
+import marketplaceEngine from "../../../../server/services/marketplaceEngine.cjs";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,8 @@ async function ensureMarketplaceTables() {
     review TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(template_id, user_id)
   )`);
+  await pool.query(`ALTER TABLE marketplace_templates ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published', ADD COLUMN IF NOT EXISTS manifest JSONB NOT NULL DEFAULT '{}'::jsonb, ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1, ADD COLUMN IF NOT EXISTS official BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS marketplace_reports(id TEXT PRIMARY KEY,template_id TEXT NOT NULL REFERENCES marketplace_templates(id) ON DELETE CASCADE,user_id TEXT NOT NULL,reason TEXT NOT NULL,details TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
 }
 
 export async function GET(req) {
@@ -25,11 +28,13 @@ export async function GET(req) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     await ensureMarketplaceTables();
-    const { rows } = await pool.query(`SELECT mt.*, u.name AS author_name,
+    const url = new URL(req.url); const mine = url.searchParams.get("mine") === "true";
+    const { rows } = await pool.query(`SELECT mt.*, u.name AS author_name,(mt.author_id=$1) AS is_mine,
       COALESCE(AVG(mr.rating), 0)::float AS rating, COUNT(mr.id)::int AS review_count
       FROM marketplace_templates mt LEFT JOIN users u ON u.id=mt.author_id
       LEFT JOIN marketplace_reviews mr ON mr.template_id=mt.id
-      GROUP BY mt.id,u.name ORDER BY mt.featured DESC,mt.downloads DESC,mt.created_at DESC`);
+      WHERE (mt.status='published' OR mt.author_id=$1) AND ($2::boolean=FALSE OR mt.author_id=$1)
+      GROUP BY mt.id,u.name ORDER BY mt.featured DESC,mt.downloads DESC,mt.created_at DESC`,[String(user.id),mine]);
     return NextResponse.json(rows);
   } catch (error) {
     console.error("[MARKETPLACE][GET]", error);
@@ -43,16 +48,19 @@ export async function POST(req) {
   try {
     await ensureMarketplaceTables();
     const body = await req.json();
-    const name = String(body?.name || "").trim();
-    const description = String(body?.description || "").trim();
-    const category = String(body?.category || "General").trim();
+    const name = marketplaceEngine.sanitizeText(body?.name,100);
+    const description = marketplaceEngine.sanitizeText(body?.description,1000);
+    const category = marketplaceEngine.normalizeCategory(body?.category);
     const templateKey = String(body?.templateKey || "blank");
+    const status = body?.status === "draft" ? "draft" : "published";
     if (!name || !description) return NextResponse.json({ error: "Name and description are required" }, { status: 400 });
     if (!WORKSPACE_TEMPLATES.some((item) => item.key === templateKey)) return NextResponse.json({ error: "Invalid base template" }, { status: 400 });
+    const manifestResult=marketplaceEngine.validateManifest(body?.manifest||{templateKey,version:1},WORKSPACE_TEMPLATES.map(item=>item.key));
+    if(!manifestResult.valid)return NextResponse.json({error:manifestResult.error},{status:400});
     const id = randomUUID();
     const { rows } = await pool.query(`INSERT INTO marketplace_templates
-      (id,name,description,category,template_key,author_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [id, name.slice(0, 100), description.slice(0, 500), category.slice(0, 60), templateKey, user.id]);
+      (id,name,description,category,template_key,author_id,status,manifest) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING *`,
+      [id,name,description,category,templateKey,user.id,status,JSON.stringify(manifestResult.manifest)]);
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {
     console.error("[MARKETPLACE][POST]", error);
