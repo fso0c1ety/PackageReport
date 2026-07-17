@@ -42,6 +42,7 @@ import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
+import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -480,6 +481,7 @@ export default function Sidebar({
               isActive={pathname === "/home" || pathname === "/"}
               onClick={onClose}
             />
+            <SidebarItem icon={<AssignmentTurnedInRoundedIcon fontSize="small" />} label="My Work" href="/my-work" isActive={pathname === "/my-work"} onClick={onClose} />
             {(!currentWorkspaceId || workspaceModules.includes("calendar")) && <SidebarItem
               icon={<CalendarMonthRoundedIcon fontSize="small" />}
               label="Calendar & Deadlines"

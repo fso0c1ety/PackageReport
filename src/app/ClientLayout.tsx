@@ -13,6 +13,7 @@ import { useTheme } from "@mui/material/styles"; // Added
 import { CallProvider } from "./CallContext"; // Added
 import { ensureNativeHistoryRouting, redirectToAppRoute } from "./apiUrl";
 import SubscriptionBanner from "./SubscriptionBanner";
+import CommandPalette from "./CommandPalette";
 
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -138,6 +139,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     <ThemeRegistry>
       <CallProvider>
         <NotificationRequester />
+        <CommandPalette />
         <ClientLayoutContent>{children}</ClientLayoutContent>
       </CallProvider>
     </ThemeRegistry>
