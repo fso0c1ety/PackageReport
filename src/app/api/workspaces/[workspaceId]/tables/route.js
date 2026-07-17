@@ -24,14 +24,13 @@ export async function GET(req, { params }) {
       `SELECT COUNT(*) FROM tables
        WHERE workspace_id = $1
          AND EXISTS (
-           SELECT 1 FROM jsonb_array_elements(COALESCE(shared_users, '[]'::jsonb)) AS elem
+           SELECT 1 FROM jsonb_array_elements(shared_users) AS elem
            WHERE elem->>'userId' = $2
-              OR (jsonb_typeof(elem) = 'string' AND trim(both '"' from elem::text) = $2)
          )`,
       [workspaceId, user.id]
     );
 
-    const isOwner = String(workspace.owner_id) === String(user.id);
+    const isOwner = workspace.owner_id === user.id;
     const hasSharedTables = parseInt(sharedTablesCount.rows[0].count, 10) > 0;
 
     if (!isOwner && !hasSharedTables) {
@@ -42,9 +41,8 @@ export async function GET(req, { params }) {
       `SELECT * FROM tables
        WHERE workspace_id = $1
          AND ($2 = $3 OR EXISTS (
-           SELECT 1 FROM jsonb_array_elements(COALESCE(shared_users, '[]'::jsonb)) AS elem
+           SELECT 1 FROM jsonb_array_elements(shared_users) AS elem
            WHERE elem->>'userId' = $3
-              OR (jsonb_typeof(elem) = 'string' AND trim(both '"' from elem::text) = $3)
          ))`,
       [workspaceId, workspace.owner_id, user.id]
     );
@@ -69,7 +67,7 @@ export async function POST(req, { params }) {
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
-    if (!workspace || String(workspace.owner_id) !== String(user.id)) {
+    if (!workspace || workspace.owner_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
