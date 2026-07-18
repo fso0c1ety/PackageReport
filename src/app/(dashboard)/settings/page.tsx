@@ -181,6 +181,7 @@ export default function SettingsPage() {
   const [portalRemovePassword,setPortalRemovePassword]=useState(false);
   const [portalExpiresAt,setPortalExpiresAt]=useState("");
   const [portalDownloads,setPortalDownloads]=useState(false);
+  const [portalApprovals,setPortalApprovals]=useState(false);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [apiKeyName, setApiKeyName] = useState("Production integration");
   const [newApiKey, setNewApiKey] = useState("");
@@ -243,7 +244,7 @@ export default function SettingsPage() {
     if (!shareTableId) return;
     setSharingBusy(true);
     try {
-      const response = await authenticatedFetch(getApiUrl(`tables/${shareTableId}/public-share`), { method: enable ? "POST" : "DELETE", headers:enable?{"Content-Type":"application/json"}:undefined, body:enable?JSON.stringify({title:portalTitle,welcome:portalWelcome,allowComments:portalComments,password:portalPassword,removePassword:portalRemovePassword,expiresAt:portalExpiresAt||null,allowDownloads:portalDownloads}):undefined });
+      const response = await authenticatedFetch(getApiUrl(`tables/${shareTableId}/public-share`), { method: enable ? "POST" : "DELETE", headers:enable?{"Content-Type":"application/json"}:undefined, body:enable?JSON.stringify({title:portalTitle,welcome:portalWelcome,allowComments:portalComments,password:portalPassword,removePassword:portalRemovePassword,expiresAt:portalExpiresAt||null,allowDownloads:portalDownloads,allowApprovals:portalApprovals}):undefined });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to update public link");
       setShareToken(data.token || "");
@@ -1501,6 +1502,7 @@ export default function SettingsPage() {
               <Box sx={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><Box><Typography fontWeight={800}>Remove existing password</Typography><Typography variant="body2" color="text.secondary">Make the link accessible without a password</Typography></Box><Switch checked={portalRemovePassword} onChange={e=>{setPortalRemovePassword(e.target.checked);if(e.target.checked)setPortalPassword("");}}/></Box>
               <Box sx={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><Box><Typography fontWeight={800}>Client feedback</Typography><Typography variant="body2" color="text.secondary">Allow clients to leave portal comments</Typography></Box><Switch checked={portalComments} onChange={e=>setPortalComments(e.target.checked)}/></Box>
               <Box sx={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><Box><Typography fontWeight={800}>Allow downloads</Typography><Typography variant="body2" color="text.secondary">Let clients download the shared board data</Typography></Box><Switch checked={portalDownloads} onChange={e=>setPortalDownloads(e.target.checked)}/></Box>
+              <Box sx={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><Box><Typography fontWeight={800}>Client approvals</Typography><Typography variant="body2" color="text.secondary">Let clients approve or request changes on individual records</Typography></Box><Switch checked={portalApprovals} onChange={e=>setPortalApprovals(e.target.checked)}/></Box>
               {shareToken && <TextField value={`${window.location.origin}/share/${shareToken}`} InputProps={{readOnly:true}} />}
               <Stack direction={{xs:"column",sm:"row"}} gap={1}>
                 <Button variant="contained" disabled={!shareTableId||sharingBusy} onClick={()=>void handlePublicShare(true)}>{sharingBusy?<CircularProgress size={20}/>:shareToken?"Regenerate access":"Enable public link"}</Button>

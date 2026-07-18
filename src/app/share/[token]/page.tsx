@@ -40,10 +40,32 @@ export default function ClientPortal() {
   const [unlocking, setUnlocking] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [approvals, setApprovals] = useState<Record<string, any>>({});
+  const [approvalName, setApprovalName] = useState("");
 
   const loadComments = async () => {
     const response = await fetch(`/api/public/boards/${encodeURIComponent(token)}/comments`);
     if (response.ok) setComments(await response.json());
+  };
+
+  const loadApprovals = async () => {
+    const response = await fetch(`/api/public/boards/${encodeURIComponent(token)}/approvals`);
+    if (response.ok) {
+      const records = await response.json();
+      setApprovals(Object.fromEntries(records.map((record: any) => [record.row_id, record])));
+    }
+  };
+
+  const decide = async (rowId: string, decision: "approved" | "changes_requested") => {
+    const clientName = approvalName.trim() || name.trim();
+    if (!clientName) { setFeedbackError("Enter your name before submitting an approval."); return; }
+    setSubmitting(true); setFeedbackError("");
+    try {
+      const response = await fetch(`/api/public/boards/${encodeURIComponent(token)}/approvals`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rowId, name: clientName, decision }) });
+      if (!response.ok) throw new Error("Unable to save this decision.");
+      await loadApprovals();
+    } catch (reason) { setFeedbackError(reason instanceof Error ? reason.message : "Unable to save this decision."); }
+    finally { setSubmitting(false); }
   };
 
   useEffect(() => {
@@ -58,6 +80,7 @@ export default function ClientPortal() {
         if (!active || !data) return;
         setBoard(data);
         if (data.public_share_comments) void loadComments();
+        if (data.public_share_approvals) void loadApprovals();
       })
       .catch((reason) => active && setError(reason.message));
     return () => { active = false; };
@@ -71,6 +94,7 @@ export default function ClientPortal() {
       if (!response.ok) throw new Error(data.error || "Unable to unlock this link.");
       setBoard(data); setPasswordRequired(false); setPassword("");
       if (data.public_share_comments) void loadComments();
+      if (data.public_share_approvals) void loadApprovals();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to unlock this link."); }
     finally { setUnlocking(false); }
   };
@@ -121,14 +145,15 @@ export default function ClientPortal() {
                     <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>{displayValue(row.values?.[column.id])}</Typography>
                   </Box>
                 ))}
+                {board.public_share_approvals && <Stack direction="row" gap={1} sx={{ mt: 1.5 }}><Button size="small" variant="contained" color="success" disabled={submitting} onClick={() => void decide(row.id, "approved")}>Approve</Button><Button size="small" variant="outlined" color="warning" disabled={submitting} onClick={() => void decide(row.id, "changes_requested")}>Request changes</Button>{approvals[row.id] && <Typography variant="caption" sx={{ alignSelf: "center" }}>{approvals[row.id].decision === "approved" ? "Approved" : "Changes requested"}</Typography>}</Stack>}
               </Paper>
             ))}
           </Stack>
         ) : (
           <TableContainer component={Paper} sx={{ borderRadius: 3, overflowX: "auto" }}>
             <Table stickyHeader>
-              <TableHead><TableRow>{columns.map((column: any) => <TableCell key={column.id} sx={{ fontWeight: 800 }}>{column.name}</TableCell>)}</TableRow></TableHead>
-              <TableBody>{rows.map((row: any) => <TableRow key={row.id} hover>{columns.map((column: any) => <TableCell key={column.id}>{displayValue(row.values?.[column.id])}</TableCell>)}</TableRow>)}</TableBody>
+              <TableHead><TableRow>{columns.map((column: any) => <TableCell key={column.id} sx={{ fontWeight: 800 }}>{column.name}</TableCell>)}{board.public_share_approvals && <TableCell sx={{ fontWeight: 800 }}>Client decision</TableCell>}</TableRow></TableHead>
+              <TableBody>{rows.map((row: any) => <TableRow key={row.id} hover>{columns.map((column: any) => <TableCell key={column.id}>{displayValue(row.values?.[column.id])}</TableCell>)}{board.public_share_approvals && <TableCell><Stack direction="row" gap={1}><Button size="small" color="success" disabled={submitting} onClick={() => void decide(row.id, "approved")}>Approve</Button><Button size="small" color="warning" disabled={submitting} onClick={() => void decide(row.id, "changes_requested")}>Changes</Button></Stack>{approvals[row.id] && <Typography variant="caption">{approvals[row.id].decision === "approved" ? "Approved" : "Changes requested"}</Typography>}</TableCell>}</TableRow>)}</TableBody>
             </Table>
           </TableContainer>
         )}
@@ -153,6 +178,7 @@ export default function ClientPortal() {
             </Stack>
           </Paper>
         )}
+        {board.public_share_approvals && !board.public_share_comments && <Paper sx={{ p: 2, mt: 3, borderRadius: 3 }}><Stack gap={1}><Typography fontWeight={800}>Client identity</Typography>{feedbackError && <Alert severity="error">{feedbackError}</Alert>}<TextField label="Your name" value={approvalName} onChange={(event) => setApprovalName(event.target.value)} /></Stack></Paper>}
       </Box>
     </Box>
   );
