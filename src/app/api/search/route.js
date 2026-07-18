@@ -26,7 +26,15 @@ export async function GET(req) {
       SELECT 'row',r.id,COALESCE(NULLIF(r.values->>'name',''),NULLIF(r.values->>'title',''),'Matching row'),a.name,a.workspace_id,a.id,3
       FROM rows r JOIN accessible a ON a.id=r.table_id WHERE r.values::text ILIKE $2 ESCAPE '\\'
       UNION ALL
-      SELECT 'user',u.id,u.name,u.email,NULL,NULL,4 FROM users u WHERE u.name ILIKE $2 ESCAPE '\\' OR u.email ILIKE $2 ESCAPE '\\'
+      SELECT 'comment',c.id,LEFT(c.body,120),a.name,a.workspace_id,a.id,4
+      FROM item_comments c JOIN rows r ON r.id=c.row_id JOIN accessible a ON a.id=r.table_id
+      WHERE c.body ILIKE $2 ESCAPE '\\'
+      UNION ALL
+      SELECT 'file',f.id,COALESCE(NULLIF(f.originalname,''),f.filename),a.name,a.workspace_id,a.id,5
+      FROM uploaded_files f JOIN accessible a ON a.id=f.table_id
+      WHERE f.originalname ILIKE $2 ESCAPE '\\' OR f.filename ILIKE $2 ESCAPE '\\'
+      UNION ALL
+      SELECT 'user',u.id,u.name,u.email,NULL,NULL,6 FROM users u WHERE u.name ILIKE $2 ESCAPE '\\' OR u.email ILIKE $2 ESCAPE '\\'
     ) SELECT * FROM hits ORDER BY rank,title LIMIT 30
   `, [String(user.id), term]);
   return NextResponse.json({ results: result.rows }, { headers: { "Cache-Control": "private, no-store" } });

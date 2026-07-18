@@ -7,6 +7,9 @@ import DashboardRounded from "@mui/icons-material/DashboardRounded";
 import GroupAddRounded from "@mui/icons-material/GroupAddRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
+import WorkRounded from "@mui/icons-material/WorkRounded";
+import UploadFileRounded from "@mui/icons-material/UploadFileRounded";
+import SwapHorizRounded from "@mui/icons-material/SwapHorizRounded";
 import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
 import { useThemeContext } from "./ThemeContext";
 
@@ -19,8 +22,12 @@ export default function CommandPalette(){
   useEffect(()=>{if(!open||query.trim().length<2){setResults([]);return}const controller=new AbortController();const timer=window.setTimeout(async()=>{setLoading(true);try{const response=await authenticatedFetch(getApiUrl(`search?q=${encodeURIComponent(query.trim())}`),{signal:controller.signal});if(response.ok)setResults((await response.json()).results||[])}finally{setLoading(false)}},250);return()=>{window.clearTimeout(timer);controller.abort()}},[open,query]);
   const commands=useMemo(()=>[
     {label:"Create workspace",icon:<AddRounded/>,run:()=>navigateToAppRoute("/home/?createWorkspace=1")},
+    {label:"My Work",icon:<WorkRounded/>,run:()=>navigateToAppRoute("/my-work/")},
     {label:"Open dashboard",icon:<DashboardRounded/>,run:()=>navigateToAppRoute("/dashboard/")},
+    {label:"Open recent board",icon:<DashboardRounded/>,run:()=>{const recent=Object.keys(localStorage).find(key=>key.startsWith("lastWorkspace_"));const value=recent?localStorage.getItem(recent):null;try{const workspace=value?JSON.parse(value):null;navigateToAppRoute(workspace?.id?`/workspace/?id=${workspace.id}`:"/home/")}catch{navigateToAppRoute("/home/")}}},
     {label:"Invite member",icon:<GroupAddRounded/>,run:()=>navigateToAppRoute("/settings/?tab=team")},
+    {label:"Upload or import file",icon:<UploadFileRounded/>,run:()=>navigateToAppRoute("/workspace/?import=1")},
+    {label:"Switch workspace",icon:<SwapHorizRounded/>,run:()=>navigateToAppRoute("/home/#workspaces")},
     {label:"Run automation",icon:<AutoAwesomeRounded/>,run:()=>navigateToAppRoute("/workspace/")},
     {label:"Change theme",icon:<DarkModeRounded/>,run:toggleTheme},
   ],[toggleTheme]);
