@@ -2607,8 +2607,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [showColSelector, setShowColSelector] = useState(false);
   const [colSelectorAnchor, setColSelectorAnchor] = useState<null | HTMLElement>(null);
   const [renamingColId, setRenamingColId] = useState<string | null>(null);
-  const [userPermission, setUserPermission] = useState<'read' | 'edit' | 'owner' | 'admin'>('read');
+  const [accountPermission, setUserPermission] = useState<'read' | 'edit' | 'owner' | 'admin'>('read');
   const [billingWritable, setBillingWritable] = useState<boolean | null>(null);
+  // Fail closed while billing status is loading or unavailable. The API is
+  // authoritative, but the UI must never briefly expose editing controls for
+  // an expired/view-only subscription.
+  const userPermission: 'read' | 'edit' | 'owner' | 'admin' =
+    billingWritable === true ? accountPermission : 'read';
 
   useEffect(() => {
     let cancelled = false;
@@ -2622,8 +2627,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         if (!cancelled && billing) setBillingWritable(Boolean(billing.writable));
       })
       .catch(() => {
-        // The API remains authoritative. Keep the current permission if the
-        // status request itself is temporarily unavailable.
+        // Keep the board read-only. Mutation APIs remain authoritative too.
       });
 
     return () => {
@@ -2631,11 +2635,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
     };
   }, []);
 
-  useEffect(() => {
-    if (billingWritable === false && userPermission !== 'read') {
-      setUserPermission('read');
-    }
-  }, [billingWritable, userPermission]);
   const [boardTitle, setBoardTitle] = useState("");
 
 
@@ -3576,11 +3575,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   });
 
   if (sourceStatus !== destinationStatus) {
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${movedTaskId}`), {
+  try {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${movedTaskId}`), {
   method: "PUT",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ id: movedTaskId, values: orderedMovedTask.values }),
-  }).catch(err => console.error("Failed to persist kanban task status during drag and drop", err));
+  });
+  if (!response.ok) {
+  throw new Error(`Failed to persist kanban task status (${response.status})`);
+  }
+  } catch (err) {
+  console.error("Failed to persist kanban task status during drag and drop", err);
+  setRows(currentRows);
+  rowsRef.current = currentRows;
+  broadcastTableChange('row-order', {
+  orderedTaskIds: currentRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
+  });
+  showNotification("This board is view-only. The Kanban change was not saved.", "error");
+  }
   }
   return;
   }
