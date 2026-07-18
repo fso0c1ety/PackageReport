@@ -24,14 +24,14 @@ export async function GET(req){
     COUNT(*) FILTER (WHERE read=FALSE AND type='mention')::int mentions,
     COUNT(*) FILTER (WHERE read=FALSE AND type IN ('comment','chat'))::int unread_comments,
     COUNT(*) FILTER (WHERE read=FALSE AND (type='approval' OR data->>'status'='pending'))::int pending_approvals
-    FROM notifications WHERE recipient_id=$1`,[String(user.id)]);
+    FROM notifications WHERE recipient_id=$1`,[String(user.id)]).catch(()=>({rows:[{}]}));
   const recentActivity=await pool.query(`SELECT COUNT(*)::int count FROM activity_logs log
     WHERE log.timestamp >= NOW()-INTERVAL '7 days' AND EXISTS(
       SELECT 1 FROM tables t JOIN workspaces w ON w.id=t.workspace_id
       WHERE t.id=log.table_id AND (w.owner_id=$1 OR EXISTS(
         SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) m WHERE m->>'userId'=$1
       ))
-    )`,[String(user.id)]);
+    )`,[String(user.id)]).catch(()=>({rows:[{count:0}]}));
   const counts=notificationCounts.rows[0]||{};
   const items=result.rows.map(classify);return NextResponse.json({items,summary:{assigned:items.length,overdue:items.filter(i=>i.bucket==="overdue").length,upcoming:items.filter(i=>i.bucket==="upcoming").length,mentions:counts.mentions||0,unreadComments:counts.unread_comments||0,pendingApprovals:counts.pending_approvals||0,recentActivity:recentActivity.rows[0]?.count||0}});
 }
