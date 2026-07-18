@@ -25,6 +25,7 @@ import {
   DialogActions,
   TextField,
   CircularProgress,
+  LinearProgress,
 } from "@mui/material";
 import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -40,6 +41,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import LogoutIcon from "@mui/icons-material/Logout";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CloseIcon from "@mui/icons-material/Close";
 
 // --- Styled Components ---
 
@@ -212,6 +215,8 @@ export default function HomeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [greeting, setGreeting] = useState("Good morning");
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingSteps, setOnboardingSteps] = useState<number[]>([]);
 
   // State for Rename/Delete
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -313,7 +318,14 @@ export default function HomeDashboard() {
     // Set Current User
     const userJson = localStorage.getItem("user");
     if (userJson) { 
-        try { setCurrentUser(JSON.parse(userJson)); } catch(e){}
+        try {
+          const parsedUser = JSON.parse(userJson);
+          setCurrentUser(parsedUser);
+          const key = `smartManageOnboarding_${parsedUser.id || parsedUser.email || "user"}`;
+          const saved = JSON.parse(localStorage.getItem(key) || "{}");
+          setOnboardingSteps(Array.isArray(saved.steps) ? saved.steps : []);
+          setOnboardingOpen(!saved.dismissed && !saved.completed);
+        } catch(e){}
     }
 
     // Set greeting based on client time
@@ -322,6 +334,38 @@ export default function HomeDashboard() {
     else if (hour < 18) setGreeting("Good afternoon");
     else setGreeting("Good evening");
   }, []);
+
+  const saveOnboarding = (steps: number[], dismissed = false) => {
+    if (!currentUser) return;
+    const key = `smartManageOnboarding_${currentUser.id || currentUser.email || "user"}`;
+    localStorage.setItem(key, JSON.stringify({
+      steps,
+      dismissed,
+      completed: steps.length === 8,
+      updatedAt: new Date().toISOString(),
+    }));
+    setOnboardingSteps(steps);
+    setOnboardingOpen(!dismissed && steps.length < 8);
+  };
+
+  const completeOnboardingStep = (step: number, action?: () => void) => {
+    const steps = onboardingSteps.includes(step)
+      ? onboardingSteps
+      : [...onboardingSteps, step].sort((a, b) => a - b);
+    saveOnboarding(steps);
+    action?.();
+  };
+
+  const onboardingItems = [
+    { label: "Choose your business type", action: () => setIsGalleryOpen(true) },
+    { label: "Choose a workspace template", action: () => setIsGalleryOpen(true) },
+    { label: "Preview the template", action: () => setIsGalleryOpen(true) },
+    { label: "Name and create the workspace", action: () => setIsGalleryOpen(true) },
+    { label: "Choose the modules you need", action: () => navigateToAppRoute("/modules", router) },
+    { label: "Import existing data", action: () => workspaces[0] && navigateToAppRoute(`/workspace?id=${workspaces[0].id}`, router) },
+    { label: "Invite your team", action: () => navigateToAppRoute("/settings?tab=team", router) },
+    { label: "Customize your dashboard", action: () => navigateToAppRoute("/dashboard", router) },
+  ];
 
   // Fetch Data
   useEffect(() => {
@@ -399,6 +443,51 @@ export default function HomeDashboard() {
           </Typography>
         </Box>
       </Box>
+
+      {onboardingOpen && (
+        <Card sx={{
+          mb: 4,
+          borderRadius: 4,
+          border: "1px solid rgba(99,102,241,.35)",
+          background: "linear-gradient(135deg, rgba(99,102,241,.14), rgba(139,92,246,.05))",
+        }}>
+          <CardContent sx={{ p: { xs: 2, md: 3 }, "&:last-child": { pb: { xs: 2, md: 3 } } }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mb: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={800}>Set up Smart Manage</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Follow these steps to prepare your first complete workspace. You can dismiss and restart this guide anytime.
+                </Typography>
+              </Box>
+              <IconButton aria-label="Dismiss onboarding" onClick={() => saveOnboarding(onboardingSteps, true)} sx={{ alignSelf: "flex-start" }}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <LinearProgress variant="determinate" value={(onboardingSteps.length / 8) * 100} sx={{ flex: 1, height: 8, borderRadius: 8 }} />
+              <Typography variant="caption" fontWeight={700}>{onboardingSteps.length}/8</Typography>
+            </Box>
+            <Grid container spacing={1}>
+              {onboardingItems.map((item, index) => {
+                const step = index + 1;
+                const done = onboardingSteps.includes(step) || (step === 4 && workspaces.length > 0);
+                return (
+                  <Grid size={{ xs: 12, sm: 6 }} key={item.label}>
+                    <Button
+                      fullWidth
+                      onClick={() => completeOnboardingStep(step, item.action)}
+                      startIcon={<CheckCircleOutlineIcon color={done ? "success" : "inherit"} />}
+                      sx={{ justifyContent: "flex-start", textTransform: "none", color: done ? "success.main" : "text.primary" }}
+                    >
+                      {item.label}
+                    </Button>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       <Grid container spacing={3}>
         {/* Main Content Column */}

@@ -54,6 +54,7 @@ import CreditCardIcon from "@mui/icons-material/CreditCard";
 import HistoryIcon from "@mui/icons-material/History";
 import LinkIcon from "@mui/icons-material/Link";
 import KeyIcon from "@mui/icons-material/Key";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -1013,6 +1014,25 @@ export default function SettingsPage() {
 
             {profileError && <Alert severity="error" sx={{ mb: 2 }}>{profileError}</Alert>}
             {profileSaved && <Alert severity="success" sx={{ mb: 2 }}>Profile updated successfully!</Alert>}
+
+            <Paper sx={{ mt: 3, p: 2.5, borderRadius: 3, bgcolor: panelBg, display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <Box>
+                <Typography fontWeight={700}>Workspace onboarding</Typography>
+                <Typography variant="body2" color="text.secondary">Restart the setup checklist for templates, modules, imports, team invites and dashboard customization.</Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                startIcon={<RestartAltIcon />}
+                onClick={() => {
+                  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+                  localStorage.removeItem(`smartManageOnboarding_${storedUser.id || storedUser.email || "user"}`);
+                  navigateToAppRoute("/home", router);
+                }}
+                sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700 }}
+              >
+                Restart guide
+              </Button>
+            </Paper>
         </TabPanel>
 
         {/* APPEARANCE TAB */}
