@@ -20,5 +20,18 @@ export async function GET(req){
     FROM rows r JOIN accessible a ON a.id=r.table_id
     WHERE r.created_by=$1 OR r.values::text ILIKE $2
     ORDER BY r.created_at DESC LIMIT 100`,[String(user.id),`%${String(user.email||user.id)}%`]);
-  const items=result.rows.map(classify);return NextResponse.json({items,summary:{assigned:items.length,overdue:items.filter(i=>i.bucket==="overdue").length,upcoming:items.filter(i=>i.bucket==="upcoming").length,mentions:0,unreadComments:0,pendingApprovals:0}});
+  const notificationCounts=await pool.query(`SELECT
+    COUNT(*) FILTER (WHERE read=FALSE AND type='mention')::int mentions,
+    COUNT(*) FILTER (WHERE read=FALSE AND type IN ('comment','chat'))::int unread_comments,
+    COUNT(*) FILTER (WHERE read=FALSE AND (type='approval' OR data->>'status'='pending'))::int pending_approvals
+    FROM notifications WHERE recipient_id=$1`,[String(user.id)]);
+  const recentActivity=await pool.query(`SELECT COUNT(*)::int count FROM activity_logs log
+    WHERE log.timestamp >= NOW()-INTERVAL '7 days' AND EXISTS(
+      SELECT 1 FROM tables t JOIN workspaces w ON w.id=t.workspace_id
+      WHERE t.id=log.table_id AND (w.owner_id=$1 OR EXISTS(
+        SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) m WHERE m->>'userId'=$1
+      ))
+    )`,[String(user.id)]);
+  const counts=notificationCounts.rows[0]||{};
+  const items=result.rows.map(classify);return NextResponse.json({items,summary:{assigned:items.length,overdue:items.filter(i=>i.bucket==="overdue").length,upcoming:items.filter(i=>i.bucket==="upcoming").length,mentions:counts.mentions||0,unreadComments:counts.unread_comments||0,pendingApprovals:counts.pending_approvals||0,recentActivity:recentActivity.rows[0]?.count||0}});
 }
