@@ -8,6 +8,10 @@ export const INTERNAL_UNLIMITED_EMAILS = [
   "bleonahalili8@gmail.com",
 ];
 
+const TRIAL_EXTENSION_BY_EMAIL = {
+  "ags@ags-logistics.org": "2026-08-05T23:59:59.999+02:00",
+};
+
 export const PLANS = {
   trial: { seatLimit: 5, amountCents: 0 },
   basic: { seatLimit: 5, price: 40 },
@@ -37,6 +41,21 @@ export async function getBillingStatus(userId) {
      ON CONFLICT (user_id) DO NOTHING`,
     [randomUUID(), userId]
   );
+  const userResult = await pool.query("SELECT LOWER(email) AS email FROM users WHERE id = $1", [userId]);
+  const accountEmail = userResult.rows[0]?.email || "";
+  const extendedTrialEnd = TRIAL_EXTENSION_BY_EMAIL[accountEmail];
+  if (extendedTrialEnd) {
+    await pool.query(
+      `UPDATE subscriptions SET status='trialing', trial_ends_at=$1, archived_at=NULL, purge_at=NULL, updated_at=NOW()
+       WHERE user_id=$2 AND plan='trial' AND (trial_ends_at IS NULL OR trial_ends_at < $1)`,
+      [extendedTrialEnd, userId]
+    );
+    await pool.query(
+      `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
+       WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+      [userId]
+    );
+  }
   const subscription = await pool.query("SELECT * FROM subscriptions WHERE user_id = $1", [userId]);
   const seats = await pool.query(
     `SELECT COUNT(DISTINCT member_id)::int AS count FROM (
@@ -51,8 +70,7 @@ export async function getBillingStatus(userId) {
     [userId]
   );
   const value = subscription.rows[0];
-  const userResult = await pool.query("SELECT LOWER(email) AS email FROM users WHERE id = $1", [userId]);
-  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(userResult.rows[0]?.email || "");
+  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(accountEmail);
 
   if (unlimited) {
     await pool.query(
