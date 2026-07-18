@@ -29,7 +29,8 @@ import {
   Tooltip,
   Stack,
   Autocomplete,
-  MenuItem
+  MenuItem,
+  Chip
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
@@ -1519,7 +1520,19 @@ export default function SettingsPage() {
           <Paper sx={{p:3,borderRadius:3,bgcolor:panelBg,maxWidth:760,mb:3}}><Stack direction={{xs:"column",sm:"row"}} gap={1}><TextField fullWidth label="Key name" value={apiKeyName} onChange={e=>setApiKeyName(e.target.value)} sx={fieldSx}/><Button variant="contained" disabled={!apiKeyName.trim()} onClick={()=>void createApiKey()}>Create key</Button></Stack>
           {newApiKey&&<Alert severity="warning" sx={{mt:2}}><Typography fontWeight={800}>Copy this key now</Typography><Typography sx={{wordBreak:"break-all",fontFamily:"monospace"}}>{newApiKey}</Typography><Button size="small" onClick={()=>navigator.clipboard.writeText(newApiKey)}>Copy</Button></Alert>}</Paper>
           <List sx={{display:"flex",flexDirection:"column",gap:1}}>{apiKeys.map(k=><Paper key={k.id} sx={{p:2,borderRadius:2,bgcolor:panelBg,display:"flex",justifyContent:"space-between",alignItems:"center"}}><Box><Typography fontWeight={800}>{k.name}</Typography><Typography variant="body2" color="text.secondary">{k.key_prefix}… · Created {new Date(k.created_at).toLocaleDateString()}</Typography></Box><Button color="error" onClick={()=>void revokeApiKey(k.id)}>Revoke</Button></Paper>)}</List>
-          <Alert severity="info" sx={{mt:3,maxWidth:760}}>GET /api/v1/boards with header <strong>x-api-key</strong></Alert>
+          <Alert severity="info" sx={{mt:3,maxWidth:760}}>
+            Send the API key in the <strong>x-api-key</strong> header. Available read endpoints:<br />
+            <code>GET /api/v1/workspaces</code><br />
+            <code>GET /api/v1/boards</code><br />
+            <code>GET /api/v1/boards/:boardId</code><br />
+            <code>GET /api/v1/boards/:boardId/columns</code><br />
+            <code>GET /api/v1/boards/:boardId/rows?limit=50&amp;offset=0</code>
+          </Alert>
+          <Typography variant="h6" fontWeight={900} sx={{mt:4,mb:1}}>Integration catalog</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{mb:2}}>Use signed webhooks and API keys today; OAuth connectors are prepared for the next provider activation.</Typography>
+          <Stack direction="row" flexWrap="wrap" gap={1} sx={{maxWidth:760}}>
+            {["Gmail","Outlook","Google Calendar","Slack","WhatsApp","Zapier","Make","Stripe","Google Drive","Dropbox"].map(name=><Chip key={name} label={name} variant="outlined" color="primary" />)}
+          </Stack>
           <Typography variant="h6" fontWeight={900} sx={{mt:4,mb:1}}>Signed Webhooks</Typography>
           <Typography variant="body2" color="text.secondary" sx={{mb:2}}>Deliver board and task events to a public HTTPS endpoint with an HMAC signature.</Typography>
           <Paper sx={{p:3,borderRadius:3,bgcolor:panelBg,maxWidth:760}}><Stack gap={1.5}><TextField label="Webhook name" value={webhookName} onChange={e=>setWebhookName(e.target.value)} sx={fieldSx}/><TextField label="HTTPS endpoint" placeholder="https://example.com/webhooks/smart-manage" value={webhookUrl} onChange={e=>setWebhookUrl(e.target.value)} sx={fieldSx}/><Button variant="contained" disabled={!webhookName.trim()||!webhookUrl.trim()} onClick={()=>void createWebhook()}>Add webhook</Button>{webhookSecret&&<Alert severity="warning"><Typography fontWeight={800}>Copy signing secret now</Typography><Typography sx={{fontFamily:"monospace",wordBreak:"break-all"}}>{webhookSecret}</Typography></Alert>}</Stack></Paper>

@@ -14,6 +14,7 @@ import { CallProvider } from "./CallContext"; // Added
 import { ensureNativeHistoryRouting, redirectToAppRoute } from "./apiUrl";
 import SubscriptionBanner from "./SubscriptionBanner";
 import CommandPalette from "./CommandPalette";
+import MobileBottomNavigation from "./MobileBottomNavigation";
 
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -68,6 +69,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
             overflowX: 'hidden',
             display: 'block',
             boxSizing: 'border-box',
+            pb: { xs: 'calc(76px + env(safe-area-inset-bottom))', md: 3 },
           }}
         >
           <PageTransition>
@@ -75,6 +77,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
           </PageTransition>
         </Box>
       </Box>
+      <MobileBottomNavigation />
     </Box>
   );
 }
