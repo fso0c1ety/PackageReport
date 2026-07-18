@@ -35,6 +35,9 @@ export default function ClientPortal() {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [password, setPassword] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,17 +50,30 @@ export default function ClientPortal() {
     let active = true;
     fetch(`/api/public/boards/${encodeURIComponent(token)}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error("This shared link is unavailable or has been disabled.");
+        if (response.status === 401) { setPasswordRequired(true); return null; }
+        if (!response.ok) { const data=await response.json().catch(()=>({})); throw new Error(data.error || "This shared link is unavailable or has been disabled."); }
         return response.json();
       })
       .then((data) => {
-        if (!active) return;
+        if (!active || !data) return;
         setBoard(data);
         if (data.public_share_comments) void loadComments();
       })
       .catch((reason) => active && setError(reason.message));
     return () => { active = false; };
   }, [token]);
+
+  const unlock = async () => {
+    setUnlocking(true); setError("");
+    try {
+      const response = await fetch(`/api/public/boards/${encodeURIComponent(token)}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({password}) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to unlock this link.");
+      setBoard(data); setPasswordRequired(false); setPassword("");
+      if (data.public_share_comments) void loadComments();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to unlock this link."); }
+    finally { setUnlocking(false); }
+  };
 
   const submit = async () => {
     setSubmitting(true);
@@ -78,6 +94,7 @@ export default function ClientPortal() {
     }
   };
 
+  if (passwordRequired) return <Box sx={{ p: 4, maxWidth: 480, mx: "auto", minHeight:"100dvh", display:"grid", placeItems:"center" }}><Paper sx={{p:4,width:"100%",borderRadius:4}}><Stack gap={2}><Typography variant="h5" fontWeight={900}>Protected client portal</Typography><Typography color="text.secondary">Enter the password supplied by the workspace owner.</Typography>{error&&<Alert severity="error">{error}</Alert>}<TextField autoFocus type="password" label="Share password" value={password} onChange={event=>setPassword(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"&&password)void unlock();}}/><Button variant="contained" disabled={!password||unlocking} onClick={()=>void unlock()}>{unlocking?<CircularProgress size={22} color="inherit"/>:"Open portal"}</Button></Stack></Paper></Box>;
   if (error) return <Box sx={{ p: 4, maxWidth: 700, mx: "auto" }}><Alert severity="error">{error}</Alert></Box>;
   if (!board) return <Box sx={{ display: "grid", placeItems: "center", minHeight: "100dvh" }}><CircularProgress /></Box>;
 
@@ -92,6 +109,7 @@ export default function ClientPortal() {
           {board.public_share_title || board.name}
         </Typography>
         {board.public_share_welcome && <Typography color="text.secondary" sx={{ mb: 3 }}>{board.public_share_welcome}</Typography>}
+        {board.public_share_downloads && <Button variant="outlined" sx={{mb:2}} onClick={()=>{const blob=new Blob([JSON.stringify({name:board.name,columns,rows},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=`${board.name||"shared-board"}.json`;anchor.click();URL.revokeObjectURL(url);}}>Download data</Button>}
 
         {mobile ? (
           <Stack gap={1.5}>
