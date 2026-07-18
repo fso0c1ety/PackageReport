@@ -22,6 +22,7 @@ import {
   Tabs,
   Paper,
   CircularProgress,
+  LinearProgress,
   Dialog,
   DialogActions,
   DialogTitle,
@@ -164,6 +165,11 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorPassword, setTwoFactorPassword] = useState("");
+  const [twoFactorBusy, setTwoFactorBusy] = useState(false);
+  const [twoFactorMessage, setTwoFactorMessage] = useState("");
+  const [twoFactorError, setTwoFactorError] = useState("");
 
   // Billing State
   const [billingStatus, setBillingStatus] = useState<any>(null);
@@ -212,6 +218,18 @@ export default function SettingsPage() {
   const { showNotification } = useNotification();
 
   useEffect(()=>{if(tabValue===2)authenticatedFetch(getApiUrl("notification-preferences")).then(r=>r.ok?r.json():null).then(p=>p&&setAdvancedNotifications(p));},[tabValue]);
+  useEffect(()=>{if(tabValue===3)authenticatedFetch(getApiUrl("users/two-factor")).then(r=>r.ok?r.json():null).then(data=>data&&setTwoFactorEnabled(Boolean(data.enabled)));},[tabValue]);
+  const updateTwoFactor=async(enabled:boolean)=>{
+    setTwoFactorBusy(true);setTwoFactorError("");setTwoFactorMessage("");
+    try{
+      const response=await authenticatedFetch(getApiUrl("users/two-factor"),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled,password:twoFactorPassword})});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"Unable to update two-factor authentication");
+      setTwoFactorEnabled(Boolean(data.enabled));setTwoFactorPassword("");
+      setTwoFactorMessage(data.enabled?"Two-factor authentication is now ON. A code will be sent to your email after password login.":"Two-factor authentication is now OFF. Future logins will use password only.");
+    }catch(error:any){setTwoFactorError(error.message||"Unable to update two-factor authentication");}
+    finally{setTwoFactorBusy(false);}
+  };
   const saveAdvancedNotifications=async(next:any)=>{setAdvancedNotifications(next);setSavingNotificationSettings(true);try{const r=await authenticatedFetch(getApiUrl("notification-preferences"),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});if(!r.ok)throw new Error();showNotification("Notification preferences saved","success");}catch{showNotification("Unable to save notification preferences","error");}finally{setSavingNotificationSettings(false);}};
 
   useEffect(() => {
@@ -1137,6 +1155,24 @@ export default function SettingsPage() {
 
         {/* SECURITY TAB */}
         <TabPanel value={tabValue} index={3}>
+            <Typography variant="h5" fontWeight="800" sx={{ mb: 1, letterSpacing: '-0.5px' }}>Two-Factor Authentication</Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>Choose whether login requires a one-time verification code sent to your account email.</Typography>
+            <Paper sx={{ p: { xs: 3, sm: 4 }, borderRadius: 4, maxWidth: 600, bgcolor: panelBg, mb: 4 }}>
+              <Stack gap={2.5}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <Box>
+                    <Typography fontWeight={800}>Email verification code</Typography>
+                    <Typography variant="body2" color="text.secondary">Status: {twoFactorEnabled ? "ON — protected with password and email code" : "OFF — password login only"}</Typography>
+                  </Box>
+                  <Switch checked={twoFactorEnabled} disabled={twoFactorBusy || !twoFactorPassword} onChange={event=>void updateTwoFactor(event.target.checked)} inputProps={{ 'aria-label': 'Two-factor authentication' }} />
+                </Box>
+                <TextField type="password" label="Confirm current password" value={twoFactorPassword} onChange={event=>setTwoFactorPassword(event.target.value)} helperText="Required before switching two-factor authentication ON or OFF." fullWidth sx={fieldSx} />
+                {twoFactorBusy && <LinearProgress />}
+                {twoFactorError && <Alert severity="error">{twoFactorError}</Alert>}
+                {twoFactorMessage && <Alert severity="success">{twoFactorMessage}</Alert>}
+              </Stack>
+            </Paper>
+
             <Typography variant="h5" fontWeight="800" sx={{ mb: 1, letterSpacing: '-0.5px' }}>Change Password</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>Ensure your account is using a long, random password to stay secure.</Typography>
             

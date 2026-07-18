@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { pool } from "../_lib/server";
+import jwt from "jsonwebtoken";
+import { pool, SECRET_KEY } from "../_lib/server";
 import { issueEmailOtp } from "../_lib/twoFactor";
 
 export const runtime = "nodejs";
@@ -16,7 +17,8 @@ export async function POST(req) {
       );
     }
 
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE");
+    const result = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
     const user = result.rows[0];
 
     if (!user) {
@@ -36,6 +38,14 @@ export async function POST(req) {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+
+    if (!user.two_factor_enabled) {
+      const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
+      const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, SECRET_KEY, { expiresIn: "24h" });
+      const safeUser = { ...user };
+      delete safeUser.password;
+      return NextResponse.json({ token, user: { ...safeUser, avatar }, requiresTwoFactor: false });
     }
 
     const challenge = await issueEmailOtp(user);
