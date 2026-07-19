@@ -1535,6 +1535,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
   const [selectedInvoiceTaskIds, setSelectedInvoiceTaskIds] = useState<string[]>([]);
+  const [selectedInvoiceColumnIds, setSelectedInvoiceColumnIds] = useState<string[]>([]);
   const [invoiceTaskPrices, setInvoiceTaskPrices] = useState<Record<string, string>>({});
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>('classic');
   const [invoiceCompanyName, setInvoiceCompanyName] = useState("");
@@ -1932,7 +1933,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   let missingPricing = false;
 
   const items = selectedRows.map((row, index) => {
-  const description = String(
+  const selectedDescription = columns
+  .filter((column) => selectedInvoiceColumnIds.includes(column.id))
+  .map((column) => `${column.name}: ${String(simplifyAiValue(row.values[column.id]) || '-')}`)
+  .join(' | ');
+  const description = selectedDescription || String(
   (titleCol ? simplifyAiValue(row.values[titleCol.id]) : "") ||
   Object.values(row.values).map((val) => simplifyAiValue(val)).find(Boolean) ||
   `Task ${index + 1}`
@@ -2288,6 +2293,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   if (!invoiceClientName.trim()) {
   showNotification('Select a registered client', 'error');
+  return;
+  }
+
+  if (selectedInvoiceColumnIds.length === 0) {
+  showNotification('Select at least one column to include in the invoice', 'error');
   return;
   }
 
@@ -4645,15 +4655,24 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const visibleRowEntries = virtualVisibleRowEntries;
 
   const invoiceTaskOptions = React.useMemo(() => {
-  if (!isInvoiceDialogOpen) return [];
+  if (!isInvoiceDialogOpen || !invoiceClientName) return [];
   const titleColId = columns[0]?.id;
   const priceColumn = columns.find((column) => /price|rate|cost|amount|total|budget|value|çmimi/i.test(column.name));
-  return rows.map((row, index) => ({
+  const clientColumnNames = new Set([
+  'client', 'client name', 'customer', 'customer name',
+  'company', 'company name', 'kompania', 'importuesi'
+  ]);
+  const clientColumns = columns.filter((column) =>
+  clientColumnNames.has(String(column.name || '').trim().toLocaleLowerCase())
+  );
+  return rows.filter((row) => clientColumns.some((column) =>
+  String(simplifyAiValue(row.values[column.id]) || '').trim() === invoiceClientName
+  )).map((row, index) => ({
   id: row.id,
   label: String(row.values[titleColId] || `Task ${index + 1}`),
   price: priceColumn ? toNumber(row.values[priceColumn.id]) : 0
   }));
-  }, [isInvoiceDialogOpen, rows, columns]);
+  }, [isInvoiceDialogOpen, invoiceClientName, rows, columns]);
 
   const invoiceClientOptions = React.useMemo(() => {
   if (!isInvoiceDialogOpen) return [];
@@ -4693,6 +4712,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
   if (isInvoiceDialogOpen) {
   setSelectedInvoiceTaskIds([]);
+  setSelectedInvoiceColumnIds([]);
   setInvoiceTaskPrices({});
   }
   }, [isInvoiceDialogOpen]);
@@ -8327,12 +8347,29 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </DialogTitle>
   <DialogContent sx={{ pt: 1 }}>
   <Stack spacing={2}>
+  <Box sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
+  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>1. Select Client</Typography>
+  <Autocomplete
+  options={invoiceClientOptions}
+  value={invoiceClientName || null}
+  onChange={(_, value) => {
+  setInvoiceClientName(value || '');
+  setSelectedInvoiceTaskIds([]);
+  setInvoiceTaskPrices({});
+  }}
+  noOptionsText="No registered clients found"
+  renderInput={(params) => (
+  <TextField {...params} size="small" label="Registered Client" placeholder="Select client..." />
+  )}
+  />
+  </Box>
   <Box sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.action.hover }}>
-  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Task Selection</Typography>
+  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>2. Select Client Tasks</Typography>
   <Box>
   <Autocomplete
   multiple
   options={invoiceTaskOptions}
+  disabled={!invoiceClientName}
   getOptionLabel={(option) => option.label}
   value={invoiceTaskOptions.filter(opt => selectedInvoiceTaskIds.includes(opt.id))}
   onChange={(_, value) => {
@@ -8358,8 +8395,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   )}
   />
   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
-  Select one or more registered tasks for this invoice.
+  {invoiceClientName ? `Only tasks registered for ${invoiceClientName} are shown.` : 'Select a client first.'}
   </Typography>
+  <Autocomplete
+  multiple
+  options={columns}
+  getOptionLabel={(option) => option.name}
+  value={columns.filter((column) => selectedInvoiceColumnIds.includes(column.id))}
+  onChange={(_, value) => setSelectedInvoiceColumnIds(value.map((column) => column.id))}
+  disableCloseOnSelect
+  sx={{ mt: 1.5 }}
+  renderInput={(params) => (
+  <TextField {...params} size="small" label="3. Columns to include in invoice" placeholder="Select columns..." />
+  )}
+  />
   {invoiceTaskOptions.filter((option) => selectedInvoiceTaskIds.includes(option.id)).map((option) => (
   <Box key={option.id} sx={{ mt: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 150px' }, gap: 1, alignItems: 'center' }}>
   <Typography variant="body2" sx={{ fontWeight: 700 }}>{option.label}</Typography>
@@ -8397,15 +8446,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.2 }}>
   <TextField size="small" label="Company Name" value={invoiceCompanyName} onChange={(e) => setInvoiceCompanyName(e.target.value)} />
-  <Autocomplete
-  options={invoiceClientOptions}
-  value={invoiceClientName || null}
-  onChange={(_, value) => setInvoiceClientName(value || '')}
-  noOptionsText="No registered clients found"
-  renderInput={(params) => (
-  <TextField {...params} size="small" label="Registered Client" placeholder="Select client..." />
-  )}
-  />
   <TextField size="small" label="Currency" value={invoiceCurrency} onChange={(e) => setInvoiceCurrency(e.target.value)} />
   <TextField size="small" type="number" label="Tax %" value={invoiceTaxPercent} onChange={(e) => setInvoiceTaxPercent(e.target.value)} />
   <TextField size="small" type="number" label="Due In (Days)" value={invoiceDueDays} onChange={(e) => setInvoiceDueDays(e.target.value)} />
