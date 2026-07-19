@@ -3383,6 +3383,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   };
 
+  const handleDeleteSelectedRows = async () => {
+  if (!tableId || userPermission === 'read' || selectedRowIds.size === 0) return;
+  const ids = Array.from(selectedRowIds);
+  if (!window.confirm(`Delete ${ids.length} selected task${ids.length === 1 ? '' : 's'}? This action cannot be undone.`)) return;
+  try {
+  const results = await Promise.all(ids.map(async (rowId) => {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`), { method: 'DELETE' });
+  return { rowId, ok: response.ok };
+  }));
+  const deletedIds = new Set(results.filter((result) => result.ok).map((result) => result.rowId));
+  setRows((current) => current.filter((row) => !deletedIds.has(row.id)));
+  setSelectedRowIds(new Set(results.filter((result) => !result.ok).map((result) => result.rowId)));
+  deletedIds.forEach((rowId) => broadcastTableChange('row-change', { eventType: 'DELETE', rowId }));
+  if (deletedIds.size !== ids.length) {
+  showNotification(`Deleted ${deletedIds.size} of ${ids.length} selected tasks`, 'warning');
+  } else {
+  showNotification(`Deleted ${deletedIds.size} selected task${deletedIds.size === 1 ? '' : 's'}`, 'success');
+  }
+  } catch (error) {
+  console.error('Bulk delete failed', error);
+  showNotification('Unable to delete selected tasks', 'error');
+  }
+  };
+
   const handleBeforeDragStart = (start: any) => {
   const dragType = start?.type;
   const draggableId = String(start?.draggableId || '');
@@ -4489,19 +4513,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return widths;
   }, [getResponsiveColumnWidth, sortedColumns]);
   const gridTemplateColumns = React.useMemo(
-  () => `96px ${sortedColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `120px ${sortedColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, sortedColumns],
   );
   const bodyGridTemplateColumns = React.useMemo(
-  () => `96px ${displayedBodyColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `120px ${displayedBodyColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, displayedBodyColumns],
   );
   const headerGridTemplateColumns = React.useMemo(
-  () => `96px ${displayedHeaderColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `120px ${displayedHeaderColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, displayedHeaderColumns],
   );
   const gridContentWidth = React.useMemo(
-  () => 156 + sortedColumns.reduce((total, column) => total + (columnWidthById.get(column.id) || 160), 0),
+  () => 180 + sortedColumns.reduce((total, column) => total + (columnWidthById.get(column.id) || 160), 0),
   [columnWidthById, sortedColumns],
   );
 
@@ -8938,9 +8962,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   />
   <Box sx={{ position: 'relative' }}>
   {selectedRowIds.size > 0 && (
-  <Paper elevation={4} sx={{ position: 'absolute', top: -52, left: 8, zIndex: 150, px: 1.25, py: .75, display: 'flex', alignItems: 'center', gap: 1, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-  <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{selectedRowIds.size} selected</Typography>
-  <Button size="small" variant="outlined" onClick={() => void handleDuplicateSelectedRows()}>Duplicate</Button>
+  <Paper elevation={4} sx={{ position: 'absolute', top: -54, left: 8, zIndex: 150, px: 1.25, py: .75, minHeight: 44, maxWidth: 'calc(100vw - 32px)', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+  <Box sx={{ minWidth: 112, display: 'flex', alignItems: 'center', gap: .5, flexShrink: 0 }}>
+  <Checkbox size="small" checked sx={{ p: .25, pointerEvents: 'none' }} />
+  <Typography sx={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap' }}>{selectedRowIds.size} selected</Typography>
+  </Box>
+  {userPermission !== 'read' && <Button size="small" variant="outlined" onClick={() => void handleDuplicateSelectedRows()}>Duplicate</Button>}
+  {userPermission !== 'read' && <Button size="small" variant="outlined" color="error" onClick={() => void handleDeleteSelectedRows()}>Delete</Button>}
   <Button size="small" variant="contained" onClick={() => void handleExportExcel(selectedRowIds)}>Export selected</Button>
   <Button size="small" onClick={() => setSelectedRowIds(new Set())}>Clear</Button>
   </Paper>
@@ -9028,8 +9056,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   component="div"
   padding="checkbox"
   sx={{
-  minWidth: 96,
-  width: 96,
+  minWidth: 120,
+  width: 120,
   position: 'sticky',
   left: 0,
   zIndex: 10,
@@ -9344,8 +9372,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   {/* Row Drag Handle, Menu, and Message Icon */}
 
   <TableCell component="div" sx={{
-  width: 96,
-  minWidth: 96,
+  width: 120,
+  minWidth: 120,
   p: 0,
   borderBottom: 'none',
   borderRight: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
