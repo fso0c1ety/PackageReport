@@ -4513,19 +4513,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return widths;
   }, [getResponsiveColumnWidth, sortedColumns]);
   const gridTemplateColumns = React.useMemo(
-  () => `120px ${sortedColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `140px ${sortedColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, sortedColumns],
   );
   const bodyGridTemplateColumns = React.useMemo(
-  () => `120px ${displayedBodyColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `140px ${displayedBodyColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, displayedBodyColumns],
   );
   const headerGridTemplateColumns = React.useMemo(
-  () => `120px ${displayedHeaderColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `140px ${displayedHeaderColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, displayedHeaderColumns],
   );
   const gridContentWidth = React.useMemo(
-  () => 180 + sortedColumns.reduce((total, column) => total + (columnWidthById.get(column.id) || 160), 0),
+  () => 200 + sortedColumns.reduce((total, column) => total + (columnWidthById.get(column.id) || 160), 0),
   [columnWidthById, sortedColumns],
   );
 
@@ -9056,8 +9056,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   component="div"
   padding="checkbox"
   sx={{
-  minWidth: 120,
-  width: 120,
+  minWidth: 140,
+  width: 140,
   position: 'sticky',
   left: 0,
   zIndex: 10,
@@ -9372,8 +9372,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   {/* Row Drag Handle, Menu, and Message Icon */}
 
   <TableCell component="div" sx={{
-  width: 120,
-  minWidth: 120,
+  width: 140,
+  minWidth: 140,
   p: 0,
   borderBottom: 'none',
   borderRight: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
@@ -9406,7 +9406,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return next;
   })}
   inputProps={{ 'aria-label': `Select row ${rowIndex + 1}` }}
-  sx={{ position: 'absolute', left: 1, bottom: 0, p: .25, zIndex: 4, '& .MuiSvgIcon-root': { fontSize: 16 } }}
+  icon={<Box sx={{ width: 17, height: 17, border: `2px solid ${theme.palette.text.secondary}`, borderRadius: '3px' }} />}
+  checkedIcon={<Box sx={{ width: 17, height: 17, borderRadius: '3px', bgcolor: theme.palette.primary.main, color: theme.palette.primary.contrastText, display: 'grid', placeItems: 'center' }}><CheckIcon sx={{ fontSize: 14 }} /></Box>}
+  sx={{ position: 'absolute', left: 35, top: '50%', transform: 'translateY(-50%)', p: .25, zIndex: 4 }}
   />
   {/* Creator Avatar on Highlighted Task */}
   {row.created_by && (() => {
@@ -9433,7 +9435,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Tooltip>
   );
   })()}
-  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 36, pl: 0.5, gap: 0.5 }}>
+  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 36, pl: 0.5, pr: 0.75, gap: 0.75 }}>
   <div {...provided.dragHandleProps} style={{
   display: 'flex',
   alignItems: 'center',
@@ -9442,7 +9444,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   touchAction: 'none',
   width: 20,
   height: 20,
-  marginRight: 4
+  marginRight: 30
   }}
   onMouseDown={(event) => {
   dragPointerStartRef.current = { x: event.clientX, y: event.clientY };
