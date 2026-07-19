@@ -8384,6 +8384,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Button size="small" onClick={() => setInvoiceLogoDataUrl(null)} sx={{ textTransform: 'none' }}>Remove</Button>
   </>
   )}
+  <input
+  ref={invoiceStampInputRef}
+  type="file"
+  accept="image/*"
+  onChange={handleInvoiceStampPick}
+  style={{ display: 'none' }}
+  />
+  <Button variant="outlined" onClick={() => invoiceStampInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+  Upload Company Stamp
+  </Button>
+  {invoiceStampDataUrl && (
+  <>
+  <Avatar src={invoiceStampDataUrl} variant="rounded" sx={{ width: 44, height: 34 }} />
+  <Button size="small" onClick={() => setInvoiceStampDataUrl(null)} sx={{ textTransform: 'none' }}>Remove Stamp</Button>
+  </>
+  )}
   </Box>
   </Stack>
 
@@ -10112,22 +10128,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   >
   New Task
   </Button>
-  )}
-  <input
-  ref={invoiceStampInputRef}
-  type="file"
-  accept="image/*"
-  onChange={handleInvoiceStampPick}
-  style={{ display: 'none' }}
-  />
-  <Button variant="outlined" onClick={() => invoiceStampInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
-  Upload Company Stamp
-  </Button>
-  {invoiceStampDataUrl && (
-  <>
-  <Avatar src={invoiceStampDataUrl} variant="rounded" sx={{ width: 44, height: 34 }} />
-  <Button size="small" onClick={() => setInvoiceStampDataUrl(null)} sx={{ textTransform: 'none' }}>Remove Stamp</Button>
-  </>
   )}
   </Box>
   )}
