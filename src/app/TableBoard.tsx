@@ -5265,6 +5265,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
 
   if (effectiveType === "Dropdown") {
+  const dropdownDisplay = Array.isArray(value) ? value.join(', ') : String(value || '');
   return (
   <Box onClick={activate} sx={{
   bgcolor: 'transparent',
@@ -5287,7 +5288,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
   }}>
-  <Typography variant="body2" sx={{ fontWeight: 400, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>{value || ''}</Typography>
+  <Typography variant="body2" sx={{ fontWeight: 400, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>{dropdownDisplay}</Typography>
   <Box component="span" sx={{ color: theme.palette.text.secondary, fontSize: 11, flexShrink: 0 }}>▼</Box>
   </Box>
   );
@@ -5448,12 +5449,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       .filter((entry) => entry.searchValue.includes(normalizedOptionSearch))
       .map((entry) => entry.option)
   : options;
-  const closeOptionPopover = () => {
-  setStatusAnchor(null);
-  setEditingCell(null);
-  setOptionPopoverSearch("");
-  setOptionPopoverActiveIndex(-1);
-  };
   const persistDropdownOptions = async (nextOptions: ColumnOption[]) => {
   const nextColumns = columns.map((candidate) =>
   candidate.id === col.id ? { ...candidate, options: nextOptions } : candidate
@@ -5479,16 +5474,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   try {
   const nextOptions = [...options, { value: selectedValue, color: '#e0e4ef' }];
   await persistDropdownOptions(nextOptions);
-  handleCellSave(row.id, col.id, col.type, selectedValue);
-  closeOptionPopover();
+  handleCellSave(row.id, col.id, col.type, [...selectedDropdownValues, selectedValue]);
+  setOptionPopoverSearch("");
   } catch (err) {
   console.error("Failed to create dropdown option", err);
   showNotification("Failed to save dropdown option. Please try again.", "error");
   }
   };
+  const selectedDropdownValues = Array.isArray(value)
+  ? value.map((entry) => String(entry)).filter(Boolean)
+  : ((value === null || value === undefined || value === '-') ? [] : [String(value)].filter(Boolean));
   const handleDropdownOptionSelect = (selectedValue: string) => {
-  handleCellSave(row.id, col.id, col.type, selectedValue);
-  closeOptionPopover();
+  const nextValues = selectedValue === ''
+  ? []
+  : selectedDropdownValues.includes(selectedValue)
+  ? selectedDropdownValues.filter((entry) => entry !== selectedValue)
+  : [...selectedDropdownValues, selectedValue];
+  handleCellSave(row.id, col.id, col.type, nextValues);
   };
   const handleDropdownSearchKeyDown = (e: React.KeyboardEvent) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -5541,7 +5543,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   };
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
-  const valueStr = (value === null || value === undefined || value === '-') ? '' : value;
+  const valueStr = selectedDropdownValues.join(', ');
   const dropdownShouldOpenUpward = Boolean(
   statusAnchor
   && typeof window !== 'undefined'
@@ -5712,17 +5714,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   transition: 'all 0.1s',
   bgcolor: optionPopoverActiveIndex === idx
   ? alpha(theme.palette.primary.main, 0.22)
-  : (value === opt.value ? alpha(theme.palette.primary.main, 0.15) : 'transparent'),
+  : (selectedDropdownValues.includes(opt.value) ? alpha(theme.palette.primary.main, 0.15) : 'transparent'),
   '&:hover': { bgcolor: theme.palette.action.hover, color: theme.palette.text.primary },
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between'
   }}
   >
+  <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+  <Checkbox checked={selectedDropdownValues.includes(opt.value)} size="small" sx={{ p: 0, mr: 1 }} />
   <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
   {opt.value}
   </Box>
-  {value === opt.value && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
+  </Box>
+  {selectedDropdownValues.includes(opt.value) && <Box component="span" sx={{ color: theme.palette.primary.main, fontSize: 14 }}>✓</Box>}
   </Box>
   )}
   />
