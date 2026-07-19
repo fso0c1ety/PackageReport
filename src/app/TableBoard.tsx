@@ -1545,6 +1545,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [invoiceDueDays, setInvoiceDueDays] = useState("14");
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState<string | null>(null);
   const [invoiceStampDataUrl, setInvoiceStampDataUrl] = useState<string | null>(null);
+  const [isInvoiceBrandingSaving, setIsInvoiceBrandingSaving] = useState(false);
   const [invoiceDraft, setInvoiceDraft] = useState<any | null>(null);
   const [invoiceSummary, setInvoiceSummary] = useState("");
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
@@ -2095,26 +2096,68 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }
   };
 
+  const saveInvoiceBrandingFile = async (file: File, type: 'logo' | 'stamp') => {
+  if (!tableId) return;
+  setIsInvoiceBrandingSaving(true);
+  try {
+  const formData = new FormData();
+  formData.append('file', file);
+  const uploadResponse = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
+  const uploadData = await uploadResponse.json();
+  if (!uploadResponse.ok || !uploadData?.url) throw new Error(uploadData?.error || 'Upload failed');
+  const absoluteUrl = String(uploadData.url).startsWith('/')
+  ? `${window.location.origin}${uploadData.url}`
+  : String(uploadData.url);
+  const brandingResponse = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invoice-branding`), {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(type === 'logo' ? { logoUrl: absoluteUrl } : { stampUrl: absoluteUrl })
+  });
+  if (!brandingResponse.ok) throw new Error('Unable to save branding');
+  if (type === 'logo') setInvoiceLogoDataUrl(absoluteUrl);
+  else setInvoiceStampDataUrl(absoluteUrl);
+  showNotification(`${type === 'logo' ? 'Company logo' : 'Company stamp'} saved for this workspace`, 'success');
+  } catch (error) {
+  console.error('Invoice branding upload failed:', error);
+  showNotification('Unable to save invoice branding', 'error');
+  } finally {
+  setIsInvoiceBrandingSaving(false);
+  }
+  };
+
   const handleInvoiceLogoPick = (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-  const result = typeof reader.result === 'string' ? reader.result : null;
-  setInvoiceLogoDataUrl(result);
-  };
-  reader.readAsDataURL(file);
+  void saveInvoiceBrandingFile(file, 'logo');
+  event.target.value = '';
   };
 
   const handleInvoiceStampPick = (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-  const result = typeof reader.result === 'string' ? reader.result : null;
-  setInvoiceStampDataUrl(result);
+  void saveInvoiceBrandingFile(file, 'stamp');
+  event.target.value = '';
   };
-  reader.readAsDataURL(file);
+
+  const clearInvoiceBranding = async (type: 'logo' | 'stamp') => {
+  if (!tableId) return;
+  setIsInvoiceBrandingSaving(true);
+  try {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invoice-branding`), {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(type === 'logo' ? { logoUrl: null } : { stampUrl: null })
+  });
+  if (!response.ok) throw new Error('Unable to remove branding');
+  if (type === 'logo') setInvoiceLogoDataUrl(null);
+  else setInvoiceStampDataUrl(null);
+  showNotification(`${type === 'logo' ? 'Company logo' : 'Company stamp'} removed`, 'success');
+  } catch (error) {
+  console.error('Invoice branding removal failed:', error);
+  showNotification('Unable to remove invoice branding', 'error');
+  } finally {
+  setIsInvoiceBrandingSaving(false);
+  }
   };
 
   const handleDownloadInvoicePdf = async (draft: any) => {
@@ -4716,6 +4759,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setInvoiceTaskPrices({});
   }
   }, [isInvoiceDialogOpen]);
+
+  useEffect(() => {
+  if (!tableId) return;
+  let active = true;
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/invoice-branding`))
+  .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load branding')))
+  .then((branding) => {
+  if (!active) return;
+  setInvoiceLogoDataUrl(branding.logoUrl || null);
+  setInvoiceStampDataUrl(branding.stampUrl || null);
+  })
+  .catch((error) => console.error('Invoice branding load failed:', error));
+  return () => { active = false; };
+  }, [tableId]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
@@ -8405,6 +8462,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   onChange={(_, value) => setSelectedInvoiceColumnIds(value.map((column) => column.id))}
   disableCloseOnSelect
   sx={{ mt: 1.5 }}
+  renderOption={(props, option, { selected }) => (
+  <li {...props}>
+  <Checkbox checked={selected} sx={{ mr: 1 }} />
+  <ListItemText primary={option.name} secondary={option.type} />
+  </li>
+  )}
   renderInput={(params) => (
   <TextField {...params} size="small" label="3. Columns to include in invoice" placeholder="Select columns..." />
   )}
@@ -8459,13 +8522,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   onChange={handleInvoiceLogoPick}
   style={{ display: 'none' }}
   />
-  <Button variant="outlined" onClick={() => invoiceLogoInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+  <Button variant="outlined" disabled={isInvoiceBrandingSaving} onClick={() => invoiceLogoInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
   Upload Company Logo
   </Button>
   {invoiceLogoDataUrl && (
   <>
   <Avatar src={invoiceLogoDataUrl} variant="rounded" sx={{ width: 34, height: 34 }} />
-  <Button size="small" onClick={() => setInvoiceLogoDataUrl(null)} sx={{ textTransform: 'none' }}>Remove</Button>
+  <Button size="small" disabled={isInvoiceBrandingSaving} onClick={() => void clearInvoiceBranding('logo')} sx={{ textTransform: 'none' }}>Remove</Button>
   </>
   )}
   <input
@@ -8475,13 +8538,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   onChange={handleInvoiceStampPick}
   style={{ display: 'none' }}
   />
-  <Button variant="outlined" onClick={() => invoiceStampInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+  <Button variant="outlined" disabled={isInvoiceBrandingSaving} onClick={() => invoiceStampInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
   Upload Company Stamp
   </Button>
   {invoiceStampDataUrl && (
   <>
   <Avatar src={invoiceStampDataUrl} variant="rounded" sx={{ width: 44, height: 34 }} />
-  <Button size="small" onClick={() => setInvoiceStampDataUrl(null)} sx={{ textTransform: 'none' }}>Remove Stamp</Button>
+  <Button size="small" disabled={isInvoiceBrandingSaving} onClick={() => void clearInvoiceBranding('stamp')} sx={{ textTransform: 'none' }}>Remove Stamp</Button>
   </>
   )}
   </Box>
