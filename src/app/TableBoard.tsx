@@ -5722,7 +5722,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}
   >
   <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-  <Checkbox checked={selectedDropdownValues.includes(opt.value)} size="small" sx={{ p: 0, mr: 1 }} />
   <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
   {opt.value}
   </Box>
