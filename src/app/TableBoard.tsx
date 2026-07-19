@@ -5354,6 +5354,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   if (effectiveType === "People") {
   const people = Array.isArray(value) ? value : [];
+  const isUserIdentityColumn = col.name.trim().toLowerCase() === 'user';
   const maxDisplay = isMobile ? 2 : 3;
   const displayPeople = people.slice(0, maxDisplay);
   const overflow = people.length - maxDisplay;
@@ -5364,7 +5365,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <AddIcon sx={{ fontSize: isMobile ? 14 : 16 }} />
   </Box>
   ) : (
-  <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5 }}>
+  <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5, minWidth: 0, width: '100%' }}>
+  {isUserIdentityColumn && displayPeople[0] ? (
+  <>
+  <Avatar src={getAvatarUrl(displayPeople[0].avatar, displayPeople[0].name)} sx={{ width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, fontSize: 11, bgcolor: '#0073ea', border: `2px solid ${theme.palette.background.default}`, flexShrink: 0 }}>
+  {!displayPeople[0].avatar && (displayPeople[0].name ? displayPeople[0].name.charAt(0).toUpperCase() : '?')}
+  </Avatar>
+  <Typography noWrap sx={{ ml: 1, minWidth: 0, flex: 1, color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? 12 : 13 }} title={displayPeople[0].name || displayPeople[0].email}>
+  {displayPeople[0].name || displayPeople[0].email}
+  </Typography>
+  {people.length > 1 && <Typography sx={{ ml: 0.5, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 700 }}>+{people.length - 1}</Typography>}
+  </>
+  ) : (
+  <>
   {displayPeople.map((person: any, index: number) => (
   <Tooltip key={person.email || index} title={person.name}>
   <Avatar src={getAvatarUrl(person.avatar, person.name)} sx={{ width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, fontSize: isMobile ? 10 : 12, bgcolor: '#0073ea', border: `2px solid ${theme.palette.background.default}`, ml: index > 0 ? -1 : 0, zIndex: 10 - index }}>
@@ -5373,6 +5386,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Tooltip>
   ))}
   {overflow > 0 && <Box sx={{ width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: '50%', bgcolor: theme.palette.background.paper, color: theme.palette.text.primary, fontSize: isMobile ? 10 : 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${theme.palette.background.default}`, ml: -1 }}>+{overflow}</Box>}
+  </>
+  )}
   </Box>
   )}
   </Box>
@@ -6270,6 +6285,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // People Column - Modern
   if (col.type === "People") {
   const people = Array.isArray(value) ? value : [];
+  const isUserIdentityColumn = col.name.trim().toLowerCase() === 'user';
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
 
   // Calculate displayed people vs overflow
@@ -6319,7 +6335,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <AddIcon sx={{ fontSize: isMobile ? 14 : 16 }} />
   </Box>
   ) : (
-  <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5 }}>
+  <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5, minWidth: 0, width: '100%' }}>
+  {isUserIdentityColumn && displayPeople[0] ? (
+  <>
+  <Avatar src={getAvatarUrl(displayPeople[0].avatar, displayPeople[0].name)} sx={{ width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, fontSize: 11, bgcolor: '#0073ea', border: `2px solid ${theme.palette.background.default}`, flexShrink: 0 }}>
+  {!displayPeople[0].avatar && (displayPeople[0].name ? displayPeople[0].name.charAt(0).toUpperCase() : '?')}
+  </Avatar>
+  <Typography noWrap sx={{ ml: 1, minWidth: 0, flex: 1, color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? 12 : 13 }} title={displayPeople[0].name || displayPeople[0].email}>
+  {displayPeople[0].name || displayPeople[0].email}
+  </Typography>
+  {people.length > 1 && <Typography sx={{ ml: 0.5, color: theme.palette.text.secondary, fontSize: 11, fontWeight: 700 }}>+{people.length - 1}</Typography>}
+  </>
+  ) : (
+  <>
   {displayPeople.map((p, i) => (
   <Tooltip key={p.email || i} title={p.name}>
   <Avatar
@@ -6356,6 +6384,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }}>
   +{overflow}
   </Box>
+  )}
+  </>
   )}
   </Box>
   )}
