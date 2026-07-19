@@ -1535,6 +1535,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
   const [selectedInvoiceTaskIds, setSelectedInvoiceTaskIds] = useState<string[]>([]);
+  const [invoiceTaskPrices, setInvoiceTaskPrices] = useState<Record<string, string>>({});
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>('classic');
   const [invoiceCompanyName, setInvoiceCompanyName] = useState("");
   const [invoiceClientName, setInvoiceClientName] = useState("");
@@ -1927,7 +1928,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const buildLocalInvoiceDraft = (selectedRows: Row[]) => {
   const titleCol = columns[0];
   const qtyCol = columns.find(col => /qty|quantity|hours|days|units/i.test(col.name));
-  const amountCol = columns.find(col => /price|rate|cost|amount|total|budget|value/i.test(col.name));
+  const amountCol = columns.find(col => /price|rate|cost|amount|total|budget|value|çmimi/i.test(col.name));
   let missingPricing = false;
 
   const items = selectedRows.map((row, index) => {
@@ -1938,9 +1939,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   );
 
   const quantity = Math.max(1, toNumber(qtyCol ? row.values[qtyCol.id] : 1) || 1);
-  const amount = amountCol ? toNumber(row.values[amountCol.id]) : 0;
+  const manualPrice = invoiceTaskPrices[row.id];
+  const amount = manualPrice !== undefined && manualPrice !== ''
+  ? toNumber(manualPrice) * quantity
+  : (amountCol ? toNumber(row.values[amountCol.id]) : 0);
 
-  if (!amountCol || amount <= 0) {
+  if (amount <= 0) {
   missingPricing = true;
   }
 
@@ -2287,6 +2291,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   return;
   }
 
+  if (selectedRows.some((row) => toNumber(invoiceTaskPrices[row.id]) <= 0)) {
+  showNotification('Enter a price greater than zero for every selected task', 'error');
+  return;
+  }
+
   setIsInvoiceGenerating(true);
   try {
   const invoiceSourceRows = buildAiTaskSnapshot(selectedRows, 40);
@@ -2359,7 +2368,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const data = await res.json();
   const aiResult = parseAiJson(data?.choices?.[0]?.message?.content || "");
   const hasAiItems = Array.isArray(aiResult?.invoiceDraft?.items) && aiResult.invoiceDraft.items.length > 0;
-  const baseDraft = hasAiItems ? aiResult.invoiceDraft : buildLocalInvoiceDraft(selectedRows);
+  const localDraft = buildLocalInvoiceDraft(selectedRows);
+  const baseDraft = hasAiItems
+  ? {
+  ...aiResult.invoiceDraft,
+  items: localDraft.items,
+  subtotal: localDraft.subtotal,
+  taxPercent: localDraft.taxPercent,
+  taxAmount: localDraft.taxAmount,
+  total: localDraft.total
+  }
+  : localDraft;
   const decoratedDraft = {
   ...baseDraft,
   companyName: invoiceCompanyName || boardTitle || baseDraft?.billFrom,
@@ -4628,9 +4647,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const invoiceTaskOptions = React.useMemo(() => {
   if (!isInvoiceDialogOpen) return [];
   const titleColId = columns[0]?.id;
+  const priceColumn = columns.find((column) => /price|rate|cost|amount|total|budget|value|çmimi/i.test(column.name));
   return rows.map((row, index) => ({
   id: row.id,
-  label: String(row.values[titleColId] || `Task ${index + 1}`)
+  label: String(row.values[titleColId] || `Task ${index + 1}`),
+  price: priceColumn ? toNumber(row.values[priceColumn.id]) : 0
   }));
   }, [isInvoiceDialogOpen, rows, columns]);
 
@@ -4672,6 +4693,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   useEffect(() => {
   if (isInvoiceDialogOpen) {
   setSelectedInvoiceTaskIds([]);
+  setInvoiceTaskPrices({});
   }
   }, [isInvoiceDialogOpen]);
 
@@ -8313,7 +8335,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   options={invoiceTaskOptions}
   getOptionLabel={(option) => option.label}
   value={invoiceTaskOptions.filter(opt => selectedInvoiceTaskIds.includes(opt.id))}
-  onChange={(_, value) => setSelectedInvoiceTaskIds(value.map(v => v.id))}
+  onChange={(_, value) => {
+  setSelectedInvoiceTaskIds(value.map(v => v.id));
+  setInvoiceTaskPrices((current) => Object.fromEntries(
+  value.map((option) => [option.id, current[option.id] ?? (option.price > 0 ? String(option.price) : '')])
+  ));
+  }}
   disableCloseOnSelect
   renderOption={(props, option, { selected }) => (
   <li {...props}>
@@ -8333,6 +8360,19 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
   Select one or more registered tasks for this invoice.
   </Typography>
+  {invoiceTaskOptions.filter((option) => selectedInvoiceTaskIds.includes(option.id)).map((option) => (
+  <Box key={option.id} sx={{ mt: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 150px' }, gap: 1, alignItems: 'center' }}>
+  <Typography variant="body2" sx={{ fontWeight: 700 }}>{option.label}</Typography>
+  <TextField
+  size="small"
+  type="number"
+  label={`Price (${invoiceCurrency || 'EUR'})`}
+  value={invoiceTaskPrices[option.id] ?? ''}
+  onChange={(event) => setInvoiceTaskPrices((current) => ({ ...current, [option.id]: event.target.value }))}
+  inputProps={{ min: 0, step: '0.01' }}
+  />
+  </Box>
+  ))}
   </Box>
   </Box>
 
