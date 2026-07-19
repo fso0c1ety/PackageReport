@@ -4636,8 +4636,12 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   const invoiceClientOptions = React.useMemo(() => {
   if (!isInvoiceDialogOpen) return [];
+  const clientColumnNames = new Set([
+  'client', 'client name', 'customer', 'customer name',
+  'company', 'company name', 'kompania', 'importuesi'
+  ]);
   const clientColumns = columns.filter((column) =>
-  /client|customer|company|kompani|importues/i.test(String(column.name || ''))
+  clientColumnNames.has(String(column.name || '').trim().toLocaleLowerCase())
   );
   const values = rows.flatMap((row) => clientColumns.map((column) => simplifyAiValue(row.values[column.id])))
   .map((value) => String(value || '').trim())
