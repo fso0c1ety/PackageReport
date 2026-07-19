@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { getAuthenticatedUser, pool } from "../_lib/server";
+import { ensureFleetDriverAccess, getAuthenticatedUser, pool } from "../_lib/server";
 import { requireWritableSubscription } from "../_lib/billing";
 import { getWorkspaceTemplateManifest } from "../../../workspaceTemplates";
 
@@ -13,6 +13,7 @@ export async function GET(req) {
   }
 
   try {
+    await ensureFleetDriverAccess(user);
     const result = await pool.query(
       `
         SELECT DISTINCT 

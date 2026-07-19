@@ -169,12 +169,14 @@ type RelationOption = RelationValue & { key: string };
 function RelationCellEditor({
   workspaceId,
   currentTableId,
+  targetTableName,
   initialValue,
   onSave,
   onCancel,
 }: {
   workspaceId: string | null;
   currentTableId: string | null;
+  targetTableName?: string | null;
   initialValue: RelationValue | RelationValue[] | string | null | undefined;
   onSave: (value: RelationValue[]) => void;
   onCancel: () => void;
@@ -195,6 +197,7 @@ function RelationCellEditor({
         const nextOptions: RelationOption[] = [];
         for (const table of tables) {
           if (table.id === currentTableId) continue;
+          if (targetTableName && table.name.trim().toLowerCase() !== targetTableName.trim().toLowerCase()) continue;
           const columns = Array.isArray(table.columns) ? table.columns : [];
           const primaryColumn = [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
           const rows = Array.isArray(table.tasks) ? table.tasks : [];
@@ -213,7 +216,7 @@ function RelationCellEditor({
       })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [currentTableId, workspaceId]);
+  }, [currentTableId, targetTableName, workspaceId]);
 
   const initialRelations = Array.isArray(initialValue) ? initialValue : (typeof initialValue === "object" && initialValue?.rowId ? [initialValue] : []);
   const selected = initialRelations.map((item) => ({ ...item, key: `${item.tableId}:${item.rowId}` }));
@@ -3136,6 +3139,41 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }).catch((error) => console.error('Unable to upgrade Drivers user column', error));
   }, [boardTitle, columns, tableId, userPermission]);
 
+  // Repair Fleet boards created before relation targets were introduced.
+  // This is metadata-only: rows and existing relation values are preserved.
+  useEffect(() => {
+  if (!tableId || userPermission === 'read') return;
+  const fleetTargets: Record<string, Record<string, string>> = {
+  trucks: { driver: 'Drivers' },
+  trips: { truck: 'Trucks', driver: 'Drivers' },
+  fuel: { truck: 'Trucks', driver: 'Drivers' },
+  maintenance: { truck: 'Trucks' },
+  expenses: { truck: 'Trucks', trip: 'Trips', driver: 'Drivers' },
+  documents: { truck: 'Trucks', driver: 'Drivers' },
+  };
+  const boardKey = boardTitle.trim().toLowerCase();
+  const targets = fleetTargets[boardKey];
+  if (!targets) return;
+  let changed = false;
+  let updatedColumns = columns.map((column) => {
+  const target = column.type === 'Relation' ? targets[column.name.trim().toLowerCase()] : undefined;
+  if (!target || column.settings?.relationBoard === target) return column;
+  changed = true;
+  return { ...column, settings: { ...(column.settings || {}), relationBoard: target } };
+  });
+  if (boardKey === 'expenses' && !updatedColumns.some((column) => column.name.trim().toLowerCase() === 'driver')) {
+  changed = true;
+  updatedColumns = [...updatedColumns, { id: uuidv4(), name: 'Driver', type: 'Relation' as ColumnType, order: updatedColumns.length, settings: { relationBoard: 'Drivers' } }];
+  }
+  if (!changed) return;
+  setColumns(updatedColumns);
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ columns: updatedColumns }),
+  }).catch((error) => console.error('Unable to repair Fleet relation metadata', error));
+  }, [boardTitle, columns, tableId, userPermission]);
+
   useEffect(() => {
   if (!tableId) return;
 
@@ -3947,6 +3985,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   if (col && col.type === "People") {
   newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ 
+  id: p.id,
   name: p.name, 
   email: p.email,
   avatar: p.avatar,
@@ -6634,6 +6673,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <RelationCellEditor
   workspaceId={workspaceIdForImport}
   currentTableId={tableId}
+  targetTableName={col.settings?.relationBoard || null}
   initialValue={editValue}
   onSave={(nextValue) => handleCellSave(row.id, col.id, col.type, nextValue)}
   onCancel={() => {
@@ -11130,7 +11170,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   )}
 
   {(col.type === "Relation" || col.type === "Connect") && (
-  <RelationCellEditor workspaceId={workspaceIdForImport} currentTableId={tableId} initialValue={reviewTask.values[col.id]} onSave={(nextValue) => { updateReviewTaskValue(col.id, nextValue); handleCellSave(reviewTask.id, col.id, col.type, nextValue); }} onCancel={() => undefined} />
+  <RelationCellEditor workspaceId={workspaceIdForImport} currentTableId={tableId} targetTableName={col.settings?.relationBoard || null} initialValue={reviewTask.values[col.id]} onSave={(nextValue) => { updateReviewTaskValue(col.id, nextValue); handleCellSave(reviewTask.id, col.id, col.type, nextValue); }} onCancel={() => undefined} />
   )}
 
   {col.type === "Formula" && (() => {

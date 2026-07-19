@@ -242,10 +242,28 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
   const category = template.category ?? categoryFor(template.key);
   const hasFormula = template.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Formula"));
   const hasRelation = template.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Relation"));
+  const fleetRelationTarget = (boardName: string, columnName: string) => {
+    if (template.key !== "fleet_management") return undefined;
+    const targets: Record<string, Record<string, string>> = {
+      Trucks: { Driver: "Drivers" },
+      Trips: { Truck: "Trucks", Driver: "Drivers" },
+      Fuel: { Truck: "Trucks", Driver: "Drivers" },
+      Maintenance: { Truck: "Trucks" },
+      Expenses: { Truck: "Trucks", Trip: "Trips", Driver: "Drivers" },
+      Documents: { Truck: "Trucks", Driver: "Drivers" },
+    };
+    return targets[boardName]?.[columnName];
+  };
   const boards = template.boards.map((seedBoard, index) => ({
     ...seedBoard,
     columns: [
-      ...seedBoard.columns,
+      ...seedBoard.columns.map((column) => {
+        const relationBoard = column.type === "Relation" ? fleetRelationTarget(seedBoard.name, column.name) : undefined;
+        return relationBoard ? { ...column, settings: { ...(column.settings || {}), relationBoard } } : column;
+      }),
+      ...(template.key === "fleet_management" && seedBoard.name === "Expenses" && !seedBoard.columns.some((column) => column.name === "Driver")
+        ? [{ name: "Driver", type: "Relation", settings: { relationBoard: "Drivers" } }]
+        : []),
       ...(!hasFormula && index === 0 ? [{ name: "Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Cost", type: "Money", settings: { currency: "EUR" } }, { name: "Net Value", type: "Formula", settings: { formula: "[Amount] - [Cost]" } }] : []),
       ...(!hasRelation && index === 1 ? [{ name: template.boards[0].name, type: "Relation", settings: { relationBoard: template.boards[0].name } }] : []),
     ],

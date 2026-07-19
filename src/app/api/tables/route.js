@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { getAuthenticatedUser, pool } from "../_lib/server";
+import { ensureFleetDriverAccess, getAuthenticatedUser, pool } from "../_lib/server";
 import { requireWritableSubscription } from "../_lib/billing";
 
 export const runtime = "nodejs";
@@ -12,6 +12,7 @@ export async function GET(req) {
   }
 
   try {
+    await ensureFleetDriverAccess(user);
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
 

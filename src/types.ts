@@ -66,6 +66,7 @@ export interface Column {
     currency?: string;
     precision?: number;
     relationTableId?: string;
+    relationBoard?: string;
     relationDisplayColumnId?: string;
     formula?: string;
     maxRating?: number;
