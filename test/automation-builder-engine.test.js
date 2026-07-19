@@ -5,9 +5,21 @@ const engine = require("../server/services/automationBuilderEngine.cjs");
 test("Phase 16 registry exposes every required trigger, condition and action", () => {
   assert.equal(engine.TRIGGERS.length, 10);
   assert.equal(engine.CONDITIONS.length, 7);
-  assert.equal(engine.ACTIONS.length, 12);
+  assert.equal(engine.ACTIONS.length, 13);
   assert.ok(engine.ACTIONS.includes("call_webhook"));
   assert.ok(engine.ACTIONS.includes("archive_row"));
+  assert.ok(engine.ACTIONS.includes("send_both"));
+});
+
+test("notification and email action remains a single dual-delivery flow", () => {
+  const definition = engine.normalizeAutomationDefinition({
+    triggerType: "column_change",
+    triggerCol: "status",
+    actionType: "both",
+    actionConfig: { recipients: ["ops@example.com"], columns: ["status"] },
+  });
+  assert.equal(definition.actions[0].type, "send_both");
+  assert.deepEqual(definition.actions[0].config.recipients, ["ops@example.com"]);
 });
 
 test("legacy automations normalize into WHEN IF THEN definitions", () => {

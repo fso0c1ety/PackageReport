@@ -7,7 +7,7 @@ const CONDITIONS = Object.freeze([
   "person_current_user", "relation_exists", "formula_matches",
 ]);
 const ACTIONS = Object.freeze([
-  "send_notification", "send_email", "create_row", "create_task", "update_field",
+  "send_notification", "send_email", "send_both", "create_row", "create_task", "update_field",
   "assign_user", "move_row", "duplicate_row", "create_relation", "add_comment",
   "call_webhook", "archive_row",
 ]);
@@ -20,7 +20,7 @@ const legacyTriggers = Object.freeze({
   date_arrives: "date_arrives", reminder: "reminder",
 });
 const legacyActions = Object.freeze({
-  notification: "send_notification", email: "send_email", both: "send_notification",
+  notification: "send_notification", email: "send_email", both: "send_both",
   webhook: "call_webhook", create_task: "create_task", set_status: "update_field",
 });
 

@@ -28,12 +28,15 @@ async function executeRetryActions({ actions, automation, table, rowId, values, 
   for (const action of actions) {
     const config = action?.config && typeof action.config === "object" ? action.config : {};
     const columnId = action?.columnId || config.columnId;
-    if (action.type === "send_email") {
-      await sendEmail({ to: Array.isArray(config.recipients) ? config.recipients : automation.recipients || [], subject: `Automation: ${table.name}`, text: String(config.body || "An automation was triggered.") });
-    } else if (action.type === "send_notification") {
-      const recipients = Array.isArray(config.recipients) ? config.recipients.map((email) => String(email).toLowerCase()) : [];
-      const users = await pool.query("SELECT id FROM users WHERE LOWER(email)=ANY($1)", [recipients]);
-      for (const recipient of users.rows) await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'automation',$4::jsonb,FALSE,NOW())", [randomUUID(), recipient.id, actorId, JSON.stringify({ title: automation.name || "Automation", body: config.body || "An automation was triggered.", tableId: table.id, taskId: rowId })]);
+    if (["send_email", "send_notification", "send_both"].includes(action.type)) {
+      if (["send_email", "send_both"].includes(action.type)) {
+        await sendEmail({ to: Array.isArray(config.recipients) ? config.recipients : automation.recipients || [], subject: `Automation: ${table.name}`, text: String(config.body || "An automation was triggered.") });
+      }
+      if (["send_notification", "send_both"].includes(action.type)) {
+        const recipients = Array.isArray(config.recipients) ? config.recipients.map((email) => String(email).toLowerCase()) : [];
+        const users = await pool.query("SELECT id FROM users WHERE LOWER(email)=ANY($1)", [recipients]);
+        for (const recipient of users.rows) await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'automation',$4::jsonb,FALSE,NOW())", [randomUUID(), recipient.id, actorId, JSON.stringify({ title: automation.name || "Automation", body: config.body || "An automation was triggered.", tableId: table.id, taskId: rowId })]);
+      }
     } else if (["update_field", "assign_user"].includes(action.type)) {
       if (!columnId) throw new Error("Target column is required");
       await pool.query("UPDATE rows SET values=jsonb_set(COALESCE(values,'{}'::jsonb),$1,$2::jsonb,true),updated_at=NOW() WHERE id=$3 AND table_id=$4", [`{${columnId}}`, JSON.stringify(config.value ?? action.value ?? null), rowId, table.id]);

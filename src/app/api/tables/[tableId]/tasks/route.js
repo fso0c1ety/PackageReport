@@ -206,7 +206,7 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
       .map((recipient) => String(recipient || "").trim())
       .filter(Boolean);
     const primaryAction = definition ? plan.actions[0] : null;
-    const actionAliases = { send_email: "email", send_notification: "notification", call_webhook: "webhook" };
+    const actionAliases = { send_email: "email", send_notification: "notification", send_both: "both", call_webhook: "webhook" };
     const rawActionType = primaryAction?.type || matchingRule?.actionType || matchingRule?.type || automation.action_type || "email";
     const actionType = actionAliases[rawActionType] || rawActionType;
     const actionConfig = primaryAction?.config || (automation.action_config && typeof automation.action_config === "object" ? automation.action_config : {});

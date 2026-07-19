@@ -138,7 +138,7 @@ interface TableBoardProps {
 }
 type InvoiceTemplate = 'classic' | 'modern' | 'minimal';
 type AutomationTriggerType = 'row_created' | 'status_changed' | 'field_changed' | 'date_arrives' | 'date_approaching' | 'formula_changed' | 'reminder' | 'form_submitted' | 'relation_added' | 'row_moved' | 'column_change' | 'formula_change';
-type AutomationActionType = 'send_notification' | 'send_email' | 'create_row' | 'create_task' | 'update_field' | 'assign_user' | 'move_row' | 'duplicate_row' | 'create_relation' | 'add_comment' | 'call_webhook' | 'archive_row' | 'email' | 'notification' | 'both' | 'webhook';
+type AutomationActionType = 'send_notification' | 'send_email' | 'send_both' | 'create_row' | 'create_task' | 'update_field' | 'assign_user' | 'move_row' | 'duplicate_row' | 'create_relation' | 'add_comment' | 'call_webhook' | 'archive_row' | 'email' | 'notification' | 'both' | 'webhook';
 type AutomationConditionType = '' | 'status_equals' | 'number_greater_than' | 'field_empty' | 'date_overdue' | 'person_current_user' | 'relation_exists' | 'formula_matches';
 
 const initialRows: Row[] = [
@@ -12793,6 +12793,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   {[
   { id: 'send_notification', label: 'Send Notification', icon: <BoltIcon /> },
   { id: 'send_email', label: 'Send Email', icon: <SendIcon /> },
+  { id: 'send_both', label: 'Send Notification & Email', icon: <SendIcon /> },
   { id: 'create_row', label: 'Create Row', icon: <AddIcon /> },
   { id: 'create_task', label: 'Create Task', icon: <AddIcon /> },
   { id: 'update_field', label: 'Update Field', icon: <EditIcon /> },
@@ -12861,7 +12862,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </FormControl>
   </Box>}
 
-  {['send_email', 'send_notification'].includes(actionType) && <Box>
+  {['send_email', 'send_notification', 'send_both'].includes(actionType) && <Box>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5, fontWeight: 700 }}>4. Deployment Targets</Typography>
   <FormControl fullWidth sx={{ mb: 2 }}>
   <Select
@@ -12979,11 +12980,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   showNotification('Select a condition column', 'error');
   return;
   }
-  if (['send_email', 'send_notification'].includes(actionType) && emailRecipients.length === 0) {
+  if (['send_email', 'send_notification', 'send_both'].includes(actionType) && emailRecipients.length === 0) {
   showNotification('Select at least one recipient email', 'error');
   return;
   }
-  if (['send_email', 'send_notification', 'call_webhook'].includes(actionType) && emailCols.length === 0) {
+  if (['send_email', 'send_notification', 'send_both', 'call_webhook'].includes(actionType) && emailCols.length === 0) {
   showNotification('Select at least one column to include', 'error');
   return;
   }

@@ -109,10 +109,12 @@ export async function GET(req) {
           if (!plan.matched) throw new Error("Automation conditions no longer match");
           for (const action of plan.actions) {
             const actionConfig = action.config || {};
-            if (action.type === "send_email") await sendEmail({ to: actionConfig.recipients || recipients, subject, text: body });
-            else if (action.type === "send_notification") {
-              const users = await pool.query("SELECT id FROM users WHERE LOWER(email)=ANY($1)", [(actionConfig.recipients || recipients).map((email) => String(email).toLowerCase())]);
-              for (const recipient of users.rows) await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,NULL,'automation',$3::jsonb,FALSE,NOW())", [randomUUID(), recipient.id, JSON.stringify({ title: subject, body, tableId: item.table_id, taskId: item.row_id })]);
+            if (["send_email", "send_notification", "send_both"].includes(action.type)) {
+              if (["send_email", "send_both"].includes(action.type)) await sendEmail({ to: actionConfig.recipients || recipients, subject, text: body });
+              if (["send_notification", "send_both"].includes(action.type)) {
+                const users = await pool.query("SELECT id FROM users WHERE LOWER(email)=ANY($1)", [(actionConfig.recipients || recipients).map((email) => String(email).toLowerCase())]);
+                for (const recipient of users.rows) await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,NULL,'automation',$3::jsonb,FALSE,NOW())", [randomUUID(), recipient.id, JSON.stringify({ title: subject, body, tableId: item.table_id, taskId: item.row_id })]);
+              }
             } else if (["update_field", "assign_user"].includes(action.type)) await pool.query("UPDATE rows SET values=jsonb_set(COALESCE(values,'{}'::jsonb),$1,$2::jsonb,true),updated_at=NOW() WHERE id=$3 AND table_id=$4", [`{${action.columnId}}`, JSON.stringify(actionConfig.value ?? action.value ?? null), item.row_id, item.table_id]);
             else if (["create_row", "create_task"].includes(action.type)) await pool.query("INSERT INTO rows(id,table_id,values,created_by,created_at) VALUES($1,$2,$3::jsonb,$4,NOW())", [randomUUID(), actionConfig.tableId || item.table_id, JSON.stringify(actionConfig.values || { [titleColumn.id]: actionConfig.taskName || `Follow up: ${rowName}` }), item.created_by || user.id]);
             else if (action.type === "add_comment") await pool.query("INSERT INTO item_comments(id,row_id,user_id,body,created_at,updated_at) VALUES($1,$2,$3,$4,NOW(),NOW())", [randomUUID(), item.row_id, item.created_by || user.id, String(actionConfig.body || action.value || "Automated reminder").slice(0,5000)]);

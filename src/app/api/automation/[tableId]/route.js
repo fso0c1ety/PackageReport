@@ -184,7 +184,7 @@ export async function POST(req, { params }) {
     if (!definitionResult.valid) return NextResponse.json({ error: definitionResult.errors.join(". ") }, { status: 400 });
     const definition = definitionResult.definition;
     if (definition.actions.some((action) => action.type === "call_webhook" && !isSafePublicHttpsUrl(String(action.config?.webhookUrl || "")))) return NextResponse.json({ error: "Webhook must use a safe public HTTPS URL" }, { status: 400 });
-    const normalizedActionType = ["email", "notification", "both", "webhook", "create_task", "send_notification", "send_email", "create_row", "create_task", "update_field", "assign_user", "move_row", "duplicate_row", "create_relation", "add_comment", "call_webhook", "archive_row"].includes(actionType) ? actionType : (definition.actions[0]?.type || "send_notification");
+    const normalizedActionType = ["email", "notification", "both", "webhook", "create_task", "send_notification", "send_email", "send_both", "create_row", "create_task", "update_field", "assign_user", "move_row", "duplicate_row", "create_relation", "add_comment", "call_webhook", "archive_row"].includes(actionType) ? actionType : (definition.actions[0]?.type || "send_notification");
     const normalizedTriggerType = triggerType || definition.trigger.type;
     const normalizedRules = Array.isArray(rules)
       ? rules.filter((rule) => rule?.value && ["email", "notification", "both", "webhook", "create_task"].includes(rule?.actionType))

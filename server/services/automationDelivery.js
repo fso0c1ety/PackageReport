@@ -204,9 +204,11 @@ async function executeBuilderAction({ action, automation, table, rowId, values, 
   const columnId = action?.columnId || config.columnId;
   switch (action?.type) {
     case "send_email":
-    case "send_notification": {
+    case "send_notification":
+    case "send_both": {
       const recipients = Array.isArray(config.recipients) ? config.recipients : parseJsonArray(automation.recipients);
-      return deliverAutomation({ automation: { ...automation, action_type: action.type === "send_email" ? "email" : "notification", recipients, cols: config.columns || automation.cols }, table, rowId, values });
+      const deliveryType = action.type === "send_email" ? "email" : action.type === "send_both" ? "both" : "notification";
+      return deliverAutomation({ automation: { ...automation, action_type: deliveryType, recipients, cols: config.columns || automation.cols }, table, rowId, values });
     }
     case "update_field":
     case "assign_user": {
