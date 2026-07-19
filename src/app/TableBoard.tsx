@@ -3119,6 +3119,23 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   .finally(() => setLoading(false));
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
 
+  // Fleet V2: a Drivers record represents an application user, not free-form text.
+  // Existing Drivers boards are upgraded in place while row data is preserved.
+  useEffect(() => {
+  if (!tableId || boardTitle.trim().toLowerCase() !== 'drivers' || userPermission === 'read') return;
+  const primaryColumn = columns[0];
+  if (!primaryColumn || primaryColumn.type === 'People') return;
+  const updatedColumns = columns.map((column, index) => index === 0
+  ? { ...column, name: 'User', type: 'People' as ColumnType }
+  : column);
+  setColumns(updatedColumns);
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/columns`), {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ columns: updatedColumns }),
+  }).catch((error) => console.error('Unable to upgrade Drivers user column', error));
+  }, [boardTitle, columns, tableId, userPermission]);
+
   useEffect(() => {
   if (!tableId) return;
 
