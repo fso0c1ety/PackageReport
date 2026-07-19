@@ -32,6 +32,9 @@ export async function GET(req) {
           last_name,
           birth_date,
           gender,
+          driver_license,
+          driver_license_expiry,
+          passport,
           COALESCE(email_notifications, TRUE) AS email_notifications,
           COALESCE(push_notifications, TRUE) AS push_notifications
         FROM users
@@ -71,6 +74,9 @@ export async function PUT(req) {
       last_name = null,
       birth_date = null,
       gender = null,
+      driver_license = null,
+      driver_license_expiry = null,
+      passport = null,
       email_notifications = null,
       push_notifications = null,
     } = await req.json();
@@ -88,9 +94,12 @@ export async function PUT(req) {
           last_name = COALESCE($7, last_name),
           birth_date = COALESCE($8, birth_date),
           gender = COALESCE($9, gender),
-          email_notifications = COALESCE($10, email_notifications, TRUE),
-          push_notifications = COALESCE($11, push_notifications, TRUE)
-        WHERE id = $12
+          driver_license = COALESCE($10, driver_license),
+          driver_license_expiry = COALESCE($11, driver_license_expiry),
+          passport = COALESCE($12, passport),
+          email_notifications = COALESCE($13, email_notifications, TRUE),
+          push_notifications = COALESCE($14, push_notifications, TRUE)
+        WHERE id = $15
         RETURNING
           id,
           name,
@@ -103,6 +112,9 @@ export async function PUT(req) {
           last_name,
           birth_date,
           gender,
+          driver_license,
+          driver_license_expiry,
+          passport,
           COALESCE(email_notifications, TRUE) AS email_notifications,
           COALESCE(push_notifications, TRUE) AS push_notifications
       `,
@@ -116,6 +128,9 @@ export async function PUT(req) {
         last_name,
         birth_date,
         gender,
+        driver_license,
+        driver_license_expiry,
+        passport,
         email_notifications,
         push_notifications,
         user.id,

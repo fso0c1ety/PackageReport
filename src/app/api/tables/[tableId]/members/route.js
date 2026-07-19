@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthenticatedUser, pool } from "../../../_lib/server";
+import { ensureExtendedUserProfileColumns, getAuthenticatedUser, pool } from "../../../_lib/server";
 
 export const runtime = "nodejs";
 
@@ -10,6 +10,7 @@ export async function GET(req, { params }) {
   }
 
   try {
+    await ensureExtendedUserProfileColumns();
     const { tableId } = await params;
 
     const accessRes = await pool.query(
@@ -44,7 +45,7 @@ export async function GET(req, { params }) {
     const memberIds = [...new Set([ownerId, ...sharedUsers])];
 
     const usersRes = await pool.query(
-      "SELECT id, name, email, avatar FROM users WHERE id = ANY($1)",
+      "SELECT id, name, email, avatar, phone, driver_license, driver_license_expiry, passport FROM users WHERE id = ANY($1)",
       [memberIds]
     );
 
@@ -53,6 +54,10 @@ export async function GET(req, { params }) {
         id: row.id,
         name: row.name,
         email: row.email,
+        phone: row.phone,
+        license: row.driver_license,
+        licenseExpiry: row.driver_license_expiry,
+        passport: row.passport,
         avatar:
           row.avatar ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(

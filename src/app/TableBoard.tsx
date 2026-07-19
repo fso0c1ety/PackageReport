@@ -3949,7 +3949,11 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ 
   name: p.name, 
   email: p.email,
-  avatar: p.avatar // Ensure avatar is preserved
+  avatar: p.avatar,
+  phone: p.phone ?? null,
+  license: p.license ?? null,
+  licenseExpiry: p.licenseExpiry ?? null,
+  passport: p.passport ?? null
   })) : [];
   }
   if (colType === "Date") {
@@ -3972,6 +3976,30 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   ? reviewTaskRef.current
   : sourceRows[rowIdx];
   const nextValues = { ...baseRow.values, [colId]: newValue };
+  // Fleet Drivers: selecting the application user hydrates the driver's
+  // profile-backed fields in the same row. Existing manual values are kept
+  // whenever the selected account does not provide that detail.
+  if (
+  boardTitle.trim().toLowerCase() === 'drivers' &&
+  col?.type === 'People' &&
+  col.name.trim().toLowerCase() === 'user' &&
+  Array.isArray(newValue) && newValue[0]
+  ) {
+  const selectedUser = newValue[0];
+  const driverFieldValues: Record<string, unknown> = {
+  phone: selectedUser.phone,
+  email: selectedUser.email,
+  license: selectedUser.license,
+  'license expiry': selectedUser.licenseExpiry,
+  passport: selectedUser.passport,
+  };
+  columns.forEach((driverColumn) => {
+  const profileValue = driverFieldValues[driverColumn.name.trim().toLowerCase()];
+  if (profileValue !== undefined && profileValue !== null && profileValue !== '') {
+  nextValues[driverColumn.id] = profileValue;
+  }
+  });
+  }
   let updatedRow: Row = { ...baseRow, values: nextValues };
   for (const formulaColumn of columns.filter((candidate) => candidate.type === "Formula")) {
   const result = calculateFormulaValue(formulaColumn, updatedRow, columns);

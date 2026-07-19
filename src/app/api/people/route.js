@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { getAuthenticatedUser, pool } from "../_lib/server";
+import { ensureExtendedUserProfileColumns, getAuthenticatedUser, pool } from "../_lib/server";
 
 export const runtime = "nodejs";
 
@@ -11,17 +11,18 @@ export async function GET(req) {
   }
 
   try {
+    await ensureExtendedUserProfileColumns();
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q")?.trim();
 
     let result;
     if (q) {
       result = await pool.query(
-        "SELECT id, name, email, avatar FROM users WHERE name ILIKE $1 OR email ILIKE $1 LIMIT 10",
+        "SELECT id, name, email, avatar, phone, driver_license AS license, driver_license_expiry AS \"licenseExpiry\", passport FROM users WHERE name ILIKE $1 OR email ILIKE $1 LIMIT 10",
         [`%${q}%`]
       );
     } else {
-      result = await pool.query("SELECT id, name, email, avatar FROM users LIMIT 10");
+      result = await pool.query("SELECT id, name, email, avatar, phone, driver_license AS license, driver_license_expiry AS \"licenseExpiry\", passport FROM users LIMIT 10");
     }
 
     const people = result.rows.map((row) => ({

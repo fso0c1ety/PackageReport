@@ -33,6 +33,10 @@ export interface Person {
   name: string;
   email: string;
   avatar: string | null;
+  phone?: string | null;
+  license?: string | null;
+  licenseExpiry?: string | null;
+  passport?: unknown;
 }
 
 interface PeopleSelectorProps {
