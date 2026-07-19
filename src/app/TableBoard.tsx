@@ -588,6 +588,7 @@ type VirtualRowBoundaryProps = {
   membersRef: any[];
   displayRenderer: (row: Row, col: Column) => React.ReactNode;
   isInteractive: boolean;
+  isSelected: boolean;
   dragDisabled: boolean;
   render: (row: Row) => React.ReactNode;
 };
@@ -608,6 +609,7 @@ const MemoizedVirtualRowBoundary = React.memo(
     && previous.membersRef === next.membersRef
     && previous.displayRenderer === next.displayRenderer
     && previous.dragDisabled === next.dragDisabled
+    && previous.isSelected === next.isSelected
     && !previous.isInteractive
     && !next.isInteractive
   ),
@@ -9302,6 +9304,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   editingCell?.rowId === rowId
   || chatPopoverKey?.startsWith(`${rowId}-`) === true
   }
+  isSelected={selectedRowIds.has(rowId)}
   dragDisabled={userPermission === 'read' || hasActiveFilters}
   render={(row) => {
   let rowBg = theme.palette.background.default;
