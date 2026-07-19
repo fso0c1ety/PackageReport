@@ -86,6 +86,7 @@ import {
   Tabs,
   Tab,
   CircularProgress,
+  Alert,
   alpha
 } from "@mui/material";
 import BoltIcon from '@mui/icons-material/Bolt';
@@ -10671,8 +10672,33 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   width: { xs: '100%', md: 'auto' },
   bgcolor: theme.palette.background.paper
   }}>
+  {userPermission === 'read' && (
+  <Alert severity="info" sx={{ mb: 2 }}>
+  View-only mode. Task details cannot be edited without an active subscription.
+  </Alert>
+  )}
   {reviewTask && (
-  <Box sx={{ display: 'grid', gridTemplateColumns: 'min-content 1fr', gap: 2, rowGap: 2, alignItems: 'center' }}>
+  <Box
+  component="fieldset"
+  disabled={userPermission === 'read'}
+  aria-readonly={userPermission === 'read'}
+  sx={{
+  display: 'grid',
+  gridTemplateColumns: 'min-content 1fr',
+  gap: 2,
+  rowGap: 2,
+  alignItems: 'center',
+  border: 0,
+  p: 0,
+  m: 0,
+  minWidth: 0,
+  pointerEvents: userPermission === 'read' ? 'none' : 'auto',
+  '& .Mui-disabled': {
+  opacity: 1,
+  WebkitTextFillColor: theme.palette.text.primary,
+  },
+  }}
+  >
   {columns.map((col) => {
   const detailsDropdownOptions = optionsByColumnId.get(col.id) || EMPTY_COLUMN_OPTIONS;
   const isDetailsDropdownOpen = Boolean(detailsDropdownAnchor) && detailsDropdownColumnId === col.id;
