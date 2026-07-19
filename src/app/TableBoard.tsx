@@ -1534,7 +1534,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [aiChatInput, setAiChatInput] = useState("");
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
-  const [invoiceTaskScope, setInvoiceTaskScope] = useState<'filtered' | 'all' | 'custom'>('filtered');
   const [selectedInvoiceTaskIds, setSelectedInvoiceTaskIds] = useState<string[]>([]);
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>('classic');
   const [invoiceCompanyName, setInvoiceCompanyName] = useState("");
@@ -1542,12 +1541,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [invoiceCurrency, setInvoiceCurrency] = useState("EUR");
   const [invoiceTaxPercent, setInvoiceTaxPercent] = useState("0");
   const [invoiceDueDays, setInvoiceDueDays] = useState("14");
-  const [invoiceStampText, setInvoiceStampText] = useState("PAID");
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState<string | null>(null);
+  const [invoiceStampDataUrl, setInvoiceStampDataUrl] = useState<string | null>(null);
   const [invoiceDraft, setInvoiceDraft] = useState<any | null>(null);
   const [invoiceSummary, setInvoiceSummary] = useState("");
   const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
   const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
+  const invoiceStampInputRef = React.useRef<HTMLInputElement | null>(null);
   const [columnDragPreviewIds, setColumnDragPreviewIds] = useState<string[] | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
@@ -2027,8 +2027,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   '',
   '## Notes',
   notesBlock,
-  '',
-  `**Status Stamp:** ${String(draft?.stampText || invoiceStampText || 'NOT PAID')}`
+  ''
   ].join('\n');
   };
 
@@ -2094,6 +2093,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   reader.onload = () => {
   const result = typeof reader.result === 'string' ? reader.result : null;
   setInvoiceLogoDataUrl(result);
+  };
+  reader.readAsDataURL(file);
+  };
+
+  const handleInvoiceStampPick = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+  const result = typeof reader.result === 'string' ? reader.result : null;
+  setInvoiceStampDataUrl(result);
   };
   reader.readAsDataURL(file);
   };
@@ -2243,11 +2253,13 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   });
   }
 
-  if (draft?.stampText) {
-  doc.setTextColor(185, 28, 28);
-  doc.setFontSize(30);
-  doc.setFont('helvetica', 'bold');
-  doc.text(String(draft.stampText).toUpperCase(), pageWidth - margin - 150, pageHeight - margin - 18, { angle: -20 });
+  if (draft?.stampDataUrl) {
+  try {
+  const stampImageType = String(draft.stampDataUrl).includes('image/jpeg') ? 'JPEG' : 'PNG';
+  doc.addImage(draft.stampDataUrl, stampImageType, pageWidth - margin - 110, pageHeight - margin - 92, 90, 72);
+  } catch (stampError) {
+  console.error('Could not render company stamp in PDF:', stampError);
+  }
   }
 
   const rawName = String(draft?.invoiceNumber || `invoice-${Date.now()}`);
@@ -2261,15 +2273,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   };
 
   const handleGenerateInvoice = async () => {
-  const selectedRows = (invoiceTaskScope === 'all'
-  ? rows
-  : invoiceTaskScope === 'filtered'
-  ? filteredRows
-  : rows.filter(r => selectedInvoiceTaskIds.includes(r.id))
-  ).slice(0, 100);
+  const selectedRows = rows
+  .filter(r => selectedInvoiceTaskIds.includes(r.id))
+  .slice(0, 100);
 
   if (selectedRows.length === 0) {
   showNotification('No tasks selected for invoice generation', 'error');
+  return;
+  }
+
+  if (!invoiceClientName.trim()) {
+  showNotification('Select a registered client', 'error');
   return;
   }
 
@@ -2292,7 +2306,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   currency: invoiceCurrency,
   taxPercent: invoiceTaxPercent,
   dueInDays: invoiceDueDays,
-  stampText: invoiceStampText
   })}
   Tasks for Invoice Conversion (max 100): ${JSON.stringify(invoiceSourceRows)}
 
@@ -2352,8 +2365,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   companyName: invoiceCompanyName || boardTitle || baseDraft?.billFrom,
   clientName: invoiceClientName || baseDraft?.billTo,
   template: invoiceTemplate,
-  stampText: invoiceStampText,
   logoDataUrl: invoiceLogoDataUrl,
+  stampDataUrl: invoiceStampDataUrl,
   currency: invoiceCurrency || baseDraft?.currency
   };
   const finalizedDraft = decoratedDraft.markdown
@@ -2374,8 +2387,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   companyName: invoiceCompanyName || boardTitle || fallbackDraft.billFrom,
   clientName: invoiceClientName || fallbackDraft.billTo,
   template: invoiceTemplate,
-  stampText: invoiceStampText,
   logoDataUrl: invoiceLogoDataUrl,
+  stampDataUrl: invoiceStampDataUrl,
   currency: invoiceCurrency || fallbackDraft.currency
   };
   const fallbackWithMarkdown = { ...decoratedFallback, markdown: buildInvoiceText(decoratedFallback) };
@@ -4615,11 +4628,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const invoiceTaskOptions = React.useMemo(() => {
   if (!isInvoiceDialogOpen) return [];
   const titleColId = columns[0]?.id;
-  return filteredRows.map((row, index) => ({
+  return rows.map((row, index) => ({
   id: row.id,
   label: String(row.values[titleColId] || `Task ${index + 1}`)
   }));
-  }, [isInvoiceDialogOpen, filteredRows, columns]);
+  }, [isInvoiceDialogOpen, rows, columns]);
+
+  const invoiceClientOptions = React.useMemo(() => {
+  if (!isInvoiceDialogOpen) return [];
+  const clientColumns = columns.filter((column) =>
+  /client|customer|company|kompani|importues/i.test(String(column.name || ''))
+  );
+  const values = rows.flatMap((row) => clientColumns.map((column) => simplifyAiValue(row.values[column.id])))
+  .map((value) => String(value || '').trim())
+  .filter(Boolean);
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }, [isInvoiceDialogOpen, rows, columns]);
 
   const numericTotalsByColumn = React.useMemo(() => {
   const totals = new Map<string, number>();
@@ -4642,20 +4666,10 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   }, [boardTitle, invoiceCompanyName]);
 
   useEffect(() => {
-  if (!isInvoiceDialogOpen) return;
-  if (invoiceTaskScope === 'all') {
-  setSelectedInvoiceTaskIds(rows.map(r => r.id));
-  } else if (invoiceTaskScope === 'filtered') {
-  setSelectedInvoiceTaskIds(filteredRows.map(r => r.id));
-  }
-  }, [isInvoiceDialogOpen, invoiceTaskScope, rows, filteredRows]);
-
-  useEffect(() => {
-  if (invoiceTaskScope === 'custom') {
-  // Manual mode starts with no auto-selection; user picks tasks explicitly.
+  if (isInvoiceDialogOpen) {
   setSelectedInvoiceTaskIds([]);
   }
-  }, [invoiceTaskScope]);
+  }, [isInvoiceDialogOpen]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
@@ -8289,26 +8303,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Stack spacing={2}>
   <Box sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.action.hover }}>
   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Task Selection</Typography>
-  <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
-  {[
-  { id: 'filtered', label: `Filtered (${filteredRows.length})` },
-  { id: 'all', label: `All (${rows.length})` },
-  { id: 'custom', label: 'Custom' }
-  ].map(opt => (
-  <Chip
-  key={opt.id}
-  label={opt.label}
-  onClick={() => setInvoiceTaskScope(opt.id as 'filtered' | 'all' | 'custom')}
-  sx={{
-  fontWeight: 700,
-  border: `1px solid ${theme.palette.divider}`,
-  bgcolor: invoiceTaskScope === opt.id ? theme.palette.primary.main : 'transparent',
-  color: invoiceTaskScope === opt.id ? '#fff' : theme.palette.text.secondary
-  }}
-  />
-  ))}
-  </Stack>
-  {invoiceTaskScope === 'custom' && (
   <Box>
   <Autocomplete
   multiple
@@ -8327,15 +8321,15 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <TextField
   {...params}
   size="small"
-  placeholder="Search filtered tasks, then select..."
+  label="Tasks to invoice"
+  placeholder="Search and select tasks..."
   />
   )}
   />
   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
-  Tasks are not preselected in custom mode.
+  Select one or more registered tasks for this invoice.
   </Typography>
   </Box>
-  )}
   </Box>
 
   <Box sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
@@ -8359,11 +8353,18 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.2 }}>
   <TextField size="small" label="Company Name" value={invoiceCompanyName} onChange={(e) => setInvoiceCompanyName(e.target.value)} />
-  <TextField size="small" label="Client Name" value={invoiceClientName} onChange={(e) => setInvoiceClientName(e.target.value)} />
+  <Autocomplete
+  options={invoiceClientOptions}
+  value={invoiceClientName || null}
+  onChange={(_, value) => setInvoiceClientName(value || '')}
+  noOptionsText="No registered clients found"
+  renderInput={(params) => (
+  <TextField {...params} size="small" label="Registered Client" placeholder="Select client..." />
+  )}
+  />
   <TextField size="small" label="Currency" value={invoiceCurrency} onChange={(e) => setInvoiceCurrency(e.target.value)} />
   <TextField size="small" type="number" label="Tax %" value={invoiceTaxPercent} onChange={(e) => setInvoiceTaxPercent(e.target.value)} />
   <TextField size="small" type="number" label="Due In (Days)" value={invoiceDueDays} onChange={(e) => setInvoiceDueDays(e.target.value)} />
-  <TextField size="small" label="Stamp Text" value={invoiceStampText} onChange={(e) => setInvoiceStampText(e.target.value)} />
   </Box>
 
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -8375,7 +8376,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   style={{ display: 'none' }}
   />
   <Button variant="outlined" onClick={() => invoiceLogoInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
-  Upload Logo
+  Upload Company Logo
   </Button>
   {invoiceLogoDataUrl && (
   <>
@@ -8548,26 +8549,21 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </Box>
   )}
 
-  {invoiceDraft?.stampText && (
+  {(invoiceDraft?.stampDataUrl || invoiceStampDataUrl) && (
   <Box
+  component="img"
+  src={invoiceDraft?.stampDataUrl || invoiceStampDataUrl || undefined}
+  alt="Company stamp"
   sx={{
   position: 'absolute',
   right: 20,
-  bottom: 24,
-  border: '2px solid #b91c1c',
-  color: '#b91c1c',
-  px: 1.2,
-  py: 0.2,
-  borderRadius: 1,
-  fontWeight: 900,
-  transform: 'rotate(-14deg)',
-  opacity: 0.7,
-  letterSpacing: '0.04em',
-  bgcolor: 'rgba(255,255,255,0.25)'
+  bottom: 20,
+  width: 110,
+  maxHeight: 84,
+  objectFit: 'contain',
+  opacity: 0.88
   }}
-  >
-  {String(invoiceDraft.stampText).toUpperCase()}
-  </Box>
+  />
   )}
   </Box>
   </Box>
@@ -10116,6 +10112,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   >
   New Task
   </Button>
+  )}
+  <input
+  ref={invoiceStampInputRef}
+  type="file"
+  accept="image/*"
+  onChange={handleInvoiceStampPick}
+  style={{ display: 'none' }}
+  />
+  <Button variant="outlined" onClick={() => invoiceStampInputRef.current?.click()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+  Upload Company Stamp
+  </Button>
+  {invoiceStampDataUrl && (
+  <>
+  <Avatar src={invoiceStampDataUrl} variant="rounded" sx={{ width: 44, height: 34 }} />
+  <Button size="small" onClick={() => setInvoiceStampDataUrl(null)} sx={{ textTransform: 'none' }}>Remove Stamp</Button>
+  </>
   )}
   </Box>
   )}
