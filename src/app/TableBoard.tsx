@@ -96,6 +96,11 @@ import SearchIcon from "@mui/icons-material/Search";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
+import PhotoLibraryIcon from "@mui/icons-material/PhotoLibrary";
+import MapIcon from "@mui/icons-material/Map";
+import BarChartIcon from "@mui/icons-material/BarChart";
+import DynamicFormIcon from "@mui/icons-material/DynamicForm";
+import DashboardCustomizeIcon from "@mui/icons-material/DashboardCustomize";
 import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -8929,17 +8934,22 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   sx={{ py: 1.5, px: 2, gap: 1.5, '&:hover': { bgcolor: theme.palette.action.hover } }}
   >
   <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: 'rgba(87, 155, 252, 0.1)', display: 'flex' }}>
-  <InsertDriveFileIcon sx={{ color: '#579bfc', fontSize: 20 }} />
+  <PhotoLibraryIcon sx={{ color: '#579bfc', fontSize: 20 }} />
   </Box>
   <Box>
   <Typography sx={{ color: theme.palette.text.primary, fontSize: 14, fontWeight: 500 }}>File Gallery</Typography>
   <Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>Asset gallery</Typography>
   </Box>
   </MenuItem>
-  {(['map', 'chart', 'form', 'dashboard'] as WorkspaceView[]).map((view) => (
-  <MenuItem key={view} onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView(view); }} sx={{ py: 1.25, px: 2, gap: 1.5 }}>
-  <Box sx={{ p: .5, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, .1), display: 'flex' }}><InsertDriveFileIcon sx={{ color: theme.palette.primary.main, fontSize: 20 }} /></Box>
-  <Box><Typography sx={{ textTransform: 'capitalize', color: theme.palette.text.primary, fontSize: 14, fontWeight: 500 }}>{view}</Typography><Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>Saved board view</Typography></Box>
+  {([
+  { view: 'map', icon: MapIcon, color: '#00c875', description: 'Interactive location view' },
+  { view: 'chart', icon: BarChartIcon, color: '#ff642e', description: 'Visual analytics view' },
+  { view: 'form', icon: DynamicFormIcon, color: '#e2445c', description: 'Data collection form' },
+  { view: 'dashboard', icon: DashboardCustomizeIcon, color: '#784bd1', description: 'Dashboard widgets' },
+  ] as const).map(({ view, icon: ViewIcon, color, description }) => (
+  <MenuItem key={view} onClick={() => { setHeaderMenuAnchor(null); setWorkspaceView(view); }} sx={{ py: 1.25, px: 2, gap: 1.5, '&:hover': { bgcolor: theme.palette.action.hover } }}>
+  <Box sx={{ p: .5, borderRadius: 1, bgcolor: alpha(color, .12), display: 'flex' }}><ViewIcon sx={{ color, fontSize: 20 }} /></Box>
+  <Box><Typography sx={{ textTransform: 'capitalize', color: theme.palette.text.primary, fontSize: 14, fontWeight: 500 }}>{view}</Typography><Typography sx={{ color: theme.palette.text.secondary, fontSize: 11 }}>{description}</Typography></Box>
   </MenuItem>
   ))}
   </Menu>
