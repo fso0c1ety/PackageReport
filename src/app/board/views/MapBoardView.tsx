@@ -4,7 +4,9 @@ import React from "react";
 import { Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
 import MapIcon from "@mui/icons-material/Map";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import worldCountries from "world-countries";
 import type { Column, Row } from "../../../types";
+import { countryCodeMap } from "../constants/countryConstants";
 import "leaflet/dist/leaflet.css";
 
 const countryCenters: Record<string, [number, number]> = {
@@ -13,6 +15,29 @@ const countryCenters: Record<string, [number, number]> = {
   TR: [38.9637, 35.2433], IT: [41.8719, 12.5674], ES: [40.4637, -3.7492], FR: [46.2276, 2.2137],
 };
 
+for (const country of worldCountries) {
+  const coordinates = country.latlng as [number, number];
+  if (coordinates?.length === 2) countryCenters[country.cca2.toUpperCase()] = coordinates;
+}
+
+const normalizedCountryCodes = new Map<string, string>();
+for (const [name, code] of Object.entries(countryCodeMap)) normalizedCountryCodes.set(name.trim().toLowerCase(), code);
+for (const country of worldCountries) {
+  normalizedCountryCodes.set(country.name.common.trim().toLowerCase(), country.cca2);
+  normalizedCountryCodes.set(country.name.official.trim().toLowerCase(), country.cca2);
+  normalizedCountryCodes.set(country.cca2.toLowerCase(), country.cca2);
+  normalizedCountryCodes.set(country.cca3.toLowerCase(), country.cca2);
+}
+normalizedCountryCodes.set("kosovo", "XK");
+normalizedCountryCodes.set("xk", "XK");
+
+function countryPoint(value: unknown): [number, number] | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  const code = normalizedCountryCodes.get(normalized) ?? normalized.toUpperCase();
+  return countryCenters[code] ?? null;
+}
+
 function point(value: unknown): [number, number] | null {
   if (!value) return null;
   if (typeof value === "object") {
@@ -20,9 +45,9 @@ function point(value: unknown): [number, number] | null {
     const lat = Number(location.latitude ?? location.lat);
     const lng = Number(location.longitude ?? location.lng ?? location.lon);
     if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
-    return countryCenters[String(location.countryCode ?? "").toUpperCase()] ?? null;
+    return countryPoint(location.countryCode ?? location.country ?? location.countryName ?? location.label ?? location.address);
   }
-  return countryCenters[String(value).trim().toUpperCase()] ?? null;
+  return countryPoint(value);
 }
 
 export default function MapBoardView({ rows, columns, onOpenRow }: { rows: Row[]; columns: Column[]; onOpenRow: (row: Row) => void }) {
