@@ -10076,6 +10076,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   {provided.placeholder}
 
+  {userPermission !== 'read' && (
   <Button
   startIcon={<AddIcon sx={{ fontSize: 18 }} />}
   sx={{
@@ -10114,6 +10115,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   >
   New Task
   </Button>
+  )}
   </Box>
   )}
   </Droppable>
