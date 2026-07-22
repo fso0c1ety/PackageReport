@@ -10065,6 +10065,49 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
                 })}
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
               </TableRow>
+              {userPermission !== 'read' && (
+                <TableRow
+                  component="div"
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: bodyGridTemplateColumns,
+                    width: gridContentWidth,
+                    minWidth: '100%',
+                    backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff'
+                  }}
+                >
+                  <TableCell
+                    component="div"
+                    sx={{
+                      gridColumn: '1 / -1',
+                      p: '4px 8px',
+                      borderTop: `1px solid ${theme.palette.divider}`,
+                      borderBottom: 'none',
+                      backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff'
+                    }}
+                  >
+                    <Button
+                      startIcon={<AddIcon />}
+                      onClick={() => handleAddTask(true)}
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        textTransform: 'none',
+                        fontWeight: 500,
+                        fontSize: '0.875rem',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          color: theme.palette.primary.main,
+                          bgcolor: 'rgba(255, 255, 255, 0.03)'
+                        }
+                      }}
+                    >
+                      Add Task
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableFooter>
         </Table >
       </TableContainer >
@@ -10119,36 +10162,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
         </Stack>
       )}
       </Box>
-      {userPermission !== 'read' && (
-        <Box
-          sx={{
-            mt: 1,
-            mb: { xs: 'calc(70px + env(safe-area-inset-bottom))', md: 0 },
-            display: 'flex',
-            justifyContent: 'flex-start',
-          }}
-        >
-          <Button
-            startIcon={<AddIcon />}
-            onClick={() => handleAddTask(true)}
-            sx={{
-              color: theme.palette.text.secondary,
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              px: 1.5,
-              py: 0.5,
-              borderRadius: '6px',
-              '&:hover': {
-                color: theme.palette.primary.main,
-                bgcolor: 'rgba(255, 255, 255, 0.03)'
-              }
-            }}
-          >
-            Add Task
-          </Button>
-        </Box>
-      )}
   </DragDropContext >
   ) : workspaceView === 'kanban' ? (
   <DragDropContext onDragEnd={onDragEnd}>
