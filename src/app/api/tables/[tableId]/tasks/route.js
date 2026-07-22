@@ -193,10 +193,11 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
     const triggerColumn = parsedColumns.find((column) => column.id === triggerCol);
     const plan = definition ? automationBuilder.buildExecutionPlan(definition, { type: eventType, columnType: triggerColumn?.type, oldValues, newValues }, { currentUserId }) : null;
     if (definition && !plan.matched) continue;
+    if (!definition && ["row_created", "form_submitted"].includes(eventType) && !["row_created", "form_submitted"].includes(automation.trigger_type)) continue;
     if (!definition && (!triggerCol || JSON.stringify(oldValues?.[triggerCol]) === JSON.stringify(newValues?.[triggerCol]))) continue;
     const rules = toArray(automation.conditions);
-    const matchingRule = definition ? null : rules.find((rule) => String(rule?.value) === String(newValues?.[triggerCol]));
-    if (!definition && rules.length > 0 && !matchingRule) continue;
+    const matchingRule = rules.find((rule) => String(rule?.value) === String(newValues?.[triggerCol]));
+    if (rules.length > 0 && !matchingRule) continue;
 
     const subject = `Task updated: ${table.name}`;
     const taskName = getTaskName(table, newValues);

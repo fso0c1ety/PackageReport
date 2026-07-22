@@ -80,6 +80,9 @@ function matchesTrigger(trigger, event) {
   if (type === "relation_added") return event.type === "relation_added";
   if (type === "row_moved") return event.type === "row_moved";
   if (["date_arrives", "date_approaching", "reminder"].includes(type)) return event.type === type && (!trigger.columnId || trigger.columnId === event.columnId);
+  // Creating/submitting a row can populate default values, but that is not a
+  // user-initiated field/status change. Those events have dedicated triggers.
+  if (["row_created", "form_submitted"].includes(event.type)) return false;
   if (!trigger.columnId) return false;
   const changed = !valuesEqual(event.oldValues?.[trigger.columnId], event.newValues?.[trigger.columnId]);
   if (!changed) return false;

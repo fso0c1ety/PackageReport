@@ -36,6 +36,25 @@ test("status trigger and conditions create a deterministic execution plan", () =
   assert.equal(plan.actions[0].sequence, 1);
 });
 
+test("creating a row does not fire status or field change triggers", () => {
+  const statusPlan = engine.buildExecutionPlan(
+    { trigger: { type: "status_changed", columnId: "status" }, actions: [{ type: "send_email" }] },
+    { type: "row_created", columnType: "Status", oldValues: {}, newValues: { status: "Active" } }
+  );
+  const fieldPlan = engine.buildExecutionPlan(
+    { trigger: { type: "field_changed", columnId: "name" }, actions: [{ type: "send_email" }] },
+    { type: "row_created", columnType: "Text", oldValues: {}, newValues: { name: "New task" } }
+  );
+  assert.equal(statusPlan.matched, false);
+  assert.equal(fieldPlan.matched, false);
+});
+
+test("row created trigger only fires for row creation events", () => {
+  const definition = { trigger: { type: "row_created" }, actions: [{ type: "send_notification" }] };
+  assert.equal(engine.buildExecutionPlan(definition, { type: "row_created", oldValues: {}, newValues: {} }).matched, true);
+  assert.equal(engine.buildExecutionPlan(definition, { type: "row_updated", oldValues: {}, newValues: {} }).matched, false);
+});
+
 test("conditions block actions when IF clauses do not match", () => {
   const plan = engine.buildExecutionPlan({ trigger: { type: "field_changed", columnId: "amount" }, conditions: [{ type: "number_greater_than", columnId: "amount", value: 100 }], actions: [{ type: "send_email" }] }, { type: "row_updated", oldValues: { amount: 1 }, newValues: { amount: 50 } });
   assert.equal(plan.matched, false);
