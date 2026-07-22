@@ -9108,7 +9108,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Cap the grid at one header + 20 visible rows + footer. On shorter
   // screens the viewport limit wins and the remaining rows scroll inside.
   height: isMobile
-  ? 'calc(100dvh - 300px - env(safe-area-inset-bottom))'
+  ? 'calc(100dvh - 370px - env(safe-area-inset-bottom))'
   : 'min(calc(100vh - 270px), 938px)',
   minHeight: 240,
   position: 'relative',
