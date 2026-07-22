@@ -104,6 +104,8 @@ import DashboardCustomizeIcon from "@mui/icons-material/DashboardCustomize";
 import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import DownloadIcon from "@mui/icons-material/Download";
+import ViewColumnIcon from "@mui/icons-material/ViewColumn";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
@@ -2699,6 +2701,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   });
   }, []);
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
+  const [mobileActionsAnchor, setMobileActionsAnchor] = useState<null | HTMLElement>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [renameAnchorEl, setRenameAnchorEl] = useState<null | HTMLElement>(null);
   const [colMenuId, setColMenuId] = useState<string | null>(null);
   const [showColSelector, setShowColSelector] = useState(false);
@@ -8281,7 +8285,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Typography sx={{ fontSize: '0.9rem', fontWeight: 500 }}>Delete Column</Typography>
   </MenuItem>
   </Menu >
-  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
+  <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 1.5, md: 3 }, gap: { xs: 1, md: 1.5 }, flexWrap: { xs: 'nowrap', md: 'wrap' } }}>
   <IconButton
   onClick={e => { e.stopPropagation(); setHeaderMenuAnchor(e.currentTarget); }}
   sx={{
@@ -8305,6 +8309,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   startIcon={<AddIcon />}
   onClick={() => handleAddTask(false)}
   sx={{
+  display: { xs: 'none', md: 'inline-flex' },
   bgcolor: '#0073ea',
   color: theme.palette.text.primary,
   fontWeight: 600,
@@ -8330,6 +8335,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setColSelectorAnchor(e.currentTarget);
   }}
   sx={{
+  display: { xs: 'none', md: 'inline-flex' },
   background: 'transparent',
   backgroundColor: 'transparent',
   color: theme.palette.text.secondary,
@@ -8361,6 +8367,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   setMobileTab('details'); // Ensure not in a weird state
   }}
   sx={{
+  display: { xs: 'none', md: 'inline-flex' },
   background: 'transparent',
   backgroundColor: 'transparent',
   color: theme.palette.text.secondary,
@@ -8387,6 +8394,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <IconButton
   onClick={() => window.location.href = '/settings/?tab=team'}
   sx={{
+  display: { xs: 'none', md: 'inline-flex' },
   color: theme.palette.text.secondary,
   '&:hover': { color: theme.palette.primary.main, bgcolor: 'rgba(79, 81, 192, 0.1)' }
   }}
@@ -8400,6 +8408,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <IconButton
   onClick={() => setImportDialogOpen(true)}
   sx={{
+  display: { xs: 'none', md: 'inline-flex' },
   color: '#4f8ef7',
   '&:hover': { color: '#4f8ef7', bgcolor: 'rgba(79,142,247,0.12)' }
   }}
@@ -8415,6 +8424,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   disabled={isExportingExcel || sortedColumns.length === 0}
   aria-label="Export table to Excel"
   sx={{
+  display: { xs: 'none', md: 'inline-flex' },
   color: '#16a34a',
   '&:hover': { color: '#15803d', bgcolor: 'rgba(22,163,74,0.12)' }
   }}
@@ -8423,6 +8433,79 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </IconButton>
   </span>
   </Tooltip>
+
+  <Button
+  variant="contained"
+  startIcon={<BoltIcon sx={{ fontSize: 18 }} />}
+  onClick={(event) => setMobileActionsAnchor(event.currentTarget)}
+  sx={{
+  display: { xs: 'inline-flex', md: 'none' },
+  height: 40,
+  px: 2,
+  borderRadius: '8px',
+  textTransform: 'none',
+  fontWeight: 700,
+  bgcolor: '#0073ea',
+  '&:hover': { bgcolor: '#0060c2' }
+  }}
+  >
+  Actions
+  </Button>
+  <Menu
+  anchorEl={mobileActionsAnchor}
+  open={Boolean(mobileActionsAnchor)}
+  onClose={() => setMobileActionsAnchor(null)}
+  slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, mt: 0.5 } } }}
+  >
+  {userPermission !== 'read' && (
+  <MenuItem onClick={() => { setMobileActionsAnchor(null); void handleAddTask(false); }}>
+  <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+  New task
+  </MenuItem>
+  )}
+  {userPermission !== 'read' && (
+  <MenuItem onClick={() => {
+  const anchor = mobileActionsAnchor;
+  setMobileActionsAnchor(null);
+  setShowColSelector(true);
+  setColSelectorAnchor(anchor);
+  }}>
+  <ListItemIcon><ViewColumnIcon fontSize="small" /></ListItemIcon>
+  Add column
+  </MenuItem>
+  )}
+  <MenuItem onClick={() => { setMobileActionsAnchor(null); setShowEmailAutomation(true); setMobileTab('details'); }}>
+  <ListItemIcon><BoltIcon fontSize="small" /></ListItemIcon>
+  Automations
+  </MenuItem>
+  <MenuItem onClick={() => { setMobileActionsAnchor(null); setShowMobileFilters(previous => !previous); }}>
+  <ListItemIcon><FilterAltIcon fontSize="small" /></ListItemIcon>
+  {showMobileFilters ? 'Hide filters' : 'Person & status filters'}
+  </MenuItem>
+  <MenuItem onClick={() => { setMobileActionsAnchor(null); setIsInvoiceDialogOpen(true); }}>
+  <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
+  Generate invoice
+  </MenuItem>
+  {(userPermission === 'owner' || userPermission === 'admin') && (
+  <MenuItem onClick={() => { setMobileActionsAnchor(null); window.location.href = '/settings/?tab=team'; }}>
+  <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
+  Team settings
+  </MenuItem>
+  )}
+  {(userPermission === 'owner' || userPermission === 'admin') && (
+  <MenuItem onClick={() => { setMobileActionsAnchor(null); setImportDialogOpen(true); }}>
+  <ListItemIcon><BackupTableIcon fontSize="small" /></ListItemIcon>
+  Import from Excel
+  </MenuItem>
+  )}
+  <MenuItem
+  disabled={isExportingExcel || sortedColumns.length === 0}
+  onClick={() => { setMobileActionsAnchor(null); void handleExportExcel(); }}
+  >
+  <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+  Export to Excel
+  </MenuItem>
+  </Menu>
   <ImportExcelDialog
   open={importDialogOpen}
   onClose={() => setImportDialogOpen(false)}
@@ -8442,7 +8525,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   alignItems: { xs: 'stretch', md: 'center' },
   flexGrow: 1,
   width: { xs: '100%', md: 'auto' },
-  mt: { xs: 2, md: 0 },
+  mt: { xs: 0, md: 0 },
   }}>
 
   {/* Search */}
@@ -8457,7 +8540,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   {/* Filter Group */}
   <Box sx={{
-  display: 'flex',
+  display: { xs: showMobileFilters ? 'flex' : 'none', md: 'flex' },
   gap: 1,
   width: { xs: '100%', md: 'auto' },
   flexWrap: { xs: 'nowrap', md: 'wrap' }
