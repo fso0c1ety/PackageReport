@@ -56,6 +56,25 @@ function validateAutomationPayload({ triggerCol, recipients, cols, actionType, a
 
 const toJsonArray = (value) => JSON.stringify(Array.isArray(value) ? value : []);
 
+const validAutomationActionTypes = new Set([
+  "email", "notification", "both", "webhook", "create_task",
+  "send_notification", "send_email", "send_both", "create_row",
+  "update_field", "assign_user", "move_row", "duplicate_row",
+  "create_relation", "add_comment", "call_webhook", "archive_row",
+]);
+
+function normalizeAutomationRules(rules, fallbackActionType) {
+  if (!Array.isArray(rules)) return [];
+  return rules.flatMap((rule) => {
+    const value = rule?.value;
+    if (value === null || value === undefined || String(value).trim() === "") return [];
+    const actionType = validAutomationActionTypes.has(rule?.actionType)
+      ? rule.actionType
+      : fallbackActionType;
+    return [{ ...rule, value, actionType }];
+  });
+}
+
 async function ensureAutomationSchema() {
   // Production has had both the original SERIAL schema and the newer TEXT/UUID
   // schema. Keep the API compatible with either and repair missing columns
@@ -184,11 +203,9 @@ export async function POST(req, { params }) {
     if (!definitionResult.valid) return NextResponse.json({ error: definitionResult.errors.join(". ") }, { status: 400 });
     const definition = definitionResult.definition;
     if (definition.actions.some((action) => action.type === "call_webhook" && !isSafePublicHttpsUrl(String(action.config?.webhookUrl || "")))) return NextResponse.json({ error: "Webhook must use a safe public HTTPS URL" }, { status: 400 });
-    const normalizedActionType = ["email", "notification", "both", "webhook", "create_task", "send_notification", "send_email", "send_both", "create_row", "create_task", "update_field", "assign_user", "move_row", "duplicate_row", "create_relation", "add_comment", "call_webhook", "archive_row"].includes(actionType) ? actionType : (definition.actions[0]?.type || "send_notification");
+    const normalizedActionType = validAutomationActionTypes.has(actionType) ? actionType : (definition.actions[0]?.type || "send_notification");
     const normalizedTriggerType = triggerType || definition.trigger.type;
-    const normalizedRules = Array.isArray(rules)
-      ? rules.filter((rule) => rule?.value && ["email", "notification", "both", "webhook", "create_task"].includes(rule?.actionType))
-      : [];
+    const normalizedRules = normalizeAutomationRules(rules, normalizedActionType);
     const effectiveTriggerCol = triggerCol || definition.trigger.columnId;
     const legacyDeliveryAction = !body?.definition && ["email", "notification", "both", "webhook", "create_task"].includes(normalizedActionType);
     const validationError = legacyDeliveryAction ? validateAutomationPayload({ triggerCol: effectiveTriggerCol, recipients, cols, actionType: normalizedActionType, actionConfig }) : null;

@@ -35,8 +35,13 @@ const toJsonArray = (value) => JSON.stringify(Array.isArray(value) ? value : [])
 // Save/Update automation for a table or task
 router.post('/automation/:tableId', async (req, res) => {
   const { id, triggerCol, cols, recipients, enabled, taskIds, actionType, rules } = req.body;
+  const validActionTypes = new Set(['email', 'notification', 'both', 'webhook', 'create_task', 'send_notification', 'send_email', 'send_both', 'create_row', 'update_field', 'assign_user', 'move_row', 'duplicate_row', 'create_relation', 'add_comment', 'call_webhook', 'archive_row']);
   const normalizedRules = Array.isArray(rules)
-    ? rules.filter((rule) => rule?.value && ['email', 'notification', 'both'].includes(rule?.actionType))
+    ? rules.flatMap((rule) => {
+      const value = rule?.value;
+      if (value === null || value === undefined || String(value).trim() === '') return [];
+      return [{ ...rule, value, actionType: validActionTypes.has(rule?.actionType) ? rule.actionType : (actionType || 'notification') }];
+    })
     : [];
   const tableId = req.params.tableId;
   const validationError = validateAutomationPayload({ triggerCol, recipients, cols });
