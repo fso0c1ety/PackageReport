@@ -84,6 +84,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -114,7 +115,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     setIsAuthenticated(true);
     // The driver portal is already the safe destination. Never block its UI
     // while a secondary role lookup is running.
-    if (pathname === "/driver-trips") {
+    if (normalizedPathname === "/driver-trips") {
       setDriverCheckComplete(true);
       setLoading(false);
       return;
@@ -123,7 +124,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         const workspaceId = data?.driver ? data?.workspace?.id : null;
-        const allowedDriverPath = pathname === "/driver-trips" || pathname === "/calendar" || pathname === "/settings";
+        const allowedDriverPath = normalizedPathname === "/driver-trips" || normalizedPathname === "/calendar" || normalizedPathname === "/settings";
         if (workspaceId && !allowedDriverPath) {
           redirectToAppRoute(`/driver-trips?id=${encodeURIComponent(workspaceId)}`, true);
           return;
@@ -132,7 +133,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         setLoading(false);
       })
       .catch(() => { setDriverCheckComplete(true); setLoading(false); });
-  }, [pathname, router]);
+  }, [normalizedPathname, pathname, router]);
 
   // Failsafe: only release the loading shell if authentication actually exists.
   useEffect(() => {
