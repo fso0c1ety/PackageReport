@@ -15,6 +15,68 @@ const setValue = (values, columns, names, value) => {
   if (column && value !== undefined && value !== "") values[column.id] = value;
 };
 
+const valueByName = (row, columns, names) => {
+  const column = columnByName(columns, names);
+  return column ? row.values?.[column.id] : undefined;
+};
+
+const driverMatches = (row, columns, user) => {
+  if (String(row.values?._assignedDriverUserId || "") === String(user.id)) return true;
+  const driver = valueByName(row, columns, ["Driver", "People", "Assigned Driver"]);
+  const candidates = Array.isArray(driver) ? driver : driver ? [driver] : [];
+  return candidates.some((entry) => {
+    if (typeof entry === "string") return entry === String(user.id) || entry.toLowerCase() === String(user.email || "").toLowerCase();
+    return String(entry?.id || entry?.userId || entry?.linkedUserId || "") === String(user.id)
+      || String(entry?.email || "").toLowerCase() === String(user.email || "").toLowerCase();
+  });
+};
+
+const relationLabel = (value) => {
+  const relation = Array.isArray(value) ? value[0] : value;
+  return relation?.label || relation?.name || (typeof relation === "string" ? relation : "");
+};
+
+const fileValue = (value) => {
+  const file = Array.isArray(value) ? value[0] : value;
+  return file && typeof file === "object" ? file : null;
+};
+
+export async function GET(req) {
+  const user = getAuthenticatedUser(req);
+  if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const url = new URL(req.url);
+  const workspaceId = String(url.searchParams.get("workspaceId") || "");
+  const category = String(url.searchParams.get("category") || "");
+  if (!workspaceId || !["fuel", "expense"].includes(category)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  const access = await logisticsAccess(workspaceId, user.id);
+  if (!access || access.role !== "driver") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const names = category === "fuel" ? ["fuel"] : ["expenses", "costs"];
+  const table = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, names])).rows[0];
+  if (!table) return NextResponse.json({ records: [] });
+  const rows = (await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY created_at DESC", [table.id])).rows;
+  const records = rows.filter((row) => driverMatches(row, table.columns || [], user)).map((row) => ({
+    id: row.id,
+    date: valueByName(row, table.columns, ["Date"]),
+    trip: relationLabel(valueByName(row, table.columns, ["Trip", "Load"])),
+    receipt: fileValue(valueByName(row, table.columns, ["Receipt", "File", "Document", "Attachments"])),
+    ...(category === "fuel" ? {
+      name: valueByName(row, table.columns, ["Fuel Record", "Name"]) || "Fuel record",
+      liters: valueByName(row, table.columns, ["Liters", "Quantity"]),
+      pricePerLiter: valueByName(row, table.columns, ["Price per Liter", "Price per Litre"]),
+      total: valueByName(row, table.columns, ["Total", "Amount"]),
+      odometer: valueByName(row, table.columns, ["Odometer KM", "Odometer"]),
+      station: valueByName(row, table.columns, ["Station", "Fuel Station"]),
+    } : {
+      name: valueByName(row, table.columns, ["Expense Number", "Name"]) || "Expense",
+      type: valueByName(row, table.columns, ["Type"]),
+      description: valueByName(row, table.columns, ["Description"]),
+      amount: valueByName(row, table.columns, ["Amount", "Total"]),
+      status: valueByName(row, table.columns, ["Status"]),
+    }),
+  }));
+  return NextResponse.json({ records });
+}
+
 export async function POST(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
