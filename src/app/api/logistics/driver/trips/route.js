@@ -87,6 +87,18 @@ export async function PATCH(req) {
   const body = await req.json();
   const workspaceId = String(body?.workspaceId || "");
   const tripId = String(body?.tripId || "");
+  if (body?.action === "location") {
+    const latitude = Number(body?.latitude);
+    const longitude = Number(body?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return NextResponse.json({ error: "Valid location is required" }, { status: 400 });
+    const ctx = await context(workspaceId, user.id);
+    if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const row = (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2 AND values->>'_workspaceId'=$3 AND values->>'_assignedDriverUserId'=$4", [tripId, ctx.table.id, workspaceId, String(user.id)])).rows[0];
+    if (!row) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
+    const liveLocation = { latitude, longitude, updatedAt: new Date().toISOString(), userId: String(user.id) };
+    await pool.query("UPDATE rows SET values=jsonb_set(values,'{_driverLiveLocation}',$1::jsonb,true),updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(liveLocation), tripId, ctx.table.id]);
+    return NextResponse.json({ success: true, location: liveLocation });
+  }
   const newStatus = String(body?.status || "");
   if (!DRIVER_STATUSES.includes(newStatus)) return NextResponse.json({ error: "Status is not allowed" }, { status: 400 });
   if (["Loaded", "Delivered"].includes(newStatus) && body?.confirmed !== true) return NextResponse.json({ error: "Confirmation is required" }, { status: 409 });
