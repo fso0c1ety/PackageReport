@@ -74,7 +74,7 @@ export async function GET(req) {
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const ctx = await context(workspaceId, user.id);
   if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const result = await pool.query(`SELECT * FROM rows WHERE table_id=$1 AND values->>'_workspaceId'=$2 AND values->>'_assignedDriverUserId'=$3 AND archived_at IS NULL ${tripId ? "AND id=$4" : ""} ORDER BY created_at DESC`, tripId ? [ctx.table.id, workspaceId, String(user.id), tripId] : [ctx.table.id, workspaceId, String(user.id)]);
+  const result = await pool.query(`SELECT * FROM rows WHERE table_id=$1 AND values->>'_workspaceId'=$2 AND values->>'_assignedDriverUserId'=$3 ${tripId ? "AND id=$4" : ""} ORDER BY created_at DESC`, tripId ? [ctx.table.id, workspaceId, String(user.id), tripId] : [ctx.table.id, workspaceId, String(user.id)]);
   if (tripId && !result.rows[0]) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
   const trips = result.rows.map((row) => serializeTrip(row, ctx.table.columns || []));
   return NextResponse.json(tripId ? trips[0] : { role: ctx.access.role, workspace: { id: workspaceId, name: ctx.access.name }, trips });
