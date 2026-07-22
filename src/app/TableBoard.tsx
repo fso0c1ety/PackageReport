@@ -10029,7 +10029,17 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               )
             }}
           </Droppable>
-            <TableFooter component="div" sx={{ display: 'block', position: 'sticky', bottom: 0, zIndex: 110, width: gridContentWidth, minWidth: '100%' }}>
+            <TableFooter
+              component="div"
+              sx={{
+                display: 'block',
+                position: 'sticky',
+                bottom: { xs: 'calc(74px + env(safe-area-inset-bottom))', md: 0 },
+                zIndex: 110,
+                width: gridContentWidth,
+                minWidth: '100%'
+              }}
+            >
               <TableRow component="div" sx={{ display: 'grid', gridTemplateColumns: bodyGridTemplateColumns, width: gridContentWidth, minWidth: '100%', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }}>
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
                 {displayedBodyColumns.map((col, index) => {
