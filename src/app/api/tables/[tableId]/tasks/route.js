@@ -583,7 +583,7 @@ export async function POST(req, { params }) {
     const values = body?.values && typeof body.values === "object" ? body.values : {};
 
     const tableForAssignment = (await pool.query("SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
-    const assignedValues = await syncTripAssignment({ table: tableForAssignment, values, previousValues: {}, actorId: user.id });
+    const assignedValues = await syncTripAssignment({ table: tableForAssignment, values, previousValues: {}, actorId: user.id, rowId: newTaskId });
     const insertRes = await pool.query(
       `
         INSERT INTO rows (id, table_id, values, created_by, created_at)
@@ -691,7 +691,7 @@ export async function PUT(req, { params }) {
     }
 
     let mergedValues = { ...oldValues, ...newValues };
-    mergedValues = await syncTripAssignment({ table, values: mergedValues, previousValues: oldValues, actorId: user.id });
+    mergedValues = await syncTripAssignment({ table, values: mergedValues, previousValues: oldValues, actorId: user.id, rowId: id });
     mergedValues.activity = newActivity.length > 0 ? [...newActivity, ...oldActivity] : oldActivity;
 
     try {

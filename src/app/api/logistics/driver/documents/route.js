@@ -131,6 +131,6 @@ export async function POST(req) {
   }
 
   const title = category === "fuel" ? "New fuel receipt" : category === "expense" ? "New driver expense" : "New trip document";
-  await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'driver_document',$4::jsonb,FALSE,NOW())", [randomUUID(), String(access.owner_id), String(user.id), JSON.stringify({ title, workspaceId, tripId, tableId: targetTable.id, rowId: targetRowId, fileName: storedFile.name })]).catch(() => undefined);
+  await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'driver_document',$4::jsonb,FALSE,NOW())", [randomUUID(), String(access.owner_id), String(user.id), JSON.stringify({ title: `${user.name || user.email || "Driver"}: ${title}`, body: `${storedFile.name} was uploaded.`, workspaceId, tripId, tableId: targetTable.id, rowId: targetRowId, taskId: targetRowId, fileName: storedFile.name })]).catch(() => undefined);
   return NextResponse.json({ success: true, file: storedFile, tableId: targetTable.id, rowId: targetRowId });
 }

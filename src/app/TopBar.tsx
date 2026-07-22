@@ -59,6 +59,10 @@ type Notification = {
       requestId?: string;
       callerId?: string;
       callerName?: string;
+      message?: string;
+      portalPath?: string;
+      tripId?: string;
+      rowId?: string;
     } | null;
     read: boolean;
     created_at: string;
@@ -397,6 +401,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           return;
       }
 
+      if (data.portalPath) {
+          const separator = String(data.portalPath).includes('?') ? '&' : '?';
+          const portalUrl = data.tripId ? `${data.portalPath}${separator}tripId=${encodeURIComponent(data.tripId)}` : data.portalPath;
+          navigateToAppRoute(portalUrl, router);
+          return;
+      }
+
       let url = "";
       if (data.workspaceId) {
           url = `/workspace?id=${data.workspaceId}`;
@@ -553,9 +564,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       }
       return (
             <>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Notification</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>{data?.title || data?.subject || 'Notification'}</Typography>
                 <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
-                    {data?.subject || data?.body || 'You have a new notification'}
+                    {data?.message || data?.body || data?.subject || 'You have a new notification'}
                 </Box>
             </>
       );

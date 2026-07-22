@@ -51,7 +51,7 @@ export async function logisticsAccess(workspaceId, userId) {
   return access;
 }
 
-export async function syncTripAssignment({ table, values, previousValues, actorId }) {
+export async function syncTripAssignment({ table, values, previousValues, actorId, rowId }) {
   if (!table || !["trips", "loads"].includes(String(table.name).toLowerCase())) return values;
   await ensureLogisticsSchema();
   const workspace = (await pool.query("SELECT template_key,owner_id FROM workspaces WHERE id=$1", [table.workspace_id])).rows[0];
@@ -61,6 +61,7 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
   const relation = Array.isArray(values[driverColumn.id]) ? values[driverColumn.id][0] : values[driverColumn.id];
   const previousUserId = previousValues?._assignedDriverUserId || null;
   const pickupColumn = (table.columns || []).find((column) => ["pickup", "pickup address"].includes(String(column.name).trim().toLowerCase()));
+  const deliveryColumn = (table.columns || []).find((column) => ["delivery", "delivery address"].includes(String(column.name).trim().toLowerCase()));
   const tripNumberColumn = (table.columns || []).find((column) => ["trip number", "load id"].includes(String(column.name).trim().toLowerCase()));
   const locationAddress = (value) => {
     if (!value) return "";
@@ -69,8 +70,13 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
     return String(location?.address || location?.formattedAddress || location?.formatted_address || location?.label || location?.name || location?.value || "");
   };
   const pickupAddress = pickupColumn ? locationAddress(values[pickupColumn.id]) : "";
+  const deliveryAddress = deliveryColumn ? locationAddress(values[deliveryColumn.id]) : "";
   const previousPickupAddress = pickupColumn ? locationAddress(previousValues?.[pickupColumn.id]) : "";
   const tripNumber = tripNumberColumn ? String(values[tripNumberColumn.id] || "") : "";
+  const shortPlace = (address) => {
+    const parts = String(address || "").split(",").map((part) => part.trim()).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : "Unknown location";
+  };
   let profileId = relation?.rowId || null;
   let assignedUserId = relation?.id || relation?.userId || null;
   if (profileId) {
@@ -97,9 +103,14 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
         String(actorId),
         isNewAssignment ? "pickup_assignment" : "pickup_updated",
         JSON.stringify({
-          title: isNewAssignment ? "New pickup order" : "Pickup order updated",
-          message: pickupAddress ? `${tripNumber ? `${tripNumber} · ` : ""}Pickup: ${pickupAddress}` : `${tripNumber || "Trip"} is ready for pickup`,
+          title: isNewAssignment ? `New trip: ${shortPlace(pickupAddress)} → ${shortPlace(deliveryAddress)}` : `Trip updated: ${tripNumber || "Trip"}`,
+          message: `${tripNumber || "Trip"} · Pickup: ${pickupAddress || "Not set"} · Delivery: ${deliveryAddress || "Not set"}`,
+          body: `${tripNumber || "Trip"} · Pickup: ${pickupAddress || "Not set"} · Delivery: ${deliveryAddress || "Not set"}`,
           workspaceId: table.workspace_id,
+          tableId: table.id,
+          tripId: rowId || null,
+          taskId: rowId || null,
+          portalPath: `/driver-trips?id=${encodeURIComponent(table.workspace_id)}`,
           tripNumber: tripNumber || null,
           pickupAddress: pickupAddress || null,
         }),
@@ -107,7 +118,7 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
     }
   }
   if (previousUserId && String(previousUserId) !== String(assignedUserId || "")) {
-    await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'trip_reassignment',$4::jsonb,FALSE,NOW())", [randomUUID(), String(previousUserId), String(actorId), JSON.stringify({ title: "Trip reassigned", workspaceId: table.workspace_id })]).catch(() => undefined);
+    await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'trip_reassignment',$4::jsonb,FALSE,NOW())", [randomUUID(), String(previousUserId), String(actorId), JSON.stringify({ title: `Trip reassigned: ${tripNumber || "Trip"}`, body: "This trip is no longer assigned to you.", workspaceId: table.workspace_id, tableId: table.id, portalPath: `/driver-trips?id=${encodeURIComponent(table.workspace_id)}` })]).catch(() => undefined);
   }
   return next;
 }
