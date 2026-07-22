@@ -3,6 +3,7 @@ import { getAuthenticatedUser, pool } from "../../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../../_lib/billing";
 import { writeAuditLog } from "../../../../../_lib/audit";
 import { ENTERPRISE_ROLES, normalizeEnterpriseRole } from "../../../../../_lib/permissions";
+import { ensureLogisticsSchema, LOGISTICS_TEMPLATE_KEYS } from "../../../../../_lib/logistics";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,31 @@ export async function PUT(req, { params }) {
       JSON.stringify(nextSharedUsers),
       tableId,
     ]);
+
+    await ensureLogisticsSchema();
+    const workspace = (await pool.query("SELECT template_key FROM workspaces WHERE id=$1", [table.workspace_id])).rows[0];
+    if (workspace && LOGISTICS_TEMPLATE_KEYS.includes(workspace.template_key)) {
+      if (hasAccess && role === "driver") {
+        await pool.query(`
+          INSERT INTO workspace_members(workspace_id,user_id,role)
+          VALUES($1,$2,'driver')
+          ON CONFLICT(workspace_id,user_id)
+          DO UPDATE SET role='driver',updated_at=NOW()
+        `, [table.workspace_id, String(teammateId)]);
+      } else {
+        const otherDriverAccess = (await pool.query(`
+          SELECT 1 FROM tables t,
+          LATERAL jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) entry
+          WHERE t.workspace_id=$1
+            AND COALESCE(entry->>'userId',entry#>>'{}')=$2
+            AND entry->>'role'='driver'
+          LIMIT 1
+        `, [table.workspace_id, String(teammateId)])).rows[0];
+        if (!otherDriverAccess) {
+          await pool.query("UPDATE workspace_members SET role='employee',updated_at=NOW() WHERE workspace_id=$1 AND user_id=$2 AND role='driver'", [table.workspace_id, String(teammateId)]);
+        }
+      }
+    }
 
     await writeAuditLog({
       actorId: user.id,

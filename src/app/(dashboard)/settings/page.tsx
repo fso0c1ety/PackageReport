@@ -81,6 +81,7 @@ const BOARD_ROLE_CAPABILITIES: Record<string, Record<string, boolean>> = {
   admin: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
   manager: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
   employee: { editRows: true, comment: true, uploadFiles: true, export: false, manageColumns: false },
+  driver: { editRows: false, comment: true, uploadFiles: true, export: false, manageColumns: false },
   guest: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
   client: { editRows: false, comment: true, uploadFiles: true, export: false, manageColumns: false },
   custom: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
@@ -206,7 +207,7 @@ export default function SettingsPage() {
   const [selectedInviteWs, setSelectedInviteWs] = useState<string>("");
   const [inviteTables, setInviteTables] = useState<any[]>([]);
   const [selectedInviteTable, setSelectedInviteTable] = useState<string>("");
-  const [invitePermission, setInvitePermission] = useState<'admin' | 'manager' | 'employee' | 'guest'>('employee');
+  const [invitePermission, setInvitePermission] = useState<'admin' | 'manager' | 'employee' | 'driver' | 'guest'>('employee');
   const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
@@ -1690,7 +1691,7 @@ export default function SettingsPage() {
                     fullWidth
                     size="small"
                     value={invitePermission}
-                    onChange={(event) => setInvitePermission(event.target.value as 'admin' | 'manager' | 'employee' | 'guest')}
+                    onChange={(event) => setInvitePermission(event.target.value as 'admin' | 'manager' | 'employee' | 'driver' | 'guest')}
                     SelectProps={{ native: true }}
                     sx={fieldSx}
                   >
@@ -1699,6 +1700,7 @@ export default function SettingsPage() {
                     <option value="client">Client — portal feedback and files</option>
                     <option value="custom">Custom — configure board access</option>
                     <option value="employee">Employee — create and edit content</option>
+                    <option value="driver">Driver — dedicated logistics portal</option>
                     <option value="guest">Guest — view only</option>
                   </TextField>
                 </Box>
@@ -1856,6 +1858,7 @@ export default function SettingsPage() {
                                 <option value="client">Client</option>
                                 <option value="custom">Custom</option>
                                 <option value="employee">Employee</option>
+                                <option value="driver">Driver</option>
                                 <option value="guest">Guest</option>
                             </TextField>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
