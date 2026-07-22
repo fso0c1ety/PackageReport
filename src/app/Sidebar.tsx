@@ -487,10 +487,11 @@ export default function Sidebar({
             {driverPortal ? <>
               <SidebarItem icon={<HomeIcon fontSize="small" />} label="Home" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
               <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="My Trips" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
-              <SidebarItem icon={<CalendarMonthRoundedIcon fontSize="small" />} label="My Calendar" href="/calendar" isActive={pathname === "/calendar"} onClick={onClose} />
-              <SidebarItem icon={<FolderRoundedIcon fontSize="small" />} label="My Documents" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={false} onClick={onClose} />
-              {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="My Expenses" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={false} onClick={onClose} />}
-              <SidebarItem icon={<SettingsIcon fontSize="small" />} label="My Profile" href="/settings?tab=profile" isActive={pathname === "/settings"} onClick={onClose} />
+              <SidebarItem icon={<CalendarMonthRoundedIcon fontSize="small" />} label="My Calendar" href={`/calendar?id=${currentWorkspaceId}`} isActive={pathname === "/calendar"} onClick={onClose} />
+              <SidebarItem icon={<FolderRoundedIcon fontSize="small" />} label="My Documents" href={`/driver-trips?id=${currentWorkspaceId}&section=documents`} isActive={searchParams.get("section") === "documents"} onClick={onClose} />
+              {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="My Expenses" href={`/driver-trips?id=${currentWorkspaceId}&section=expenses`} isActive={searchParams.get("section") === "expenses"} onClick={onClose} />}
+              {workspaceModules.includes("fleet") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="My Fuel" href={`/driver-trips?id=${currentWorkspaceId}&section=fuel`} isActive={searchParams.get("section") === "fuel"} onClick={onClose} />}
+              <SidebarItem icon={<SettingsIcon fontSize="small" />} label="My Profile" href={`/settings?tab=profile&id=${currentWorkspaceId}`} isActive={pathname === "/settings"} onClick={onClose} />
             </> : <>
             <SidebarItem
               icon={<HomeIcon fontSize="small" />}

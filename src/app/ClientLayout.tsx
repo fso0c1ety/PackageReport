@@ -11,7 +11,7 @@ import PageTransition from "./PageTransition";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@mui/material/styles"; // Added
 import { CallProvider } from "./CallContext"; // Added
-import { ensureNativeHistoryRouting, redirectToAppRoute } from "./apiUrl";
+import { authenticatedFetch, ensureNativeHistoryRouting, getApiUrl, redirectToAppRoute } from "./apiUrl";
 import SubscriptionBanner from "./SubscriptionBanner";
 import CommandPalette from "./CommandPalette";
 import MobileBottomNavigation from "./MobileBottomNavigation";
@@ -87,6 +87,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [driverCheckComplete, setDriverCheckComplete] = useState(false);
 
   useEffect(() => {
     // If we are in ClientLayout, it means we are inside (dashboard).
@@ -111,18 +112,30 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }
 
     setIsAuthenticated(true);
-    setLoading(false);
+    authenticatedFetch(getApiUrl("logistics/context"), { suppressNativeErrorAlert: true })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        const workspaceId = data?.driver ? data?.workspace?.id : null;
+        const allowedDriverPath = pathname === "/driver-trips" || pathname === "/calendar" || pathname === "/settings";
+        if (workspaceId && !allowedDriverPath) {
+          redirectToAppRoute(`/driver-trips?id=${encodeURIComponent(workspaceId)}`, true);
+          return;
+        }
+        setDriverCheckComplete(true);
+        setLoading(false);
+      })
+      .catch(() => { setDriverCheckComplete(true); setLoading(false); });
   }, [pathname, router]);
 
   // Failsafe: only release the loading shell if authentication actually exists.
   useEffect(() => {
     const timer = setTimeout(() => {
-        if (typeof window !== 'undefined' && localStorage.getItem('token')) {
+        if (typeof window !== 'undefined' && localStorage.getItem('token') && driverCheckComplete) {
           setLoading(false);
         }
     }, 2500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [driverCheckComplete]);
 
   // If loading, show nothing or a loading spinner
   if (loading) {
