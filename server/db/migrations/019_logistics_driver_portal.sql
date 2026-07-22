@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   PRIMARY KEY(workspace_id,user_id)
 );
 
+ALTER TABLE workspace_members ADD COLUMN IF NOT EXISTS settings JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE workspace_members ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
 CREATE TABLE IF NOT EXISTS trip_status_history (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

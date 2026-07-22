@@ -469,20 +469,20 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newRole: string, capabilities?: Record<string, boolean>) => {
+  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newRole: string, capabilities?: Record<string, boolean>, hasAccess = true) => {
     try {
         const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/teammates/${teammateId}/permission`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: newRole, capabilities })
+            body: JSON.stringify({ role: newRole, capabilities, hasAccess })
         });
         
         if (res.ok) {
-            showNotification(`Updated role to ${newRole}`, "success");
+            showNotification(hasAccess ? `Access updated for this board` : `Board access removed`, "success");
             // Refresh local state to reflect change in the dialog
             if (selectedTeammateForAccess) {
               const updatedAccess = selectedTeammateForAccess.access.map((a: any) => 
-                a.tableId === tableId ? { ...a, role: newRole, ...(capabilities ? { capabilities } : {}) } : a
+                a.tableId === tableId ? { ...a, hasAccess, role: newRole, ...(capabilities ? { capabilities } : {}) } : a
               );
               setSelectedTeammateForAccess({ ...selectedTeammateForAccess, access: updatedAccess });
             }
@@ -1824,10 +1824,26 @@ export default function SettingsPage() {
                         </Box>
                         
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.25, minWidth: { sm: 320 } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                              <Typography variant="caption" fontWeight={800}>Board access</Typography>
+                              <Switch
+                                size="small"
+                                checked={a.hasAccess !== false}
+                                onChange={(event) => handleUpdateGranularPermission(
+                                  selectedTeammateForAccess.id,
+                                  a.tableId,
+                                  a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee'),
+                                  a.capabilities || undefined,
+                                  event.target.checked
+                                )}
+                                inputProps={{ 'aria-label': `Board access for ${a.tableName}` }}
+                              />
+                            </Box>
                             <TextField
                                 select
                                 size="small"
                                 value={a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee')}
+                                disabled={a.hasAccess === false}
                                 onChange={(e) => handleUpdateGranularPermission(selectedTeammateForAccess.id, a.tableId, e.target.value)}
                                 SelectProps={{ native: true }}
                                 sx={{ 
@@ -1851,6 +1867,7 @@ export default function SettingsPage() {
                                     <Typography variant="caption" fontWeight={700}>{label}</Typography>
                                     <Switch
                                       size="small"
+                                      disabled={a.hasAccess === false}
                                       checked={Boolean(current[key])}
                                       onChange={(event) => handleUpdateGranularPermission(
                                         selectedTeammateForAccess.id,
