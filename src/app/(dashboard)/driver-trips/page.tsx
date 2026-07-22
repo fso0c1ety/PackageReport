@@ -8,10 +8,15 @@ import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 
-type Trip = { id:string;tripNumber:string;name:string;status:string;pickupAddress:string;deliveryAddress:string;pickupDate?:string;deliveryDate?:string;truck?:string;trailer?:string;cargo?:string;contactPerson?:string;contactPhone?:string;distance?:number;instructions?:string;activity?:Array<{text:string;time:string}> };
+type Trip = { id:string;tripNumber:string;name:string;status:string;pickupAddress:string;deliveryAddress:string;pickupLatitude?:number;pickupLongitude?:number;deliveryLatitude?:number;deliveryLongitude?:number;pickupDate?:string;deliveryDate?:string;truck?:string;trailer?:string;cargo?:string;contactPerson?:string;contactPhone?:string;distance?:number;instructions?:string;activity?:Array<{text:string;time:string}> };
 const completed=(trip:Trip)=>trip.status==="Delivered";
 const destination=(trip:Trip)=>["Loaded","In Transit","At Delivery","Delivered"].includes(trip.status)?trip.deliveryAddress:trip.pickupAddress;
-const mapsUrl=(trip:Trip,route=false)=>route?`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickupAddress)}&destination=${encodeURIComponent(trip.deliveryAddress)}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination(trip))}`;
+const point=(address:string,latitude?:number,longitude?:number)=>address||((latitude&&longitude)?`${latitude},${longitude}`:"");
+const pickupPoint=(trip:Trip)=>point(trip.pickupAddress,trip.pickupLatitude,trip.pickupLongitude);
+const deliveryPoint=(trip:Trip)=>point(trip.deliveryAddress,trip.deliveryLatitude,trip.deliveryLongitude);
+const mapsUrl=(trip:Trip,route=false)=>route?`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pickupPoint(trip))}&destination=${encodeURIComponent(deliveryPoint(trip))}&travelmode=driving`:`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(["Loaded","In Transit","At Delivery","Delivered"].includes(trip.status)?deliveryPoint(trip):pickupPoint(trip))}&travelmode=driving`;
+const destinationUrl=(trip:Trip)=>`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(deliveryPoint(trip))}&travelmode=driving`;
+const pickupUrl=(trip:Trip)=>`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pickupPoint(trip))}&travelmode=driving`;
 
 export default function DriverTripsPage(){
   const workspaceId=useSearchParams().get("id")||"";
@@ -34,7 +39,7 @@ export default function DriverTripsPage(){
           <Typography variant="overline" color="text.secondary" sx={{display:"block",mt:1.5}}>Delivery</Typography><Typography fontWeight={700}>{trip.deliveryAddress||"Address missing"}</Typography>
           <Stack spacing={0.6} sx={{mt:2}}><Typography><b>Date:</b> {trip.pickupDate?new Date(trip.pickupDate).toLocaleString():"—"}</Typography><Typography><b>Truck:</b> {trip.truck||"—"}{trip.trailer?` · ${trip.trailer}`:""}</Typography><Typography><b>Cargo:</b> {trip.cargo||"—"}</Typography>{trip.distance&&<Typography><b>Distance:</b> {trip.distance} km</Typography>}</Stack>
         </CardContent>
-        <CardActions sx={{flexWrap:"wrap",p:2,pt:0}}><Button onClick={()=>setSelected(trip)}>View Trip</Button><Button startIcon={<MapRoundedIcon/>} href={mapsUrl(trip,true)} target="_blank">Open Map</Button><Button variant="contained" startIcon={<NavigationRoundedIcon/>} href={mapsUrl(trip)} target="_blank">Start Navigation</Button></CardActions>
+        <CardActions sx={{flexWrap:"wrap",p:2,pt:0}}><Button onClick={()=>setSelected(trip)}>View Trip</Button><Button startIcon={<MapRoundedIcon/>} href={mapsUrl(trip,true)} target="_blank">Open Map</Button><Button startIcon={<NavigationRoundedIcon/>} href={pickupUrl(trip)} target="_blank">Navigate to Pickup</Button><Button variant="contained" startIcon={<NavigationRoundedIcon/>} href={destinationUrl(trip)} target="_blank">Go to Destination</Button><Button onClick={()=>navigator.clipboard.writeText(destination(trip))}>Copy Address</Button></CardActions>
       </Card>)}
     </Box>
     {!visible.length&&!error&&<Alert severity="info">No trips in this section.</Alert>}
