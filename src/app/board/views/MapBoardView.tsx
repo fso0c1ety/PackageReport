@@ -50,18 +50,10 @@ function point(value: unknown): [number, number] | null {
   return countryPoint(value);
 }
 
-function addressOf(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (!value || typeof value !== "object") return "";
-  const location = value as Record<string, unknown>;
-  return String(location.address ?? location.formattedAddress ?? location.label ?? "").trim();
-}
-
 export default function MapBoardView({ rows, columns, onOpenRow }: { rows: Row[]; columns: Column[]; onOpenRow: (row: Row) => void }) {
   const locationColumns = React.useMemo(() => columns.filter((column) => column.type === "Location" || column.type === "Country"), [columns]);
   const [source, setSource] = React.useState(locationColumns[0]?.id ?? "");
   const [selected, setSelected] = React.useState<Row[]>([]);
-  const [geocoded, setGeocoded] = React.useState<Record<string, [number, number]>>({});
   const mapElementRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<LeafletMap | null>(null);
   const markerRefs = React.useRef<LeafletMarker[]>([]);
@@ -70,36 +62,10 @@ export default function MapBoardView({ rows, columns, onOpenRow }: { rows: Row[]
     if (!locationColumns.some((column) => column.id === source)) setSource(locationColumns[0]?.id ?? "");
   }, [locationColumns, source]);
 
-  React.useEffect(() => {
-    let cancelled = false;
-    const addresses = [...new Set(rows.map((row) => addressOf(row.values?.[source])).filter(Boolean))]
-      .filter((address) => !geocoded[address] && !point(address));
-    if (!addresses.length) return () => { cancelled = true; };
-    void (async () => {
-      for (const address of addresses) {
-        try {
-          const cacheKey = `smart-manage:geocode:${address.toLowerCase()}`;
-          const cached = window.localStorage.getItem(cacheKey);
-          let coordinates: [number, number] | null = cached ? JSON.parse(cached) : null;
-          if (!coordinates) {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`, { headers: { "Accept-Language": "en" } });
-            const result = response.ok ? await response.json() : [];
-            const lat = Number(result?.[0]?.lat), lng = Number(result?.[0]?.lon);
-            coordinates = Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
-            if (coordinates) window.localStorage.setItem(cacheKey, JSON.stringify(coordinates));
-          }
-          if (!cancelled && coordinates) setGeocoded((current) => ({ ...current, [address]: coordinates! }));
-        } catch {}
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [rows, source, geocoded]);
-
   const markers = React.useMemo(() => {
     const grouped = new Map<string, { point: [number, number]; rows: Row[] }>();
     for (const row of rows) {
-      const value = row.values?.[source];
-      const coordinates = point(value) ?? geocoded[addressOf(value)];
+      const coordinates = point(row.values?.[source]);
       if (!coordinates) continue;
       const key = `${coordinates[0].toFixed(4)}:${coordinates[1].toFixed(4)}`;
       const group = grouped.get(key) ?? { point: coordinates, rows: [] };
@@ -107,7 +73,7 @@ export default function MapBoardView({ rows, columns, onOpenRow }: { rows: Row[]
       grouped.set(key, group);
     }
     return [...grouped.values()];
-  }, [rows, source, geocoded]);
+  }, [rows, source]);
 
   React.useEffect(() => {
     let cancelled = false;
