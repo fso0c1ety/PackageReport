@@ -481,7 +481,7 @@ export default function Sidebar({
           </Box>
         </Box>
 
-        <Box sx={{ flex: 1, overflowY: "auto", px: 2.1, pb: 1.4 }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", px: 2.1, pb: 2 }}>
           <InlineHeader label={driverPortal ? "Driver Portal" : "Navigation"} />
           <Box sx={{ display: "grid", gap: 0.75 }}>
             {driverPortal ? <>
@@ -625,7 +625,7 @@ export default function Sidebar({
 
         </Box>
 
-        <Box sx={{ px: 2.1, pb: 2.1 }}>
+        <Box sx={{ px: 2.1, pb: { xs: 1.5, md: 2.1 }, flexShrink: 0, bgcolor: theme.palette.mode === "dark" ? "#0f1118" : "#f5f7fb" }}>
           <Divider sx={{ borderColor: theme.palette.divider, mb: 1.2 }} />
           <Box
             sx={{
@@ -980,6 +980,10 @@ export default function Sidebar({
           "& .MuiDrawer-paper": {
             boxSizing: "border-box",
             width: drawerWidth,
+            height: "auto",
+            bottom: "calc(68px + env(safe-area-inset-bottom))",
+            maxHeight: "calc(100dvh - 68px - env(safe-area-inset-bottom))",
+            overflow: "hidden",
             bgcolor: theme.palette.background.default,
             borderRight: `1px solid ${theme.palette.divider}`,
           },
