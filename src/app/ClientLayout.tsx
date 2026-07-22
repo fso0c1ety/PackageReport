@@ -112,6 +112,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }
 
     setIsAuthenticated(true);
+    // The driver portal is already the safe destination. Never block its UI
+    // while a secondary role lookup is running.
+    if (pathname === "/driver-trips") {
+      setDriverCheckComplete(true);
+      setLoading(false);
+      return;
+    }
     authenticatedFetch(getApiUrl("logistics/context"), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
@@ -130,12 +137,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   // Failsafe: only release the loading shell if authentication actually exists.
   useEffect(() => {
     const timer = setTimeout(() => {
-        if (typeof window !== 'undefined' && localStorage.getItem('token') && driverCheckComplete) {
+        if (typeof window !== 'undefined' && localStorage.getItem('token')) {
+          setDriverCheckComplete(true);
           setLoading(false);
         }
-    }, 2500);
+    }, 4000);
     return () => clearTimeout(timer);
-  }, [driverCheckComplete]);
+  }, [pathname]);
 
   // If loading, show nothing or a loading spinner
   if (loading) {
