@@ -10122,32 +10122,26 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
       {userPermission !== 'read' && (
         <Box
           sx={{
-            mt: { xs: 0, md: 1 },
+            mt: 1,
+            mb: { xs: 'calc(70px + env(safe-area-inset-bottom))', md: 0 },
             display: 'flex',
             justifyContent: 'flex-start',
-            position: { xs: 'fixed', md: 'static' },
-            right: { xs: 16, md: 'auto' },
-            bottom: { xs: 'calc(74px + env(safe-area-inset-bottom))', md: 'auto' },
-            zIndex: { xs: 1250, md: 'auto' },
           }}
         >
           <Button
             startIcon={<AddIcon />}
             onClick={() => handleAddTask(true)}
             sx={{
-              color: { xs: theme.palette.primary.contrastText, md: theme.palette.text.secondary },
-              bgcolor: { xs: theme.palette.primary.main, md: 'transparent' },
+              color: theme.palette.text.secondary,
               textTransform: 'none',
-              fontWeight: { xs: 700, md: 500 },
+              fontWeight: 500,
               fontSize: '0.875rem',
-              px: { xs: 2, md: 1.5 },
-              py: { xs: 1, md: 0.5 },
-              minHeight: { xs: 44, md: 'auto' },
-              borderRadius: { xs: '999px', md: '6px' },
-              boxShadow: { xs: theme.shadows[8], md: 'none' },
+              px: 1.5,
+              py: 0.5,
+              borderRadius: '6px',
               '&:hover': {
-                color: { xs: theme.palette.primary.contrastText, md: theme.palette.primary.main },
-                bgcolor: { xs: theme.palette.primary.dark, md: 'rgba(255, 255, 255, 0.03)' }
+                color: theme.palette.primary.main,
+                bgcolor: 'rgba(255, 255, 255, 0.03)'
               }
             }}
           >
