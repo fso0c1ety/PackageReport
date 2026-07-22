@@ -56,7 +56,7 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
   await ensureLogisticsSchema();
   const workspace = (await pool.query("SELECT template_key,owner_id FROM workspaces WHERE id=$1", [table.workspace_id])).rows[0];
   if (!workspace || !LOGISTICS_TEMPLATE_KEYS.includes(workspace.template_key)) return values;
-  const driverColumn = (table.columns || []).find((column) => ["driver", "people/driver"].includes(String(column.name).trim().toLowerCase()));
+  const driverColumn = (table.columns || []).find((column) => ["driver", "people", "people/driver"].includes(String(column.name).trim().toLowerCase()));
   if (!driverColumn) return values;
   const relation = Array.isArray(values[driverColumn.id]) ? values[driverColumn.id][0] : values[driverColumn.id];
   const previousUserId = previousValues?._assignedDriverUserId || null;
@@ -72,7 +72,7 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
   const previousPickupAddress = pickupColumn ? locationAddress(previousValues?.[pickupColumn.id]) : "";
   const tripNumber = tripNumberColumn ? String(values[tripNumberColumn.id] || "") : "";
   let profileId = relation?.rowId || null;
-  let assignedUserId = null;
+  let assignedUserId = relation?.id || relation?.userId || null;
   if (profileId) {
     const driverBoard = (await pool.query("SELECT id,columns FROM tables WHERE workspace_id=$1 AND LOWER(name)='drivers' LIMIT 1", [table.workspace_id])).rows[0];
     const driver = driverBoard && (await pool.query("SELECT values FROM rows WHERE id=$1 AND table_id=$2", [profileId, driverBoard.id])).rows[0];
