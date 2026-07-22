@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ENTERPRISE_ROLES, PERMISSION_ACTIONS, PERMISSION_SCOPES, normalizeEnterpriseRole } from "../src/app/api/_lib/permissions.js";
 
 test("enterprise permission model covers all required roles, actions and scopes", () => {
-  assert.deepEqual(Object.keys(ENTERPRISE_ROLES), ["owner", "admin", "manager", "employee", "guest", "client", "custom"]);
+  assert.deepEqual(Object.keys(ENTERPRISE_ROLES), ["owner", "admin", "manager", "employee", "guest", "client", "custom", "logistics_admin", "dispatcher", "fleet_manager", "driver", "viewer"]);
   for (const role of Object.values(ENTERPRISE_ROLES)) assert.deepEqual(Object.keys(role.capabilities), PERMISSION_ACTIONS);
   assert.deepEqual(PERMISSION_SCOPES, ["workspace", "module", "board", "view", "group", "row", "column", "file", "automation", "dashboard"]);
 });

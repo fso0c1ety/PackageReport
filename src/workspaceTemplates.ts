@@ -10,7 +10,7 @@ type SeedColumn = {
 type SeedBoard = {
   name: string;
   columns: SeedColumn[];
-  rows?: Array<Record<string, string | number | boolean>>;
+  rows?: Array<Record<string, unknown>>;
 };
 
 export type WorkspaceTemplate = {
@@ -132,11 +132,11 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
   { key: "fleet_management", icon: "\u{1F69B}", name: "Logistics - Fleet Management", description: "Trucks, drivers, trips, fuel, expenses and maintenance", color: "#0ea5e9", boards: [
     board("Trucks", [{ name: "Truck ID", type: "Text" }, { name: "Plate", type: "Text" }, { name: "Brand", type: "Text" }, { name: "Model", type: "Text" }, { name: "Year", type: "Numbers" }, { name: "Current KM", type: "Numbers" }, { name: "Capacity", type: "Numbers" }, { name: "Insurance Expiry", type: "Date" }, { name: "Registration Expiry", type: "Date" }, { name: "Service KM", type: "Numbers" }, { name: "Driver", type: "Relation" }, status(["Available", "On Trip", "Service", "Inactive"]) ]),
     { name: "Drivers", columns: [{ name: "User", type: "People" }, { name: "Phone", type: "Phone" }, { name: "Email", type: "Email" }, { name: "License", type: "Text" }, { name: "License Expiry", type: "Date" }, { name: "Passport", type: "Files" }, status(["Active", "Off Duty", "Inactive"]) ] },
-    board("Trips", [{ name: "Truck", type: "Relation" }, { name: "Driver", type: "Relation" }, { name: "Pickup", type: "Location" }, { name: "Delivery", type: "Location" }, { name: "Start Date", type: "Date" }, { name: "End Date", type: "Date" }, { name: "Revenue", type: "Money", settings: { currency: "EUR" } }, { name: "Fuel", type: "Money", settings: { currency: "EUR" } }, { name: "Parking", type: "Money", settings: { currency: "EUR" } }, { name: "Tolls", type: "Money", settings: { currency: "EUR" } }, { name: "Maintenance", type: "Money", settings: { currency: "EUR" } }, { name: "Other Costs", type: "Money", settings: { currency: "EUR" } }, { name: "Total Costs", type: "Formula", settings: { formula: "[Fuel] + [Parking] + [Tolls] + [Maintenance] + [Other Costs]" } }, { name: "Trip Profit", type: "Formula", settings: { formula: "[Revenue] - [Fuel] - [Parking] - [Tolls] - [Maintenance] - [Other Costs]" } }, status(["Planned", "In Transit", "Completed", "Delayed"]) ]),
-    board("Fuel", [{ name: "Truck", type: "Relation" }, { name: "Driver", type: "Relation" }, { name: "Date", type: "Date" }, { name: "Liters", type: "Numbers" }, { name: "Price per Liter", type: "Money", settings: { currency: "EUR" } }, { name: "Total", type: "Formula", settings: { formula: "[Liters] * [Price per Liter]" } }, { name: "Odometer KM", type: "Numbers" }, { name: "Receipt", type: "Files" }]),
+    board("Trips", [{ name: "Trip Number", type: "Text" }, { name: "Truck", type: "Relation" }, { name: "Driver", type: "Relation" }, { name: "Pickup", type: "Location" }, { name: "Delivery", type: "Location" }, { name: "Pickup Date", type: "Date" }, { name: "Delivery Date", type: "Date" }, { name: "Cargo", type: "LongText" }, { name: "Cargo Weight", type: "Numbers" }, { name: "Contact Person", type: "Text" }, { name: "Contact Phone", type: "Phone" }, { name: "Trailer", type: "Text" }, { name: "Distance", type: "Numbers" }, { name: "Estimated Travel Time", type: "Text" }, { name: "Instructions", type: "LongText" }, { name: "Revenue", type: "Money", settings: { currency: "EUR" } }, { name: "Fuel", type: "Money", settings: { currency: "EUR" } }, { name: "Parking", type: "Money", settings: { currency: "EUR" } }, { name: "Tolls", type: "Money", settings: { currency: "EUR" } }, { name: "Maintenance", type: "Money", settings: { currency: "EUR" } }, { name: "Other Costs", type: "Money", settings: { currency: "EUR" } }, { name: "Total Costs", type: "Formula", settings: { formula: "[Fuel] + [Parking] + [Tolls] + [Maintenance] + [Other Costs]" } }, { name: "Trip Profit", type: "Formula", settings: { formula: "[Revenue] - [Fuel] - [Parking] - [Tolls] - [Maintenance] - [Other Costs]" } }, status(["Assigned", "Accepted", "Going to Pickup", "At Pickup", "Loaded", "In Transit", "At Delivery", "Delivered", "Problem Reported"]) ]),
+    board("Fuel", [{ name: "Truck", type: "Relation" }, { name: "Driver", type: "Relation" }, { name: "Trip", type: "Relation" }, { name: "Date", type: "Date" }, { name: "Liters", type: "Numbers" }, { name: "Price per Liter", type: "Money", settings: { currency: "EUR" } }, { name: "Total", type: "Formula", settings: { formula: "[Liters] * [Price per Liter]" } }, { name: "Station", type: "Text" }, { name: "Odometer KM", type: "Numbers" }, { name: "Receipt", type: "Files" }]),
     board("Maintenance", [{ name: "Truck", type: "Relation" }, { name: "Type", type: "Dropdown" }, { name: "Due Date", type: "Date" }, { name: "Due KM", type: "Numbers" }, { name: "Cost", type: "Money", settings: { currency: "EUR" } }, { name: "Documents", type: "Files" }, status(["Upcoming", "Due", "Overdue", "Completed"]) ]),
     board("Expenses", [{ name: "Truck", type: "Relation" }, { name: "Trip", type: "Relation" }, { name: "Category", type: "Dropdown" }, { name: "Date", type: "Date" }, { name: "Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Receipt", type: "Files" }, { name: "Notes", type: "LongText" }]),
-    board("Documents", [{ name: "Truck", type: "Relation" }, { name: "Driver", type: "Relation" }, { name: "Document Type", type: "Dropdown" }, { name: "File", type: "Files" }, { name: "Expiry Date", type: "Date" }, status(["Valid", "Expiring", "Expired"]) ]),
+    board("Documents", [{ name: "Truck", type: "Relation" }, { name: "Driver", type: "Relation" }, { name: "Trip", type: "Relation" }, { name: "Document Type", type: "Dropdown" }, { name: "File", type: "Files" }, { name: "Expiry Date", type: "Date" }, status(["Valid", "Expiring", "Expired"]) ]),
   ]},
   { key: "crm_sales", icon: "\u{1F465}", name: "CRM & Sales", description: "Companies, contacts and complete sales pipeline", color: "#8b5cf6", boards: [board("Companies", [{ name: "Website", type: "Website" }, { name: "Industry", type: "Dropdown" }, { name: "Owner", type: "People" }, { name: "Annual Value", type: "Money" }, status(["Prospect", "Customer", "Inactive"])], [{ Name: "New prospect", Status: "Prospect" }]), board("Contacts", [{ name: "Company", type: "Relation" }, { name: "Email", type: "Email" }, { name: "Phone", type: "Phone" }, { name: "Position", type: "Text" }, { name: "Last Contact", type: "Date" }]), board("Deals", [{ name: "Company", type: "Relation" }, { name: "Contact", type: "Relation" }, { name: "Value", type: "Money" }, { name: "Probability", type: "Progress" }, { name: "Weighted Value", type: "Formula", settings: { formula: "[Value] * [Probability] / 100" } }, { name: "Close Date", type: "Date" }, { name: "Sales Owner", type: "People" }, status(["Lead", "Qualified", "Proposal", "Won", "Lost"]) ]), board("Sales Tasks", [{ name: "Deal", type: "Relation" }, { name: "Assignee", type: "People" }, { name: "Due Date", type: "Date" }, { name: "Priority", type: "Priority" }, status(["To Do", "In Progress", "Done"]) ]), board("CRM Reports", [{ name: "Period", type: "Timeline" }, { name: "Pipeline Value", type: "Money" }, { name: "Won Revenue", type: "Money" }, { name: "Conversion Rate", type: "Progress" }, { name: "Generated", type: "CreatedDate" }])]},
   { key: "project_management", icon: "\u{1F4CB}", name: "Project Management", description: "Projects, tasks, milestones, budgets and reports", color: "#6366f1", boards: [board("Projects", [{ name: "Owner", type: "People" }, { name: "Client", type: "Text" }, { name: "Budget", type: "Money" }, { name: "Progress", type: "Progress" }, { name: "Start Date", type: "Date" }, { name: "Deadline", type: "Date" }, status()]), board("Tasks", [{ name: "Project", type: "Relation" }, { name: "Assignee", type: "People" }, { name: "Priority", type: "Priority" }, { name: "Estimate Hours", type: "Numbers" }, { name: "Due Date", type: "Date" }, status(["To Do", "In Progress", "Review", "Done"]) ]), board("Milestones", [{ name: "Project", type: "Relation" }, { name: "Owner", type: "People" }, { name: "Due Date", type: "Date" }, { name: "Deliverables", type: "Files" }, status(["Planned", "In Progress", "Completed"]) ]), board("Project Documents", [{ name: "Project", type: "Relation" }, { name: "Category", type: "Dropdown" }, { name: "File", type: "Files" }, { name: "Updated", type: "UpdatedDate" }]), board("Project Reports", [{ name: "Project", type: "Relation" }, { name: "Spent", type: "Money" }, { name: "Budget", type: "Money" }, { name: "Remaining", type: "Formula", settings: { formula: "[Budget] - [Spent]" } }, { name: "Progress", type: "Progress" }])]},
@@ -247,12 +247,36 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
     const targets: Record<string, Record<string, string>> = {
       Trucks: { Driver: "Drivers" },
       Trips: { Truck: "Trucks", Driver: "Drivers" },
-      Fuel: { Truck: "Trucks", Driver: "Drivers" },
+      Fuel: { Truck: "Trucks", Driver: "Drivers", Trip: "Trips" },
       Maintenance: { Truck: "Trucks" },
       Expenses: { Truck: "Trucks", Trip: "Trips", Driver: "Drivers" },
-      Documents: { Truck: "Trucks", Driver: "Drivers" },
+      Documents: { Truck: "Trucks", Driver: "Drivers", Trip: "Trips" },
     };
     return targets[boardName]?.[columnName];
+  };
+  const sampleValueFor = (column: SeedColumn, boardName: string) => {
+    const base = boardName.replace(/s$/, "");
+    if (column.type === "Relation") return { __relationBoard: column.settings?.relationBoard || column.name };
+    if (column.type === "People") return { __currentUser: true };
+    if (["Money", "Numbers", "Progress"].includes(column.type)) return column.name.toLowerCase().includes("year") ? 2026 : 100;
+    if (column.type === "Checkbox") return false;
+    if (column.type === "Date") return "2026-07-23";
+    if (column.type === "Timeline") return { start: "2026-07-23", end: "2026-07-24" };
+    if (column.type === "Email") return "demo@smartmanage.com";
+    if (column.type === "Phone") return "+383 49 000 000";
+    if (column.type === "Location") return "Test Location, Kosovo";
+    if (column.type === "Status") return column.options?.[0]?.value || "New";
+    if (["Files", "Formula", "CreatedDate", "UpdatedDate", "AutoNumber"].includes(column.type)) return undefined;
+    return `Test ${column.name || base}`;
+  };
+  const fleetSamples: Record<string, Record<string, unknown>> = {
+    Drivers: { User: { __currentUser: true }, Phone: "+383 49 737 749", Email: "argjendpeci@test.com", License: "TEST-LICENSE-001", "License Expiry": "2027-12-31", Passport: "TEST-PASSPORT-001", Status: "Active" },
+    Trucks: { Name: "KAMIONI 1", "Truck ID": "TEST-001", Plate: "TEST-001", Brand: "Mercedes-Benz", Model: "Actros", Year: 2024, Capacity: 24000, "Insurance Expiry": "2027-12-31", "Registration Expiry": "2027-12-31", Status: "Available", Driver: { __relationBoard: "Drivers" } },
+    Trips: { Name: "Test Trip", "Trip Number": "TRIP-0001", Driver: { __relationBoard: "Drivers" }, Truck: { __relationBoard: "Trucks" }, Pickup: "Vakıflı Mahallesi, Hayrabolu, Tekirdağ, Türkiye", Delivery: "Ulpianë, Prishtinë 10000, Kosovo", "Pickup Date": "2026-07-23T08:00:00.000Z", "Delivery Date": "2026-07-24T18:00:00.000Z", Cargo: "Test Cargo", "Cargo Weight": 10000, "Contact Person": "Test Contact", "Contact Phone": "+383 49 000 000", Status: "Assigned", Instructions: "Test pickup and delivery instructions" },
+    Expenses: { Name: "EXP-0001", Trip: { __relationBoard: "Trips" }, Driver: { __relationBoard: "Drivers" }, Type: "Toll", Category: "Toll", Description: "Test Expense", Amount: 50, Date: "2026-07-23", Status: "Pending" },
+    Fuel: { Name: "FUEL-0001", Truck: { __relationBoard: "Trucks" }, Driver: { __relationBoard: "Drivers" }, Trip: { __relationBoard: "Trips" }, Liters: 100, "Price per Liter": 1.5, Date: "2026-07-23", Station: "Test Fuel Station", "Odometer KM": 100000 },
+    Maintenance: { Name: "MAIN-0001", Truck: { __relationBoard: "Trucks" }, Type: "Regular Service", Description: "Test Maintenance", "Due Date": "2026-07-30", Cost: 200, Status: "Upcoming" },
+    Documents: { Name: "Test CMR", "Document Type": "CMR", Trip: { __relationBoard: "Trips" }, Driver: { __relationBoard: "Drivers" }, Truck: { __relationBoard: "Trucks" }, Status: "Valid" },
   };
   const boards = template.boards.map((seedBoard, index) => ({
     ...seedBoard,
@@ -267,6 +291,11 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
       ...(!hasFormula && index === 0 ? [{ name: "Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Cost", type: "Money", settings: { currency: "EUR" } }, { name: "Net Value", type: "Formula", settings: { formula: "[Amount] - [Cost]" } }] : []),
       ...(!hasRelation && index === 1 ? [{ name: template.boards[0].name, type: "Relation", settings: { relationBoard: template.boards[0].name } }] : []),
     ],
+    rows: seedBoard.rows?.length ? seedBoard.rows : [{
+      ...Object.fromEntries(seedBoard.columns.map((column) => [column.name, sampleValueFor(column, seedBoard.name)]).filter(([, value]) => value !== undefined)),
+      Name: `Test ${seedBoard.name.replace(/s$/, "")}`,
+      ...(template.key === "fleet_management" ? (fleetSamples[seedBoard.name] || {}) : {}),
+    }],
   }));
   const primaryBoard = boards[0];
   const statusColumn = primaryBoard?.columns.find((column) => column.type === "Status");
@@ -288,7 +317,15 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
     ]),
     dashboards: [{ name: `${template.name} Overview`, widgets: template.dashboardWidgets ?? [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
     automations: template.automations?.length ? template.automations : defaultAutomations,
-    roles: [{ key: "owner", name: "Owner", permissions: ["*"] }, { key: "admin", name: "Admin", permissions: ["manage_workspace"] }, { key: "employee", name: "Employee", permissions: ["view", "edit"] }],
+    roles: ["freight_broker", "fleet_management"].includes(template.key)
+      ? [
+          { key: "logistics_admin", name: "Logistics Admin", permissions: ["*"] },
+          { key: "dispatcher", name: "Dispatcher", permissions: ["view", "edit", "assign_trips"] },
+          { key: "fleet_manager", name: "Fleet Manager", permissions: ["view", "edit", "manage_fleet"] },
+          { key: "driver", name: "Driver", permissions: ["view_assigned_trips", "update_trip_status", "upload_trip_documents"] },
+          { key: "viewer", name: "Viewer", permissions: ["view"] },
+        ]
+      : [{ key: "owner", name: "Owner", permissions: ["*"] }, { key: "admin", name: "Admin", permissions: ["manage_workspace"] }, { key: "employee", name: "Employee", permissions: ["view", "edit"] }],
   };
 };
 

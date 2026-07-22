@@ -19,6 +19,11 @@ export const ENTERPRISE_ROLES = {
   guest: { permission: "read", capabilities: allow("view", "comment") },
   client: { permission: "read", capabilities: allow("view", "comment", "uploadFiles") },
   custom: { permission: "read", capabilities: allow("view") },
+  logistics_admin: { permission: "admin", capabilities: allow(...PERMISSION_ACTIONS) },
+  dispatcher: { permission: "edit", capabilities: allow("view", "create", "edit", "editRows", "comment", "uploadFiles", "export") },
+  fleet_manager: { permission: "edit", capabilities: allow("view", "create", "edit", "delete", "archive", "export", "editRows", "comment", "uploadFiles", "manageColumns") },
+  driver: { permission: "read", capabilities: allow("view", "comment", "uploadFiles") },
+  viewer: { permission: "read", capabilities: allow("view") },
 };
 
 export function normalizeEnterpriseRole(role, requestedCapabilities = {}) {

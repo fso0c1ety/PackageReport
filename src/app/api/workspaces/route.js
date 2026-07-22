@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ensureFleetDriverAccess, getAuthenticatedUser, pool } from "../_lib/server";
 import { requireWritableSubscription } from "../_lib/billing";
 import { getWorkspaceTemplateManifest } from "../../../workspaceTemplates";
+import { ensureLogisticsSchema, LOGISTICS_TEMPLATE_KEYS } from "../_lib/logistics";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,7 @@ export async function GET(req) {
   }
 
   try {
+    await ensureLogisticsSchema();
     await ensureFleetDriverAccess(user);
     const result = await pool.query(
       `
@@ -40,7 +42,7 @@ export async function GET(req) {
           SELECT 1
           FROM jsonb_array_elements(t.shared_users) AS elem
           WHERE elem->>'userId' = $1
-        )
+        ) OR EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id=$1)
       `,
       [user.id]
     );
@@ -64,7 +66,7 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const template = getWorkspaceTemplateManifest(body?.templateKey);
-    const includeSampleData = body?.includeSampleData !== false;
+    const includeSampleData = body?.includeSampleData === true;
     const newWorkspace = {
       id: uuidv4(),
       name: body?.name || "Untitled Workspace",
@@ -76,18 +78,59 @@ export async function POST(req) {
     const createdBoardColumns = new Map();
     try {
       await client.query("BEGIN");
+      await ensureLogisticsSchema();
       await client.query("INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3)", [newWorkspace.id, newWorkspace.name, newWorkspace.owner_id]);
+      await client.query("UPDATE workspaces SET template_key=$1 WHERE id=$2", [template.key, newWorkspace.id]);
+      if (LOGISTICS_TEMPLATE_KEYS.includes(template.key)) {
+        await client.query("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,'logistics_admin') ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='logistics_admin',updated_at=NOW()", [newWorkspace.id, String(user.id)]);
+      }
       for (const board of template.boards) {
         const tableId = uuidv4();
         const columns = board.columns.map((column, order) => ({ ...column, id: uuidv4(), order }));
         await client.query("INSERT INTO tables (id, name, workspace_id, columns, created_at) VALUES ($1,$2,$3,$4,$5)", [tableId, board.name, newWorkspace.id, JSON.stringify(columns), Date.now()]);
-        for (const seedRow of includeSampleData ? (board.rows || []) : []) {
-          const values = {};
-          for (const column of columns) if (Object.prototype.hasOwnProperty.call(seedRow, column.name)) values[column.id] = seedRow[column.name];
-          await client.query("INSERT INTO rows(id,table_id,values,created_by,created_at) VALUES($1,$2,$3,$4,NOW())", [uuidv4(), tableId, JSON.stringify(values), user.id]);
-        }
         createdBoards.push({ id: tableId, name: board.name });
         createdBoardColumns.set(board.name, columns);
+      }
+      if (includeSampleData) {
+        const sampleRows = new Map();
+        for (const board of template.boards) {
+          const target = createdBoards.find((entry) => entry.name === board.name);
+          const seedRow = (board.rows || [])[0];
+          if (!target || !seedRow) continue;
+          const rowId = uuidv4();
+          sampleRows.set(board.name, { id: rowId, label: String(seedRow.Name || `Test ${board.name.replace(/s$/, "")}`), tableId: target.id });
+          await client.query("INSERT INTO rows(id,table_id,values,created_by,created_at) VALUES($1,$2,'{}'::jsonb,$3,NOW())", [rowId, target.id, user.id]);
+        }
+        for (const board of template.boards) {
+          const sample = sampleRows.get(board.name);
+          const seedRow = (board.rows || [])[0];
+          if (!sample || !seedRow) continue;
+          const values = {};
+          for (const column of createdBoardColumns.get(board.name) || []) {
+            if (!Object.prototype.hasOwnProperty.call(seedRow, column.name)) continue;
+            const raw = seedRow[column.name];
+            if (raw?.__relationBoard) {
+              const relation = sampleRows.get(raw.__relationBoard);
+              values[column.id] = relation ? [{ tableId: relation.tableId, rowId: relation.id, label: relation.label, tableName: raw.__relationBoard }] : [];
+            } else if (raw?.__currentUser) {
+              values[column.id] = [{ id: String(user.id), name: user.name || "Demo User", email: user.email || "demo@smartmanage.com" }];
+            } else values[column.id] = raw;
+          }
+          if (template.key === "fleet_management" && board.name === "Drivers") {
+            values._driverProfileId = sample.id;
+            values._linkedUserId = String(user.id);
+            values._workspaceId = newWorkspace.id;
+            values._driverStatus = "Active";
+            values._assignedTruckId = sampleRows.get("Trucks")?.id || null;
+          }
+          if (template.key === "fleet_management" && board.name === "Trips") {
+            values._assignedDriverProfileId = sampleRows.get("Drivers")?.id || null;
+            values._assignedDriverUserId = String(user.id);
+            values._workspaceId = newWorkspace.id;
+            values._truckId = sampleRows.get("Trucks")?.id || null;
+          }
+          await client.query("UPDATE rows SET values=$1::jsonb WHERE id=$2", [JSON.stringify(values), sample.id]);
+        }
       }
       const relationState = await client.query("SELECT to_regclass('public.board_views') AS views, to_regclass('public.dashboards') AS dashboards, to_regclass('public.dashboard_widgets') AS widgets, to_regclass('public.workspace_modules') AS modules, to_regclass('public.automations') AS automations");
       const available = relationState.rows[0] || {};

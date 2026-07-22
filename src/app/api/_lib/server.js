@@ -49,49 +49,13 @@ export function ensureExtendedUserProfileColumns() {
 }
 
 export async function ensureFleetDriverAccess(user) {
-  if (!user?.id || !user?.email) return [];
-  const assigned = await pool.query(
-    `SELECT DISTINCT t.workspace_id
-       FROM tables t
-       JOIN rows r ON r.table_id = t.id
-      WHERE LOWER(t.name) = 'drivers'
-        AND EXISTS (
-          SELECT 1
-            FROM jsonb_each(COALESCE(r.values, '{}'::jsonb)) AS cell
-            CROSS JOIN LATERAL jsonb_array_elements(
-              CASE WHEN jsonb_typeof(cell.value) = 'array' THEN cell.value ELSE '[]'::jsonb END
-            ) AS person
-           WHERE person->>'id' = $1 OR LOWER(person->>'email') = LOWER($2)
-        )`,
-    [String(user.id), String(user.email)]
-  );
-  const employeeFleet = await pool.query(
-    `SELECT DISTINCT t.workspace_id
-       FROM tables t
-      WHERE LOWER(t.name) = ANY($2)
-        AND EXISTS (
-          SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS member
-           WHERE member->>'userId' = $1
-             AND COALESCE(member->>'role', 'employee') IN ('employee', 'driver')
-        )`,
-    [String(user.id), ['trucks', 'drivers', 'trips', 'fuel', 'maintenance', 'expenses', 'documents']]
-  );
-  const workspaceIds = [...new Set([...assigned.rows, ...employeeFleet.rows].map((row) => row.workspace_id))];
-  if (!workspaceIds.length) return [];
-  const fleetBoards = ['trucks', 'drivers', 'trips', 'fuel', 'maintenance', 'expenses', 'documents'];
-  const tables = await pool.query(
-    `SELECT id, shared_users FROM tables
-      WHERE workspace_id = ANY($1)
-        AND LOWER(name) = ANY($2)`,
-    [workspaceIds, fleetBoards]
-  );
-  for (const table of tables.rows) {
-    const sharedUsers = Array.isArray(table.shared_users) ? table.shared_users : [];
-    if (sharedUsers.some((entry) => String(entry?.userId) === String(user.id))) continue;
-    sharedUsers.push({ userId: String(user.id), permission: 'edit', role: 'employee' });
-    await pool.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), table.id]);
-  }
-  return workspaceIds;
+  // Driver access is resolved by the logistics APIs from workspace_members and
+  // assignedDriverUserId. Never grant a driver broad access to fleet boards.
+  if (!user?.id) return [];
+  const exists = await pool.query("SELECT to_regclass('public.workspace_members') AS relation");
+  if (!exists.rows[0]?.relation) return [];
+  const result = await pool.query("SELECT workspace_id FROM workspace_members WHERE user_id=$1 AND role='driver'", [String(user.id)]);
+  return result.rows.map((row) => row.workspace_id);
 }
 
 export function getAuthenticatedUser(req) {

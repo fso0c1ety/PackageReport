@@ -9,6 +9,7 @@ import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { sendEmail } from "../../../_lib/mailer";
 import { requireWritableSubscription } from "../../../_lib/billing";
+import { syncTripAssignment } from "../../../_lib/logistics";
 import automationBuilder from "../../../../../../server/services/automationBuilderEngine.cjs";
 import { isSafePublicHttpsUrl } from "../../../_lib/security";
 
@@ -581,18 +582,20 @@ export async function POST(req, { params }) {
     const newTaskId = typeof body?.id === "string" && uuidValidate(body.id) ? body.id : uuidv4();
     const values = body?.values && typeof body.values === "object" ? body.values : {};
 
+    const tableForAssignment = (await pool.query("SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
+    const assignedValues = await syncTripAssignment({ table: tableForAssignment, values, previousValues: {}, actorId: user.id });
     const insertRes = await pool.query(
       `
         INSERT INTO rows (id, table_id, values, created_by, created_at)
         VALUES ($1, $2, $3, $4, NOW())
         RETURNING *
       `,
-      [newTaskId, tableId, JSON.stringify(values), user.id]
+      [newTaskId, tableId, JSON.stringify(assignedValues), user.id]
     );
 
     try {
       const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
-      if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: values, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created" });
+      if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: assignedValues, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created" });
     } catch (automationErr) {
       console.error("[TABLE TASKS][POST] Automation processing failed after task creation:", automationErr);
     }
@@ -687,7 +690,8 @@ export async function PUT(req, { params }) {
       }
     }
 
-    const mergedValues = { ...oldValues, ...newValues };
+    let mergedValues = { ...oldValues, ...newValues };
+    mergedValues = await syncTripAssignment({ table, values: mergedValues, previousValues: oldValues, actorId: user.id });
     mergedValues.activity = newActivity.length > 0 ? [...newActivity, ...oldActivity] : oldActivity;
 
     try {

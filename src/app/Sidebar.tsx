@@ -203,7 +203,7 @@ export default function Sidebar({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<WorkspaceTemplateKey>("blank");
-  const [includeSampleData, setIncludeSampleData] = useState(true);
+  const [includeSampleData, setIncludeSampleData] = useState(false);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
   useEffect(() => {
@@ -265,6 +265,7 @@ export default function Sidebar({
 
   const currentWorkspaceId = searchParams.get("id");
   const [workspaceModules, setWorkspaceModules] = useState<string[]>([]);
+  const [driverPortal, setDriverPortal] = useState(false);
   useEffect(() => {
     if (!currentWorkspaceId) { setWorkspaceModules([]); return; }
     const loadModules = () => authenticatedFetch(getApiUrl(`workspaces/${currentWorkspaceId}/modules`), { suppressNativeErrorAlert: true })
@@ -272,6 +273,13 @@ export default function Sidebar({
     void loadModules();
     window.addEventListener("workspaceModulesUpdated", loadModules);
     return () => window.removeEventListener("workspaceModulesUpdated", loadModules);
+  }, [currentWorkspaceId]);
+  useEffect(() => {
+    if (!currentWorkspaceId) { setDriverPortal(false); return; }
+    authenticatedFetch(getApiUrl(`logistics/context?workspaceId=${encodeURIComponent(currentWorkspaceId)}`), { suppressNativeErrorAlert: true })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => setDriverPortal(Boolean(data?.driver)))
+      .catch(() => setDriverPortal(false));
   }, [currentWorkspaceId]);
   // Fetch workspaces and user
   useEffect(() => {
@@ -474,8 +482,16 @@ export default function Sidebar({
         </Box>
 
         <Box sx={{ flex: 1, overflowY: "auto", px: 2.1, pb: 1.4 }}>
-          <InlineHeader label="Navigation" />
+          <InlineHeader label={driverPortal ? "Driver Portal" : "Navigation"} />
           <Box sx={{ display: "grid", gap: 0.75 }}>
+            {driverPortal ? <>
+              <SidebarItem icon={<HomeIcon fontSize="small" />} label="Home" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
+              <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="My Trips" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
+              <SidebarItem icon={<CalendarMonthRoundedIcon fontSize="small" />} label="My Calendar" href="/calendar" isActive={pathname === "/calendar"} onClick={onClose} />
+              <SidebarItem icon={<FolderRoundedIcon fontSize="small" />} label="My Documents" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={false} onClick={onClose} />
+              {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="My Expenses" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={false} onClick={onClose} />}
+              <SidebarItem icon={<SettingsIcon fontSize="small" />} label="My Profile" href="/settings?tab=profile" isActive={pathname === "/settings"} onClick={onClose} />
+            </> : <>
             <SidebarItem
               icon={<HomeIcon fontSize="small" />}
               label="Home"
@@ -527,9 +543,10 @@ export default function Sidebar({
               isActive={pathname === "/settings"}
               onClick={onClose}
             />
+            </>}
           </Box>
 
-          {currentWorkspaceId && (
+          {currentWorkspaceId && !driverPortal && (
             <>
               <InlineHeader label="Modules" />
               <Box sx={{ display: "grid", gap: 0.55 }}>
@@ -549,7 +566,7 @@ export default function Sidebar({
             </>
           )}
 
-          <InlineHeader label="Workspace" />
+          {!driverPortal && <><InlineHeader label="Workspace" />
           <Box
             sx={{
               p: 0.55,
@@ -603,7 +620,7 @@ export default function Sidebar({
             >
               Join code
             </Button>
-          </Box>
+          </Box></>}
 
         </Box>
 
