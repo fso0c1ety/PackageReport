@@ -9,8 +9,6 @@ import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import FirstPageIcon from '@mui/icons-material/FirstPage';
 import LastPageIcon from '@mui/icons-material/LastPage';
 import React, { useState, useEffect, useDeferredValue } from "react";
@@ -1565,7 +1563,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const invoiceStampInputRef = React.useRef<HTMLInputElement | null>(null);
   const [columnDragPreviewIds, setColumnDragPreviewIds] = useState<string[] | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const [mobileTableHeight, setMobileTableHeight] = useState<number | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
   const columnDragOriginTopRef = React.useRef<number | null>(null);
   const dragPointerStartRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -3295,46 +3292,16 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
 
   // --- Handlers and logic ---
 
-  const scrollTableToTop = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
-  tableContainerRef.current?.scrollTo({ top: 0, behavior });
-  }, []);
-
-  React.useLayoutEffect(() => {
-  if (!isMobile || workspaceView !== 'table') {
-  if (mobileTableHeight !== null) setMobileTableHeight(null);
-  return;
-  }
-
-  const tableContainer = tableContainerRef.current;
-  if (!tableContainer) return;
-
-  const mobileNavigation = document.querySelector('[data-mobile-bottom-navigation="true"]');
-  const navigationTop = mobileNavigation?.getBoundingClientRect().top ?? window.innerHeight - 62;
-  const tableTop = tableContainer.getBoundingClientRect().top;
-  const availableHeight = Math.max(220, Math.floor(navigationTop - tableTop - 8));
-
-  if (mobileTableHeight !== availableHeight) setMobileTableHeight(availableHeight);
-  });
-
-  React.useEffect(() => {
-  if (!isMobile) return;
-  const updateTableHeight = () => {
-  const tableContainer = tableContainerRef.current;
-  if (!tableContainer) return;
-  const mobileNavigation = document.querySelector('[data-mobile-bottom-navigation="true"]');
-  const navigationTop = mobileNavigation?.getBoundingClientRect().top ?? window.innerHeight - 62;
-  const availableHeight = Math.max(220, Math.floor(navigationTop - tableContainer.getBoundingClientRect().top - 8));
-  setMobileTableHeight(previous => previous === availableHeight ? previous : availableHeight);
-  };
-  window.addEventListener('resize', updateTableHeight);
-  return () => window.removeEventListener('resize', updateTableHeight);
-  }, [isMobile]);
-
   const scrollTableToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
   const scrollContainer = tableContainerRef.current;
   if (!scrollContainer) return;
+  if (isMobile) {
+  const pageScroller = scrollContainer.closest('main');
+  pageScroller?.scrollTo({ top: pageScroller.scrollHeight, behavior });
+  return;
+  }
   scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior });
-  }, []);
+  }, [isMobile]);
 
   const handleAddTask = async (atBottom = false) => {
   if (userPermission === 'read') return;
@@ -5855,7 +5822,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   flexDirection: 'column',
   gap: 0.5,
   maxHeight: 260,
-  overflowY: 'auto',
+  overflowY: { xs: 'visible', md: 'auto' },
   pr: 0.25,
   '&::-webkit-scrollbar': { width: 8 },
   '&::-webkit-scrollbar-track': { background: 'transparent' },
@@ -9222,10 +9189,8 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   overflowY: 'auto',
   // Cap the grid at one header + 20 visible rows + footer. On shorter
   // screens the viewport limit wins and the remaining rows scroll inside.
-  height: isMobile
-  ? (mobileTableHeight ? `${mobileTableHeight}px` : 'calc(100dvh - 300px - env(safe-area-inset-bottom))')
-  : 'min(calc(100vh - 270px), 938px)',
-  minHeight: 240,
+  height: { xs: 'auto', md: 'min(calc(100vh - 270px), 938px)' },
+  minHeight: { xs: 0, md: 240 },
   position: 'relative',
   overflowAnchor: 'none',
   overscrollBehavior: 'contain',
@@ -10148,7 +10113,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               component="div"
               sx={{
                 display: 'block',
-                position: 'sticky',
+                position: { xs: 'static', md: 'sticky' },
                 bottom: 0,
                 zIndex: 110,
                 width: gridContentWidth,
@@ -10236,56 +10201,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
             </TableFooter>
         </Table >
       </TableContainer >
-      {isMobile && filteredRowIds.length > 8 && (
-        <Stack
-          spacing={1}
-          sx={{
-            position: 'absolute',
-            right: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            zIndex: 180,
-            pointerEvents: 'auto'
-          }}
-        >
-          <Tooltip title="Go to top" placement="left">
-            <IconButton
-              size="small"
-              onClick={() => scrollTableToTop('smooth')}
-              sx={{
-                width: 42,
-                height: 42,
-                bgcolor: alpha(theme.palette.background.paper, 0.88),
-                color: theme.palette.text.primary,
-                border: `1px solid ${alpha(theme.palette.text.primary, 0.16)}`,
-                boxShadow: theme.palette.mode === 'dark' ? '0 10px 28px rgba(0,0,0,0.35)' : '0 10px 28px rgba(15,23,42,0.18)',
-                backdropFilter: 'blur(10px)',
-                '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.96) }
-              }}
-            >
-              <KeyboardArrowUpIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Go to bottom" placement="left">
-            <IconButton
-              size="small"
-              onClick={() => scrollTableToBottom('smooth')}
-              sx={{
-                width: 42,
-                height: 42,
-                bgcolor: alpha(theme.palette.background.paper, 0.88),
-                color: theme.palette.text.primary,
-                border: `1px solid ${alpha(theme.palette.text.primary, 0.16)}`,
-                boxShadow: theme.palette.mode === 'dark' ? '0 10px 28px rgba(0,0,0,0.35)' : '0 10px 28px rgba(15,23,42,0.18)',
-                backdropFilter: 'blur(10px)',
-                '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.96) }
-              }}
-            >
-              <KeyboardArrowDownIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      )}
       </Box>
   </DragDropContext >
   ) : workspaceView === 'kanban' ? (
