@@ -1563,6 +1563,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const invoiceStampInputRef = React.useRef<HTMLInputElement | null>(null);
   const [columnDragPreviewIds, setColumnDragPreviewIds] = useState<string[] | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const [mobileTableHeight, setMobileTableHeight] = useState<number | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
   const columnDragOriginTopRef = React.useRef<number | null>(null);
   const dragPointerStartRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -3293,6 +3294,37 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const scrollTableToTop = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
   tableContainerRef.current?.scrollTo({ top: 0, behavior });
   }, []);
+
+  React.useLayoutEffect(() => {
+  if (!isMobile || workspaceView !== 'table') {
+  if (mobileTableHeight !== null) setMobileTableHeight(null);
+  return;
+  }
+
+  const tableContainer = tableContainerRef.current;
+  if (!tableContainer) return;
+
+  const mobileNavigation = document.querySelector('[data-mobile-bottom-navigation="true"]');
+  const navigationTop = mobileNavigation?.getBoundingClientRect().top ?? window.innerHeight - 62;
+  const tableTop = tableContainer.getBoundingClientRect().top;
+  const availableHeight = Math.max(220, Math.floor(navigationTop - tableTop - 8));
+
+  if (mobileTableHeight !== availableHeight) setMobileTableHeight(availableHeight);
+  });
+
+  React.useEffect(() => {
+  if (!isMobile) return;
+  const updateTableHeight = () => {
+  const tableContainer = tableContainerRef.current;
+  if (!tableContainer) return;
+  const mobileNavigation = document.querySelector('[data-mobile-bottom-navigation="true"]');
+  const navigationTop = mobileNavigation?.getBoundingClientRect().top ?? window.innerHeight - 62;
+  const availableHeight = Math.max(220, Math.floor(navigationTop - tableContainer.getBoundingClientRect().top - 8));
+  setMobileTableHeight(previous => previous === availableHeight ? previous : availableHeight);
+  };
+  window.addEventListener('resize', updateTableHeight);
+  return () => window.removeEventListener('resize', updateTableHeight);
+  }, [isMobile]);
 
   const scrollTableToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
   const scrollContainer = tableContainerRef.current;
@@ -9108,7 +9140,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   // Cap the grid at one header + 20 visible rows + footer. On shorter
   // screens the viewport limit wins and the remaining rows scroll inside.
   height: isMobile
-  ? 'calc(100dvh - 370px - env(safe-area-inset-bottom))'
+  ? (mobileTableHeight ? `${mobileTableHeight}px` : 'calc(100dvh - 300px - env(safe-area-inset-bottom))')
   : 'min(calc(100vh - 270px), 938px)',
   minHeight: 240,
   position: 'relative',
@@ -10034,7 +10066,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
               sx={{
                 display: 'block',
                 position: 'sticky',
-                bottom: { xs: 'calc(74px + env(safe-area-inset-bottom))', md: 0 },
+                bottom: 0,
                 zIndex: 110,
                 width: gridContentWidth,
                 minWidth: '100%'
