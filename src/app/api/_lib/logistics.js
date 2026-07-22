@@ -60,6 +60,17 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
   if (!driverColumn) return values;
   const relation = Array.isArray(values[driverColumn.id]) ? values[driverColumn.id][0] : values[driverColumn.id];
   const previousUserId = previousValues?._assignedDriverUserId || null;
+  const pickupColumn = (table.columns || []).find((column) => ["pickup", "pickup address"].includes(String(column.name).trim().toLowerCase()));
+  const tripNumberColumn = (table.columns || []).find((column) => ["trip number", "load id"].includes(String(column.name).trim().toLowerCase()));
+  const locationAddress = (value) => {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    const location = Array.isArray(value) ? value[0] : value;
+    return String(location?.address || location?.formattedAddress || location?.formatted_address || location?.label || location?.name || location?.value || "");
+  };
+  const pickupAddress = pickupColumn ? locationAddress(values[pickupColumn.id]) : "";
+  const previousPickupAddress = pickupColumn ? locationAddress(previousValues?.[pickupColumn.id]) : "";
+  const tripNumber = tripNumberColumn ? String(values[tripNumberColumn.id] || "") : "";
   let profileId = relation?.rowId || null;
   let assignedUserId = null;
   if (profileId) {
@@ -77,7 +88,23 @@ export async function syncTripAssignment({ table, values, previousValues, actorI
   const next = { ...values, _workspaceId: table.workspace_id, _assignedDriverProfileId: profileId, _assignedDriverUserId: assignedUserId };
   if (assignedUserId) {
     await pool.query("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,'driver') ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='driver',updated_at=NOW()", [table.workspace_id, String(assignedUserId)]);
-    await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'trip_assignment',$4::jsonb,FALSE,NOW())", [randomUUID(), String(assignedUserId), String(actorId), JSON.stringify({ title: "New trip assigned", workspaceId: table.workspace_id })]).catch(() => undefined);
+    const isNewAssignment = String(previousUserId || "") !== String(assignedUserId);
+    const pickupChanged = Boolean(previousUserId) && pickupAddress !== previousPickupAddress;
+    if (isNewAssignment || pickupChanged) {
+      await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,$4,$5::jsonb,FALSE,NOW())", [
+        randomUUID(),
+        String(assignedUserId),
+        String(actorId),
+        isNewAssignment ? "pickup_assignment" : "pickup_updated",
+        JSON.stringify({
+          title: isNewAssignment ? "New pickup order" : "Pickup order updated",
+          message: pickupAddress ? `${tripNumber ? `${tripNumber} · ` : ""}Pickup: ${pickupAddress}` : `${tripNumber || "Trip"} is ready for pickup`,
+          workspaceId: table.workspace_id,
+          tripNumber: tripNumber || null,
+          pickupAddress: pickupAddress || null,
+        }),
+      ]).catch(() => undefined);
+    }
   }
   if (previousUserId && String(previousUserId) !== String(assignedUserId || "")) {
     await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'trip_reassignment',$4::jsonb,FALSE,NOW())", [randomUUID(), String(previousUserId), String(actorId), JSON.stringify({ title: "Trip reassigned", workspaceId: table.workspace_id })]).catch(() => undefined);

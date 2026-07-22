@@ -16,20 +16,37 @@ const relationLabel = (value) => {
   return relation?.label || relation?.name || "";
 };
 
+const locationValue = (value) => {
+  if (!value) return { address: "", latitude: null, longitude: null };
+  if (typeof value === "string") return { address: value, latitude: null, longitude: null };
+  const location = Array.isArray(value) ? value[0] : value;
+  if (!location || typeof location !== "object") return { address: String(location || ""), latitude: null, longitude: null };
+  const address = location.address || location.formattedAddress || location.formatted_address || location.label || location.name || location.value || "";
+  const latitude = Number(location.latitude ?? location.lat ?? location.coordinates?.lat ?? location.geometry?.location?.lat);
+  const longitude = Number(location.longitude ?? location.lng ?? location.lon ?? location.coordinates?.lng ?? location.geometry?.location?.lng);
+  return {
+    address: typeof address === "string" ? address : String(address || ""),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+  };
+};
+
 function serializeTrip(row, columns) {
   const get = (...names) => valueByName(row, columns, names);
   const status = get("Status") || "Assigned";
+  const pickup = locationValue(get("Pickup", "Pickup Address"));
+  const delivery = locationValue(get("Delivery", "Delivery Address"));
   return {
     id: row.id,
     tripNumber: get("Trip Number", "Load ID") || row.id.slice(0, 8).toUpperCase(),
     name: get("Name") || "Trip",
     status,
-    pickupAddress: get("Pickup", "Pickup Address") || "",
-    pickupLatitude: Number(row.values?._pickupLatitude) || null,
-    pickupLongitude: Number(row.values?._pickupLongitude) || null,
-    deliveryAddress: get("Delivery", "Delivery Address") || "",
-    deliveryLatitude: Number(row.values?._deliveryLatitude) || null,
-    deliveryLongitude: Number(row.values?._deliveryLongitude) || null,
+    pickupAddress: pickup.address,
+    pickupLatitude: Number(row.values?._pickupLatitude) || pickup.latitude,
+    pickupLongitude: Number(row.values?._pickupLongitude) || pickup.longitude,
+    deliveryAddress: delivery.address,
+    deliveryLatitude: Number(row.values?._deliveryLatitude) || delivery.latitude,
+    deliveryLongitude: Number(row.values?._deliveryLongitude) || delivery.longitude,
     pickupDate: get("Pickup Date", "Start Date"),
     deliveryDate: get("Delivery Date", "End Date"),
     truck: relationLabel(get("Truck")), trailer: get("Trailer") || "",
