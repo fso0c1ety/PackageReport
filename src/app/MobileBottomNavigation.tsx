@@ -20,7 +20,7 @@ export default function MobileBottomNavigation() {
   const router = useRouter();
   const current = destinations.find((item) => pathname.startsWith(item.path))?.path || false;
   return (
-    <Paper elevation={12} sx={{ display: { xs: "block", md: "none" }, position: "fixed", zIndex: 1300, left: 0, right: 0, bottom: 0, pb: "env(safe-area-inset-bottom)", borderRadius: 0, borderTop: "1px solid", borderColor: "divider" }}>
+    <Paper data-mobile-bottom-navigation="true" elevation={12} sx={{ display: { xs: "block", md: "none" }, position: "fixed", zIndex: 1300, left: 0, right: 0, bottom: 0, pb: "env(safe-area-inset-bottom)", borderRadius: 0, borderTop: "1px solid", borderColor: "divider" }}>
       <BottomNavigation
         showLabels
         value={current}
