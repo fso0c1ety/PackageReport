@@ -31,13 +31,14 @@ const locationValue = (value) => {
   };
 };
 
-function serializeTrip(row, columns) {
+function serializeTrip(row, columns, tableId) {
   const get = (...names) => valueByName(row, columns, names);
   const status = get("Status") || "Assigned";
   const pickup = locationValue(get("Pickup", "Pickup Address"));
   const delivery = locationValue(get("Delivery", "Delivery Address"));
   return {
     id: row.id,
+    tableId,
     tripNumber: get("Trip Number", "Load ID") || row.id.slice(0, 8).toUpperCase(),
     name: get("Name") || "Trip",
     status,
@@ -76,7 +77,7 @@ export async function GET(req) {
   if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const result = await pool.query(`SELECT * FROM rows WHERE table_id=$1 AND values->>'_workspaceId'=$2 AND values->>'_assignedDriverUserId'=$3 ${tripId ? "AND id=$4" : ""} ORDER BY created_at DESC`, tripId ? [ctx.table.id, workspaceId, String(user.id), tripId] : [ctx.table.id, workspaceId, String(user.id)]);
   if (tripId && !result.rows[0]) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
-  const trips = result.rows.map((row) => serializeTrip(row, ctx.table.columns || []));
+  const trips = result.rows.map((row) => serializeTrip(row, ctx.table.columns || [], ctx.table.id));
   return NextResponse.json(tripId ? trips[0] : { role: ctx.access.role, workspace: { id: workspaceId, name: ctx.access.name }, trips });
 }
 
@@ -100,5 +101,5 @@ export async function PATCH(req) {
   await pool.query("UPDATE rows SET values=$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(values), tripId, ctx.table.id]);
   await pool.query("INSERT INTO trip_status_history(id,workspace_id,trip_id,user_id,previous_status,new_status,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)", [randomUUID(), workspaceId, tripId, String(user.id), previousStatus, newStatus, JSON.stringify({ receiverName: body.receiverName || null })]);
   await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'trip_status',$4::jsonb,FALSE,NOW())", [randomUUID(), String(ctx.access.owner_id), String(user.id), JSON.stringify({ title: `Trip ${newStatus}`, tripId, workspaceId })]).catch(() => undefined);
-  return NextResponse.json({ success: true, trip: serializeTrip({ ...row, values }, ctx.table.columns || []) });
+  return NextResponse.json({ success: true, trip: serializeTrip({ ...row, values }, ctx.table.columns || [], ctx.table.id) });
 }

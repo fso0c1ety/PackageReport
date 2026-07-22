@@ -142,6 +142,7 @@ interface TableBoardProps {
   tableId: string | null;
   taskId?: string | null;
   initialTab?: string | null;
+  initialView?: 'table' | 'kanban' | 'timeline' | 'calendar' | 'doc' | 'gallery' | 'map' | 'chart' | 'form' | 'dashboard' | null;
 }
 type InvoiceTemplate = 'classic' | 'modern' | 'minimal';
 type AutomationTriggerType = 'row_created' | 'status_changed' | 'field_changed' | 'date_arrives' | 'date_approaching' | 'formula_changed' | 'reminder' | 'form_submitted' | 'relation_added' | 'row_moved' | 'column_change' | 'formula_change';
@@ -829,7 +830,7 @@ const ActiveDropdownOptionList = React.memo(function ActiveDropdownOptionList({
   );
 });
 
-export default function TableBoard({ tableId, taskId, initialTab }: TableBoardProps) {
+export default function TableBoard({ tableId, taskId, initialTab, initialView }: TableBoardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // Workspace view state
@@ -840,9 +841,9 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   if (!tableId || typeof window === 'undefined') return;
   const saved = window.localStorage.getItem(`smart-manage:board-view:${tableId}`) as WorkspaceView | null;
   const supported: WorkspaceView[] = ['table', 'kanban', 'timeline', 'calendar', 'doc', 'gallery', 'map', 'chart', 'form', 'dashboard'];
-  setWorkspaceView(saved && supported.includes(saved) ? saved : 'table');
+  setWorkspaceView(initialView && supported.includes(initialView) ? initialView : (saved && supported.includes(saved) ? saved : 'table'));
   loadedViewTableRef.current = tableId;
-  }, [tableId]);
+  }, [tableId, initialView]);
   useEffect(() => {
   if (!tableId || loadedViewTableRef.current !== tableId || typeof window === 'undefined') return;
   window.localStorage.setItem(`smart-manage:board-view:${tableId}`, workspaceView);

@@ -17,6 +17,7 @@ function WorkspaceContent() {
   const taskIdParam = searchParams.get('taskId');
   const tabParam = searchParams.get('tab');
   const moduleParam = searchParams.get('module');
+  const viewParam = searchParams.get('view');
   const theme = useTheme();
   
   // Set last opened workspace in localStorage for HomeDashboard
@@ -457,6 +458,7 @@ function WorkspaceContent() {
         tableId={selectedTableId || null} 
         taskId={selectedTableId === tableIdParam ? taskIdParam : undefined}
         initialTab={selectedTableId === tableIdParam ? tabParam : undefined}
+        initialView={selectedTableId === tableIdParam && viewParam === 'map' ? 'map' : undefined}
       />
     </Box>
   );
