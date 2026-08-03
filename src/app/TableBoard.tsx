@@ -151,18 +151,7 @@ type AutomationTriggerType = 'row_created' | 'status_changed' | 'field_changed' 
 type AutomationActionType = 'send_notification' | 'send_email' | 'send_both' | 'create_row' | 'create_task' | 'update_field' | 'assign_user' | 'move_row' | 'duplicate_row' | 'create_relation' | 'add_comment' | 'call_webhook' | 'archive_row' | 'email' | 'notification' | 'both' | 'webhook';
 type AutomationConditionType = '' | 'status_equals' | 'number_greater_than' | 'field_empty' | 'date_overdue' | 'person_current_user' | 'relation_exists' | 'formula_matches';
 
-const initialRows: Row[] = [
-  {
-  id: uuidv4().toString(),
-  values: {
-  task: "Started",
-  owner: "",
-  status: "Started",
-  due: "",
-  priority: "",
-  },
-  },
-];
+const initialRows: Row[] = [];
 
 const BOARD_HEADER_HEIGHT = 36;
 const BOARD_ROW_HEIGHT_DESKTOP = 36;
