@@ -7,6 +7,7 @@ const { createUploadsRouter } = require("../server/routes/uploads");
 const { createPushNotificationsRouter } = require("../server/routes/pushNotifications");
 const { createNotificationsRouter } = require("../server/routes/notifications");
 const { createTableCollaborationRouter } = require("../server/routes/tableCollaboration");
+const { createWorkspacesRouter } = require("../server/routes/workspaces");
 
 function routeContracts(router) {
   return router.stack
@@ -25,6 +26,16 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
   assert.deepEqual(routeContracts(createUsersRouter({ db: {}, logger })), [
     { path: "/users/profile", methods: ["get"] },
     { path: "/users/profile", methods: ["put"] },
+  ]);
+  assert.deepEqual(routeContracts(createWorkspacesRouter({ db: {}, logger })), [
+    { path: "/workspaces", methods: ["get"] },
+    { path: "/workspaces/:workspaceId", methods: ["get"] },
+    { path: "/workspaces", methods: ["post"] },
+    { path: "/workspaces/:workspaceId", methods: ["put"] },
+    { path: "/workspaces/:workspaceId", methods: ["delete"] },
+    { path: "/workspaces/:workspaceId/leave", methods: ["delete"] },
+    { path: "/workspaces/:workspaceId/tables", methods: ["get"] },
+    { path: "/workspaces/:workspaceId/tables", methods: ["post"] },
   ]);
   assert.deepEqual(routeContracts(createUploadsRouter({ db: {}, logger, sharedUploadDir: "a", legacyUploadDir: "b" })), [
     { path: "/upload", methods: ["post"] },

@@ -8,11 +8,11 @@ test("public auth and billing routes mount before the protected API boundary", (
   const authenticateToken = () => {};
   const requireActiveSubscription = () => {};
   const routes = Object.fromEntries(
-    ["auth", "billing", "users", "nexus", "uploads", "pushNotifications", "notifications", "tableCollaboration", "people", "automation", "emailer", "friends", "chats"].map((name) => [name, { name }]),
+    ["auth", "billing", "users", "workspaces", "nexus", "uploads", "pushNotifications", "notifications", "tableCollaboration", "people", "automation", "emailer", "friends", "chats"].map((name) => [name, { name }]),
   );
   mountCoreRoutes(app, { authenticateToken, requireActiveSubscription, routes });
   assert.equal(mounted[0][1], routes.auth);
   assert.equal(mounted[1][1], routes.billing);
   assert.deepEqual(mounted[2], ["/api", authenticateToken, requireActiveSubscription]);
-  assert.deepEqual(mounted.slice(3).map((entry) => entry[1].name), ["users", "nexus", "uploads", "pushNotifications", "notifications", "tableCollaboration", "people", "automation", "emailer", "friends", "chats"]);
+  assert.deepEqual(mounted.slice(3).map((entry) => entry[1].name), ["users", "workspaces", "nexus", "uploads", "pushNotifications", "notifications", "tableCollaboration", "people", "automation", "emailer", "friends", "chats"]);
 });
