@@ -5,6 +5,7 @@ import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireBoardPermission, requireRowPermission, requireWorkspacePermission } from "../_lib/authorization";
+import fileSecurity from "../../../../server/services/fileSecurity";
 
 export const runtime = "nodejs";
 
@@ -64,13 +65,6 @@ async function ensureBucketExists(supabase, bucket, isPublic = false) {
   return { ok: true, created: true };
 }
 
-function sanitizeFilename(name) {
-  return String(name || "file")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .replace(/_+/g, "_")
-    .slice(0, 160);
-}
-
 function isAllowedUpload(file) {
   return file.size <= maxUploadBytes &&
     allowedMimePrefixes.some((prefix) => file.type === prefix || file.type.startsWith(prefix));
@@ -87,11 +81,10 @@ async function validateUploadScope(formData, userId) {
   return { workspaceId, tableId, rowId, visibility };
 }
 
-async function persistLocalUpload(file, userId, scope) {
+async function persistLocalUpload(file, fileBuffer, userId, scope, security) {
   const fileId = uuidv4();
-  const safeName = sanitizeFilename(file.name);
+  const safeName = security.safeName;
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
-  const fileBuffer = Buffer.from(await file.arrayBuffer());
   const uploadsDir = path.join(process.cwd(), "uploads");
 
   if (!fs.existsSync(uploadsDir)) {
@@ -101,14 +94,13 @@ async function persistLocalUpload(file, userId, scope) {
   const fullPath = path.join(uploadsDir, filename);
   fs.writeFileSync(fullPath, fileBuffer);
 
-  // Best effort DB persistence for compatibility with existing retrieval paths.
   try {
     await pool.query(
       `INSERT INTO uploaded_files
-        (id,filename,originalname,mimetype,size,data,uploaded_by,workspace_id,table_id,row_id,visibility,storage_provider,created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'database',NOW())`,
-      [fileId, filename, file.name, file.type || "application/octet-stream", file.size, fileBuffer, userId,
-        scope.workspaceId, scope.tableId, scope.rowId, scope.visibility]
+        (id,filename,originalname,mimetype,size,uploaded_by,workspace_id,table_id,row_id,visibility,storage_provider,storage_path,checksum,virus_scan_status,created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'filesystem',$11,$12,$13,NOW())`,
+      [fileId, filename, file.name, security.mime, file.size, userId,
+        scope.workspaceId, scope.tableId, scope.rowId, scope.visibility, fullPath, security.checksum, security.virusScanStatus]
     );
   } catch (dbErr) {
     console.error("[UPLOAD][LOCAL] DB persistence skipped:", dbErr?.message || dbErr);
@@ -135,6 +127,9 @@ export async function POST(req) {
   }
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Private object storage is not configured" }, { status: 503 });
+    }
     try {
       const formData = await req.formData();
       const file = formData.get("file");
@@ -146,8 +141,11 @@ export async function POST(req) {
       }
       const scope = await validateUploadScope(formData, user.id);
       if (!scope) return NextResponse.json({ error: "Upload target not found or forbidden" }, { status: 404 });
-
-      const local = await persistLocalUpload(file, user.id, scope);
+      const fileBuffer = Buffer.from(await file.arrayBuffer());
+      const security = fileSecurity.validateFile({ buffer: fileBuffer, originalName: file.name, mimeType: file.type, size: file.size });
+      const scan = await fileSecurity.runVirusScanHook({ buffer: fileBuffer, metadata: security });
+      security.virusScanStatus = scan.status;
+      const local = await persistLocalUpload(file, fileBuffer, user.id, scope, security);
       return NextResponse.json(local);
     } catch (localErr) {
       return NextResponse.json(
@@ -183,10 +181,12 @@ export async function POST(req) {
     }
     const scope = await validateUploadScope(formData, user.id);
     if (!scope) return NextResponse.json({ error: "Upload target not found or forbidden" }, { status: 404 });
-
-    const safeName = sanitizeFilename(file.name);
-    const objectName = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
-    const objectPath = `${user.id}/${objectName}`;
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const security = fileSecurity.validateFile({ buffer: fileBuffer, originalName: file.name, mimeType: file.type, size: file.size });
+    const scan = await fileSecurity.runVirusScanHook({ buffer: fileBuffer, metadata: security });
+    security.virusScanStatus = scan.status;
+    const fileId = uuidv4();
+    const objectPath = fileSecurity.createStorageKey({ workspaceId: scope.workspaceId, userId: user.id, fileId, safeName: security.safeName });
     const targetBucket = scope.visibility === "profile" ? bucketName : privateBucketName;
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -197,8 +197,6 @@ export async function POST(req) {
     if (!bucketState.ok) {
       return NextResponse.json({ error: "Storage bucket is unavailable", details: bucketState.reason }, { status: 500 });
     }
-
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
 
     const doUpload = () =>
       supabase.storage
@@ -229,7 +227,8 @@ export async function POST(req) {
     if (uploadError) {
       console.error("[UPLOAD][SUPABASE] Upload error:", uploadError);
       try {
-        const local = await persistLocalUpload(file, user.id, scope);
+        if (process.env.NODE_ENV === "production") throw uploadError;
+        const local = await persistLocalUpload(file, fileBuffer, user.id, scope, security);
         return NextResponse.json({ ...local, persisted: false, fallback: "local" });
       } catch (localErr) {
         return NextResponse.json(
@@ -243,12 +242,14 @@ export async function POST(req) {
       }
     }
 
-    const fileId = uuidv4();
     await pool.query(`INSERT INTO uploaded_files
-      (id,filename,originalname,mimetype,size,uploaded_by,workspace_id,table_id,row_id,visibility,storage_provider,storage_bucket,object_path,created_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'supabase',$11,$12,NOW())`,
-      [fileId, objectPath, file.name, file.type || "application/octet-stream", file.size, user.id,
-        scope.workspaceId, scope.tableId, scope.rowId, scope.visibility, targetBucket, objectPath]);
+      (id,filename,originalname,mimetype,size,uploaded_by,workspace_id,table_id,row_id,visibility,storage_provider,storage_bucket,object_path,checksum,virus_scan_status,created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'supabase',$11,$12,$13,$14,NOW())`,
+      [fileId, objectPath, file.name, security.mime, file.size, user.id,
+        scope.workspaceId, scope.tableId, scope.rowId, scope.visibility, targetBucket, objectPath, security.checksum, security.virusScanStatus]);
+
+    await pool.query("INSERT INTO file_audit_log(id,file_id,user_id,action,workspace_id,metadata) VALUES($1,$2,$3,'upload',$4,$5::jsonb)",
+      [uuidv4(), fileId, user.id, scope.workspaceId, JSON.stringify({ checksum: security.checksum, size: file.size, mime: security.mime })]).catch(() => undefined);
 
     return NextResponse.json({
       id: fileId,

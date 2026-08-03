@@ -22,24 +22,25 @@ export async function GET(req, { params }) {
       const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_KEY;
       if (!url || !key) return NextResponse.json({ error: "Storage is unavailable" }, { status: 503 });
       const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-      const { data, error } = await client.storage.from(fileRecord.storage_bucket || "uploads").download(fileRecord.object_path);
-      if (error || !data) return NextResponse.json({ error: "File not found" }, { status: 404 });
-      return new NextResponse(Buffer.from(await data.arrayBuffer()), { status: 200, headers: {
-        "Content-Type": fileRecord.mimetype || "application/octet-stream",
-        "Content-Disposition": `inline; filename="${encodeURIComponent(fileRecord.originalname || decodedFilename)}"`,
-        "Cache-Control": "private, no-store",
-      }});
+      const { data, error } = await client.storage.from(fileRecord.storage_bucket || "uploads-private").createSignedUrl(fileRecord.object_path, 60, {
+        download: fileRecord.originalname || decodedFilename,
+      });
+      if (error || !data?.signedUrl) return NextResponse.json({ error: "File not found" }, { status: 404 });
+      await pool.query("INSERT INTO file_audit_log(id,file_id,user_id,action,workspace_id,metadata) VALUES(gen_random_uuid()::text,$1,$2,'download',$3,'{}'::jsonb)",
+        [fileRecord.id, user.id, fileRecord.workspace_id]).catch(() => undefined);
+      return NextResponse.redirect(data.signedUrl, 307);
     }
 
     if (!fileRecord.data) {
       const candidates = [
+        fileRecord.storage_path,
         path.join(process.cwd(), "uploads", decodedFilename),
         path.join(process.cwd(), "uploads", filename),
         path.join(process.cwd(), "server", "uploads", decodedFilename),
         path.join(process.cwd(), "server", "uploads", filename),
       ];
 
-      for (const p of candidates) {
+      for (const p of candidates.filter(Boolean)) {
         if (fs.existsSync(p) && fs.statSync(p).isFile()) {
           const fileData = fs.readFileSync(p);
           const ext = path.extname(p).toLowerCase();
