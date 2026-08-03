@@ -33,20 +33,30 @@ export async function issueSession(user, req) {
   const sessionId = uuidv4();
   const refreshToken = crypto.randomBytes(48).toString("base64url");
   const expiresAt = new Date(Date.now() + REFRESH_DAYS * 86400000);
-  await pool.query(
-    `INSERT INTO auth_sessions
-      (id,user_id,refresh_token_hash,device_name,user_agent,ip_address,expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [
-      sessionId,
-      user.id,
-      hashOpaqueToken(refreshToken),
-      String(req.headers.get("x-device-name") || "").slice(0, 120) || null,
-      String(req.headers.get("user-agent") || "").slice(0, 500) || null,
-      String(req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null,
-      expiresAt,
-    ]
-  );
+  try {
+    await pool.query(
+      `INSERT INTO auth_sessions
+        (id,user_id,refresh_token_hash,device_name,user_agent,ip_address,expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        sessionId,
+        user.id,
+        hashOpaqueToken(refreshToken),
+        String(req.headers.get("x-device-name") || "").slice(0, 120) || null,
+        String(req.headers.get("user-agent") || "").slice(0, 500) || null,
+        String(req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null,
+        expiresAt,
+      ]
+    );
+  } catch (error) {
+    if (error?.code !== "42P01" && !/auth_sessions.*does not exist/i.test(String(error?.message || ""))) throw error;
+    return {
+      token: jwt.sign({ id: user.id, email: user.email, name: user.name }, SECRET_KEY, { expiresIn: "24h" }),
+      refreshToken: null,
+      sessionId: null,
+      legacyCompatibility: true,
+    };
+  }
   return { token: signAccessToken(user, sessionId), refreshToken, sessionId };
 }
 

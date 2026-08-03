@@ -17,6 +17,8 @@ const authenticateToken = require('../middleware/authenticateToken');
 const billingService = require('../services/billingService');
 const {
   createSession,
+  createLegacyCompatibleSession,
+  isMissingSessionSchema,
   revokeSessions,
   rotateSession,
   sessionMetadata,
@@ -67,8 +69,15 @@ router.post('/login', authRateLimit, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const session = await createSession(db, user, SECRET_KEY, sessionMetadata(req));
-    res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    let session;
+    try {
+      session = await createSession(db, user, SECRET_KEY, sessionMetadata(req));
+    } catch (sessionError) {
+      if (!isMissingSessionSchema(sessionError)) throw sessionError;
+      session = createLegacyCompatibleSession(user, SECRET_KEY);
+      logger.warn('auth_session_schema_missing_legacy_token_issued', { requestId: req.requestId, userId: user.id });
+    }
+    if (session.refreshToken) res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
 
     const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
     res.json({

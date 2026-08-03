@@ -46,7 +46,7 @@ export async function POST(req) {
       const safeUser = { ...user };
       delete safeUser.password;
       const response = NextResponse.json({ token: session.token, sessionId: session.sessionId, user: { ...safeUser, avatar }, requiresTwoFactor: false });
-      response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+      if (session.refreshToken) response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
       return response;
     }
 

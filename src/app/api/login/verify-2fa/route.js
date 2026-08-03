@@ -20,7 +20,7 @@ export async function POST(req) {
     const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
     const session = await issueSession(user, req);
     const response = NextResponse.json({ token: session.token, sessionId: session.sessionId, user: { ...user, avatar } });
-    response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    if (session.refreshToken) response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
     return response;
   } catch (error) {
     console.error("[LOGIN/VERIFY-2FA] Error:", error);

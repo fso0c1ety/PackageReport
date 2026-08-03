@@ -6,6 +6,8 @@ const {
   hashOpaqueToken,
   rotateSession,
   revokeSessions,
+  createLegacyCompatibleSession,
+  isMissingSessionSchema,
 } = require('../server/services/authSessionService');
 
 test('refresh tokens are stored only as irreversible hashes', async () => {
@@ -15,6 +17,14 @@ test('refresh tokens are stored only as irreversible hashes', async () => {
   assert.notEqual(session.refreshToken, queries[0].params[2]);
   assert.equal(queries[0].params[2], hashOpaqueToken(session.refreshToken));
   assert.equal(jwt.verify(session.accessToken, 'test-secret').tokenType, 'access');
+});
+
+test('missing session migration can temporarily preserve legacy login', () => {
+  assert.equal(isMissingSessionSchema({ code: '42P01' }), true);
+  const session = createLegacyCompatibleSession({ id: 'u1', email: 'demo@example.com', name: 'Demo' }, 'test-secret');
+  assert.equal(session.legacyCompatibility, true);
+  assert.equal(session.refreshToken, null);
+  assert.equal(jwt.verify(session.accessToken, 'test-secret').id, 'u1');
 });
 
 test('refresh rotation replaces the stored hash and preserves the session', async () => {

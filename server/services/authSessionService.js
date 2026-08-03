@@ -42,6 +42,24 @@ async function createSession(client, user, secret, metadata = {}) {
   return { accessToken: signAccessToken(user, secret, sessionId), refreshToken, sessionId, expiresAt };
 }
 
+function createLegacyCompatibleSession(user, secret) {
+  return {
+    accessToken: jwt.sign(
+      { id: user.id, email: user.email, name: user.name },
+      secret,
+      { expiresIn: '24h' }
+    ),
+    refreshToken: null,
+    sessionId: null,
+    expiresAt: null,
+    legacyCompatibility: true,
+  };
+}
+
+function isMissingSessionSchema(error) {
+  return error?.code === '42P01' || /auth_sessions.*does not exist/i.test(String(error?.message || ''));
+}
+
 async function rotateSession(client, rawRefreshToken, secret, metadata = {}) {
   const result = await client.query(
     `SELECT s.id, s.user_id, u.email, u.name
@@ -87,8 +105,10 @@ async function revokeSessions(client, userId, { sessionId = null, reason = 'logo
 module.exports = {
   ACCESS_TOKEN_TTL,
   REFRESH_TOKEN_DAYS,
+  createLegacyCompatibleSession,
   createSession,
   hashOpaqueToken,
+  isMissingSessionSchema,
   newOpaqueToken,
   revokeSessions,
   rotateSession,
