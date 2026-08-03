@@ -16,6 +16,7 @@ const { createTaskReadsRouter } = require('./routes/taskReads');
 const { createTaskMutationsRouter } = require('./routes/taskMutations');
 const { createTaskUpdatesRouter } = require('./routes/taskUpdates');
 const { createTableSharingRouter } = require('./routes/tableSharing');
+const { createTeammatesRouter } = require('./routes/teammates');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -197,6 +198,7 @@ mountCoreRoutes(app, {
     taskMutations: createTaskMutationsRouter({ db, getTableAccess, logger }),
     taskUpdates: createTaskUpdatesRouter({ appQueue, db, logger, sendNotification }),
     tableSharing: createTableSharingRouter({ billingService, db, logger, sendPushNotification }),
+    teammates: createTeammatesRouter({ db, logger }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
@@ -745,7 +747,6 @@ app.post('/api/tables/import-excel', authenticateToken, async (req, res) => {
 });
 
 
-// GET all collaborators (teammates) assigned to the current user's owned tables
 app.get('/api/teammates', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
