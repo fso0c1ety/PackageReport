@@ -11,6 +11,7 @@ const { createPushNotificationsRouter } = require('./routes/pushNotifications');
 const { createNotificationsRouter } = require('./routes/notifications');
 const { createTableCollaborationRouter } = require('./routes/tableCollaboration');
 const { createWorkspacesRouter } = require('./routes/workspaces');
+const { createTableMetadataRouter } = require('./routes/tableMetadata');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -187,6 +188,7 @@ mountCoreRoutes(app, {
     billing: billingRoute,
     users: createUsersRouter({ db, logger }),
     workspaces: createWorkspacesRouter({ db, logger }),
+    tableMetadata: createTableMetadataRouter({ db, logger }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
@@ -242,174 +244,10 @@ app.get('/uploads/:filename', async (req, res) => {
 // Port is handled after route registration
 const PORT = process.env.PORT || 4000;
 
-app.patch('/api/tables/:tableId', authenticateToken, async (req, res) => {
-  try {
-    const result = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
-    const table = result.rows[0];
-    if (!table) return res.status(404).json({ error: 'Table not found' });
-
-    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
-    const workspace = wsResult.rows[0];
-    const isOwner = workspace && workspace.owner_id === req.user.id;
-    const isShared = table.shared_users && table.shared_users.includes(req.user.id);
-    if (!isOwner && !isShared) return res.sendStatus(403);
-
-    if (typeof req.body.name === 'string') {
-      await db.query('UPDATE tables SET name = $1 WHERE id = $2', [req.body.name, req.params.tableId]);
-      return res.json({ success: true, name: req.body.name });
-    }
-    res.status(400).json({ error: 'Missing or invalid name' });
-  } catch (err) {
-    console.error('Error patching table:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.delete('/api/tables/:tableId', authenticateToken, async (req, res) => {
-  try {
-    const result = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
-    const table = result.rows[0];
-    if (!table) return res.status(404).json({ error: 'Table not found' });
-
-    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
-    const workspace = wsResult.rows[0];
-    if (!workspace || workspace.owner_id !== req.user.id) return res.sendStatus(403);
-
-    await db.query('DELETE FROM tables WHERE id = $1', [req.params.tableId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting table:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Update table columns
-app.put('/api/tables/:tableId/columns', authenticateToken, async (req, res) => {
-  try {
-    const result = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
-    const table = result.rows[0];
-    if (!table) return res.status(404).json({ error: 'Table not found' });
-
-    const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [table.workspace_id]);
-    const workspace = wsResult.rows[0];
-    const isOwner = workspace && workspace.owner_id === req.user.id;
-    const isShared = table.shared_users && Array.isArray(table.shared_users) && table.shared_users.some(u => u.userId === req.user.id);
-    if (!isOwner && !isShared) return res.sendStatus(403);
-
-    await db.query('UPDATE tables SET columns = $1 WHERE id = $2', [JSON.stringify(req.body.columns), req.params.tableId]);
-    res.json({ success: true, columns: req.body.columns });
-  } catch (err) {
-    console.error('Error updating columns:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Log all requests
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url} body:`, req.body);
   next();
-});
-
-// List all tables (filter by ownership / workspaceId)
-app.get('/api/tables', authenticateToken, async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  try {
-    if (req.query.workspaceId) {
-      const wsResult = await db.query('SELECT * FROM workspaces WHERE id = $1', [req.query.workspaceId]);
-      const workspace = wsResult.rows[0];
-      if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
-
-      const tablesResult = await db.query(`
-        SELECT 
-            t.*, 
-            COALESCE(
-                json_agg(
-                     json_build_object(
-                         'id', r.id, 
-                         'table_id', r.table_id, 
-                         'values', r.values,
-                         'created_by', r.created_by,
-                         'created_at', r.created_at,
-                         'creator', CASE
-                           WHEN creator.id IS NULL THEN NULL
-                           ELSE json_build_object(
-                             'id', creator.id,
-                             'name', creator.name,
-                             'email', creator.email,
-                             'avatar', creator.avatar
-                           )
-                         END
-                     )
-                ) FILTER (WHERE r.id IS NOT NULL), 
-                '[]'
-            ) as tasks
-         FROM tables t 
-         LEFT JOIN rows r ON t.id = r.table_id 
-         LEFT JOIN users creator ON creator.id = r.created_by
-        WHERE t.workspace_id = $1 AND ($2 = $3 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $3))
-        GROUP BY t.id
-      `, [req.query.workspaceId, workspace.owner_id, req.user.id]);
-      return res.json(tablesResult.rows);
-    } else {
-      // Return all tables in all workspaces owned by user, or tables explicitly shared with user
-      const result = await db.query(`
-        SELECT 
-            t.*, 
-            COALESCE(
-                json_agg(
-                     json_build_object(
-                         'id', r.id, 
-                         'table_id', r.table_id, 
-                         'values', r.values,
-                         'created_by', r.created_by,
-                         'created_at', r.created_at,
-                         'creator', CASE
-                           WHEN creator.id IS NULL THEN NULL
-                           ELSE json_build_object(
-                             'id', creator.id,
-                             'name', creator.name,
-                             'email', creator.email,
-                             'avatar', creator.avatar
-                           )
-                         END
-                     )
-                ) FILTER (WHERE r.id IS NOT NULL), 
-                '[]'
-            ) as tasks
-        FROM tables t 
-         JOIN workspaces w ON t.workspace_id = w.id 
-         LEFT JOIN rows r ON t.id = r.table_id 
-         LEFT JOIN users creator ON creator.id = r.created_by
-        WHERE w.owner_id = $1 OR t.shared_users @> $2::jsonb
-        GROUP BY t.id
-      `, [req.user.id, JSON.stringify([{ userId: req.user.id }])]);
-      res.json(result.rows);
-    }
-  } catch (err) {
-    console.error('Error fetching tables:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get a single table by ID
-app.get('/api/tables/:tableId', authenticateToken, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT t.*, w.owner_id as workspace_owner_id, w.name as workspace_name
-      FROM tables t
-      JOIN workspaces w ON t.workspace_id = w.id
-      WHERE t.id = $1 AND (w.owner_id = $2 OR EXISTS (SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem WHERE elem->>'userId' = $2))
-    `, [req.params.tableId, req.user.id]);
-
-    const table = result.rows[0];
-    if (!table) return res.status(404).json({ error: 'Table not found or forbidden' });
-    res.json(table);
-  } catch (err) {
-    console.error('Error fetching table:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
 });
 
 // Create a table (must provide workspaceId)
