@@ -8,6 +8,7 @@ const { createNexusRouter } = require('./routes/nexus');
 const { createSystemRouter } = require('./routes/system');
 const { createUploadsRouter } = require('./routes/uploads');
 const { createPushNotificationsRouter } = require('./routes/pushNotifications');
+const { createNotificationsRouter } = require('./routes/notifications');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -186,6 +187,7 @@ mountCoreRoutes(app, {
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
+    notifications: createNotificationsRouter({ db, logger }),
     people: peopleRoute,
     automation: automationRoute,
     emailer: emailerRoute,
@@ -2000,110 +2002,6 @@ app.get('/api/tables/:tableId/chat', authenticateToken, requireTablePermission('
   }
 });
 
-
-// --- Notification Routes ---
-
-// Get unread notifications
-app.get('/api/notifications', authenticateToken, async (req, res) => {
-  try {
-    // Simplified query to avoid UUID casting errors
-    const result = await db.query(`
-      SELECT n.*, u.name as sender_name, u.avatar as sender_avatar
-      FROM notifications n
-      LEFT JOIN users u ON n.sender_id = u.id
-      WHERE n.recipient_id = $1 
-      ORDER BY n.read ASC, n.created_at DESC 
-      LIMIT 50
-    `, [req.user.id]);
-    
-    // Enrich with workspaceId
-    const notifications = await Promise.all(result.rows.map(async (n) => {
-        const data = n.data || {};
-        
-        // If workspaceId is missing but tableId is present, try to fetch workspaceId
-        if (!data.workspaceId && data.tableId) {
-            try {
-                // Check if tableId is a valid UUID before querying
-                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId)) {
-                    const tableRes = await db.query('SELECT workspace_id FROM tables WHERE id = $1', [data.tableId]);
-                    if (tableRes.rows.length > 0) {
-                        data.workspaceId = tableRes.rows[0].workspace_id;
-                    }
-                }
-            } catch (ignore) {
-                // Ignore query errors, just return data as is
-            }
-        }
-        
-        return { ...n, data };
-    }));
-
-    res.json(notifications);
-  } catch (err) {
-    console.error('Error fetching notifications:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Mark all notifications as read
-app.post('/api/notifications/mark-read', authenticateToken, async (req, res) => {
-  try {
-    await db.query('UPDATE notifications SET read = true WHERE recipient_id = $1', [req.user.id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error marking notifications read:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Accept Invite
-app.post('/api/notifications/:id/accept', authenticateToken, async (req, res) => {
-  try {
-    const notifResult = await db.query('SELECT * FROM notifications WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
-    const notification = notifResult.rows[0];
-    
-    if (!notification) return res.status(404).json({ error: 'Notification not found' });
-    if (notification.type !== 'invite') return res.status(400).json({ error: 'Not an invite' });
-
-    const { tableId, permission } = notification.data || {};
-    
-    if (!tableId) return res.status(400).json({ error: 'Invalid invite data' });
-
-    // Add user to table
-    const tableResult = await db.query('SELECT * FROM tables WHERE id = $1', [tableId]);
-    const table = tableResult.rows[0];
-
-    if (table) {
-      let sharedUsers = table.shared_users;
-      if (!Array.isArray(sharedUsers)) sharedUsers = [];
-      
-      // Check if already shared
-      if (!sharedUsers.some(u => u.userId === req.user.id)) {
-        sharedUsers.push({ userId: req.user.id, permission: permission || 'edit' });
-        await db.query('UPDATE tables SET shared_users = $1::jsonb WHERE id = $2', [JSON.stringify(sharedUsers), tableId]);
-      }
-    }
-
-    // Delete notification after action
-    await db.query('DELETE FROM notifications WHERE id = $1', [req.params.id]);
-
-    res.json({ success: true, message: 'Invite accepted' });
-  } catch (err) {
-    console.error('Error accepting invite:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Decline Invite (Delete notification)
-app.post('/api/notifications/:id/decline', authenticateToken, async (req, res) => {
-  try {
-    await db.query('DELETE FROM notifications WHERE id = $1 AND recipient_id = $2', [req.params.id, req.user.id]);
-    res.json({ success: true, message: 'Invite declined' });
-  } catch (err) {
-    console.error('Error declining invite:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // Invite to table endpoint
 app.post('/api/tables/:tableId/invite', authenticateToken, async (req, res) => {

@@ -5,6 +5,7 @@ const { createSystemRouter } = require("../server/routes/system");
 const { createUsersRouter } = require("../server/routes/users");
 const { createUploadsRouter } = require("../server/routes/uploads");
 const { createPushNotificationsRouter } = require("../server/routes/pushNotifications");
+const { createNotificationsRouter } = require("../server/routes/notifications");
 
 function routeContracts(router) {
   return router.stack
@@ -31,5 +32,11 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
     { path: "/users/fcm", methods: ["put"] },
     { path: "/users/fcm", methods: ["delete"] },
     { path: "/test-notification", methods: ["post"] },
+  ]);
+  assert.deepEqual(routeContracts(createNotificationsRouter({ db: {}, logger })), [
+    { path: "/notifications", methods: ["get"] },
+    { path: "/notifications/mark-read", methods: ["post"] },
+    { path: "/notifications/:id/accept", methods: ["post"] },
+    { path: "/notifications/:id/decline", methods: ["post"] },
   ]);
 });
