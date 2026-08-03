@@ -504,6 +504,13 @@ export async function GET(req, { params }) {
 
   try {
     const { tableId } = await params;
+    const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get("limit") || "", 10);
+    const requestedOffset = Number.parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
+    const paginated = Number.isFinite(requestedLimit) && requestedLimit > 0;
+    const limit = paginated ? Math.min(requestedLimit, 500) : null;
+    const offset = paginated && Number.isFinite(requestedOffset) && requestedOffset > 0
+      ? requestedOffset
+      : 0;
 
     const accessRes = await pool.query(
       `
@@ -527,10 +534,20 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
-    const result = await pool.query(
-      "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC",
-      [tableId]
-    );
+    const [result, countResult] = await Promise.all([
+      paginated
+        ? pool.query(
+          "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $2 OFFSET $3",
+          [tableId, limit, offset]
+        )
+        : pool.query(
+          "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC",
+          [tableId]
+        ),
+      paginated
+        ? pool.query("SELECT COUNT(*)::int AS total FROM rows WHERE table_id = $1", [tableId])
+        : Promise.resolve({ rows: [{ total: 0 }] }),
+    ]);
 
     const table = accessRes.rows[0];
     const hasDueScheduledMessage = result.rows.some((row) =>
@@ -542,7 +559,17 @@ export async function GET(req, { params }) {
     );
     if (hasDueScheduledMessage) await processDueScheduledMessages(table, result.rows);
 
-    return NextResponse.json(result.rows, {
+    const responseBody = paginated
+      ? {
+        rows: result.rows,
+        total: countResult.rows[0]?.total || 0,
+        offset,
+        limit,
+        hasMore: offset + result.rows.length < (countResult.rows[0]?.total || 0),
+      }
+      : result.rows;
+
+    return NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
   } catch (err) {

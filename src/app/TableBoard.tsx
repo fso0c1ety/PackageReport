@@ -3033,6 +3033,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
   if (!tableId) return;
+  let cancelled = false;
   setLoading(true);
 
   const userJson = localStorage.getItem("user");
@@ -3044,29 +3045,39 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   authenticatedFetch(getApiUrl("/users/profile"))
   .then(res => res.ok ? res.json() : null)
   .then(freshUser => {
-  if (freshUser) {
+  if (freshUser && !cancelled) {
   setCurrentUser(freshUser);
   localStorage.setItem("user", JSON.stringify(freshUser));
   }
   })
   .catch(err => console.error("Failed to sync profile:", err));
 
-  // Fetch single table info with owner info
-  authenticatedFetch(getApiUrl(`/tables/${tableId}`))
-  .then((res) => {
-  if (res.status === 403) {
+  const normalizeRows = (data: Row[]) => data.map((row: Row) => {
+  if (row.values && Array.isArray(row.values.message)) {
+  return { ...row, values: { ...row.values, message: row.values.message.map(formatChatMessage) } };
+  }
+  return row;
+  });
+
+  const loadTable = async () => {
+  try {
+  const [tableRes, firstRowsRes] = await Promise.all([
+  authenticatedFetch(getApiUrl(`/tables/${tableId}`)),
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`)),
+  ]);
+  if (tableRes.status === 403) {
   showNotification("You cant access this you are not the owner", "error");
   throw new Error("Forbidden");
   }
-  if (!res.ok) throw new Error("Failed to fetch table info");
-  return res.json();
-  })
-  .then((table) => {
-  setBoardTitle(table.name);
-  setColumns(table.columns || []);
-  setDocContent(table.docContent || "");
+  if (!tableRes.ok) throw new Error("Failed to fetch table info");
+  if (!firstRowsRes.ok) throw new Error(`Failed to fetch table tasks (${firstRowsRes.status})`);
 
-  // Determine permission
+  const [table, firstPage] = await Promise.all([tableRes.json(), firstRowsRes.json()]);
+  if (cancelled) return;
+  const tableColumns = table.columns || [];
+  setBoardTitle(table.name);
+  setColumns(tableColumns);
+  setDocContent(table.docContent || "");
   if (table.workspace_owner_id === currentUserId) {
   setUserPermission('owner');
   } else {
@@ -3074,49 +3085,40 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const myShare = shared.find((u: any) => u.userId === currentUserId);
   setUserPermission(myShare ? myShare.permission : 'read');
   }
-  })
-  .catch((err) => {
-  console.error("Failed to fetch table info", err);
-  })
-  .finally(() => setLoading(false));
 
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-  .then((res) => {
-  if (!res.ok) {
-  throw new Error(`Failed to fetch table tasks (${res.status})`);
+  const firstRows = normalizeRows(Array.isArray(firstPage) ? firstPage : firstPage.rows || []);
+  const totalRows = Array.isArray(firstPage) ? firstRows.length : Number(firstPage.total || 0);
+  if (firstRows.length > 0) {
+  setRows(firstRows);
+  } else if (totalRows === 0) {
+  setRows([{ id: 'placeholder', values: Object.fromEntries(tableColumns.map((col: Column) => [col.id, col.type === 'People' ? [] : ''])) }]);
   }
-  return res.json();
-  })
-  .then((data) => {
-  if (Array.isArray(data) && data.length > 0) {
-  // Map messages in all rows
-  const mappedRows = data.map((row: Row) => {
-  if (row.values && row.values.message) {
-  return {
-  ...row,
-  values: {
-  ...row.values,
-  message: row.values.message.map(formatChatMessage)
+  setLoading(false);
+
+  let offset = firstRows.length;
+  while (!cancelled && offset < totalRows) {
+  const pageRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=500&offset=${offset}`));
+  if (!pageRes.ok) throw new Error(`Failed to fetch more table tasks (${pageRes.status})`);
+  const page = await pageRes.json();
+  const pageRows = normalizeRows(Array.isArray(page) ? page : page.rows || []);
+  if (cancelled || pageRows.length === 0) break;
+  setRows((current) => {
+  const existingIds = new Set(current.map((row) => row.id));
+  return [...current.filter((row) => row.id !== 'placeholder'), ...pageRows.filter((row) => !existingIds.has(row.id))];
+  });
+  offset += pageRows.length;
+  }
+  } catch (err) {
+  if (!cancelled) {
+  console.error("Failed to fetch table data", err);
+  setRows([]);
+  setLoading(false);
+  }
   }
   };
-  }
-  return row;
-  });
-  setRows(mappedRows);
-  } else {
-  setRows([
-  {
-  id: 'placeholder',
-  values: Object.fromEntries(columns.map(col => [col.id, col.type === 'People' ? [] : '']))
-  }
-  ]);
-  }
-  })
-  .catch((err) => {
-  console.error("Failed to fetch table tasks", err);
-  setRows([]);
-  })
-  .finally(() => setLoading(false));
+
+  void loadTable();
+  return () => { cancelled = true; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
 
   // Fleet V2: a Drivers record represents an application user, not free-form text.
