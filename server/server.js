@@ -3,27 +3,29 @@
 console.log('Server process starting...');
 process.on('exit', (code) => console.log(`Process exit with code: ${code}`));
 const express = require('express');
+const { configureCoreMiddleware, mountCoreRoutes } = require('./app');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const fetch = require('node-fetch');
-const cors = require('cors');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
-const jwt = require('jsonwebtoken');
 const db = require('./db');
 const authenticateToken = require('./middleware/authenticateToken');
 const { sendEmail } = require('./mailer');
 const { sendPushNotification } = require('./firebase');
 const { sendNotification } = require('./notificationHelper');
 const { getAllowedOrigins, getJwtSecret } = require('./config/env');
+const { createCorsMiddleware, socketCorsOptions } = require('./config/cors');
 const requestContext = require('./middleware/requestContext');
+const errorHandler = require('./middleware/errorHandler');
 const { createRateLimiter } = require('./middleware/rateLimit');
 const { getTableAccess } = require('./services/permissions');
 const requireTablePermission = require('./middleware/requireTablePermission');
 const tableService = require('./services/tableService');
 const logger = require('./utils/logger');
 const { appQueue } = require('./jobs');
+const { startScheduledMessageJob } = require('./jobs/scheduledMessages');
 const billingService = require('./services/billingService');
 const { normalizeActivityHtml } = require('./utils/formatCellValue');
 const BUILD_COMMIT = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'edc8e7463386ac815cb01ca7bdaa24346ba30c97';
@@ -114,6 +116,8 @@ if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
 
 const http = require('http');
 const { Server } = require("socket.io");
+const { attachSocketServer } = require('./socket');
+const { bootstrap } = require('./bootstrap');
 const dev = process.env.NODE_ENV !== 'production';
 const next = require('next');
 const nextApp = next({ dev });
@@ -145,194 +149,18 @@ const apiRateLimit = createRateLimiter({ windowMs: 60 * 1000, max: 240, keyPrefi
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: corsOrigins,
-    methods: ["GET", "POST"],
-    credentials: true
-  },
+  cors: socketCorsOptions(corsOrigins),
   transports: ['websocket', 'polling'], // ensure websocket is enabled
   pingTimeout: 60000,
   pingInterval: 25000
 });
 
-io.use((socket, next) => {
-  const token =
-    socket.handshake.auth?.token ||
-    String(socket.handshake.headers?.authorization || '').replace(/^Bearer\s+/i, '');
-
-  if (!token) {
-    return next(new Error('Unauthorized socket connection'));
-  }
-
-  try {
-    socket.data.user = jwt.verify(token, JWT_SECRET);
-    return next();
-  } catch {
-    return next(new Error('Invalid socket token'));
-  }
-});
-
-const pendingOffers = new Map();
-const userSockets = new Map();
-
-// --- Socket.IO Handlers ---
-io.on('connection', (socket) => {
-  logger.info('socket_connected', { socketId: socket.id, userId: socket.data.user?.id });
-
-  socket.on('join_table', async (tableId) => {
-    const userId = socket.data.user?.id;
-    const table = await getTableAccess(db, tableId, userId, 'viewer');
-    if (!table) {
-      logger.warn('socket_join_table_forbidden', { socketId: socket.id, userId, tableId });
-      socket.emit('error', { code: 'FORBIDDEN', message: 'Table access denied' });
-      return;
-    }
-    socket.join(`table:${tableId}`);
-    socket.join(tableId); // compatibility with older emitters
-    logger.info('socket_join_table', { socketId: socket.id, userId, tableId });
-  });
-  
-  // Board Chat Typing
-  socket.on('typing_board', ({ tableId, user }) => {
-    socket.to(`table:${tableId}`).emit('typing_board', { user });
-  });
-
-  socket.on('stop_typing_board', ({ tableId, user }) => {
-    socket.to(`table:${tableId}`).emit('stop_typing_board', { user });
-  });
-
-  // Task Chat (Discussion) Typing
-  socket.on('typing_task', ({ tableId, taskId, user }) => {
-     socket.to(`table:${tableId}`).emit('typing_task', { taskId, user });
-  });
-
-  socket.on('stop_typing_task', ({ tableId, taskId, user }) => {
-    socket.to(`table:${tableId}`).emit('stop_typing_task', { taskId, user });
-  });
-  
-  socket.on('join_task', (taskId) => {
-      socket.join(taskId);
-  });
-  
-  socket.on('leave_task', (taskId) => {
-      socket.leave(taskId);
-  });
-
-  socket.on('disconnect', () => {
-    logger.info('socket_disconnected', { socketId: socket.id, userId: socket.data.user?.id });
-    // Cleanup user socket tracking
-    for (const [userId, sockets] of userSockets.entries()) {
-        if (sockets.has(socket.id)) {
-            sockets.delete(socket.id);
-            if (sockets.size === 0) userSockets.delete(userId);
-            break;
-        }
-    }
-  });
-
-  // --- WebRTC Direct Call Signaling & Session Management ---
-  socket.on('register_user', (userId) => {
-    if (userId) {
-      // Single Session Enforcement: Check if user already has other active sockets
-      if (userSockets.has(userId) && userSockets.get(userId).size > 0) {
-          console.log(`[Socket] Duplicate session detected for user ${userId}. Prompting new client.`);
-          socket.emit('duplicate_session_check');
-      }
-
-      // Track this socket for the user
-      if (!userSockets.has(userId)) userSockets.set(userId, new Set());
-      userSockets.get(userId).add(socket.id);
-
-      socket.join('user_' + userId);
-      console.log(`[Socket] User ${userId} registered to room user_${userId}`);
-
-      // Check if there's a pending call offer for this user
-      if (pendingOffers.has(userId)) {
-        const offerData = pendingOffers.get(userId);
-        console.log(`[Socket] Sending pending call offer to user ${userId}`);
-        socket.emit('call_offer', offerData);
-      }
-    }
-  });
-
-  socket.on('call_offer', async (data) => {
-    // data: { targetId, callerId, offer, callerName, callerAvatar, isVideo }
-    socket.to('user_' + data.targetId).emit('call_offer', data);
-
-    // Persist the offer in case they are opening the app from a push
-    pendingOffers.set(data.targetId, data);
-    // Auto-cleanup after 60 seconds if no action taken
-    setTimeout(() => {
-        if (pendingOffers.get(data.targetId) === data) {
-            pendingOffers.delete(data.targetId);
-        }
-    }, 60000);
-
-    try {
-        const { sendDirectNotification } = require('./notificationHelper');
-        await sendDirectNotification(
-            data.targetId,
-            'Incoming Call',
-            `${data.callerName || 'Someone'} is calling you via ${data.isVideo ? 'Video' : 'Audio'}.`,
-            'incoming_call',
-            {
-                callerId: data.callerId,
-                callerName: data.callerName,
-                callerAvatar: data.callerAvatar,
-                isVideo: data.isVideo
-            }
-        );
-    } catch (err) {
-        console.error('[Socket] Failed to send push notification for call_offer:', err);
-    }
-  });
-
-  socket.on('call_answer', (data) => {
-    // data: { targetId, answer }
-    pendingOffers.delete(socket.rooms.has('user_' + data.targetId) ? data.targetId : null); // Simple cleanup
-    socket.to('user_' + data.targetId).emit('call_answer', data);
-  });
-
-  socket.on('call_ringing', (data) => {
-    socket.to('user_' + data.targetId).emit('call_ringing', data);
-  });
-
-  socket.on('call_busy', (data) => {
-    pendingOffers.delete(data.targetId);
-    socket.to('user_' + data.targetId).emit('call_busy', data);
-  });
-
-  socket.on('call_ice_candidate', (data) => {
-    // data: { targetId, candidate }
-    socket.to('user_' + data.targetId).emit('call_ice_candidate', data);
-  });
-
-  socket.on('call_end', (data) => {
-    // data: { targetId }
-    pendingOffers.delete(data.targetId);
-    socket.to('user_' + data.targetId).emit('call_end', data);
-  });
-
-  socket.on('call_reject', (data) => {
-    // data: { targetId }
-    pendingOffers.delete(data.targetId);
-    socket.to('user_' + data.targetId).emit('call_reject', data);
-  });
-
-  // Session Takeover Logic
-  socket.on('confirm_takeover', (userId) => {
-      console.log(`[Socket] User ${userId} confirmed takeover. Logging out other sessions.`);
-      const sockets = userSockets.get(userId);
-      if (sockets) {
-          for (const sId of sockets) {
-              if (sId !== socket.id) {
-                  socket.to(sId).emit('force_logout');
-              }
-          }
-          // Reset the set to only contain the current socket
-          userSockets.set(userId, new Set([socket.id]));
-      }
-  });
+attachSocketServer(io, {
+  db,
+  getTableAccess,
+  jwtSecret: JWT_SECRET,
+  logger,
+  sendDirectNotification: require('./notificationHelper').sendDirectNotification,
 });
 
 // --- Legacy Database Schema Migrations ---
@@ -404,30 +232,11 @@ if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
   logger.info('legacy_schema_migrations_skipped', { reason: 'Use npm run db:migrate' });
 }
 
-// Enable CORS for all routes before anything else
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || corsOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin not allowed by CORS'));
-  },
-  credentials: true,
-}));
-app.use(requestContext);
-app.use('/api', apiRateLimit);
-
-// Enable JSON parsing for request bodies
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// Log all incoming requests for debugging
-app.use((req, res, next) => {
-  logger.debug('http_request_body', {
-    requestId: req.requestId,
-    method: req.method,
-    path: req.originalUrl || req.url,
-    body: req.method === 'POST' ? logger.redact(req.body || {}) : undefined,
-  });
-  next();
+configureCoreMiddleware(app, {
+  apiRateLimit,
+  corsMiddleware: createCorsMiddleware(corsOrigins),
+  logger,
+  requestContext,
 });
 
 app.get('/api/version', (req, res) => {
@@ -447,15 +256,19 @@ const emailerRoute = require('./routes/emailer');
 const friendsRoute = require('./routes/friends');
 const chatsRoute = require('./routes/chats');
 
-// const tableTasksRoute = require('./routes/tableTasks');
-app.use('/api', authRoute);
-app.use('/api', billingRoute);
-app.use('/api', authenticateToken, require('./middleware/requireActiveSubscription'));
-app.use('/api', peopleRoute);
-app.use('/api', automationRoute);
-app.use('/api', emailerRoute);
-app.use('/api', friendsRoute);
-app.use('/api', chatsRoute);
+mountCoreRoutes(app, {
+  authenticateToken,
+  requireActiveSubscription: require('./middleware/requireActiveSubscription'),
+  routes: {
+    auth: authRoute,
+    billing: billingRoute,
+    people: peopleRoute,
+    automation: automationRoute,
+    emailer: emailerRoute,
+    friends: friendsRoute,
+    chats: chatsRoute,
+  },
+});
 // Serve uploaded files statically from the shared uploads directory first,
 // then fall back to the legacy server-local directory for older files.
 app.use('/uploads', express.static(SHARED_UPLOAD_DIR));
@@ -2818,6 +2631,8 @@ app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
   }
 });
 
+app.use(errorHandler(logger));
+
 process.on('uncaughtException', (err) => {
   console.error('[CRITICAL] Uncaught exception:', err);
 });
@@ -2826,93 +2641,19 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const startServer = () => {
-    server.listen(PORT, '0.0.0.0', () => {
-        try {
-            console.log(`> Ready on http://localhost:${PORT}`);
-            console.log(`Express server running on http://0.0.0.0:${PORT}`);
-            console.log(`Socket.IO listening on port ${PORT}`);
-        } catch (err) {
-            console.error('Error starting server/socket:', err);
-        }
-    });
-};
-
 const SKIP_NEXT_APP = process.env.SKIP_NEXT_APP === 'true';
 
-if (SKIP_NEXT_APP) {
-  console.log('[Server] SKIP_NEXT_APP=true, starting API/socket server without Next.js handler.');
-  startServer();
-} else {
-  nextApp.prepare().then(() => {
-    app.all(/(.*)/, (req, res) => {
-      return handle(req, res);
-    });
-    startServer();
-  }).catch((err) => {
-    console.error('[Server] Failed to prepare Next.js app:', err);
-    process.exit(1);
-  });
-}
+bootstrap({
+  app,
+  handle,
+  nextApp,
+  server,
+  port: PORT,
+  skipNextApp: SKIP_NEXT_APP,
+  logger,
+}).catch((error) => {
+  logger.error('server_bootstrap_failed', { error: error.message });
+  process.exit(1);
+});
 
-// --- Scheduled Message Processor (Cron Job) ---
-setInterval(async () => {
-    try {
-        // Find rows with scheduled messages that haven't been sent
-        // Using a broad text search for efficiency, then filtering in JS
-        const result = await db.query(`
-            SELECT r.id, r.table_id, r.values
-            FROM rows r
-            WHERE r.values::text LIKE '%"scheduledFor"%' 
-        `); 
-
-        for (const row of result.rows) {
-            let changed = false;
-            const messages = row.values.message;
-            if (!Array.isArray(messages)) continue;
-
-            const tableRes = await db.query('SELECT * FROM tables WHERE id = $1', [row.table_id]);
-            const table = tableRes.rows[0];
-            if (!table) continue;
-
-            for (const msg of messages) {
-                if (msg.scheduledFor && !msg.notificationSent) {
-                    if (new Date(msg.scheduledFor) <= new Date()) {
-                        
-                        let taskName = 'Task';
-                        if (table.columns && Array.isArray(table.columns)) {
-                            const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
-                            if (taskCol && row.values[taskCol.id]) {
-                                taskName = row.values[taskCol.id];
-                            }
-                        } else if (row.values['task']) {
-                            taskName = row.values['task'];
-                        }
-
-                        const userName = msg.sender || 'System';
-                        
-                        // Send Notification via imported helper
-                        await sendNotification(
-                            'New Discussion',
-                            `${userName} commented on the ${taskName}: ${msg.text}`,
-                            'task_chat',
-                            { taskId: row.id },
-                            table,
-                            null
-                        );
-                        
-                        msg.notificationSent = true;
-                        changed = true;
-                    }
-                }
-            }
-
-            if (changed) {
-                await db.query('UPDATE rows SET values = $1 WHERE id = $2', [JSON.stringify(row.values), row.id]);
-                console.log(`[Scheduler] Processed scheduled messages for Task ${row.id}`);
-            }
-        }
-    } catch (e) {
-        console.error('Error processing scheduled messages:', e);
-    }
-}, 60000); // Check every minute
+startScheduledMessageJob({ db, sendNotification, logger });
