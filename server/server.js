@@ -4,6 +4,8 @@ console.log('Server process starting...');
 process.on('exit', (code) => console.log(`Process exit with code: ${code}`));
 const express = require('express');
 const { configureCoreMiddleware, mountCoreRoutes } = require('./app');
+const { createNexusRouter } = require('./routes/nexus');
+const { createSystemRouter } = require('./routes/system');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -161,14 +163,7 @@ configureCoreMiddleware(app, {
   requestContext,
 });
 
-app.get('/api/version', (req, res) => {
-  res.json({
-    commit: BUILD_COMMIT,
-    date: BUILD_DATE,
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
+app.use('/api', createSystemRouter({ buildCommit: BUILD_COMMIT, buildDate: BUILD_DATE }));
 // Register people and automation routes at /api
 const authRoute = require('./routes/auth');
 const billingRoute = require('./routes/billing');
@@ -186,6 +181,7 @@ mountCoreRoutes(app, {
     auth: authRoute,
     billing: billingRoute,
     users: createUsersRouter({ db, logger }),
+    nexus: createNexusRouter({ fetch, logger }),
     people: peopleRoute,
     automation: automationRoute,
     emailer: emailerRoute,
@@ -312,49 +308,6 @@ app.post('/api/upload', authenticateToken, async (req, res) => {
       res.status(500).json({ error: 'Failed to persist file data', details: uploadErr?.message || String(uploadErr) });
     }
   });
-});
-
-// Get complete user profile
-// --- Nexus Brain (AI) Endpoint ---
-app.post('/api/nexus/chat', authenticateToken, async (req, res) => {
-    const { messages, systemPrompt, input } = req.body;
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-        console.error('[Nexus Brain] API Key missing in environment');
-        return res.status(500).json({ error: 'AI Service configuration missing' });
-    }
-
-    try {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: { 
-                "Content-Type": "application/json", 
-                "Authorization": `Bearer ${apiKey}` 
-            },
-            body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    ...messages,
-                    { role: "user", content: input }
-                ],
-                response_format: { type: "json_object" }
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('[OpenAI Error]', errorData);
-            throw new Error(errorData.error?.message || 'OpenAI Request Failed');
-        }
-
-        const data = await response.json();
-        res.json(data);
-    } catch (err) {
-        console.error('[Nexus Brain Error]', err);
-        res.status(500).json({ error: err.message });
-    }
 });
 
 // Port is handled after route registration
