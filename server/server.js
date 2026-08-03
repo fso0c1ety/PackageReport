@@ -13,9 +13,10 @@ const { createTableCollaborationRouter } = require('./routes/tableCollaboration'
 const { createWorkspacesRouter } = require('./routes/workspaces');
 const { createTableMetadataRouter } = require('./routes/tableMetadata');
 const { createTaskReadsRouter } = require('./routes/taskReads');
+const { createTaskMutationsRouter } = require('./routes/taskMutations');
 const fs = require('fs');
 const path = require('path');
-const { v4: uuidv4, validate: uuidValidate } = require('uuid');
+const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
@@ -191,6 +192,7 @@ mountCoreRoutes(app, {
     workspaces: createWorkspacesRouter({ db, logger }),
     tableMetadata: createTableMetadataRouter({ db, logger }),
     taskReads: createTaskReadsRouter({ logger, requireTablePermission, tableService }),
+    taskMutations: createTaskMutationsRouter({ db, getTableAccess, logger }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
@@ -1185,42 +1187,6 @@ app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateTok
 
 // Per-table tasks endpoints
 
-app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
-  try {
-    const newTask = { 
-        id: uuidValidate(req.body.id) ? req.body.id : uuidv4(), 
-        table_id: req.params.tableId, 
-        values: req.body.values || {},
-        created_by: req.user.id
-    };
-    
-    await db.query(
-      'INSERT INTO rows (id, table_id, values, created_by, created_at) VALUES ($1, $2, $3, $4, NOW())',
-      [newTask.id, newTask.table_id, JSON.stringify(newTask.values), newTask.created_by]
-    );
-    console.info('[TableBoard create]', {
-      rowId: newTask.id,
-      valueType: typeof newTask.values,
-      result: 'success',
-    });
-    res.status(201).json(newTask);
-  } catch (err) {
-    console.error('Error creating task:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Update document content
-app.put('/api/tables/:tableId/doc', async (req, res) => {
-  try {
-    await db.query('UPDATE tables SET doc_content = $1 WHERE id = $2', [req.body.content, req.params.tableId]);
-    res.json({ success: true, content: req.body.content });
-  } catch (err) {
-    console.error('Error updating document content:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
   const debugLogs = [];
   const log = (msg, obj) => {
@@ -1396,19 +1362,6 @@ app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
   }
 });
 
-app.delete('/api/tables/:tableId/tasks/:taskId', async (req, res) => {
-  try {
-    const result = await db.query('DELETE FROM rows WHERE id = $1 AND table_id = $2', [req.params.taskId, req.params.tableId]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting task:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Endpoint to get recent email updates (Activity Feed)
 app.get('/api/email-updates', authenticateToken, async (req, res) => {
   if (!req.user || !req.user.id) {
@@ -1463,54 +1416,6 @@ app.get('/api/email-updates', authenticateToken, async (req, res) => {
 });
 
 
-// --- Task Order Endpoint for Drag-and-Drop ---
-app.put('/api/tables/:tableId/tasks/order', authenticateToken, async (req, res) => {
-  const { orderedTaskIds } = req.body;
-  if (!Array.isArray(orderedTaskIds) || orderedTaskIds.length === 0) {
-    return res.status(400).json({ error: 'orderedTaskIds must be a non-empty array' });
-  }
-  // Filter out any non-string or blank ids defensively
-  const validIds = orderedTaskIds.filter((id) => typeof id === 'string' && id.trim() && id !== 'placeholder');
-  if (validIds.length === 0) {
-    return res.json({ success: true }); // nothing to persist
-  }
-
-  const client = await db.pool.connect();
-  try {
-    const table = await getTableAccess(db, req.params.tableId, req.user.id, 'editor');
-    if (!table) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    await client.query('BEGIN');
-    await client.query(`
-      WITH ordered AS (
-        SELECT task_id, (position - 1)::int AS row_order
-        FROM jsonb_array_elements_text($1::jsonb)
-          WITH ORDINALITY AS item(task_id, position)
-      )
-      UPDATE rows AS row
-      SET values = jsonb_set(
-        COALESCE(row.values, '{}'::jsonb),
-        '{order}',
-        to_jsonb(ordered.row_order),
-        true
-      )
-      FROM ordered
-      WHERE row.id::text = ordered.task_id
-        AND row.table_id = $2
-        AND (row.values->>'order')::int IS DISTINCT FROM ordered.row_order
-    `, [JSON.stringify(validIds), req.params.tableId]);
-    await client.query('COMMIT');
-    res.json({ success: true });
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    console.error('[tasks/order] Error ordering tasks:', err.message, err.stack);
-    res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    client.release();
-  }
-});
 
 
 app.use(errorHandler(logger));
