@@ -8,6 +8,7 @@ const CORS_HEADERS = [
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  serverExternalPackages: ["bullmq", "ioredis"],
   outputFileTracingRoot: process.cwd(),
   images: {
     unoptimized: true,

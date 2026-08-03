@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 
 // The Brevo API Key
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
@@ -6,7 +7,7 @@ const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const EMAIL_FROM = process.env.BREVO_SENDER_EMAIL || 'argjenddpecii@11554074.brevosend.com';
 const EMAIL_FROM_NAME = process.env.BREVO_SENDER_NAME || process.env.EMAIL_FROM_NAME || 'Smart Manage';
 
-async function sendEmail({ to, subject, text, html }) {
+async function sendEmailNow({ to, subject, text, html }) {
     if (!to || (Array.isArray(to) && to.length === 0)) {
         throw new Error('No email recipients provided');
     }
@@ -74,4 +75,13 @@ async function sendEmail({ to, subject, text, html }) {
     }
 }
 
-module.exports = { sendEmail };
+async function sendEmail(message) {
+    if (!process.env.REDIS_URL || process.env.RUN_JOBS_INLINE === 'true') return sendEmailNow(message);
+    const { appQueue } = require('./jobs');
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify(message)).digest('hex').slice(0, 32);
+    const bucket = Math.floor(Date.now() / (5 * 60 * 1000));
+    const job = await appQueue.add('email.send', message, { idempotencyKey: `email_${fingerprint}_${bucket}`, attempts: 5 });
+    return { queued: true, jobId: job.id };
+}
+
+module.exports = { sendEmail, sendEmailNow };
