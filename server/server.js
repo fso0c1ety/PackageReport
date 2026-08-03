@@ -18,6 +18,7 @@ const { createTaskUpdatesRouter } = require('./routes/taskUpdates');
 const { createTableSharingRouter } = require('./routes/tableSharing');
 const { createTeammatesRouter } = require('./routes/teammates');
 const { createTableCreationRouter } = require('./routes/tableCreation');
+const { createActivityUpdatesRouter } = require('./routes/activityUpdates');
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
@@ -198,6 +199,7 @@ mountCoreRoutes(app, {
     tableSharing: createTableSharingRouter({ billingService, db, logger, sendPushNotification }),
     teammates: createTeammatesRouter({ db, logger }),
     tableCreation: createTableCreationRouter({ db }),
+    activityUpdates: createActivityUpdatesRouter({ db, logger, normalizeActivityHtml }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
@@ -267,58 +269,6 @@ app.use((req, res, next) => {
 
 // Per-table tasks endpoints
 
-// Endpoint to get recent email updates (Activity Feed)
-app.get('/api/email-updates', authenticateToken, async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  try {
-    // 1. Get workspaces owned by this user
-    const wsResult = await db.query('SELECT id FROM workspaces WHERE owner_id = $1', [req.user.id]);
-    const userWorkspaceIds = wsResult.rows.map(ws => ws.id);
-    if (userWorkspaceIds.length === 0) return res.json([]);
-
-    // 2. Get tables belonging to those workspaces
-    const tablesResult = await db.query('SELECT id FROM tables WHERE workspace_id = ANY($1)', [userWorkspaceIds]);
-    const userTableIds = tablesResult.rows.map(t => t.id);
-    if (userTableIds.length === 0) return res.json([]);
-
-    // 3. Filter activity logs by those table IDs
-    const logsResult = await db.query(
-      `SELECT activity_logs.*, tables.columns AS table_columns
-       FROM activity_logs
-       LEFT JOIN tables ON tables.id = activity_logs.table_id
-       WHERE activity_logs.table_id = ANY($1)
-       ORDER BY activity_logs.timestamp DESC
-       LIMIT 20`,
-      [userTableIds]
-    );
-    // Map snake_case to camelCase for frontend consistency
-    const mappedLogs = logsResult.rows.map(log => ({
-      id: log.id,
-      recipients: log.recipients,
-      subject: log.subject,
-      html: normalizeActivityHtml(
-        log.html,
-        Array.isArray(log.table_columns)
-          ? log.table_columns
-          : (() => {
-              try { return JSON.parse(log.table_columns || "[]"); } catch { return []; }
-            })()
-      ),
-      timestamp: log.timestamp,
-      tableId: log.table_id,
-      taskId: log.task_id,
-      status: log.status,
-      errorMessage: log.error_message,
-      error_message: log.error_message,
-    }));
-    res.json(mappedLogs);
-  } catch (err) {
-    console.error('Error fetching activity logs:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 
 
