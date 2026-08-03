@@ -9,6 +9,7 @@ const { createSystemRouter } = require('./routes/system');
 const { createUploadsRouter } = require('./routes/uploads');
 const { createPushNotificationsRouter } = require('./routes/pushNotifications');
 const { createNotificationsRouter } = require('./routes/notifications');
+const { createTableCollaborationRouter } = require('./routes/tableCollaboration');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -188,6 +189,7 @@ mountCoreRoutes(app, {
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
     notifications: createNotificationsRouter({ db, logger }),
+    tableCollaboration: createTableCollaborationRouter({ db, io, logger, requireTablePermission, sendPushNotification, tableService }),
     people: peopleRoute,
     automation: automationRoute,
     emailer: emailerRoute,
@@ -1990,175 +1992,6 @@ app.put('/api/tables/:tableId/tasks/order', authenticateToken, async (req, res) 
   }
 });
 
-
-// --- Table Chat Endpoints ---
-// Using a table in PostgreSQL for chats
-app.get('/api/tables/:tableId/chat', authenticateToken, requireTablePermission('viewer'), async (req, res) => {
-  try {
-    res.json(await tableService.getChatMessages(req.params.tableId));
-  } catch (err) {
-    console.error('Error fetching chat messages:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-
-// Invite to table endpoint
-app.post('/api/tables/:tableId/invite', authenticateToken, async (req, res) => {
-    const { tableId } = req.params;
-    const { recipientId, permission } = req.body;
-    if (!recipientId) return res.status(400).json({ error: 'Recipient ID is required' });
-
-    try {
-        const tableRes = await db.query('SELECT name FROM tables WHERE id = $1', [tableId]);
-        if (tableRes.rows.length === 0) return res.status(404).json({ error: 'Table not found' });
-        
-        await createInviteNotification(recipientId, req.user.id, tableId, tableRes.rows[0].name, permission || 'edit');
-        res.json({ success: true, message: 'Invite sent' });
-    } catch (err) {
-        console.error('Error sending invite:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Helper for invite notifications
-const createInviteNotification = async (recipientId, senderId, tableId, tableName, permission) => {
-    const notifDisplayId = uuidv4();
-    await db.query(
-        'INSERT INTO notifications (id, recipient_id, sender_id, type, data) VALUES ($1, $2, $3, $4, $5)',
-        [notifDisplayId, recipientId, senderId, 'invite', JSON.stringify({ tableId, tableName, permission })]
-    );
-    
-    // Also send Push Notification
-    const userRes = await db.query('SELECT fcm_token FROM users WHERE id = $1', [recipientId]);
-    const token = userRes.rows[0]?.fcm_token;
-    if (token) {
-        // Fetch sender name
-        const senderRes = await db.query('SELECT name FROM users WHERE id = $1', [senderId]);
-        const senderName = senderRes.rows[0]?.name || 'Someone';
-        
-        await sendPushNotification(
-            [token],
-            'Table Invite',
-            `${senderName} requests you to share this table: ${tableName}`,
-            { type: 'invite', notificationId: notifDisplayId }
-        );
-    }
-};
-
-app.post('/api/tables/:tableId/chat', authenticateToken, async (req, res) => {
-  try {
-    const normalizedAttachment = req.body.attachment && typeof req.body.attachment === 'object'
-      ? {
-          name: req.body.attachment.name || null,
-          type: req.body.attachment.type || null,
-          url: req.body.attachment.url || null,
-          size: req.body.attachment.size || null,
-          originalName: req.body.attachment.originalName || null,
-          uploadedAt: req.body.attachment.uploadedAt || null
-        }
-      : null;
-
-    const newMessage = {
-      id: uuidv4(),
-      table_id: req.params.tableId,
-      sender: req.body.sender || req.user.name,
-      sender_id: req.user.id,
-      text: req.body.text,
-      timestamp: req.body.timestamp || new Date().toISOString(),
-      attachment: normalizedAttachment
-    };
-
-    await db.query(
-      'INSERT INTO table_chats (id, table_id, sender, text, timestamp, attachment, sender_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [
-        newMessage.id,
-        newMessage.table_id,
-        newMessage.sender,
-        newMessage.text,
-        newMessage.timestamp,
-        newMessage.attachment ? JSON.stringify(newMessage.attachment) : null,
-        newMessage.sender_id
-      ]
-    );
-
-    // Fetch sender avatar for the socket event
-    const userRes = await db.query('SELECT avatar FROM users WHERE id = $1', [newMessage.sender_id]);
-    newMessage.sender_avatar = userRes.rows[0]?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(newMessage.sender)}&background=random&color=fff&bold=true`;
-    newMessage.senderAvatar = newMessage.sender_avatar;
-
-    io.to(newMessage.table_id).emit('new_board_message', newMessage);
-
-    // Send push notification to other users
-    // 1. Get the table name and workspace/shared users
-    const tableRes = await db.query('SELECT name, workspace_id, shared_users FROM tables WHERE id = $1', [newMessage.table_id]);
-    if (tableRes.rows.length > 0) {
-      const table = tableRes.rows[0];
-      const tableName = table.name;
-      
-      // 2. Determine recipients
-      // Start with workspace owner
-      const workspaceRes = await db.query('SELECT owner_id FROM workspaces WHERE id = $1', [table.workspace_id]);
-      let recipientIds = new Set();
-      
-      if (workspaceRes.rows.length > 0) {
-        recipientIds.add(workspaceRes.rows[0].owner_id);
-      }
-
-      // Add shared users
-      if (Array.isArray(table.shared_users)) {
-        table.shared_users.forEach(u => {
-          if (typeof u === 'string') recipientIds.add(u);
-          else if (u.userId) recipientIds.add(u.userId);
-        });
-      }
-
-      // Remove sender (so you don't receive notifications for your own messages)
-      recipientIds.delete(req.user.id);
-      
-      // console.log(`[Chat Notification] Sender: ${req.user.id}, Potential Recipients: ${Array.from(recipientIds).join(', ')}`);
-
-      if (recipientIds.size > 0) {
-        const recipientsArray = Array.from(recipientIds);
-        
-        // 1. Send Push Notifications
-        const tokensRes = await db.query('SELECT id, fcm_token FROM users WHERE id = ANY($1) AND fcm_token IS NOT NULL', [recipientsArray]);
-        
-        const tokens = tokensRes.rows.map(r => r.fcm_token);
-        console.log(`[Chat Notification] Found ${tokens.length} tokens for users: ${tokensRes.rows.map(r => r.id).join(', ')}`);
-
-        if (tokens.length > 0) {
-          await sendPushNotification(tokens, `New message in ${tableName}`, `${newMessage.sender}: ${newMessage.text}`, {
-              type: 'chat_message',
-              tableId: newMessage.table_id,
-              workspaceId: table.workspace_id,
-              senderId: req.user.id
-          });
-        }
-        
-        // 2. Save In-App Notifications
-        for (const recipientId of recipientsArray) {
-            await db.query(`
-                INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            `, [uuidv4(), recipientId, req.user.id, 'chat_message', {
-                subject: `New message in ${tableName}`,
-                body: `${newMessage.sender}: ${newMessage.text}`,
-                tableName: tableName,
-                tableId: table.id,
-                workspaceId: table.workspace_id,
-                senderId: req.user.id
-            }, false]);
-        }
-      }
-    }
-
-    res.json(newMessage);
-  } catch (err) {
-    console.error('Error posting chat message:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 app.use(errorHandler(logger));
 

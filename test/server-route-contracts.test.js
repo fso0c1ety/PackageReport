@@ -6,6 +6,7 @@ const { createUsersRouter } = require("../server/routes/users");
 const { createUploadsRouter } = require("../server/routes/uploads");
 const { createPushNotificationsRouter } = require("../server/routes/pushNotifications");
 const { createNotificationsRouter } = require("../server/routes/notifications");
+const { createTableCollaborationRouter } = require("../server/routes/tableCollaboration");
 
 function routeContracts(router) {
   return router.stack
@@ -38,5 +39,13 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
     { path: "/notifications/mark-read", methods: ["post"] },
     { path: "/notifications/:id/accept", methods: ["post"] },
     { path: "/notifications/:id/decline", methods: ["post"] },
+  ]);
+  assert.deepEqual(routeContracts(createTableCollaborationRouter({
+    db: {}, io: {}, logger, requireTablePermission: () => (_req, _res, next) => next(),
+    sendPushNotification() {}, tableService: {},
+  })), [
+    { path: "/tables/:tableId/chat", methods: ["get"] },
+    { path: "/tables/:tableId/invite", methods: ["post"] },
+    { path: "/tables/:tableId/chat", methods: ["post"] },
   ]);
 });
