@@ -92,9 +92,13 @@ export async function GET(req) {
        JOIN workspaces w ON t.workspace_id = w.id
        LEFT JOIN rows r ON t.id = r.table_id
        LEFT JOIN users creator ON creator.id = r.created_by
-       WHERE w.owner_id = $1 OR COALESCE(t.shared_users, '[]'::jsonb) @> $2::jsonb
+       WHERE w.owner_id = $1 OR EXISTS (
+         SELECT 1
+         FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
+         WHERE elem->>'userId' = $1
+       )
        GROUP BY t.id`,
-      [String(user.id), JSON.stringify([{ userId: String(user.id) }])]
+      [String(user.id)]
     );
 
     return NextResponse.json(result.rows);

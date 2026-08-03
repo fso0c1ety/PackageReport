@@ -366,7 +366,21 @@ export default function DashboardPage() {
           authenticatedFetch(getApiUrl("tables")),
         ]);
         const wsData = await wsRes.json();
-        const tablesData = await tablesRes.json();
+        let tablesData = await tablesRes.json();
+
+        // Some shared-workspace memberships are represented with extended
+        // permission objects and may not match the compact global JSONB query.
+        // Fall back to the already-authorized workspace endpoint only when the
+        // global result is unexpectedly empty.
+        if (Array.isArray(wsData) && wsData.length > 0 && Array.isArray(tablesData) && tablesData.length === 0) {
+          const perWorkspace = await Promise.all(wsData.map(async (workspace: any) => {
+            const response = await authenticatedFetch(getApiUrl(`tables?workspaceId=${encodeURIComponent(workspace.id)}`));
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+          }));
+          tablesData = perWorkspace.flat();
+        }
 
         setWorkspaces(Array.isArray(wsData) ? wsData : []);
         setTables(Array.isArray(tablesData) ? tablesData : []);

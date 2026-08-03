@@ -1125,7 +1125,7 @@ export default function HomeDashboard() {
                   </Box>
                 )}
                 {emailUpdates.map((update, idx) => (
-                  <InboxItem key={idx} sx={{ p: { md: 2 } }}>
+                  <InboxItem key={update.id || `${update.tableId}-${update.taskId}-${update.timestamp}-${idx}`} sx={{ p: { md: 2 }, contentVisibility: "auto", containIntrinsicSize: "280px" }}>
                     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, mb: 1 }}>
                       <Avatar sx={{ width: { xs: 24, md: 28 }, height: { xs: 24, md: 28 }, fontSize: { xs: 10, md: 11 }, bgcolor: "#6366f1" }}>
                         {update.tableId ? update.tableId[0].toUpperCase() : 'T'}
