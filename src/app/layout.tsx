@@ -19,8 +19,18 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Smart Manage",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://package-report.vercel.app"),
+  title: "Smart Manage — One Workspace for Your Entire Business",
+  description: "Manage projects, customers, logistics, operations, teams and business data in one flexible workspace with Smart Manage.",
   applicationName: "Smart Manage",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website", url: "/", siteName: "Smart Manage",
+    title: "Smart Manage — One Workspace for Your Entire Business",
+    description: "Manage projects, customers, logistics, operations, teams and business data in one flexible workspace.",
+    images: [{ url: "/logo.png", width: 1200, height: 630, alt: "Smart Manage business workspace" }],
+  },
+  twitter: { card: "summary_large_image", title: "Smart Manage", description: "One workspace for your entire business.", images: ["/logo.png"] },
   icons: {
     icon: "/icon.png",
     shortcut: "/icon.png",

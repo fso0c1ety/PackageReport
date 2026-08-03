@@ -42,7 +42,10 @@ import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import InstagramIcon from "@mui/icons-material/Instagram";
 import XIcon from "@mui/icons-material/X";
 import GitHubIcon from "@mui/icons-material/GitHub";
-import emailjs from "@emailjs/browser";
+
+function trackMarketingEvent(name: string, detail: Record<string, string> = {}) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("smartmanage:analytics", { detail: { name, ...detail } }));
+}
 
 export default function LandingPage() {
   const router = useRouter();
@@ -52,6 +55,7 @@ export default function LandingPage() {
   const [contactValues, setContactValues] = useState({ name: "", email: "", company: "", subject: "", message: "" });
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
   const [contactSending, setContactSending] = useState(false);
+  const [contactStartedAt, setContactStartedAt] = useState(() => Date.now());
   const [contactToast, setContactToast] = useState<{ open: boolean; severity: "success" | "error"; message: string }>({ open: false, severity: "success", message: "" });
   // Landing page is always light — never affected by dark/light mode setting.
   const LIGHT = {
@@ -134,6 +138,7 @@ export default function LandingPage() {
   }, [router]);
 
   const handleGetStarted = () => {
+    trackMarketingEvent("registration_cta", { source: "template" });
     navigateToAppRoute("/login?mode=signup", router);
   };
 
@@ -161,11 +166,11 @@ export default function LandingPage() {
 
     setContactSending(true);
     try {
-      await emailjs.send("service_5jluyqm", "template_iruhxjw", {
-        ...contactValues,
-        time: new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
-      }, "FGRqzofj81_soljPZ");
+      const response = await fetch("/api/contact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...contactValues, website: "", startedAt: contactStartedAt }) });
+      if (!response.ok) throw new Error("Contact delivery failed");
+      trackMarketingEvent("contact_submission");
       setContactValues({ name: "", email: "", company: "", subject: "", message: "" });
+      setContactStartedAt(Date.now());
       setContactErrors({});
       setContactToast({ open: true, severity: "success", message: "✔ Message sent successfully." });
     } catch {
