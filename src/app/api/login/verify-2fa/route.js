@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-import { SECRET_KEY } from "../../_lib/server";
 import { verifyEmailOtp } from "../../_lib/twoFactor";
+import { issueSession, refreshCookieOptions, REFRESH_COOKIE } from "../../_lib/authSessions";
 
 export const runtime = "nodejs";
 
@@ -19,13 +18,10 @@ export async function POST(req) {
 
     const user = verification.user;
     const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      SECRET_KEY,
-      { expiresIn: "24h" }
-    );
-
-    return NextResponse.json({ token, user: { ...user, avatar } });
+    const session = await issueSession(user, req);
+    const response = NextResponse.json({ token: session.token, sessionId: session.sessionId, user: { ...user, avatar } });
+    response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    return response;
   } catch (error) {
     console.error("[LOGIN/VERIFY-2FA] Error:", error);
     return NextResponse.json({ error: "Unable to verify the code" }, { status: 500 });

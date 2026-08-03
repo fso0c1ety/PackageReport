@@ -611,6 +611,7 @@ type AuthenticatedFetchOptions = RequestInit & {
   suppressNativeErrorAlert?: boolean;
   includeAuthToken?: boolean;
   handleAuthErrors?: boolean;
+  skipSessionRefresh?: boolean;
 };
 
 const inFlightGetRequests = new Map<string, Promise<Response>>();
@@ -645,8 +646,13 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     suppressNativeErrorAlert = false,
     includeAuthToken = true,
     handleAuthErrors = true,
+    skipSessionRefresh = false,
     ...requestOptions
   } = options;
+
+  if (!requestOptions.credentials) {
+    requestOptions.credentials = 'include';
+  }
 
   const headers = { ...((requestOptions.headers as any) || {}) } as any;
 
@@ -762,6 +768,29 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   }
 
   const response = await requestPromise;
+
+  if (
+    handleAuthErrors && response.status === 401 && includeAuthToken && !skipSessionRefresh &&
+    !requestUrl.includes('/api/auth/refresh') && typeof window !== 'undefined'
+  ) {
+    try {
+      const refreshResponse = await fetch(getApiUrl('auth/refresh'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nativeClient: isNativeStaticRuntime() }),
+      });
+      if (refreshResponse.ok) {
+        const refreshed = await refreshResponse.json();
+        if (refreshed?.token) {
+          localStorage.setItem('token', refreshed.token);
+          return authenticatedFetch(url, { ...options, skipSessionRefresh: true });
+        }
+      }
+    } catch {
+      // Continue through the existing sign-in fallback below.
+    }
+  }
 
   if (handleAuthErrors && response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
