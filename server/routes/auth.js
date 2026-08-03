@@ -32,12 +32,20 @@ const passwordResetRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max
 
 const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const REFRESH_COOKIE = 'smart_manage_refresh';
+const ACCESS_COOKIE = 'smart_manage_access';
 const refreshCookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
   path: '/api',
   maxAge: 30 * 24 * 60 * 60 * 1000,
+});
+const accessCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 20 * 60 * 1000,
 });
 const readCookie = (req, name) => String(req.headers.cookie || '')
   .split(';')
@@ -109,6 +117,7 @@ router.post('/login', authRateLimit, async (req, res) => {
       logger.warn('auth_session_schema_missing_legacy_token_issued', { requestId: req.requestId, userId: user.id });
     }
     if (session.refreshToken) res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    res.cookie(ACCESS_COOKIE, session.accessToken, accessCookieOptions());
 
     const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
     await recordAuthenticationEvent(db, { userId: user.id, email, eventType: 'login_succeeded', req, metadata: { sessionId: session.sessionId } });
@@ -135,10 +144,12 @@ router.post('/auth/refresh', authRateLimit, async (req, res) => {
     if (!session) {
       await client.query('ROLLBACK');
       res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: undefined });
+      res.clearCookie(ACCESS_COOKIE, { ...accessCookieOptions(), maxAge: undefined });
       return res.status(401).json({ error: 'Refresh session is invalid or expired' });
     }
     await client.query('COMMIT');
     res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    res.cookie(ACCESS_COOKIE, session.accessToken, accessCookieOptions());
     return res.json({
       token: session.accessToken,
       refreshToken: req.body?.nativeClient ? session.refreshToken : undefined,
@@ -156,12 +167,14 @@ router.post('/auth/refresh', authRateLimit, async (req, res) => {
 router.post('/auth/logout', authenticateToken, async (req, res) => {
   await revokeSessions(db, req.user.id, { sessionId: req.user.sid || null, reason: 'logout' });
   res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: undefined });
+  res.clearCookie(ACCESS_COOKIE, { ...accessCookieOptions(), maxAge: undefined });
   return res.json({ success: true });
 });
 
 router.post('/auth/logout-all', authenticateToken, async (req, res) => {
   await revokeSessions(db, req.user.id, { reason: 'logout_all' });
   res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: undefined });
+  res.clearCookie(ACCESS_COOKIE, { ...accessCookieOptions(), maxAge: undefined });
   return res.json({ success: true });
 });
 

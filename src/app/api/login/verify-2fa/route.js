@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyEmailOtp } from "../../_lib/twoFactor";
-import { issueSession, refreshCookieOptions, REFRESH_COOKIE } from "../../_lib/authSessions";
+import { ACCESS_COOKIE, accessCookieOptions, issueSession, refreshCookieOptions, REFRESH_COOKIE } from "../../_lib/authSessions";
 
 export const runtime = "nodejs";
 
@@ -21,6 +21,7 @@ export async function POST(req) {
     const session = await issueSession(user, req);
     const response = NextResponse.json({ token: session.token, refreshToken: nativeClient ? session.refreshToken : undefined, sessionId: session.sessionId, user: { ...user, avatar } });
     if (session.refreshToken) response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    response.cookies.set(ACCESS_COOKIE, session.token, accessCookieOptions());
     return response;
   } catch (error) {
     console.error("[LOGIN/VERIFY-2FA] Error:", error);

@@ -687,6 +687,7 @@ export default function SettingsPage() {
       }
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('purpose', 'avatar');
       setUploadingAvatar(true);
       setProfileError("");
       try {

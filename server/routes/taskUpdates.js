@@ -72,19 +72,15 @@ function activityChanges(table, oldValues, newValues, timestamp) {
   });
 }
 
-function createTaskUpdatesRouter({ appQueue, db, logger, sendNotification }) {
+function createTaskUpdatesRouter({ appQueue, db, logger, requireRowPermission, sendNotification }) {
   const router = express.Router();
 
-  router.put("/tables/:tableId/tasks", async (req, res) => {
+  router.put("/tables/:tableId/tasks", requireRowPermission("editor"), async (req, res) => {
     try {
       const { id, values } = req.body;
       if (!id || typeof values !== "object") return res.status(400).json({ error: "Invalid request body" });
-      const tableResult = await db.query("SELECT * FROM tables WHERE id = $1", [req.params.tableId]);
-      const table = tableResult.rows[0];
-      if (!table) return res.status(404).json({ error: "Table not found" });
-      const rowResult = await db.query("SELECT * FROM rows WHERE id = $1 AND table_id = $2", [id, req.params.tableId]);
-      const row = rowResult.rows[0];
-      if (!row) return res.status(404).json({ error: "Task not found" });
+      const table = req.table;
+      const row = req.row;
 
       const oldValues = row.values || {};
       const newValues = values || {};

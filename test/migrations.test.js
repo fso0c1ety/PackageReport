@@ -27,3 +27,12 @@ test("production migration runner supports an explicit safe target", () => {
   assert.match(vercelBuild, /VERCEL_ENV === 'production'/);
   assert.match(vercelBuild, /020_account_security\.sql/);
 });
+
+test("tenant file security migration is included in production deploys", () => {
+  const source = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  assert.match(source, /021_tenant_file_security\.sql/);
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "021_tenant_file_security.sql"), "utf8");
+  assert.match(migration, /uploaded_by TEXT/);
+  assert.match(migration, /table_id TEXT/);
+  assert.match(migration, /row_id TEXT/);
+});

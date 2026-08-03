@@ -21,13 +21,26 @@ function uploadMiddleware() {
   }).single("file");
 }
 
-function createUploadsRouter({ db, logger, sharedUploadDir, legacyUploadDir }) {
+function createUploadsRouter({ db, getRowAccess, getTableAccess, getWorkspaceAccess, logger, sharedUploadDir, legacyUploadDir }) {
   const router = express.Router();
   router.post("/upload", (req, res) => {
     uploadMiddleware()(req, res, async (error) => {
       if (error) return res.status(500).json({ error: "Multer upload error" });
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
       try {
+        const tableId = req.body?.tableId || null;
+        const rowId = req.body?.rowId || null;
+        const workspaceId = req.body?.workspaceId || null;
+        const visibility = req.body?.purpose === "avatar" ? "profile" : "tenant";
+        if (rowId && !(await getRowAccess(db, rowId, req.user.id, "editor", tableId))) {
+          return res.status(404).json({ error: "Row not found or forbidden" });
+        }
+        if (!rowId && tableId && !(await getTableAccess(db, tableId, req.user.id, "editor"))) {
+          return res.status(404).json({ error: "Table not found or forbidden" });
+        }
+        if (!rowId && !tableId && workspaceId && !(await getWorkspaceAccess(db, workspaceId, req.user.id, "member"))) {
+          return res.status(404).json({ error: "Workspace not found or forbidden" });
+        }
         const fileId = uuidv4();
         const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.]/g, "_");
         const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
@@ -43,8 +56,11 @@ function createUploadsRouter({ db, logger, sharedUploadDir, legacyUploadDir }) {
         let persistedToDb = true;
         try {
           await db.query(
-            "INSERT INTO uploaded_files (id, filename, originalname, mimetype, size, data, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())",
-            [fileId, filename, req.file.originalname, req.file.mimetype, req.file.size, req.file.buffer],
+            `INSERT INTO uploaded_files
+              (id,filename,originalname,mimetype,size,data,uploaded_by,workspace_id,table_id,row_id,visibility,created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())`,
+            [fileId, filename, req.file.originalname, req.file.mimetype, req.file.size, req.file.buffer,
+              req.user.id, workspaceId, tableId, rowId, visibility],
           );
         } catch (databaseError) {
           persistedToDb = false;

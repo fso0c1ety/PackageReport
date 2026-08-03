@@ -31,6 +31,8 @@ const errorHandler = require('./middleware/errorHandler');
 const { createRateLimiter } = require('./middleware/rateLimit');
 const { getTableAccess } = require('./services/permissions');
 const requireTablePermission = require('./middleware/requireTablePermission');
+const { requireFilePermission, requireRowPermission, requireWorkspacePermission } = require('./middleware/authorization');
+const { getFileAccess, getRowAccess, getWorkspaceAccess } = require('./services/permissions');
 const tableService = require('./services/tableService');
 const logger = require('./utils/logger');
 logger.info('server_process_starting');
@@ -190,16 +192,16 @@ mountCoreRoutes(app, {
     billing: billingRoute,
     users: createUsersRouter({ db, logger }),
     workspaces: createWorkspacesRouter({ db, logger }),
-    tableMetadata: createTableMetadataRouter({ db, logger }),
+    tableMetadata: createTableMetadataRouter({ db, logger, requireTablePermission, requireWorkspacePermission }),
     taskReads: createTaskReadsRouter({ logger, requireTablePermission, tableService }),
-    taskMutations: createTaskMutationsRouter({ db, getTableAccess, logger }),
-    taskUpdates: createTaskUpdatesRouter({ appQueue, db, logger, sendNotification }),
+    taskMutations: createTaskMutationsRouter({ db, getTableAccess, logger, requireTablePermission, requireRowPermission }),
+    taskUpdates: createTaskUpdatesRouter({ appQueue, db, logger, requireRowPermission, sendNotification }),
     tableSharing: createTableSharingRouter({ billingService, db, logger, sendPushNotification }),
     teammates: createTeammatesRouter({ db, logger }),
     tableCreation: createTableCreationRouter({ db, logger }),
     activityUpdates: createActivityUpdatesRouter({ db, logger, normalizeActivityHtml }),
     nexus: createNexusRouter({ fetch, logger }),
-    uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
+    uploads: createUploadsRouter({ db, getRowAccess, getTableAccess, getWorkspaceAccess, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
     notifications: createNotificationsRouter({ db, logger }),
     tableCollaboration: createTableCollaborationRouter({ db, io, logger, requireTablePermission, sendPushNotification, tableService }),
@@ -210,7 +212,7 @@ mountCoreRoutes(app, {
     chats: chatsRoute,
   },
 });
-app.use(createCompatibilityFilesRouter({ db, legacyUploadDir: LEGACY_UPLOAD_DIR, logger, sharedUploadDir: SHARED_UPLOAD_DIR }));
+app.use(createCompatibilityFilesRouter({ authenticateToken, db, legacyUploadDir: LEGACY_UPLOAD_DIR, logger, requireFilePermission, sharedUploadDir: SHARED_UPLOAD_DIR }));
 
 // Port is handled after route registration
 const PORT = process.env.PORT || 4000;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
+import { usersMayCommunicate } from "../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,9 @@ export async function GET(req, { params }) {
 
   try {
     const { id } = await params;
+    if (String(id) !== String(user.id) && !(await usersMayCommunicate(pool, user.id, id))) {
+      return NextResponse.json({ error: "User not found or forbidden" }, { status: 404 });
+    }
     const result = await pool.query(
       "SELECT id, name, email, avatar FROM users WHERE id = $1",
       [id]

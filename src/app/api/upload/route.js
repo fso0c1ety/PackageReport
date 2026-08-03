@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
+import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../_lib/server";
+import { requireBoardPermission, requireRowPermission, requireWorkspacePermission } from "../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -14,6 +16,7 @@ const supabaseServiceRoleKey =
   process.env.SUPABASE_SECRET_KEY ||
   "";
 const bucketName = process.env.SUPABASE_STORAGE_BUCKET || "uploads";
+const privateBucketName = process.env.SUPABASE_PRIVATE_STORAGE_BUCKET || `${bucketName}-private`;
 const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024);
 const allowedMimePrefixes = (
   process.env.ALLOWED_UPLOAD_MIME_TYPES ||
@@ -34,7 +37,7 @@ const allowedMimePrefixes = (
   .map((item) => item.trim())
   .filter(Boolean);
 
-async function ensureBucketExists(supabase, bucket) {
+async function ensureBucketExists(supabase, bucket, isPublic = false) {
   const { data, error } = await supabase.storage.listBuckets();
   if (error) {
     console.error("[UPLOAD][SUPABASE] Failed to list buckets:", error);
@@ -43,11 +46,13 @@ async function ensureBucketExists(supabase, bucket) {
 
   const exists = Array.isArray(data) && data.some((b) => b.name === bucket);
   if (exists) {
+    const { error: updateError } = await supabase.storage.updateBucket(bucket, { public: isPublic, fileSizeLimit: "50MB" });
+    if (updateError) return { ok: false, created: false, reason: updateError.message || String(updateError) };
     return { ok: true, created: false };
   }
 
   const { error: createErr } = await supabase.storage.createBucket(bucket, {
-    public: true,
+    public: isPublic,
     fileSizeLimit: "50MB",
   });
 
@@ -71,7 +76,19 @@ function isAllowedUpload(file) {
     allowedMimePrefixes.some((prefix) => file.type === prefix || file.type.startsWith(prefix));
 }
 
-async function persistLocalUpload(file, userId) {
+async function validateUploadScope(formData, userId) {
+  const workspaceId = String(formData.get("workspaceId") || "") || null;
+  const tableId = String(formData.get("tableId") || "") || null;
+  const rowId = String(formData.get("rowId") || "") || null;
+  const visibility = formData.get("purpose") === "avatar" ? "profile" : "tenant";
+  if (rowId && !(await requireRowPermission(pool, userId, rowId, "editor", tableId))) return null;
+  if (!rowId && tableId && !(await requireBoardPermission(pool, userId, tableId, "editor"))) return null;
+  if (!rowId && !tableId && workspaceId && !(await requireWorkspacePermission(pool, userId, workspaceId, "member"))) return null;
+  return { workspaceId, tableId, rowId, visibility };
+}
+
+async function persistLocalUpload(file, userId, scope) {
+  const fileId = uuidv4();
   const safeName = sanitizeFilename(file.name);
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
   const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -87,16 +104,20 @@ async function persistLocalUpload(file, userId) {
   // Best effort DB persistence for compatibility with existing retrieval paths.
   try {
     await pool.query(
-      "INSERT INTO uploaded_files (id, filename, originalname, mimetype, size, data, uploaded_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())",
-      [`local-${Date.now()}-${Math.round(Math.random() * 1e9)}`, filename, file.name, file.type || "application/octet-stream", file.size, fileBuffer, userId]
+      `INSERT INTO uploaded_files
+        (id,filename,originalname,mimetype,size,data,uploaded_by,workspace_id,table_id,row_id,visibility,storage_provider,created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'database',NOW())`,
+      [fileId, filename, file.name, file.type || "application/octet-stream", file.size, fileBuffer, userId,
+        scope.workspaceId, scope.tableId, scope.rowId, scope.visibility]
     );
   } catch (dbErr) {
     console.error("[UPLOAD][LOCAL] DB persistence skipped:", dbErr?.message || dbErr);
+    throw dbErr;
   }
 
   return {
-    id: `local/${filename}`,
-    url: `/uploads/${encodeURIComponent(filename)}`,
+    id: fileId,
+    url: `/uploads/${encodeURIComponent(fileId)}`,
     name: file.name,
     originalName: file.name,
     type: file.type || "application/octet-stream",
@@ -123,8 +144,10 @@ export async function POST(req) {
       if (!isAllowedUpload(file)) {
         return NextResponse.json({ error: "Unsupported file type or file too large" }, { status: 400 });
       }
+      const scope = await validateUploadScope(formData, user.id);
+      if (!scope) return NextResponse.json({ error: "Upload target not found or forbidden" }, { status: 404 });
 
-      const local = await persistLocalUpload(file, user.id);
+      const local = await persistLocalUpload(file, user.id, scope);
       return NextResponse.json(local);
     } catch (localErr) {
       return NextResponse.json(
@@ -158,20 +181,28 @@ export async function POST(req) {
     if (!isAllowedUpload(file)) {
       return NextResponse.json({ error: "Unsupported file type or file too large" }, { status: 400 });
     }
+    const scope = await validateUploadScope(formData, user.id);
+    if (!scope) return NextResponse.json({ error: "Upload target not found or forbidden" }, { status: 404 });
 
     const safeName = sanitizeFilename(file.name);
     const objectName = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
     const objectPath = `${user.id}/${objectName}`;
+    const targetBucket = scope.visibility === "profile" ? bucketName : privateBucketName;
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    const bucketState = await ensureBucketExists(supabase, targetBucket, scope.visibility === "profile");
+    if (!bucketState.ok) {
+      return NextResponse.json({ error: "Storage bucket is unavailable", details: bucketState.reason }, { status: 500 });
+    }
+
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
     const doUpload = () =>
       supabase.storage
-      .from(bucketName)
+      .from(targetBucket)
       .upload(objectPath, fileBuffer, {
         contentType: file.type || "application/octet-stream",
         upsert: false,
@@ -179,9 +210,9 @@ export async function POST(req) {
 
     let { error: uploadError } = await doUpload();
 
-    // Auto-heal if bucket is missing in production configuration.
+    // Auto-heal if the bucket was removed between validation and upload.
     if (uploadError && /bucket not found/i.test(uploadError.message || "")) {
-      const ensured = await ensureBucketExists(supabase, bucketName);
+      const ensured = await ensureBucketExists(supabase, targetBucket, scope.visibility === "profile");
       if (ensured.ok) {
         ({ error: uploadError } = await doUpload());
       } else {
@@ -198,7 +229,7 @@ export async function POST(req) {
     if (uploadError) {
       console.error("[UPLOAD][SUPABASE] Upload error:", uploadError);
       try {
-        const local = await persistLocalUpload(file, user.id);
+        const local = await persistLocalUpload(file, user.id, scope);
         return NextResponse.json({ ...local, persisted: false, fallback: "local" });
       } catch (localErr) {
         return NextResponse.json(
@@ -212,21 +243,22 @@ export async function POST(req) {
       }
     }
 
-    const { data: publicData } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(objectPath);
-
-    const publicUrl = publicData?.publicUrl || "";
+    const fileId = uuidv4();
+    await pool.query(`INSERT INTO uploaded_files
+      (id,filename,originalname,mimetype,size,uploaded_by,workspace_id,table_id,row_id,visibility,storage_provider,storage_bucket,object_path,created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'supabase',$11,$12,NOW())`,
+      [fileId, objectPath, file.name, file.type || "application/octet-stream", file.size, user.id,
+        scope.workspaceId, scope.tableId, scope.rowId, scope.visibility, targetBucket, objectPath]);
 
     return NextResponse.json({
-      id: objectPath,
-      url: publicUrl,
+      id: fileId,
+      url: `/uploads/${encodeURIComponent(fileId)}`,
       name: file.name,
       originalName: file.name,
       type: file.type || "application/octet-stream",
       size: file.size,
       path: objectPath,
-      bucket: bucketName,
+      bucket: targetBucket,
     });
   } catch (err) {
     console.error("[UPLOAD][POST] Error:", err);

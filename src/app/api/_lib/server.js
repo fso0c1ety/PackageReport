@@ -61,7 +61,8 @@ export async function ensureFleetDriverAccess(user) {
 
 export function getAuthenticatedUser(req) {
   const authHeader = req.headers.get("authorization");
-  const token = authHeader?.split(" ")[1];
+  const cookieToken = req.cookies?.get?.("smart_manage_access")?.value;
+  const token = authHeader?.split(" ")[1] || cookieToken;
 
   if (!token) return null;
   if (!SECRET_KEY) return null;

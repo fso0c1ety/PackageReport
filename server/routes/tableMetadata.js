@@ -1,18 +1,10 @@
 const express = require("express");
 
-function createTableMetadataRouter({ db, logger }) {
+function createTableMetadataRouter({ db, logger, requireTablePermission, requireWorkspacePermission }) {
   const router = express.Router();
 
-  router.patch("/tables/:tableId", async (req, res) => {
+  router.patch("/tables/:tableId", requireTablePermission("editor"), async (req, res) => {
     try {
-      const result = await db.query("SELECT * FROM tables WHERE id = $1", [req.params.tableId]);
-      const table = result.rows[0];
-      if (!table) return res.status(404).json({ error: "Table not found" });
-      const workspaceResult = await db.query("SELECT * FROM workspaces WHERE id = $1", [table.workspace_id]);
-      const workspace = workspaceResult.rows[0];
-      const isOwner = workspace && workspace.owner_id === req.user.id;
-      const isShared = table.shared_users && table.shared_users.includes(req.user.id);
-      if (!isOwner && !isShared) return res.sendStatus(403);
       if (typeof req.body.name !== "string") return res.status(400).json({ error: "Missing or invalid name" });
       await db.query("UPDATE tables SET name = $1 WHERE id = $2", [req.body.name, req.params.tableId]);
       return res.json({ success: true, name: req.body.name });
@@ -22,13 +14,8 @@ function createTableMetadataRouter({ db, logger }) {
     }
   });
 
-  router.delete("/tables/:tableId", async (req, res) => {
+  router.delete("/tables/:tableId", requireTablePermission("owner"), async (req, res) => {
     try {
-      const result = await db.query("SELECT * FROM tables WHERE id = $1", [req.params.tableId]);
-      const table = result.rows[0];
-      if (!table) return res.status(404).json({ error: "Table not found" });
-      const workspaceResult = await db.query("SELECT * FROM workspaces WHERE id = $1", [table.workspace_id]);
-      if (!workspaceResult.rows[0] || workspaceResult.rows[0].owner_id !== req.user.id) return res.sendStatus(403);
       await db.query("DELETE FROM tables WHERE id = $1", [req.params.tableId]);
       return res.json({ success: true });
     } catch (error) {
@@ -37,16 +24,8 @@ function createTableMetadataRouter({ db, logger }) {
     }
   });
 
-  router.put("/tables/:tableId/columns", async (req, res) => {
+  router.put("/tables/:tableId/columns", requireTablePermission("admin"), async (req, res) => {
     try {
-      const result = await db.query("SELECT * FROM tables WHERE id = $1", [req.params.tableId]);
-      const table = result.rows[0];
-      if (!table) return res.status(404).json({ error: "Table not found" });
-      const workspaceResult = await db.query("SELECT * FROM workspaces WHERE id = $1", [table.workspace_id]);
-      const workspace = workspaceResult.rows[0];
-      const isOwner = workspace && workspace.owner_id === req.user.id;
-      const isShared = Array.isArray(table.shared_users) && table.shared_users.some((user) => user.userId === req.user.id);
-      if (!isOwner && !isShared) return res.sendStatus(403);
       await db.query("UPDATE tables SET columns = $1 WHERE id = $2", [JSON.stringify(req.body.columns), req.params.tableId]);
       return res.json({ success: true, columns: req.body.columns });
     } catch (error) {

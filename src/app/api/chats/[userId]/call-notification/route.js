@@ -6,6 +6,7 @@ import {
   pool,
 } from "../../../_lib/server";
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
+import { usersMayCommunicate } from "../../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,13 @@ export async function POST(req, { params }) {
 
   try {
     const { userId } = await params;
+    if (!(await usersMayCommunicate(pool, user.id, userId))) {
+      return NextResponse.json({ error: "Call target not found or forbidden" }, { status: 404 });
+    }
     const body = await req.json();
+    if (Buffer.byteLength(JSON.stringify(body || {}), "utf8") > 64 * 1024) {
+      return NextResponse.json({ error: "Call payload is too large" }, { status: 413 });
+    }
     const payload = {
       callerId: user.id,
       callerName: body?.callerName || "User",

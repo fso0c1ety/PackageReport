@@ -4,6 +4,7 @@ const db = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const authenticateToken = require('../middleware/authenticateToken');
 const { sendPushNotification } = require('../firebase');
+const { usersMayCommunicate } = require('../socket/security');
 
 router.get('/calls/ice-config', authenticateToken, (req, res) => {
     const iceServers = [
@@ -55,6 +56,7 @@ router.get('/chats/:userId', authenticateToken, async (req, res) => {
     const otherId = req.params.userId;
 
     try {
+        if (!(await usersMayCommunicate(db, myId, otherId))) return res.status(404).json({ error: 'Conversation not found or forbidden' });
         const result = await db.query(
             `SELECT * FROM direct_messages 
        WHERE (sender_id = $1 AND recipient_id = $2) 
@@ -76,9 +78,11 @@ router.post('/chats/:userId', authenticateToken, async (req, res) => {
     const { text } = req.body;
 
     if (!text) return res.status(400).json({ error: 'Message text is required' });
+    if (String(text).length > 10000) return res.status(413).json({ error: 'Message is too large' });
     if (myId === otherId) return res.status(400).json({ error: 'You cannot message yourself' });
 
     try {
+        if (!(await usersMayCommunicate(db, myId, otherId))) return res.status(404).json({ error: 'Conversation not found or forbidden' });
         const newMessage = {
             id: uuidv4(),
             sender_id: myId,
@@ -133,6 +137,8 @@ router.post('/chats/:userId/call-notification', authenticateToken, async (req, r
     const { callerName, callerAvatar, isVideo, offer, callId, sentAt } = req.body;
 
     try {
+        if (!(await usersMayCommunicate(db, myId, otherId))) return res.status(404).json({ error: 'Call target not found or forbidden' });
+        if (Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8') > 64 * 1024) return res.status(413).json({ error: 'Call payload is too large' });
         await sendDirectNotification(
             otherId,
             'Incoming Call',

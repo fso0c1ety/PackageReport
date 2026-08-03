@@ -1,20 +1,37 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { pool } from "../../api/_lib/server";
+import { createClient } from "@supabase/supabase-js";
+import { getAuthenticatedUser, pool } from "../../api/_lib/server";
+import { requireFilePermission } from "../../api/_lib/authorization";
 
 export const runtime = "nodejs";
 
-export async function GET(_req, { params }) {
+export async function GET(req, { params }) {
   try {
+    const user = getAuthenticatedUser(req);
+    if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { filename } = await params;
     const decodedFilename = decodeURIComponent(filename);
-    const dbRes = await pool.query(
-      "SELECT mimetype, originalname, data FROM uploaded_files WHERE filename = $1 OR filename = $2",
-      [filename, decodedFilename]
-    );
+    const access = await requireFilePermission(pool, user.id, decodedFilename, "viewer");
+    if (!access) return NextResponse.json({ error: "File not found or forbidden" }, { status: 404 });
+    const fileRecord = access.file;
 
-    if (!dbRes.rows[0]) {
+    if (fileRecord.storage_provider === "supabase") {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_KEY;
+      if (!url || !key) return NextResponse.json({ error: "Storage is unavailable" }, { status: 503 });
+      const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data, error } = await client.storage.from(fileRecord.storage_bucket || "uploads").download(fileRecord.object_path);
+      if (error || !data) return NextResponse.json({ error: "File not found" }, { status: 404 });
+      return new NextResponse(Buffer.from(await data.arrayBuffer()), { status: 200, headers: {
+        "Content-Type": fileRecord.mimetype || "application/octet-stream",
+        "Content-Disposition": `inline; filename="${encodeURIComponent(fileRecord.originalname || decodedFilename)}"`,
+        "Cache-Control": "private, no-store",
+      }});
+    }
+
+    if (!fileRecord.data) {
       const candidates = [
         path.join(process.cwd(), "uploads", decodedFilename),
         path.join(process.cwd(), "uploads", filename),
@@ -41,7 +58,7 @@ export async function GET(_req, { params }) {
             headers: {
               "Content-Type": mimeMap[ext] || "application/octet-stream",
               "Content-Disposition": `inline; filename="${encodeURIComponent(decodedFilename)}"`,
-              "Cache-Control": "public, max-age=31536000",
+              "Cache-Control": "private, no-store",
             },
           });
         }
@@ -50,14 +67,12 @@ export async function GET(_req, { params }) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const fileRecord = dbRes.rows[0];
-
     return new NextResponse(fileRecord.data, {
       status: 200,
       headers: {
         "Content-Type": fileRecord.mimetype || "application/octet-stream",
         "Content-Disposition": `inline; filename="${encodeURIComponent(fileRecord.originalname || decodedFilename)}"`,
-        "Cache-Control": "public, max-age=31536000",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (err) {

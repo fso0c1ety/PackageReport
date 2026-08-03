@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool } from "../_lib/server";
 import { issueEmailOtp } from "../_lib/twoFactor";
-import { issueSession, refreshCookieOptions, REFRESH_COOKIE } from "../_lib/authSessions";
+import { ACCESS_COOKIE, accessCookieOptions, issueSession, refreshCookieOptions, REFRESH_COOKIE } from "../_lib/authSessions";
 import { getLoginProtectionState, recordAuthenticationEvent } from "../_lib/loginProtection";
 
 export const runtime = "nodejs";
@@ -53,6 +53,7 @@ export async function POST(req) {
       delete safeUser.password;
       const response = NextResponse.json({ token: session.token, refreshToken: nativeClient ? session.refreshToken : undefined, sessionId: session.sessionId, user: { ...safeUser, avatar }, requiresTwoFactor: false });
       if (session.refreshToken) response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+      response.cookies.set(ACCESS_COOKIE, session.token, accessCookieOptions());
       return response;
     }
 

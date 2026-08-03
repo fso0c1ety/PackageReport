@@ -26,6 +26,7 @@ function routeContracts(router) {
 
 test("extracted routers preserve their legacy endpoint contracts", () => {
   const logger = { error() {} };
+  const permission = () => (_req, _res, next) => next();
   assert.deepEqual(routeContracts(createSystemRouter({ buildCommit: "test", buildDate: "test" })), [
     { path: "/version", methods: ["get"] },
   ]);
@@ -46,7 +47,7 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
     { path: "/workspaces/:workspaceId/tables", methods: ["get"] },
     { path: "/workspaces/:workspaceId/tables", methods: ["post"] },
   ]);
-  assert.deepEqual(routeContracts(createTableMetadataRouter({ db: {}, logger })), [
+  assert.deepEqual(routeContracts(createTableMetadataRouter({ db: {}, logger, requireTablePermission: permission, requireWorkspacePermission: permission })), [
     { path: "/tables/:tableId", methods: ["patch"] },
     { path: "/tables/:tableId", methods: ["delete"] },
     { path: "/tables/:tableId/columns", methods: ["put"] },
@@ -61,13 +62,13 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
     { path: "/tables/:tableId/tasks", methods: ["get"] },
     { path: "/tables/:tableId/tasks/:taskId", methods: ["get"] },
   ]);
-  assert.deepEqual(routeContracts(createTaskMutationsRouter({ db: {}, getTableAccess() {}, logger })), [
+  assert.deepEqual(routeContracts(createTaskMutationsRouter({ db: {}, getTableAccess() {}, logger, requireTablePermission: permission, requireRowPermission: permission })), [
     { path: "/tables/:tableId/tasks", methods: ["post"] },
     { path: "/tables/:tableId/doc", methods: ["put"] },
     { path: "/tables/:tableId/tasks/:taskId", methods: ["delete"] },
     { path: "/tables/:tableId/tasks/order", methods: ["put"] },
   ]);
-  assert.deepEqual(routeContracts(createTaskUpdatesRouter({ appQueue: {}, db: {}, logger, sendNotification() {} })), [
+  assert.deepEqual(routeContracts(createTaskUpdatesRouter({ appQueue: {}, db: {}, logger, requireRowPermission: permission, sendNotification() {} })), [
     { path: "/tables/:tableId/tasks", methods: ["put"] },
   ]);
   assert.deepEqual(routeContracts(createTableSharingRouter({ billingService: {}, db: {}, logger, sendPushNotification() {} })), [
@@ -93,7 +94,7 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
     { path: "/email-updates", methods: ["get"] },
   ]);
   assert.deepEqual(routeContracts(createCompatibilityFilesRouter({
-    db: {}, legacyUploadDir: "legacy", logger, sharedUploadDir: "shared",
+    authenticateToken: permission, db: {}, legacyUploadDir: "legacy", logger, requireFilePermission: permission, sharedUploadDir: "shared",
   })), [
     { path: "/uploads/:filename", methods: ["get"] },
   ]);

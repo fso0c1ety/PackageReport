@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { assertSocketIdentity, authenticatedCallPayload, socketUserId } = require("./identity");
+const { createSocketEventGuard, isSafeIdentifier, usersMayCommunicate } = require("./security");
 
 function attachSocketServer(io, {
   db,
@@ -10,6 +11,14 @@ function attachSocketServer(io, {
 }) {
   const pendingOffers = new Map();
   const userSockets = new Map();
+  const allowEvent = createSocketEventGuard();
+
+  function rejectUnsafeEvent(socket, eventName, payload) {
+    if (allowEvent(socket.id, eventName, payload)) return false;
+    socket.emit("error", { code: "INVALID_EVENT", message: "Event payload rejected" });
+    logger.warn("socket_event_rejected", { eventName, socketId: socket.id, userId: socketUserId(socket) });
+    return true;
+  }
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token
@@ -29,6 +38,7 @@ function attachSocketServer(io, {
 
     socket.on("join_table", async (tableId) => {
       try {
+        if (!isSafeIdentifier(tableId)) throw new Error("Invalid table identifier");
         const table = await getTableAccess(db, tableId, userId, "viewer");
         if (!table) throw new Error("Table access denied");
         socket.join(`table:${tableId}`);
@@ -41,6 +51,7 @@ function attachSocketServer(io, {
     });
 
     const forwardTableEvent = async (eventName, payload = {}) => {
+      if (rejectUnsafeEvent(socket, eventName, payload)) return;
       const tableId = payload.tableId;
       const table = tableId && await getTableAccess(db, tableId, userId, "viewer");
       if (!table) {
@@ -59,6 +70,10 @@ function attachSocketServer(io, {
     socket.on("stop_typing_task", (payload) => forwardTableEvent("stop_typing_task", payload));
 
     socket.on("join_task", async (taskId) => {
+      if (!isSafeIdentifier(taskId)) {
+        socket.emit("error", { code: "INVALID_EVENT", message: "Invalid task identifier" });
+        return;
+      }
       const result = await db.query("SELECT table_id FROM rows WHERE id=$1", [taskId]);
       const tableId = result.rows[0]?.table_id;
       const table = tableId && await getTableAccess(db, tableId, userId, "viewer");
@@ -93,8 +108,13 @@ function attachSocketServer(io, {
 
     socket.on("call_offer", async (rawPayload = {}) => {
       try {
+        if (rejectUnsafeEvent(socket, "call_offer", rawPayload)) return;
         const payload = authenticatedCallPayload(socket, rawPayload);
         if (!payload.targetId) return;
+        if (!(await usersMayCommunicate(db, userId, payload.targetId))) {
+          socket.emit("error", { code: "FORBIDDEN", message: "Call target is not authorized" });
+          return;
+        }
         socket.to(`user_${payload.targetId}`).emit("call_offer", payload);
         pendingOffers.set(String(payload.targetId), payload);
         setTimeout(() => {
@@ -118,8 +138,13 @@ function attachSocketServer(io, {
     });
 
     for (const eventName of ["call_answer", "call_ringing", "call_busy", "call_ice_candidate", "call_end", "call_reject"]) {
-      socket.on(eventName, (payload = {}) => {
+      socket.on(eventName, async (payload = {}) => {
+        if (rejectUnsafeEvent(socket, eventName, payload)) return;
         if (!payload.targetId) return;
+        if (!(await usersMayCommunicate(db, userId, payload.targetId))) {
+          socket.emit("error", { code: "FORBIDDEN", message: "Call target is not authorized" });
+          return;
+        }
         pendingOffers.delete(String(payload.targetId));
         socket.to(`user_${payload.targetId}`).emit(eventName, { ...payload, senderId: userId });
       });

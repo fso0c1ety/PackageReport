@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { REFRESH_COOKIE, refreshCookieOptions, rotateSession } from "../../_lib/authSessions";
+import { ACCESS_COOKIE, accessCookieOptions, REFRESH_COOKIE, refreshCookieOptions, rotateSession } from "../../_lib/authSessions";
 
 export const runtime = "nodejs";
 
@@ -12,6 +12,7 @@ export async function POST(req) {
     if (!session) {
       const response = NextResponse.json({ error: "Refresh session is invalid or expired" }, { status: 401 });
       response.cookies.delete(REFRESH_COOKIE);
+      response.cookies.delete(ACCESS_COOKIE);
       return response;
     }
     const response = NextResponse.json({
@@ -20,6 +21,7 @@ export async function POST(req) {
       sessionId: session.sessionId,
     });
     response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    response.cookies.set(ACCESS_COOKIE, session.token, accessCookieOptions());
     return response;
   } catch {
     return NextResponse.json({ error: "Unable to refresh session" }, { status: 500 });

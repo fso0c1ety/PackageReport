@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { pool, SECRET_KEY } from "./server";
 
 export const REFRESH_COOKIE = "smart_manage_refresh";
+export const ACCESS_COOKIE = "smart_manage_access";
 const ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || "20m";
 const REFRESH_DAYS = Math.max(1, Number(process.env.REFRESH_TOKEN_DAYS || 30));
 
@@ -26,6 +27,16 @@ export function refreshCookieOptions() {
     sameSite: "lax",
     path: "/api",
     maxAge: REFRESH_DAYS * 24 * 60 * 60,
+  };
+}
+
+export function accessCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 20 * 60,
   };
 }
 

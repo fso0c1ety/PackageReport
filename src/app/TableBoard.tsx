@@ -1103,6 +1103,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (pendingBoardFile) {
   const formData = new FormData();
   formData.append('file', pendingBoardFile);
+  formData.append('tableId', tableId);
 
   try {
   const uploadRes = await authenticatedFetch(getApiUrl('/upload'), {
@@ -2107,6 +2108,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   try {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('tableId', tableId);
   const uploadResponse = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
   const uploadData = await uploadResponse.json();
   if (!uploadResponse.ok || !uploadData?.url) throw new Error(uploadData?.error || 'Upload failed');
@@ -4241,6 +4243,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const uploadPromises = Array.from(files).map(async (file) => {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('tableId', tableId);
+  formData.append('rowId', rowId);
 
   try {
   let res = await authenticatedFetch(getApiUrl('/upload'), {
@@ -4252,6 +4256,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Fallback: try Next.js local upload route if backend upload endpoint errors.
   const fallbackFormData = new FormData();
   fallbackFormData.append('file', file);
+  fallbackFormData.append('tableId', tableId);
+  fallbackFormData.append('rowId', rowId);
   const fallbackRes = await authenticatedFetch('/api/upload', {
   method: 'POST',
   body: fallbackFormData,
@@ -5253,6 +5259,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (chatAttachment) {
   const formData = new FormData();
   formData.append('file', chatAttachment);
+  formData.append('tableId', tableId);
+  formData.append('rowId', targetId);
 
   const res = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
   if (!res.ok) {

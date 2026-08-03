@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "../../_lib/server";
-import { REFRESH_COOKIE, revokeUserSessions } from "../../_lib/authSessions";
+import { ACCESS_COOKIE, REFRESH_COOKIE, revokeUserSessions } from "../../_lib/authSessions";
 
 export const runtime = "nodejs";
 
@@ -10,5 +10,6 @@ export async function POST(req) {
   await revokeUserSessions(user.id, user.sid || null, "logout");
   const response = NextResponse.json({ success: true });
   response.cookies.delete(REFRESH_COOKIE);
+  response.cookies.delete(ACCESS_COOKIE);
   return response;
 }

@@ -1,10 +1,10 @@
 const express = require("express");
 const { v4: uuidv4, validate: uuidValidate } = require("uuid");
 
-function createTaskMutationsRouter({ db, getTableAccess, logger }) {
+function createTaskMutationsRouter({ db, getTableAccess, logger, requireTablePermission, requireRowPermission }) {
   const router = express.Router();
 
-  router.post("/tables/:tableId/tasks", async (req, res) => {
+  router.post("/tables/:tableId/tasks", requireTablePermission("editor"), async (req, res) => {
     try {
       const task = {
         id: uuidValidate(req.body.id) ? req.body.id : uuidv4(),
@@ -24,7 +24,7 @@ function createTaskMutationsRouter({ db, getTableAccess, logger }) {
     }
   });
 
-  router.put("/tables/:tableId/doc", async (req, res) => {
+  router.put("/tables/:tableId/doc", requireTablePermission("editor"), async (req, res) => {
     try {
       await db.query("UPDATE tables SET doc_content = $1 WHERE id = $2", [req.body.content, req.params.tableId]);
       return res.json({ success: true, content: req.body.content });
@@ -34,7 +34,7 @@ function createTaskMutationsRouter({ db, getTableAccess, logger }) {
     }
   });
 
-  router.delete("/tables/:tableId/tasks/:taskId", async (req, res) => {
+  router.delete("/tables/:tableId/tasks/:taskId", requireRowPermission("editor"), async (req, res) => {
     try {
       const result = await db.query("DELETE FROM rows WHERE id = $1 AND table_id = $2", [req.params.taskId, req.params.tableId]);
       if (result.rowCount === 0) return res.status(404).json({ error: "Task not found" });
@@ -47,7 +47,7 @@ function createTaskMutationsRouter({ db, getTableAccess, logger }) {
     }
   });
 
-  router.put("/tables/:tableId/tasks/order", async (req, res) => {
+  router.put("/tables/:tableId/tasks/order", requireTablePermission("editor"), async (req, res) => {
     const { orderedTaskIds } = req.body;
     if (!Array.isArray(orderedTaskIds) || orderedTaskIds.length === 0) {
       return res.status(400).json({ error: "orderedTaskIds must be a non-empty array" });

@@ -5,7 +5,9 @@ const SECRET_KEY = getJwtSecret();
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const cookieToken = String(req.headers.cookie || '').split(';').map((part) => part.trim().split('='))
+    .find(([name]) => name === 'smart_manage_access')?.[1];
+  const token = (authHeader && authHeader.split(' ')[1]) || cookieToken;
 
   if (token == null) return res.sendStatus(401);
 

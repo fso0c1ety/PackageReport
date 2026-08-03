@@ -10,7 +10,7 @@ function run(command, args, extraEnv = {}) {
 }
 
 if (process.env.VERCEL_ENV === 'production') {
-  run('npm', ['run', 'db:migrate'], { MIGRATION_TARGET: '020_account_security.sql' });
+  run('npm', ['run', 'db:migrate'], { MIGRATION_TARGET: '020_account_security.sql,021_tenant_file_security.sql' });
 }
 
 run('npm', ['run', 'build']);

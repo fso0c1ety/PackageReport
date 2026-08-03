@@ -6,6 +6,7 @@ import {
   pool,
 } from "../../_lib/server";
 import { sendPushNotification } from "../../_lib/firebaseAdmin";
+import { usersMayCommunicate } from "../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,9 @@ export async function GET(req, { params }) {
 
   try {
     const { userId } = await params;
+    if (!(await usersMayCommunicate(pool, user.id, userId))) {
+      return NextResponse.json({ error: "Conversation not found or forbidden" }, { status: 404 });
+    }
     const result = await pool.query(
       `
         SELECT *
@@ -49,9 +53,13 @@ export async function POST(req, { params }) {
     if (!text) {
       return NextResponse.json({ error: "Message text is required" }, { status: 400 });
     }
+    if (text.length > 10000) return NextResponse.json({ error: "Message is too large" }, { status: 413 });
 
     if (user.id === userId) {
       return NextResponse.json({ error: "You cannot message yourself" }, { status: 400 });
+    }
+    if (!(await usersMayCommunicate(pool, user.id, userId))) {
+      return NextResponse.json({ error: "Conversation not found or forbidden" }, { status: 404 });
     }
 
     const message = {
