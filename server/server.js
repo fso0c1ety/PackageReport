@@ -34,86 +34,6 @@ const BUILD_DATE = '2026-03-28';
 console.log(`[Build] Commit: ${BUILD_COMMIT}`);
 console.log(`[Build] Date: ${BUILD_DATE}`);
 
-// --- Production Database Auto-Repair ---
-async function bootstrapProductionDb() {
-    console.log('[DB-BOOTSTRAP] Checking schema integrity...');
-    try {
-        // 1. users table: Add fcm_tokens and profile columns
-        await db.query(`
-            ALTER TABLE public.users 
-            ADD COLUMN IF NOT EXISTS fcm_tokens JSONB DEFAULT '[]'::jsonb,
-            ADD COLUMN IF NOT EXISTS phone TEXT,
-            ADD COLUMN IF NOT EXISTS job_title TEXT,
-            ADD COLUMN IF NOT EXISTS company TEXT,
-            ADD COLUMN IF NOT EXISTS first_name TEXT,
-            ADD COLUMN IF NOT EXISTS last_name TEXT,
-            ADD COLUMN IF NOT EXISTS birth_date DATE,
-            ADD COLUMN IF NOT EXISTS gender TEXT;
-        `);
-
-        // 2. tables table: Add invite_code and shared_users
-        await db.query(`
-            ALTER TABLE tables 
-            ADD COLUMN IF NOT EXISTS invite_code TEXT,
-            ADD COLUMN IF NOT EXISTS shared_users JSONB DEFAULT '[]'::jsonb;
-        `);
-
-        // 3. rows table: Add created_by and created_at
-        await db.query(`
-            ALTER TABLE rows 
-            ADD COLUMN IF NOT EXISTS created_by TEXT,
-            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
-        `);
-
-        // 4. activity_logs: Add status and error_message
-        await db.query(`
-            ALTER TABLE activity_logs 
-            ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent',
-            ADD COLUMN IF NOT EXISTS error_message TEXT;
-        `);
-
-
-
-        // 5. table_chats: Add sender_id and ensure attachment is JSONB
-        await db.query(`
-            ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS sender_id TEXT;
-            ALTER TABLE table_chats ADD COLUMN IF NOT EXISTS attachment JSONB;
-            -- Ensure type is actually JSONB if it was already created as something else
-            DO $$ 
-            BEGIN 
-                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'table_chats' AND column_name = 'attachment' AND data_type <> 'jsonb') THEN
-                    ALTER TABLE table_chats ALTER COLUMN attachment TYPE JSONB USING attachment::jsonb;
-                END IF;
-            END $$;
-        `);
-
-        // 6. uploaded_files table for persisting uploads
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS uploaded_files (
-                id TEXT PRIMARY KEY,
-                filename TEXT UNIQUE,
-                originalname TEXT,
-                mimetype TEXT,
-                size BIGINT,
-                data BYTEA,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        `);
-
-        console.log('[DB-BOOTSTRAP] Schema repair completed successfully.');
-    } catch (err) {
-        console.error('[DB-BOOTSTRAP] Error during schema repair:', err.message);
-    }
-}
-
-// Schema changes now live in server/db/migrations and run via npm run db:migrate.
-if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
-  bootstrapProductionDb();
-} else {
-  logger.info('startup_migrations_skipped', { reason: 'Use npm run db:migrate' });
-}
-
-
 const http = require('http');
 const { Server } = require("socket.io");
 const { attachSocketServer } = require('./socket');
@@ -164,8 +84,9 @@ attachSocketServer(io, {
 });
 
 // --- Legacy Database Schema Migrations ---
+let startupMigrationPromise = Promise.resolve();
 if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
-(async () => {
+startupMigrationPromise = (async () => {
   try {
     await db.query(`
       ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS status TEXT;
@@ -225,7 +146,8 @@ if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
 
     console.log('[DB] Schema checked/updated.');
   } catch (err) {
-    console.error('[DB] Schema migration error:', err);
+    logger.error('legacy_schema_migration_failed', { error: err.message });
+    throw err;
   }
 })();
 } else {
@@ -735,11 +657,6 @@ app.post('/api/workspaces/:workspaceId/tables', authenticateToken, async (req, r
 });
 
 
-
-// Helper to check table ownership (kept for potential internal use, but mostly replaced by SQL)
-function getWorkspaceForTable(workspaces, table) {
-  return workspaces.find(w => w.id === table.workspaceId);
-}
 
 app.patch('/api/tables/:tableId', authenticateToken, async (req, res) => {
   try {
@@ -2576,6 +2493,7 @@ bootstrap({
   server,
   port: PORT,
   skipNextApp: SKIP_NEXT_APP,
+  beforeStart: () => startupMigrationPromise,
   logger,
 }).catch((error) => {
   logger.error('server_bootstrap_failed', { error: error.message });

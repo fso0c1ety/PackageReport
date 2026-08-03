@@ -31,3 +31,17 @@ test("API-only bootstrap skips Next preparation", async () => {
   });
   assert.deepEqual(calls, ["listen"]);
 });
+
+test("bootstrap stops before listening when startup migration fails", async () => {
+  let listened = false;
+  await assert.rejects(
+    bootstrap({
+      app: { all() {} }, handle() {}, nextApp: { async prepare() {} },
+      server: { once() {}, removeListener() {}, listen() { listened = true; } },
+      port: 4000, skipNextApp: true, logger: { info() {} },
+      beforeStart: async () => { throw new Error("migration failed"); },
+    }),
+    /migration failed/,
+  );
+  assert.equal(listened, false);
+});

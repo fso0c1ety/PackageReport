@@ -9,7 +9,8 @@ function listen(server, port, logger = console) {
   });
 }
 
-async function bootstrap({ app, handle, nextApp, server, port, skipNextApp, logger = console }) {
+async function bootstrap({ app, beforeStart, handle, nextApp, server, port, skipNextApp, logger = console }) {
+  if (beforeStart) await beforeStart();
   if (!skipNextApp) {
     await nextApp.prepare();
     app.all(/(.*)/, (req, res) => handle(req, res));
