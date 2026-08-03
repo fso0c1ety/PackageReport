@@ -1,7 +1,3 @@
-// --- Task Order Endpoint for Drag-and-Drop ---
-// (Endpoint is now placed at the end of the file, after all initialization)
-console.log('Server process starting...');
-process.on('exit', (code) => console.log(`Process exit with code: ${code}`));
 const express = require('express');
 const { configureCoreMiddleware, mountCoreRoutes } = require('./app');
 const { createNexusRouter } = require('./routes/nexus');
@@ -19,6 +15,7 @@ const { createTableSharingRouter } = require('./routes/tableSharing');
 const { createTeammatesRouter } = require('./routes/teammates');
 const { createTableCreationRouter } = require('./routes/tableCreation');
 const { createActivityUpdatesRouter } = require('./routes/activityUpdates');
+const { createCompatibilityFilesRouter } = require('./routes/compatibilityFiles');
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
@@ -36,6 +33,8 @@ const { getTableAccess } = require('./services/permissions');
 const requireTablePermission = require('./middleware/requireTablePermission');
 const tableService = require('./services/tableService');
 const logger = require('./utils/logger');
+logger.info('server_process_starting');
+process.on('exit', (code) => logger.info('server_process_exit', { code }));
 const { appQueue } = require('./jobs');
 const { startScheduledMessageJob } = require('./jobs/scheduledMessages');
 const billingService = require('./services/billingService');
@@ -43,8 +42,7 @@ const { normalizeActivityHtml } = require('./utils/formatCellValue');
 const BUILD_COMMIT = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'edc8e7463386ac815cb01ca7bdaa24346ba30c97';
 const BUILD_DATE = '2026-03-28';
 
-console.log(`[Build] Commit: ${BUILD_COMMIT}`);
-console.log(`[Build] Date: ${BUILD_DATE}`);
+logger.info('server_build', { commit: BUILD_COMMIT, date: BUILD_DATE });
 
 const http = require('http');
 const { Server } = require("socket.io");
@@ -66,7 +64,7 @@ for (const dir of [SHARED_UPLOAD_DIR, LEGACY_UPLOAD_DIR]) {
       fs.mkdirSync(dir, { recursive: true });
     }
   } catch (mkdirErr) {
-    console.error('[Upload] Failed to ensure upload directory:', dir, mkdirErr);
+    logger.error('upload_directory_create_failed', { directory: dir, error: mkdirErr.message });
   }
 }
 
@@ -146,17 +144,17 @@ startupMigrationPromise = (async () => {
     try {
       const missingCodes = await db.query('SELECT id FROM tables WHERE invite_code IS NULL');
       if (missingCodes.rows.length > 0) {
-        console.log(`[DB] Backfilling invite codes for ${missingCodes.rows.length} tables...`);
+        logger.info('legacy_invite_codes_backfill_started', { count: missingCodes.rows.length });
         for (const table of missingCodes.rows) {
           const code = Math.random().toString(36).substring(2, 8).toUpperCase();
           await db.query('UPDATE tables SET invite_code = $1 WHERE id = $2', [code, table.id]);
         }
       }
     } catch (err) {
-      console.error('[DB] Error backfilling invite codes:', err);
+      logger.error('legacy_invite_codes_backfill_failed', { error: err.message });
     }
 
-    console.log('[DB] Schema checked/updated.');
+    logger.info('legacy_schema_migration_complete');
   } catch (err) {
     logger.error('legacy_schema_migration_failed', { error: err.message });
     throw err;
@@ -198,7 +196,7 @@ mountCoreRoutes(app, {
     taskUpdates: createTaskUpdatesRouter({ appQueue, db, logger, sendNotification }),
     tableSharing: createTableSharingRouter({ billingService, db, logger, sendPushNotification }),
     teammates: createTeammatesRouter({ db, logger }),
-    tableCreation: createTableCreationRouter({ db }),
+    tableCreation: createTableCreationRouter({ db, logger }),
     activityUpdates: createActivityUpdatesRouter({ db, logger, normalizeActivityHtml }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
@@ -212,54 +210,10 @@ mountCoreRoutes(app, {
     chats: chatsRoute,
   },
 });
-// Serve uploaded files statically from the shared uploads directory first,
-// then fall back to the legacy server-local directory for older files.
-app.use('/uploads', express.static(SHARED_UPLOAD_DIR));
-app.use('/uploads', express.static(LEGACY_UPLOAD_DIR));
-// Explicitly handle file serving to debug or catch encoding issues
-app.get('/uploads/:filename', async (req, res) => {
-  const filename = req.params.filename;
-  // Decode filename just in case it's still encoded
-  const decodedFilename = decodeURIComponent(filename);
-  
-  // 1. Check PostgreSQL database first
-  try {
-      const dbRes = await db.query('SELECT mimetype, data FROM uploaded_files WHERE filename = $1 OR filename = $2', [filename, decodedFilename]);
-      if (dbRes.rows.length > 0) {
-          const fileRecord = dbRes.rows[0];
-          res.setHeader('Content-Type', fileRecord.mimetype || 'application/octet-stream');
-          res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-          return res.send(fileRecord.data);
-      }
-  } catch (err) {
-      console.error('[Serve DB File Error]', err);
-  }
-
-  // 2. Fall back to disk (local files, if they exist)
-  const candidates = [
-    path.join(SHARED_UPLOAD_DIR, decodedFilename),
-    path.join(SHARED_UPLOAD_DIR, filename),
-    path.join(LEGACY_UPLOAD_DIR, decodedFilename),
-    path.join(LEGACY_UPLOAD_DIR, filename),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return res.sendFile(candidate);
-    }
-  }
-
-  res.status(404).json({ error: 'File not found' });
-});
+app.use(createCompatibilityFilesRouter({ db, legacyUploadDir: LEGACY_UPLOAD_DIR, logger, sharedUploadDir: SHARED_UPLOAD_DIR }));
 
 // Port is handled after route registration
 const PORT = process.env.PORT || 4000;
-
-// Log all requests
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url} body:`, req.body);
-  next();
-});
 
 
 
@@ -276,11 +230,14 @@ app.use((req, res, next) => {
 app.use(errorHandler(logger));
 
 process.on('uncaughtException', (err) => {
-  console.error('[CRITICAL] Uncaught exception:', err);
+  logger.error('uncaught_exception', { error: err.message, stack: err.stack });
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('unhandled_rejection', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    promise: String(promise),
+  });
 });
 
 const SKIP_NEXT_APP = process.env.SKIP_NEXT_APP === 'true';

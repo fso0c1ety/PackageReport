@@ -4,7 +4,7 @@ const fetch = require("node-fetch");
 const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 
-function createTableCreationRouter({ db }) {
+function createTableCreationRouter({ db, logger }) {
   const router = express.Router();
 
 // Create a table (must provide workspaceId)
@@ -52,7 +52,7 @@ router.post('/tables', async (req, res) => {
 
     res.json(newTable);
   } catch (err) {
-    console.error('Error creating table:', err);
+    logger.error('table_create_failed', { userId: req.user.id, workspaceId: req.body.workspaceId, error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -333,16 +333,16 @@ router.post('/tables/import-excel', async (req, res) => {
         raw.push(rowValues);
       });
 
-      console.log(`[Import Excel] Analyzing with Nexus Brain...`);
+      logger.info('excel_import_analysis_started', { workspaceId, filename: req.file.originalname });
       let aiResult;
       const mondayResult = analyzeMondayExport(raw);
       try {
         aiResult = mondayResult || await analyzeExcelWithNexusBrain(raw);
         if (mondayResult) {
-          console.log('[Import Excel] Detected monday.com export; using deterministic column mapping.');
+          logger.info('excel_import_monday_detected', { workspaceId, filename: req.file.originalname });
         }
       } catch (aiErr) {
-        console.warn(`[Nexus Brain] Analysis failed, falling back to basic detection:`, aiErr);
+        logger.warn('excel_import_ai_analysis_failed', { workspaceId, error: aiErr.message, fallback: 'basic_detection' });
         // Fallback to basic detection if AI fails
         let headerIdx = 0;
         for (let i = 0; i < Math.min(raw.length, 20); i++) {
@@ -483,11 +483,11 @@ router.post('/tables/import-excel', async (req, res) => {
         }
       }
 
-      console.log(`[Import Excel] Success. Built table with ${rowCount} rows.`);
+      logger.info('excel_import_complete', { workspaceId, tableId, rowCount });
       res.json({ tableId, tableName: tableName || worksheet.name, columns: dbColumns, rowCount });
 
     } catch (err) {
-      console.error('[Import Excel Error]', err);
+      logger.error('excel_import_failed', { workspaceId, filename: req.file.originalname, error: err.message });
       res.status(500).json({ error: err.message });
     }
   });
