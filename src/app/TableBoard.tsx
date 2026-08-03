@@ -4119,7 +4119,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   cellSaveVersionsRef.current[saveKey] = saveVersion;
   rowsStore.getState().upsertRow(updatedRow);
   rowsRef.current = sourceRows.map((row) => row.id === rowId ? updatedRow : row);
-  broadcastTableChange('row-change', { eventType: 'UPDATE', row: updatedRow });
+  broadcastTableChange('row-change', { eventType: 'UPDATE', row: updatedRow, changedColumnId: colId, clientVersion: saveVersion, changedAt: Date.now() });
   if (reviewTaskRef.current?.id === rowId) {
   setReviewTaskSynced(updatedRow);
   }
@@ -4170,10 +4170,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   await pendingCreation;
   }
   const latestRow = rowsStore.getState().rowsById[rowId] ?? updatedRow;
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-  method: "PUT",
+  const derivedValues = Object.fromEntries(columns.filter((candidate) => candidate.type === 'Formula').map((candidate) => [candidate.id, latestRow.values?.[candidate.id]]));
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}/cells/${colId}`), {
+  method: "PATCH",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ id: rowId, values: latestRow.values }),
+  body: JSON.stringify({ value: latestRow.values?.[colId], derivedValues, clientVersion: saveVersion }),
   });
 
   if (!response.ok) {
