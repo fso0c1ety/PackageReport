@@ -1,0 +1,72 @@
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
+const { v4: uuidv4 } = require("uuid");
+
+function uploadMiddleware() {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: Number(process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024) },
+    fileFilter(_req, file, callback) {
+      const allowed = (process.env.ALLOWED_UPLOAD_MIME_TYPES || [
+        "image/jpeg", "image/jpg", "image/png", "application/pdf", "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel.sheet.macroEnabled.12", "application/vnd.ms-word.document.macroEnabled.12",
+      ].join(",")).split(",").map((item) => item.trim()).filter(Boolean);
+      const valid = allowed.some((type) => file.mimetype === type || file.mimetype.startsWith(type));
+      callback(valid ? null : new Error("Unsupported file type"), valid);
+    },
+  }).single("file");
+}
+
+function createUploadsRouter({ db, logger, sharedUploadDir, legacyUploadDir }) {
+  const router = express.Router();
+  router.post("/upload", (req, res) => {
+    uploadMiddleware()(req, res, async (error) => {
+      if (error) return res.status(500).json({ error: "Multer upload error" });
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      try {
+        const fileId = uuidv4();
+        const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.]/g, "_");
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
+        let filePath = path.join(sharedUploadDir, filename);
+        try {
+          fs.writeFileSync(filePath, req.file.buffer);
+        } catch (primaryError) {
+          logger.warn("shared_upload_write_failed", { error: primaryError.message });
+          filePath = path.join(legacyUploadDir, filename);
+          fs.writeFileSync(filePath, req.file.buffer);
+        }
+
+        let persistedToDb = true;
+        try {
+          await db.query(
+            "INSERT INTO uploaded_files (id, filename, originalname, mimetype, size, data, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())",
+            [fileId, filename, req.file.originalname, req.file.mimetype, req.file.size, req.file.buffer],
+          );
+        } catch (databaseError) {
+          persistedToDb = false;
+          logger.error("upload_database_persistence_failed", { fileId, error: databaseError.message });
+        }
+
+        return res.json({
+          id: fileId,
+          url: `/uploads/${encodeURIComponent(filename)}`,
+          name: req.file.originalname,
+          originalName: req.file.originalname,
+          type: req.file.mimetype,
+          size: req.file.size,
+          persisted: persistedToDb,
+        });
+      } catch (uploadError) {
+        logger.error("upload_failed", { requestId: req.requestId, error: uploadError.message });
+        return res.status(500).json({ error: "Failed to persist file data", details: uploadError.message });
+      }
+    });
+  });
+  return router;
+}
+
+module.exports = { createUploadsRouter, uploadMiddleware };

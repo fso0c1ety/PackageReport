@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { createNexusRouter } = require("../server/routes/nexus");
 const { createSystemRouter } = require("../server/routes/system");
 const { createUsersRouter } = require("../server/routes/users");
+const { createUploadsRouter } = require("../server/routes/uploads");
 
 function routeContracts(router) {
   return router.stack
@@ -21,5 +22,8 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
   assert.deepEqual(routeContracts(createUsersRouter({ db: {}, logger })), [
     { path: "/users/profile", methods: ["get"] },
     { path: "/users/profile", methods: ["put"] },
+  ]);
+  assert.deepEqual(routeContracts(createUploadsRouter({ db: {}, logger, sharedUploadDir: "a", legacyUploadDir: "b" })), [
+    { path: "/upload", methods: ["post"] },
   ]);
 });

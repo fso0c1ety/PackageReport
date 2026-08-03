@@ -31,7 +31,7 @@ function mountCoreRoutes(app, {
   app.use("/api", routes.auth);
   app.use("/api", routes.billing);
   app.use("/api", authenticateToken, requireActiveSubscription);
-  for (const route of [routes.users, routes.nexus, routes.people, routes.automation, routes.emailer, routes.friends, routes.chats]) {
+  for (const route of [routes.users, routes.nexus, routes.uploads, routes.people, routes.automation, routes.emailer, routes.friends, routes.chats]) {
     app.use("/api", route);
   }
   return app;

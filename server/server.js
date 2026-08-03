@@ -6,6 +6,7 @@ const express = require('express');
 const { configureCoreMiddleware, mountCoreRoutes } = require('./app');
 const { createNexusRouter } = require('./routes/nexus');
 const { createSystemRouter } = require('./routes/system');
+const { createUploadsRouter } = require('./routes/uploads');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -182,6 +183,7 @@ mountCoreRoutes(app, {
     billing: billingRoute,
     users: createUsersRouter({ db, logger }),
     nexus: createNexusRouter({ fetch, logger }),
+    uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     people: peopleRoute,
     automation: automationRoute,
     emailer: emailerRoute,
@@ -227,87 +229,6 @@ app.get('/uploads/:filename', async (req, res) => {
   }
 
   res.status(404).json({ error: 'File not found' });
-});
-
-// POST /api/upload - General purpose file upload (used by Board Chat and other components)
-app.post('/api/upload', authenticateToken, async (req, res) => {
-  const memUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: Number(process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024) },
-    fileFilter(_req, file, callback) {
-      const allowed = (process.env.ALLOWED_UPLOAD_MIME_TYPES || [
-        'image/jpeg',
-        'image/jpg',
-        'image/png',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel.sheet.macroEnabled.12',
-        'application/vnd.ms-word.document.macroEnabled.12',
-      ].join(','))
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-      const ok = allowed.some((prefix) => file.mimetype === prefix || file.mimetype.startsWith(prefix));
-      callback(ok ? null : new Error('Unsupported file type'), ok);
-    }
-  });
-  memUpload.single('file')(req, res, async (err) => {
-    if (err) {
-      console.error('[Upload] Multer Error:', err);
-      return res.status(500).json({ error: 'Multer upload error' });
-    }
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    try {
-      const fileId = uuidv4();
-      const timestamp = Date.now();
-      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
-      const filename = `${timestamp}-${Math.round(Math.random() * 1E9)}-${safeName}`;
-      
-      // 1. Save to filesystem. Prefer shared dir, fallback to legacy dir.
-      let filePath = path.join(SHARED_UPLOAD_DIR, filename);
-      try {
-        fs.writeFileSync(filePath, req.file.buffer);
-      } catch (primaryWriteErr) {
-        console.warn('[Upload] Shared upload write failed, retrying legacy dir:', primaryWriteErr);
-        filePath = path.join(LEGACY_UPLOAD_DIR, filename);
-        fs.writeFileSync(filePath, req.file.buffer);
-      }
-
-      // 2. Save to PostgreSQL database (best effort - upload should still succeed if this fails)
-      let persistedToDb = true;
-      try {
-        await db.query(
-          'INSERT INTO uploaded_files (id, filename, originalname, mimetype, size, data, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
-          [fileId, filename, req.file.originalname, req.file.mimetype, req.file.size, req.file.buffer]
-        );
-      } catch (dbErr) {
-        persistedToDb = false;
-        console.error('[Upload] Database persistence failed, serving file from filesystem only:', dbErr);
-      }
-
-      console.log(`[Upload] File saved: ${filename} (${req.file.size} bytes) at ${filePath}`);
-
-      // Return the expected metadata for the frontend
-      res.json({
-        id: fileId,
-        url: `/uploads/${encodeURIComponent(filename)}`,
-        name: req.file.originalname,
-        originalName: req.file.originalname, // Fixed: ensure originalName is present
-        type: req.file.mimetype,
-        size: req.file.size,
-        persisted: persistedToDb
-      });
-    } catch (uploadErr) {
-      console.error('[Upload] Fatal upload error:', uploadErr);
-      res.status(500).json({ error: 'Failed to persist file data', details: uploadErr?.message || String(uploadErr) });
-    }
-  });
 });
 
 // Port is handled after route registration
