@@ -14,6 +14,7 @@ const { createWorkspacesRouter } = require('./routes/workspaces');
 const { createTableMetadataRouter } = require('./routes/tableMetadata');
 const { createTaskReadsRouter } = require('./routes/taskReads');
 const { createTaskMutationsRouter } = require('./routes/taskMutations');
+const { createTaskUpdatesRouter } = require('./routes/taskUpdates');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -193,6 +194,7 @@ mountCoreRoutes(app, {
     tableMetadata: createTableMetadataRouter({ db, logger }),
     taskReads: createTaskReadsRouter({ logger, requireTablePermission, tableService }),
     taskMutations: createTaskMutationsRouter({ db, getTableAccess, logger }),
+    taskUpdates: createTaskUpdatesRouter({ appQueue, db, logger, sendNotification }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
@@ -1186,181 +1188,6 @@ app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateTok
 
 
 // Per-table tasks endpoints
-
-app.put('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
-  const debugLogs = [];
-  const log = (msg, obj) => {
-    console.log(msg, obj);
-    debugLogs.push({ msg, obj });
-  };
-
-  try {
-    const { id, values } = req.body;
-    if (!id || typeof values !== 'object') {
-      return res.status(400).json({ error: 'Invalid request body' });
-    }
-
-    // 1. Get existing task and table
-    const tableResult = await db.query('SELECT * FROM tables WHERE id = $1', [req.params.tableId]);
-    const table = tableResult.rows[0];
-    if (!table) return res.status(404).json({ error: 'Table not found' });
-
-    const rowResult = await db.query('SELECT * FROM rows WHERE id = $1 AND table_id = $2', [id, req.params.tableId]);
-    const row = rowResult.rows[0];
-    if (!row) return res.status(404).json({ error: 'Task not found' });
-
-    const oldValues = row.values || {};
-    const newValues = values || {};
-    const timestamp = new Date().toISOString();
-    const newActivity = [];
-    const oldActivity = oldValues.activity || [];
-
-    // --- Notification Logic ---
-    // (Helper function imported from notificationHelper.js)
-
-    // Detect Task Chat (Discussion)
-    if (newValues.message && Array.isArray(newValues.message)) {
-        const oldLen = (oldValues.message && Array.isArray(oldValues.message)) ? oldValues.message.length : 0;
-        if (newValues.message.length > oldLen) {
-            const lastMsg = newValues.message[newValues.message.length - 1];
-            
-            // Check Schedule
-            const isScheduled = lastMsg.scheduledFor && new Date(lastMsg.scheduledFor) > new Date();
-            // Mark validation
-            lastMsg.notificationSent = !isScheduled;
-
-            if (isScheduled) {
-                console.log(`[Task] Message scheduled for ${lastMsg.scheduledFor}`);
-            } else {
-                // Find task name
-                let taskName = 'Task';
-                if (table.columns && Array.isArray(table.columns)) {
-                    const taskCol = table.columns.find(c => c.id === 'task') || table.columns[0];
-                    if (taskCol && newValues[taskCol.id]) {
-                        taskName = newValues[taskCol.id];
-                    }
-                } else if (newValues['task']) {
-                    taskName = newValues['task'];
-                }
-                
-                const userName = lastMsg.sender || (req.user ? req.user.name : 'User');
-                
-                // Format: "{Users Name} commented on the {Tasks name}: (The message)"
-                try {
-                    await sendNotification(
-                        'New Discussion', 
-                        `${userName} commented on the ${taskName}: ${lastMsg.text}`,
-                        'task_chat',
-                        { taskId: id },
-                        table,
-                        req.user ? req.user.id : null
-                    );
-                } catch (notifyErr) {
-                    console.error('[Task Chat] Failed to send notification, continuing with task update:', notifyErr);
-                }
-            }
-        }
-    }
-
-    // Detect File Comments
-    const columns = table.columns || [];
-    if (Array.isArray(columns)) {
-        for (const col of columns) {
-            if (col.type === 'Files' || col.type === 'File') { // Handle both types
-                const oldFiles = oldValues && oldValues[col.id] && Array.isArray(oldValues[col.id]) ? oldValues[col.id] : [];
-                const newFiles = newValues && newValues[col.id] && Array.isArray(newValues[col.id]) ? newValues[col.id] : [];
-                
-                for (const nFile of newFiles) {
-                    const oFile = oldFiles.find(o => o.url === nFile.url); // Match by URL
-                    if (oFile && nFile.comments && Array.isArray(nFile.comments)) {
-                        const oldCommentsLen = (oFile.comments && Array.isArray(oFile.comments)) ? oFile.comments.length : 0;
-                        if (nFile.comments.length > oldCommentsLen) {
-                            const lastComment = nFile.comments[nFile.comments.length - 1];
-                            const userName = lastComment.user || (req.user ? req.user.name : 'User');
-                            const fileName = nFile.name || 'File';
-                            
-                            // Format: "{Users Name} commented on the {file name}: (The Comment)"
-                            try {
-                                await sendNotification(
-                                    'New File Comment',
-                                    `${userName} commented on the ${fileName}: ${lastComment.text}`,
-                                    'file_comment',
-                                    { taskId: id },
-                                    table,
-                                    req.user ? req.user.id : null
-                                );
-                            } catch (notifyErr) {
-                                console.error('[File Comment] Failed to send notification, continuing with task update:', notifyErr);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // --- End Notification Logic ---
-
-    // 2. Detect changes for activity logging
-    Object.keys(newValues).forEach(key => {
-      if (key === 'message' || key === 'activity') return;
-
-      const oldVal = oldValues[key];
-      const newVal = newValues[key];
-      if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-        const columns = table.columns || [];
-        const col = columns.find(c => c.id === key);
-        const colName = col ? col.name : key;
-
-        let logText = `Updated ${colName}`;
-        if (newVal !== null && typeof newVal !== 'object') {
-          logText += ` to "${newVal}"`;
-        }
-
-        newActivity.push({ text: logText, time: timestamp, user: "User" });
-      }
-    });
-
-    // 3. Update task in database
-    const mergedValues = { ...oldValues, ...newValues };
-    if (newActivity.length > 0) {
-      mergedValues.activity = [...newActivity, ...oldActivity];
-    } else {
-      mergedValues.activity = oldActivity;
-    }
-
-    const updatedResult = await db.query(
-      'UPDATE rows SET values = $1 WHERE id = $2 AND table_id = $3 RETURNING *',
-      [JSON.stringify(mergedValues), id, req.params.tableId]
-    );
-    if (updatedResult.rowCount === 0) {
-      console.error('[TableBoard save]', { rowId: id, result: 'not-found' });
-      return res.status(404).json({ error: 'Task not found' });
-    }
-
-    const automationEventId = `row-update:${table.id}:${id}:${Date.now()}`;
-    appQueue.add('automation.run', {
-      table,
-      rowId: id,
-      oldValues,
-      newValues: mergedValues,
-      eventId: automationEventId,
-    }, {
-      idempotencyKey: automationEventId,
-    }).catch((queueErr) => {
-      logger.error('automation_queue_enqueue_failed', {
-        tableId: table.id,
-        rowId: id,
-        error: queueErr.message,
-      });
-    });
-
-    console.info('[TableBoard save]', { rowId: id, result: 'success' });
-    res.json({ success: true, task: updatedResult.rows[0] });
-  } catch (err) {
-    console.error('Error updating task:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // Endpoint to get recent email updates (Activity Feed)
 app.get('/api/email-updates', authenticateToken, async (req, res) => {

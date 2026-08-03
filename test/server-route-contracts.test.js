@@ -11,6 +11,7 @@ const { createWorkspacesRouter } = require("../server/routes/workspaces");
 const { createTableMetadataRouter } = require("../server/routes/tableMetadata");
 const { createTaskReadsRouter } = require("../server/routes/taskReads");
 const { createTaskMutationsRouter } = require("../server/routes/taskMutations");
+const { createTaskUpdatesRouter } = require("../server/routes/taskUpdates");
 
 function routeContracts(router) {
   return router.stack
@@ -60,6 +61,9 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
     { path: "/tables/:tableId/doc", methods: ["put"] },
     { path: "/tables/:tableId/tasks/:taskId", methods: ["delete"] },
     { path: "/tables/:tableId/tasks/order", methods: ["put"] },
+  ]);
+  assert.deepEqual(routeContracts(createTaskUpdatesRouter({ appQueue: {}, db: {}, logger, sendNotification() {} })), [
+    { path: "/tables/:tableId/tasks", methods: ["put"] },
   ]);
   assert.deepEqual(routeContracts(createUploadsRouter({ db: {}, logger, sharedUploadDir: "a", legacyUploadDir: "b" })), [
     { path: "/upload", methods: ["post"] },
