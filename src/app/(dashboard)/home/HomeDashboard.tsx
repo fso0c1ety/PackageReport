@@ -44,6 +44,9 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
 
+const keepCurrentWhenEqual = <T,>(current: T[], next: T[]) =>
+  JSON.stringify(current) === JSON.stringify(next) ? current : next;
+
 // --- Styled Components ---
 
 const DashboardContainer = styled(Box)(({ theme }) => ({
@@ -382,7 +385,7 @@ export default function HomeDashboard() {
         const wsData = await wsRes.json();
         
         if (Array.isArray(wsData)) {
-            setWorkspaces(wsData);
+            setWorkspaces(current => keepCurrentWhenEqual(current, wsData));
             setError(null);
         } else {
             // If API returns an error object, treat it as an error, not empty array
@@ -402,7 +405,8 @@ export default function HomeDashboard() {
         const updatesRes = await authenticatedFetch(getApiUrl("email-updates"));
         if (!updatesRes.ok) throw new Error("Failed to fetch email updates");
         const updatesData = await updatesRes.json();
-        setEmailUpdates(Array.isArray(updatesData) ? updatesData : []);
+        const nextUpdates = Array.isArray(updatesData) ? updatesData : [];
+        setEmailUpdates(current => keepCurrentWhenEqual(current, nextUpdates));
       } catch (err) {
         console.error("Failed to load email updates", err);
       }
@@ -413,12 +417,18 @@ export default function HomeDashboard() {
     fetchUpdates();
 
     // Poll for updates (optional)
-    const interval = setInterval(() => {
-        fetchWorkspaces();
-        fetchUpdates();
-    }, 30000);
+    const refreshVisibleData = () => {
+      if (document.hidden) return;
+      void fetchWorkspaces();
+      void fetchUpdates();
+    };
+    const interval = setInterval(refreshVisibleData, 30000);
+    document.addEventListener("visibilitychange", refreshVisibleData);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshVisibleData);
+    };
   }, []);
 
   // Listen for storage changes
