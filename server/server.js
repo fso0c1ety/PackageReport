@@ -49,6 +49,7 @@ logger.info('server_build', { commit: BUILD_COMMIT, date: BUILD_DATE });
 const http = require('http');
 const { Server } = require("socket.io");
 const { attachSocketServer } = require('./socket');
+const { configureSocketRedisAdapter, createRealtimeState } = require('./realtime/redis');
 const { bootstrap } = require('./bootstrap');
 const dev = process.env.NODE_ENV !== 'production';
 const next = require('next');
@@ -93,6 +94,7 @@ attachSocketServer(io, {
   jwtSecret: JWT_SECRET,
   logger,
   sendDirectNotification: require('./notificationHelper').sendDirectNotification,
+  realtimeState: createRealtimeState({ logger }),
 });
 
 // --- Legacy Database Schema Migrations ---
@@ -251,7 +253,7 @@ bootstrap({
   server,
   port: PORT,
   skipNextApp: SKIP_NEXT_APP,
-  beforeStart: () => startupMigrationPromise,
+  beforeStart: async () => { await startupMigrationPromise; await configureSocketRedisAdapter(io, logger); },
   logger,
 }).catch((error) => {
   logger.error('server_bootstrap_failed', { error: error.message });

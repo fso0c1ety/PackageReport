@@ -8,9 +8,8 @@ function attachSocketServer(io, {
   jwtSecret,
   logger,
   sendDirectNotification,
+  realtimeState,
 }) {
-  const pendingOffers = new Map();
-  const userSockets = new Map();
   const allowEvent = createSocketEventGuard();
 
   function rejectUnsafeEvent(socket, eventName, payload) {
@@ -57,11 +56,17 @@ function attachSocketServer(io, {
     const forwardTableEvent = async (eventName, payload = {}) => {
       if (rejectUnsafeEvent(socket, eventName, payload)) return;
       const tableId = payload.tableId;
-      const { getRowAccess } = require("../services/permissions");
-      const access = tableId && await getRowAccess(db, taskId, userId, "viewer", tableId);
-      if (!access) {
+      const table = tableId && await getTableAccess(db, tableId, userId, "viewer");
+      if (!table) {
         socket.emit("error", { code: "FORBIDDEN", message: "Table access denied" });
         return;
+      }
+      if (payload.taskId) {
+        const { getRowAccess } = require("../services/permissions");
+        if (!(await getRowAccess(db, payload.taskId, userId, "viewer", tableId))) {
+          socket.emit("error", { code: "FORBIDDEN", message: "Task access denied" });
+          return;
+        }
       }
       socket.to(`table:${tableId}`).emit(eventName, {
         ...payload,
@@ -81,8 +86,9 @@ function attachSocketServer(io, {
       }
       const result = await db.query("SELECT table_id FROM rows WHERE id=$1", [taskId]);
       const tableId = result.rows[0]?.table_id;
-      const table = tableId && await getTableAccess(db, tableId, userId, "viewer");
-      if (!table) {
+      const { getRowAccess } = require("../services/permissions");
+      const access = tableId && await getRowAccess(db, taskId, userId, "viewer", tableId);
+      if (!access) {
         socket.emit("error", { code: "FORBIDDEN", message: "Task access denied" });
         return;
       }
@@ -95,17 +101,16 @@ function attachSocketServer(io, {
       socket.leave(taskId);
     });
 
-    socket.on("register_user", (requestedUserId) => {
+    socket.on("register_user", async (requestedUserId) => {
       try {
         const authenticatedUserId = assertSocketIdentity(socket, requestedUserId);
-        const sockets = userSockets.get(authenticatedUserId) || new Set();
-        if (sockets.size > 0) socket.emit("duplicate_session_check");
-        sockets.add(socket.id);
-        userSockets.set(authenticatedUserId, sockets);
+        const previousSockets = await realtimeState.addSocket(authenticatedUserId, socket.id);
+        if (previousSockets.length > 0) socket.emit("duplicate_session_check");
         socket.join(`user_${authenticatedUserId}`);
-        if (pendingOffers.has(authenticatedUserId)) {
-          socket.emit("call_offer", pendingOffers.get(authenticatedUserId));
-        }
+        const pendingCall = await realtimeState.getPendingCall(authenticatedUserId);
+        if (pendingCall) socket.emit("call_offer", pendingCall);
+        clearInterval(socket.data.presenceTimer);
+        socket.data.presenceTimer = setInterval(() => realtimeState.touchPresence(authenticatedUserId).catch((error) => logger.error("socket_presence_refresh_failed", { userId: authenticatedUserId, error: error.message })), 45000);
       } catch {
         socket.emit("error", { code: "IDENTITY_MISMATCH", message: "Socket identity mismatch" });
       }
@@ -121,10 +126,7 @@ function attachSocketServer(io, {
           return;
         }
         socket.to(`user_${payload.targetId}`).emit("call_offer", payload);
-        pendingOffers.set(String(payload.targetId), payload);
-        setTimeout(() => {
-          if (pendingOffers.get(String(payload.targetId)) === payload) pendingOffers.delete(String(payload.targetId));
-        }, 60000);
+        await realtimeState.setPendingCall(String(payload.targetId), payload);
         await sendDirectNotification(
           payload.targetId,
           "Incoming Call",
@@ -150,36 +152,31 @@ function attachSocketServer(io, {
           socket.emit("error", { code: "FORBIDDEN", message: "Call target is not authorized" });
           return;
         }
-        pendingOffers.delete(String(payload.targetId));
+        await realtimeState.deletePendingCall(String(payload.targetId));
         socket.to(`user_${payload.targetId}`).emit(eventName, { ...payload, senderId: userId });
       });
     }
 
-    socket.on("confirm_takeover", (requestedUserId) => {
+    socket.on("confirm_takeover", async (requestedUserId) => {
       try {
         const authenticatedUserId = assertSocketIdentity(socket, requestedUserId);
-        const sockets = userSockets.get(authenticatedUserId);
-        if (!sockets) return;
+        const sockets = await realtimeState.getSockets(authenticatedUserId);
         for (const socketId of sockets) {
           if (socketId !== socket.id) io.to(socketId).emit("force_logout");
         }
-        userSockets.set(authenticatedUserId, new Set([socket.id]));
       } catch {
         socket.emit("error", { code: "IDENTITY_MISMATCH", message: "Socket identity mismatch" });
       }
     });
 
-    socket.on("disconnect", () => {
-      const sockets = userSockets.get(userId);
-      if (sockets) {
-        sockets.delete(socket.id);
-        if (sockets.size === 0) userSockets.delete(userId);
-      }
+    socket.on("disconnect", async () => {
+      clearInterval(socket.data.presenceTimer);
+      await realtimeState.removeSocket(userId, socket.id).catch((error) => logger.error("socket_presence_cleanup_failed", { userId, error: error.message }));
       logger.info("socket_disconnected", { socketId: socket.id, userId });
     });
   });
 
-  return { pendingOffers, userSockets };
+  return { realtimeState };
 }
 
 module.exports = { attachSocketServer };

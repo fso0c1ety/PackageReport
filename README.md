@@ -65,7 +65,8 @@ npm run desktop:build
 - `FIREBASE_*`: push notification credentials, if enabled.
 - `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`: transactional email delivery for password recovery.
 - `SMTP_*`: optional email notification credentials for integrations that use SMTP.
-- `REDIS_URL`: optional future BullMQ/Redis backend. The current queue has a safe in-memory fallback.
+- `REDIS_URL`: shared Redis required for production Socket.IO adapter, presence, pending calls and distributed rate limiting. Memory fallback is development-only.
+- `NEXT_PUBLIC_ASSET_URL`: public base URL for uploaded/static backend assets.
 - `MAX_UPLOAD_BYTES`: maximum upload size.
 - `ALLOWED_UPLOAD_MIME_TYPES`: comma-separated MIME types or prefixes.
 
@@ -74,5 +75,7 @@ npm run desktop:build
 - Do not commit real secrets.
 - Do not enable `RUN_STARTUP_MIGRATIONS=true` in production unless doing a controlled compatibility rollout.
 - Run `npm run db:migrate` during deployment.
-- Socket.IO connections require JWT authentication and table joins are permission-checked.
+- Run Express/Socket.IO on a persistent backend service (for example the included `render.yaml`); keep the Next.js frontend on Vercel.
+- Socket.IO connections require JWT authentication, use Redis pub/sub across instances, and table/task joins are permission-checked.
+- Configure `NEXT_PUBLIC_FRONTEND_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL` and `NEXT_PUBLIC_ASSET_URL` independently.
 - File uploads are authenticated, size-limited, MIME-checked, and filename-sanitized.
