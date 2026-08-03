@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 export const runtime="nodejs";
+export const dynamic="force-dynamic";
 
 function classify(row){
   const values=row.values&&typeof row.values==="object"?row.values:{};
@@ -42,5 +43,5 @@ export async function GET(req){
       ))
     )`,[String(user.id)]).catch(()=>({rows:[{count:0}]}));
   const counts=notificationCounts.rows[0]||{};
-  const items=result.rows.map(classify).filter(item=>!item.completed).map(({completed:_,...item})=>item);return NextResponse.json({items,summary:{assigned:items.length,overdue:items.filter(i=>i.bucket==="overdue").length,upcoming:items.filter(i=>i.bucket==="upcoming").length,mentions:counts.mentions||0,unreadComments:counts.unread_comments||0,pendingApprovals:counts.pending_approvals||0,recentActivity:recentActivity.rows[0]?.count||0}});
+  const items=result.rows.map(classify).filter(item=>!item.completed).map(({completed:_,...item})=>item);return NextResponse.json({items,summary:{assigned:items.length,overdue:items.filter(i=>i.bucket==="overdue").length,upcoming:items.filter(i=>i.bucket==="upcoming").length,mentions:counts.mentions||0,unreadComments:counts.unread_comments||0,pendingApprovals:counts.pending_approvals||0,recentActivity:recentActivity.rows[0]?.count||0}},{headers:{"Cache-Control":"private, no-store, max-age=0"}});
 }
