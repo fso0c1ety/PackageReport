@@ -3197,6 +3197,39 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   };
 
+  let fallbackPollingId: ReturnType<typeof setInterval> | null = null;
+  let fallbackRequestPending = false;
+  const stopFallbackPolling = () => {
+  if (fallbackPollingId) clearInterval(fallbackPollingId);
+  fallbackPollingId = null;
+  };
+  const pollRowsFallback = async () => {
+  if (fallbackRequestPending || document.hidden) return;
+  fallbackRequestPending = true;
+  try {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { suppressNativeErrorAlert: true });
+  if (!response.ok) return;
+  const data = await response.json();
+  if (!Array.isArray(data)) return;
+  const nextRows = data.map(normalizeRealtimeRow);
+  setRows((current) => {
+  const currentRows = current.filter((row) => row.id !== 'placeholder');
+  const unchanged = currentRows.length === nextRows.length && currentRows.every((row, index) => (
+  row.id === nextRows[index]?.id && (row as any).updated_at === (nextRows[index] as any)?.updated_at
+  ));
+  return unchanged ? current : nextRows;
+  });
+  } catch (error) {
+  console.warn('[TableBoard fallback] Unable to refresh table rows', { tableId, error });
+  } finally {
+  fallbackRequestPending = false;
+  }
+  };
+  const startFallbackPolling = () => {
+  if (fallbackPollingId) return;
+  fallbackPollingId = setInterval(() => { void pollRowsFallback(); }, 15000);
+  };
+
   const channel = supabase
   .channel(`table-rows-${tableId}`)
   .on(
@@ -3253,6 +3286,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   .subscribe((status) => {
   if (status === 'CHANNEL_ERROR') {
   console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
+  startFallbackPolling();
+  } else if (status === 'SUBSCRIBED') {
+  stopFallbackPolling();
   }
   });
   tableRealtimeChannelRef.current = channel;
@@ -3261,6 +3297,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (tableRealtimeChannelRef.current === channel) {
   tableRealtimeChannelRef.current = null;
   }
+  stopFallbackPolling();
   void supabase.removeChannel(channel);
   };
   }, [tableId, setRows]);
