@@ -12,6 +12,7 @@ const { createNotificationsRouter } = require('./routes/notifications');
 const { createTableCollaborationRouter } = require('./routes/tableCollaboration');
 const { createWorkspacesRouter } = require('./routes/workspaces');
 const { createTableMetadataRouter } = require('./routes/tableMetadata');
+const { createTaskReadsRouter } = require('./routes/taskReads');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -189,6 +190,7 @@ mountCoreRoutes(app, {
     users: createUsersRouter({ db, logger }),
     workspaces: createWorkspacesRouter({ db, logger }),
     tableMetadata: createTableMetadataRouter({ db, logger }),
+    taskReads: createTaskReadsRouter({ logger, requireTablePermission, tableService }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
     pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
@@ -1182,30 +1184,6 @@ app.put('/api/tables/:tableId/teammates/:teammateId/permission', authenticateTok
 
 
 // Per-table tasks endpoints
-
-// Get all tasks for a table
-app.get('/api/tables/:tableId/tasks', authenticateToken, requireTablePermission('viewer'), async (req, res) => {
-  try {
-    res.json(await tableService.getRows(req.params.tableId));
-  } catch (err) {
-    console.error('Error fetching tasks:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get a specific task by ID for a table
-app.get('/api/tables/:tableId/tasks/:taskId', authenticateToken, requireTablePermission('viewer'), async (req, res) => {
-  try {
-    const row = await tableService.getRow(req.params.tableId, req.params.taskId);
-    if (!row) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-    res.json(row);
-  } catch (err) {
-    console.error('Error fetching task:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 app.post('/api/tables/:tableId/tasks', authenticateToken, async (req, res) => {
   try {
