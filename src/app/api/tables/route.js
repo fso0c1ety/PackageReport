@@ -49,16 +49,21 @@ export async function GET(req) {
               '[]'
             ) AS tasks
          FROM tables t
-         LEFT JOIN rows r ON t.id = r.table_id
+         JOIN workspaces w ON w.id=t.workspace_id
+         LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
+         LEFT JOIN board_member_access bma ON bma.table_id=t.id AND bma.user_id::text=$2::text
+         LEFT JOIN rows r ON t.id = r.table_id AND smart_manage_row_visible(r.values,r.id::text,r.created_by::text,t.columns,$2::text,
+           CASE WHEN w.owner_id::text=$2::text OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') THEN '{"scope":"all_permitted"}'::jsonb ELSE COALESCE(bma.record_access,wm.record_access,'{"scope":"all_permitted"}'::jsonb) END,
+           wm.team_id,wm.department_id,wm.company_id)
          LEFT JOIN users creator ON creator.id = r.created_by
          WHERE t.workspace_id = $1
-           AND ($2 = $3 OR EXISTS (
+           AND (w.owner_id::text=$2::text OR bma.user_id IS NOT NULL OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') OR EXISTS (
              SELECT 1
              FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
-             WHERE elem->>'userId' = $3
+             WHERE elem->>'userId' = $2
            ))
          GROUP BY t.id`,
-        [workspaceId, workspace.owner_id, String(user.id)]
+        [workspaceId, String(user.id)]
       );
 
       return NextResponse.json(tablesRes.rows);
@@ -90,9 +95,13 @@ export async function GET(req) {
           ) AS tasks
        FROM tables t
        JOIN workspaces w ON t.workspace_id = w.id
-       LEFT JOIN rows r ON t.id = r.table_id
+       LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$1::text
+       LEFT JOIN board_member_access bma ON bma.table_id=t.id AND bma.user_id::text=$1::text
+       LEFT JOIN rows r ON t.id = r.table_id AND smart_manage_row_visible(r.values,r.id::text,r.created_by::text,t.columns,$1::text,
+         CASE WHEN w.owner_id::text=$1::text OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') THEN '{"scope":"all_permitted"}'::jsonb ELSE COALESCE(bma.record_access,wm.record_access,'{"scope":"all_permitted"}'::jsonb) END,
+         wm.team_id,wm.department_id,wm.company_id)
        LEFT JOIN users creator ON creator.id = r.created_by
-       WHERE w.owner_id = $1 OR EXISTS (
+       WHERE w.owner_id::text=$1::text OR bma.user_id IS NOT NULL OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') OR EXISTS (
          SELECT 1
          FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
          WHERE elem->>'userId' = $1
@@ -128,7 +137,8 @@ export async function POST(req) {
     const workspaceRes = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = workspaceRes.rows[0];
 
-    if (!workspace || String(workspace.owner_id) !== String(user.id)) {
+    const canCreate = workspace && (String(workspace.owner_id) === String(user.id) || (await pool.query("SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id::text=$2::text AND (workspace_role='admin' OR (workspace_role='manager' AND allowed_actions @> '[\"create_board\"]'::jsonb))", [workspaceId,String(user.id)])).rows[0]);
+    if (!canCreate) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

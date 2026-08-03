@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureExtendedUserProfileColumns, getAuthenticatedUser, pool } from "../../../_lib/server";
+import { requireBoardPermission } from "../../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -13,30 +14,14 @@ export async function GET(req, { params }) {
     await ensureExtendedUserProfileColumns();
     const { tableId } = await params;
 
-    const accessRes = await pool.query(
-      `
-        SELECT t.id, t.shared_users, w.owner_id
-        FROM tables t
-        JOIN workspaces w ON t.workspace_id = w.id
-        WHERE t.id = $1
-          AND (
-            w.owner_id = $2
-            OR EXISTS (
-              SELECT 1
-              FROM jsonb_array_elements(t.shared_users) AS elem
-              WHERE elem->>'userId' = $2
-            )
-          )
-      `,
-      [tableId, user.id]
-    );
-
-    if (accessRes.rows.length === 0) {
+    const access = await requireBoardPermission(pool, user.id, tableId, "viewer");
+    if (!access) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const table = accessRes.rows[0];
-    const ownerId = table.owner_id;
+    const table = access;
+    const ownerId = table.workspace_owner_id;
+    const canManageProfiles = table.access_role === "owner";
     const sharedEntries = Array.isArray(table.shared_users) ? table.shared_users : [];
     const sharedUsers = Array.isArray(table.shared_users)
       ? sharedEntries.map((entry) => entry?.userId).filter(Boolean)
@@ -54,10 +39,7 @@ export async function GET(req, { params }) {
         id: row.id,
         name: row.name,
         email: row.email,
-        phone: row.phone,
-        license: row.driver_license,
-        licenseExpiry: row.driver_license_expiry,
-        passport: row.passport,
+        ...(canManageProfiles ? { phone: row.phone, license: row.driver_license, licenseExpiry: row.driver_license_expiry, passport: row.passport } : {}),
         avatar:
           row.avatar ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(

@@ -41,6 +41,10 @@ function attachSocketServer(io, {
         if (!isSafeIdentifier(tableId)) throw new Error("Invalid table identifier");
         const table = await getTableAccess(db, tableId, userId, "viewer");
         if (!table) throw new Error("Table access denied");
+        const recordScope = table.board_record_access?.scope || table.record_access?.scope || "all_permitted";
+        if (recordScope !== "all_permitted" && table.access_role !== "owner") {
+          throw new Error("Record-scoped members must subscribe to task rooms");
+        }
         socket.join(`table:${tableId}`);
         socket.join(tableId);
         logger.info("socket_join_table", { socketId: socket.id, userId, tableId });
@@ -53,8 +57,9 @@ function attachSocketServer(io, {
     const forwardTableEvent = async (eventName, payload = {}) => {
       if (rejectUnsafeEvent(socket, eventName, payload)) return;
       const tableId = payload.tableId;
-      const table = tableId && await getTableAccess(db, tableId, userId, "viewer");
-      if (!table) {
+      const { getRowAccess } = require("../services/permissions");
+      const access = tableId && await getRowAccess(db, taskId, userId, "viewer", tableId);
+      if (!access) {
         socket.emit("error", { code: "FORBIDDEN", message: "Table access denied" });
         return;
       }

@@ -13,11 +13,62 @@ function allows(actual, required, hierarchy) {
   return (hierarchy[normalizeRole(actual)] || 0) >= (hierarchy[normalizeRole(required)] || 0);
 }
 
+function valueContains(value, expected) {
+  if (String(value ?? "") === String(expected)) return true;
+  if (Array.isArray(value)) return value.some((entry) => valueContains(entry?.id ?? entry?.userId ?? entry, expected));
+  if (value && typeof value === "object") return valueContains(value.id ?? value.userId ?? value.value, expected);
+  return false;
+}
+
+function scopedValue(row, board, field) {
+  const values = row?.values && typeof row.values === "object" ? row.values : {};
+  if (Object.prototype.hasOwnProperty.call(values, field)) return values[field];
+  const target = String(field || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const column = (Array.isArray(board?.columns) ? board.columns : []).find((item) =>
+    String(item?.id) === String(field) || String(item?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "") === target);
+  return column ? values[column.id] : undefined;
+}
+
+export function rowMatchesRecordAccess(row, board, userId) {
+  if (!row || !board) return false;
+  if (String(board.workspace_owner_id || "") === String(userId)) return true;
+  if (["owner", "admin", "logistics_admin"].includes(String(board.workspace_role || "").toLowerCase())) return true;
+  const access = board.board_record_access || board.record_access || { scope: "all_permitted" };
+  const scope = access?.scope || "all_permitted";
+  if (scope === "all_permitted") return true;
+  if (scope === "created_by_me") return String(row.created_by || "") === String(userId);
+  if (scope === "selected_records") return Array.isArray(access.ids) && access.ids.map(String).includes(String(row.id));
+  const defaults = { assigned_to_me: "assignedUserId", my_team: "teamId", my_department: "departmentId", my_company: "companyId", selected_customers: "customerId" };
+  const field = access.field || access.rule?.field || defaults[scope];
+  const expected = scope === "assigned_to_me" ? userId
+    : scope === "my_team" ? board.member_team_id
+    : scope === "my_department" ? board.member_department_id
+    : scope === "my_company" ? board.member_company_id
+    : scope === "selected_customers" ? access.ids
+    : scope === "custom" && access.rule?.value === "$current_user" ? userId : access.rule?.value;
+  const actual = scopedValue(row, board, field);
+  return Array.isArray(expected) ? expected.some((item) => valueContains(actual, item)) : expected != null && valueContains(actual, expected);
+}
+
+export function recordAccessQueryContext(board, userId) {
+  const privileged = String(board?.workspace_owner_id || "") === String(userId)
+    || ["owner", "admin", "logistics_admin"].includes(String(board?.workspace_role || "").toLowerCase());
+  return {
+    columns: Array.isArray(board?.columns) ? board.columns : [],
+    userId: String(userId),
+    access: privileged ? { scope: "all_permitted" } : (board?.board_record_access || board?.record_access || { scope: "all_permitted" }),
+    teamId: board?.member_team_id || null,
+    departmentId: board?.member_department_id || null,
+    companyId: board?.member_company_id || null,
+  };
+}
+
 export async function requireWorkspacePermission(pool, userId, workspaceId, required = "viewer") {
   if (!userId || !workspaceId) return null;
   const result = await pool.query(`
     SELECT w.*,
       CASE WHEN w.owner_id::text=$2::text THEN 'owner'
+        WHEN wm.workspace_role IS NOT NULL THEN LOWER(wm.workspace_role)
         WHEN wm.role IS NOT NULL THEN LOWER(wm.role)
         WHEN EXISTS (
           SELECT 1 FROM tables t, LATERAL jsonb_array_elements(
@@ -35,12 +86,18 @@ export async function requireBoardPermission(pool, userId, tableId, required = "
   if (!userId || !tableId) return null;
   const result = await pool.query(`
     SELECT t.*,w.owner_id AS workspace_owner_id,
+      COALESCE(wm.workspace_role,wm.role) AS workspace_role,
+      wm.record_access,wm.team_id AS member_team_id,wm.department_id AS member_department_id,wm.company_id AS member_company_id,
+      bma.record_access AS board_record_access,
       CASE WHEN w.owner_id::text=$2::text THEN 'owner'
-        ELSE COALESCE((SELECT LOWER(COALESCE(member->>'permission',member->>'role','editor'))
+        WHEN bma.board_role IS NOT NULL THEN LOWER(bma.board_role)
+        WHEN COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') THEN 'owner'
+        ELSE (SELECT LOWER(COALESCE(member->>'boardRole',member->>'permission',member->>'role','editor'))
           FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
-          WHERE COALESCE(member->>'userId',member#>>'{}')=$2::text LIMIT 1), wm.role) END AS access_role
+          WHERE COALESCE(member->>'userId',member#>>'{}')=$2::text LIMIT 1) END AS access_role
     FROM tables t JOIN workspaces w ON w.id=t.workspace_id
     LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
+    LEFT JOIN board_member_access bma ON bma.table_id=t.id AND bma.user_id::text=$2::text
     WHERE t.id=$1 LIMIT 1`, [tableId, String(userId)]);
   const board = result.rows[0];
   return board && allows(board.access_role, required, BOARD_RANK) ? board : null;
@@ -52,7 +109,7 @@ export async function requireRowPermission(pool, userId, rowId, required = "view
   const row = result.rows[0];
   if (!row || (expectedTableId && String(row.table_id) !== String(expectedTableId))) return null;
   const board = await requireBoardPermission(pool, userId, row.table_id, required);
-  return board ? { row, board } : null;
+  return board && rowMatchesRecordAccess(row, board, userId) ? { row, board } : null;
 }
 
 export async function requireFilePermission(pool, userId, fileIdOrName, required = "viewer") {

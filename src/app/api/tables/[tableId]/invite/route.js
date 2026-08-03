@@ -8,15 +8,9 @@ import {
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { requireWritableSubscription } from "../../../_lib/billing";
 import { writeAuditLog } from "../../../_lib/audit";
+import { legacyPermissionForBoardRole, normalizeBoardRole, normalizeJobRoles, normalizePortalType, normalizeRecordAccess, normalizeWorkspaceRole } from "../../../_lib/universalRoles";
 
 export const runtime = "nodejs";
-
-const ROLE_PERMISSIONS = {
-  admin: "admin",
-  manager: "edit",
-  employee: "edit",
-  guest: "read",
-};
 
 export async function POST(req, { params }) {
   const user = getAuthenticatedUser(req);
@@ -32,8 +26,12 @@ export async function POST(req, { params }) {
 
     // Support both keys used across the app/history.
     const recipientId = body?.recipientId || body?.userId;
-    const role = ROLE_PERMISSIONS[body?.role] ? body.role : "employee";
-    const permission = ROLE_PERMISSIONS[role];
+    const boardRole = normalizeBoardRole(body?.boardRole || body?.role || "viewer");
+    const permission = legacyPermissionForBoardRole(boardRole);
+    const workspaceRole = normalizeWorkspaceRole(body?.workspaceRole || (body?.role === "admin" ? "admin" : "member"));
+    const jobRoles = normalizeJobRoles(body?.jobRoles || (["driver", "client"].includes(body?.role) ? [body.role] : []));
+    const portalType = normalizePortalType(body?.portalType || (jobRoles.includes("driver") ? "driver" : "standard"));
+    const recordAccess = normalizeRecordAccess(body?.recordAccess || (jobRoles.includes("driver") ? { scope: "assigned_to_me", field: "assignedDriverUserId" } : { scope: "all_permitted" }));
 
     if (!recipientId) {
       return NextResponse.json({ error: "Recipient ID is required" }, { status: 400 });
@@ -80,7 +78,7 @@ export async function POST(req, { params }) {
         recipientId,
         user.id,
         "invite",
-        JSON.stringify({ tableId, tableName, permission, role }),
+        JSON.stringify({ tableId, tableName, workspaceId, permission, boardRole, workspaceRole, jobRoles, portalType, recordAccess }),
         false,
       ]
     );
@@ -92,7 +90,7 @@ export async function POST(req, { params }) {
       entityId: String(recipientId),
       tableId,
       workspaceId,
-      metadata: { role, permission, tableName },
+      metadata: { workspaceRole, jobRoles, portalType, recordAccess, boardRole, permission, tableName },
     });
 
     // Push notification (best-effort).
@@ -129,7 +127,7 @@ export async function POST(req, { params }) {
           tokens,
           "Table Invite",
           `${senderName} requests you to share this table: ${tableName}`,
-          { type: "invite", notificationId: notifId, tableId, permission, role }
+          { type: "invite", notificationId: notifId, tableId, permission, role: boardRole, workspaceRole, portalType }
         );
       }
     } catch (pushErr) {

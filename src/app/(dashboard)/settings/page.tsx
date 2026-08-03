@@ -69,22 +69,15 @@ interface TabPanelProps {
   value: number;
 }
 
-const BOARD_CAPABILITY_LABELS: Record<string, string> = {
-  editRows: "Edit rows",
-  comment: "Comment",
-  uploadFiles: "Upload files",
-  export: "Export data",
-  manageColumns: "Manage columns",
-};
-
-const BOARD_ROLE_CAPABILITIES: Record<string, Record<string, boolean>> = {
-  admin: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
-  manager: { editRows: true, comment: true, uploadFiles: true, export: true, manageColumns: true },
-  employee: { editRows: true, comment: true, uploadFiles: true, export: false, manageColumns: false },
-  driver: { editRows: false, comment: true, uploadFiles: true, export: false, manageColumns: false },
-  guest: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
-  client: { editRows: false, comment: true, uploadFiles: true, export: false, manageColumns: false },
-  custom: { editRows: false, comment: false, uploadFiles: false, export: false, manageColumns: false },
+const WORKSPACE_ACCESS_ROLES = ["owner", "admin", "manager", "member", "guest"] as const;
+const BOARD_ACCESS_ROLES = ["owner", "editor", "commenter", "viewer"] as const;
+const PORTAL_TYPE_OPTIONS = ["standard", "driver", "dispatcher", "client", "doctor", "dental_assistant", "receptionist", "teacher", "parent", "sales", "project", "field_worker", "store_employee", "warehouse", "production", "hr_employee", "depot", "custom"];
+const RECORD_SCOPE_OPTIONS = ["assigned_to_me", "created_by_me", "my_team", "my_department", "my_company", "selected_records", "selected_customers", "all_permitted", "custom"];
+const SAFE_JOB_DEFAULTS: Record<string, any> = {
+  driver: { workspaceRole: "member", portalType: "driver", recordAccess: { scope: "assigned_to_me", field: "assignedDriverUserId" } },
+  doctor: { workspaceRole: "member", portalType: "doctor", recordAccess: { scope: "assigned_to_me", field: "assignedDoctorUserId" } },
+  teacher: { workspaceRole: "member", portalType: "teacher", recordAccess: { scope: "assigned_to_me", field: "classTeacherUserId" } },
+  client: { workspaceRole: "guest", portalType: "client", recordAccess: { scope: "my_company", field: "clientCompanyId" } },
 };
 
 function TabPanel(props: TabPanelProps) {
@@ -207,7 +200,14 @@ export default function SettingsPage() {
   const [selectedInviteWs, setSelectedInviteWs] = useState<string>("");
   const [inviteTables, setInviteTables] = useState<any[]>([]);
   const [selectedInviteTable, setSelectedInviteTable] = useState<string>("");
-  const [invitePermission, setInvitePermission] = useState<'admin' | 'manager' | 'employee' | 'driver' | 'guest'>('employee');
+  const [inviteWorkspaceRole, setInviteWorkspaceRole] = useState("member");
+  const [inviteJobRole, setInviteJobRole] = useState("employee");
+  const [invitePortalType, setInvitePortalType] = useState("standard");
+  const [inviteRecordScope, setInviteRecordScope] = useState("all_permitted");
+  const [inviteBoardRole, setInviteBoardRole] = useState("editor");
+  // Legacy hidden field aliases stay during the additive UI rollout.
+  const invitePermission = inviteBoardRole;
+  const setInvitePermission = setInviteBoardRole;
   const [currentTableInviteCode, setCurrentTableInviteCode] = useState<string | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
@@ -215,6 +215,11 @@ export default function SettingsPage() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [accessDialogOpen, setAccessDialogOpen] = useState(false);
   const [selectedTeammateForAccess, setSelectedTeammateForAccess] = useState<any | null>(null);
+  const [accessConfig, setAccessConfig] = useState<any | null>(null);
+  const [jobRoleOptions, setJobRoleOptions] = useState<any[]>([]);
+  const [newJobRoleName, setNewJobRoleName] = useState("");
+  const [loadingAccessConfig, setLoadingAccessConfig] = useState(false);
+  const [savingAccessConfig, setSavingAccessConfig] = useState(false);
   const [boardSearchQuery, setBoardSearchQuery] = useState("");
   const { showNotification } = useNotification();
 
@@ -470,33 +475,87 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateGranularPermission = async (teammateId: string, tableId: string, newRole: string, capabilities?: Record<string, boolean>, hasAccess = true) => {
-    try {
-        const res = await authenticatedFetch(getApiUrl(`tables/${tableId}/teammates/${teammateId}/permission`), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: newRole, capabilities, hasAccess })
-        });
-        
-        if (res.ok) {
-            showNotification(hasAccess ? `Access updated for this board` : `Board access removed`, "success");
-            // Refresh local state to reflect change in the dialog
-            if (selectedTeammateForAccess) {
-              const updatedAccess = selectedTeammateForAccess.access.map((a: any) => 
-                a.tableId === tableId ? { ...a, hasAccess, role: newRole, ...(capabilities ? { capabilities } : {}) } : a
-              );
-              setSelectedTeammateForAccess({ ...selectedTeammateForAccess, access: updatedAccess });
-            }
-            // Refresh main list
-            const teamRes = await authenticatedFetch(getApiUrl('teammates'));
-            if (teamRes.ok) setTeammates(await teamRes.json());
-        } else {
-            showNotification("Failed to update permission", "error");
-        }
-    } catch (e) {
-        console.error("Update granular permission error", e);
-        showNotification("Error updating access", "error");
+  const openStructuredAccess = async (teammate: any) => {
+    const workspaceId = teammate.memberships?.[0]?.workspaceId || teammate.access?.[0]?.workspaceId;
+    if (!workspaceId) {
+      showNotification("This teammate has no workspace membership yet", "error");
+      return;
     }
+    setSelectedTeammateForAccess(teammate);
+    setAccessDialogOpen(true);
+    setLoadingAccessConfig(true);
+    try {
+      const [accessResponse, rolesResponse] = await Promise.all([
+        authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/members/${teammate.id}`)),
+        authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/job-roles`)),
+      ]);
+      const accessData = await accessResponse.json();
+      if (!accessResponse.ok) throw new Error(accessData.error || "Unable to load member access");
+      setAccessConfig(accessData.membership);
+      setJobRoleOptions(rolesResponse.ok ? await rolesResponse.json() : []);
+    } catch (error: any) {
+      showNotification(error.message || "Unable to load member access", "error");
+      setAccessDialogOpen(false);
+    } finally {
+      setLoadingAccessConfig(false);
+    }
+  };
+
+  const patchAccessConfig = (patch: Record<string, unknown>) => setAccessConfig((current: any) => current ? { ...current, ...patch } : current);
+  const applyJobRoleDefaults = (roleKey: string) => {
+    const configured = jobRoleOptions.find((role) => role.key === roleKey);
+    const defaults = configured ? {
+      workspaceRole: configured.defaultWorkspaceRole,
+      portalType: configured.defaultPortalType,
+      landingRoute: configured.defaultLandingRoute,
+      recordAccess: configured.recordAccessPreset,
+      navigation: configured.navigation,
+      allowedActions: configured.allowedActions,
+    } : SAFE_JOB_DEFAULTS[roleKey];
+    setAccessConfig((current: any) => current ? { ...current, jobRoles: [roleKey], ...(defaults || {}) } : current);
+  };
+
+  const saveStructuredAccess = async () => {
+    if (!selectedTeammateForAccess || !accessConfig?.workspaceId) return;
+    setSavingAccessConfig(true);
+    try {
+      const response = await authenticatedFetch(getApiUrl(`workspaces/${accessConfig.workspaceId}/members/${selectedTeammateForAccess.id}`), {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(accessConfig),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to save access");
+      setAccessConfig(data.membership);
+      showNotification("Workspace, portal and board access saved", "success");
+      const teamResponse = await authenticatedFetch(getApiUrl("teammates"));
+      if (teamResponse.ok) setTeammates(await teamResponse.json());
+    } catch (error: any) {
+      showNotification(error.message || "Unable to save access", "error");
+    } finally {
+      setSavingAccessConfig(false);
+    }
+  };
+
+  const createCustomJobRole = async () => {
+    if (!accessConfig?.workspaceId || !newJobRoleName.trim()) return;
+    const response = await authenticatedFetch(getApiUrl(`workspaces/${accessConfig.workspaceId}/job-roles`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newJobRoleName, defaultWorkspaceRole: "member", defaultPortalType: "custom", recordAccessPreset: { scope: "all_permitted" } }),
+    });
+    const data = await response.json();
+    if (!response.ok) return showNotification(data.error || "Unable to create job role", "error");
+    setJobRoleOptions((roles) => [...roles.filter((role) => role.key !== data.key), data]);
+    setNewJobRoleName("");
+    showNotification("Custom job role created", "success");
+  };
+
+  const updateJobRoleDefinition = async (role: any, patch: Record<string, unknown>) => {
+    if (!accessConfig?.workspaceId) return;
+    const response = await authenticatedFetch(getApiUrl(`workspaces/${accessConfig.workspaceId}/job-roles`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...role, ...patch }),
+    });
+    const data = await response.json();
+    if (!response.ok) return showNotification(data.error || "Unable to update job role", "error");
+    setJobRoleOptions((roles) => roles.map((item) => item.key === role.key ? { ...item, ...data } : item));
   };
 
   const handleInviteTeammate = async () => {
@@ -513,7 +572,11 @@ export default function SettingsPage() {
             body: JSON.stringify({
               recipientId: selectedUser.id,
               userId: selectedUser.id,
-              role: invitePermission,
+              workspaceRole: inviteWorkspaceRole,
+              jobRoles: inviteJobRole ? [inviteJobRole] : [],
+              portalType: invitePortalType,
+              recordAccess: inviteJobRole === 'driver' ? { scope: 'assigned_to_me', field: 'assignedDriverUserId' } : { scope: inviteRecordScope },
+              boardRole: inviteBoardRole,
             })
         });
 
@@ -1265,10 +1328,7 @@ export default function SettingsPage() {
                       <Paper
                         key={teammate.id}
                         onClick={() => {
-                          if (teammate.status === 'joined') {
-                            setSelectedTeammateForAccess(teammate);
-                            setAccessDialogOpen(true);
-                          }
+                          if (teammate.status === 'joined') void openStructuredAccess(teammate);
                         }}
                         sx={{
                           p: { xs: 2.5, sm: 3 },
@@ -1682,8 +1742,28 @@ export default function SettingsPage() {
                     )}
                 </TextField>
 
-                {/* Enterprise role selection */}
-                <Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Access profile</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                  <TextField select label="Workspace role" value={inviteWorkspaceRole} onChange={(event) => setInviteWorkspaceRole(event.target.value)} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                    {WORKSPACE_ACCESS_ROLES.filter((role) => role !== 'owner').map((role) => <option key={role} value={role}>{role}</option>)}
+                  </TextField>
+                  <TextField select label="Job role" value={inviteJobRole} onChange={(event) => { const role = event.target.value; setInviteJobRole(role); const defaults = SAFE_JOB_DEFAULTS[role]; if (defaults) { setInviteWorkspaceRole(defaults.workspaceRole); setInvitePortalType(defaults.portalType); setInviteRecordScope(defaults.recordAccess.scope); } }} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                    <option value="employee">Employee</option><option value="driver">Driver</option><option value="dispatcher">Dispatcher</option><option value="doctor">Doctor</option><option value="teacher">Teacher</option><option value="client">Client</option><option value="custom">Custom</option>
+                  </TextField>
+                  <TextField select label="Portal type" value={invitePortalType} onChange={(event) => setInvitePortalType(event.target.value)} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                    {PORTAL_TYPE_OPTIONS.map((portal) => <option key={portal} value={portal}>{portal.replaceAll('_', ' ')}</option>)}
+                  </TextField>
+                  <TextField select label="Record access" value={inviteRecordScope} onChange={(event) => setInviteRecordScope(event.target.value)} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                    {RECORD_SCOPE_OPTIONS.map((scope) => <option key={scope} value={scope}>{scope.replaceAll('_', ' ')}</option>)}
+                  </TextField>
+                  <TextField select label="Board role" value={inviteBoardRole} onChange={(event) => setInviteBoardRole(event.target.value)} SelectProps={{ native: true }} size="small" sx={{ ...fieldSx, gridColumn: { sm: '1 / -1' } }}>
+                    {BOARD_ACCESS_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                  </TextField>
+                </Box>
+                <Alert severity="info" sx={{ borderRadius: 2 }}>This user will open the {invitePortalType.replaceAll('_', ' ')} portal with {inviteRecordScope.replaceAll('_', ' ')} record access and {inviteBoardRole} access to this board.</Alert>
+
+                {/* Hidden compatibility selector for older persisted invitations. */}
+                <Box sx={{ display: 'none' }}>
                   <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Enterprise role
                   </Typography>
@@ -1792,113 +1872,70 @@ export default function SettingsPage() {
             <Divider sx={{ mt: 3, opacity: 0.5 }} />
         </DialogTitle>
         <DialogContent sx={{ p: { xs: 2, sm: 4 }, pt: 0, flex: 1, overflowY: 'auto' }}>
-            <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 2, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                    Shared Access
-                </Typography>
-                <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Filter workspaces and boards..."
-                    value={boardSearchQuery}
-                    onChange={(e) => setBoardSearchQuery(e.target.value)}
-                    InputProps={{
-                        startAdornment: <SearchIcon sx={{ color: 'text.disabled', mr: 1, fontSize: 18 }} />
-                    }}
-                    sx={fieldSx}
-                />
-            </Box>
+          {loadingAccessConfig || !accessConfig ? <Box sx={{ py: 8, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box> : <Stack spacing={3}>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: panelBg }}>
+              <Typography variant="overline" fontWeight={900}>Workspace authority · {accessConfig.workspaceName}</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mt: 1 }}>
+                <TextField select label="Workspace access role" value={accessConfig.workspaceRole} disabled={accessConfig.workspaceRole === 'owner'} onChange={(event) => patchAccessConfig({ workspaceRole: event.target.value })} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                  {WORKSPACE_ACCESS_ROLES.map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}
+                </TextField>
+                <Autocomplete multiple options={jobRoleOptions.filter((role) => role.enabled !== false).map((role) => role.key)} value={accessConfig.jobRoles || []} getOptionLabel={(key) => jobRoleOptions.find((role) => role.key === key)?.name || key} onChange={(_, roles) => { const added = roles.find((role) => !(accessConfig.jobRoles || []).includes(role)); if (added && roles.length === 1) applyJobRoleDefaults(added); else patchAccessConfig({ jobRoles: roles }); }} renderInput={(params) => <TextField {...params} label="Job roles" size="small" sx={fieldSx} />} />
+                <TextField select label="Portal type" value={accessConfig.portalType || 'standard'} onChange={(event) => patchAccessConfig({ portalType: event.target.value })} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                  {PORTAL_TYPE_OPTIONS.map((portal) => <option key={portal} value={portal}>{portal.replaceAll('_', ' ')}</option>)}
+                </TextField>
+                <TextField select label="Record access" value={accessConfig.recordAccess?.scope || 'all_permitted'} onChange={(event) => patchAccessConfig({ recordAccess: { ...accessConfig.recordAccess, scope: event.target.value } })} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                  {RECORD_SCOPE_OPTIONS.map((scope) => <option key={scope} value={scope}>{scope.replaceAll('_', ' ')}</option>)}
+                </TextField>
+                <TextField label="Default landing route" value={accessConfig.landingRoute || ''} onChange={(event) => patchAccessConfig({ landingRoute: event.target.value })} size="small" sx={{ ...fieldSx, gridColumn: { sm: '1 / -1' } }} />
+              </Box>
+            </Paper>
 
-            <List sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {selectedTeammateForAccess?.access?.filter((a: any) => 
-                    a.tableName?.toLowerCase().includes(boardSearchQuery.toLowerCase()) || 
-                    a.workspaceName?.toLowerCase().includes(boardSearchQuery.toLowerCase())
-                ).map((a: any) => (
-                    <Paper 
-                        key={a.tableId} 
-                        variant="outlined" 
-                        sx={{ p: 2.5, borderRadius: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'flex-start' }, justifyContent: 'space-between', gap: 2, bgcolor: panelBg, boxShadow: 'none' }}
-                    >
-                        <Box>
-                            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', mb: 0.5, letterSpacing: '0.5px' }}>
-                                {a.workspaceName}
-                            </Typography>
-                            <Typography variant="subtitle1" fontWeight={800}>{a.tableName}</Typography>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.25, minWidth: { sm: 320 } }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                              <Typography variant="caption" fontWeight={800}>Board access</Typography>
-                              <Switch
-                                size="small"
-                                checked={a.hasAccess !== false}
-                                onChange={(event) => handleUpdateGranularPermission(
-                                  selectedTeammateForAccess.id,
-                                  a.tableId,
-                                  a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee'),
-                                  a.capabilities || undefined,
-                                  event.target.checked
-                                )}
-                                inputProps={{ 'aria-label': `Board access for ${a.tableName}` }}
-                              />
-                            </Box>
-                            <TextField
-                                select
-                                size="small"
-                                value={a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee')}
-                                disabled={a.hasAccess === false}
-                                onChange={(e) => handleUpdateGranularPermission(selectedTeammateForAccess.id, a.tableId, e.target.value)}
-                                SelectProps={{ native: true }}
-                                sx={{ 
-                                    minWidth: 120,
-                                    '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.85rem', fontWeight: 700, bgcolor: inputBg, '& fieldset': { border: 'none' }, '&:hover fieldset': { border: 'none' }, '&.Mui-focused fieldset': { border: 'none' } }
-                                }}
-                            >
-                                <option value="admin">Admin</option>
-                                <option value="manager">Manager</option>
-                                <option value="client">Client</option>
-                                <option value="custom">Custom</option>
-                                <option value="employee">Employee</option>
-                                <option value="driver">Driver</option>
-                                <option value="guest">Guest</option>
-                            </TextField>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
-                              {Object.entries(BOARD_CAPABILITY_LABELS).map(([key, label]) => {
-                                const role = a.role || (a.permission === 'admin' ? 'admin' : a.permission === 'read' ? 'guest' : 'employee');
-                                const current = { ...BOARD_ROLE_CAPABILITIES[role], ...(a.capabilities || {}) };
-                                return (
-                                  <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                    <Typography variant="caption" fontWeight={700}>{label}</Typography>
-                                    <Switch
-                                      size="small"
-                                      disabled={a.hasAccess === false}
-                                      checked={Boolean(current[key])}
-                                      onChange={(event) => handleUpdateGranularPermission(
-                                        selectedTeammateForAccess.id,
-                                        a.tableId,
-                                        role,
-                                        { ...current, [key]: event.target.checked }
-                                      )}
-                                      inputProps={{ 'aria-label': `${label} for ${a.tableName}` }}
-                                    />
-                                  </Box>
-                                );
-                              })}
-                            </Box>
-                        </Box>
-                    </Paper>
-                ))}
-            </List>
+            <Alert severity="info" sx={{ borderRadius: 3 }}>
+              <strong>Permission summary:</strong> This user will open the {String(accessConfig.portalType || 'standard').replaceAll('_', ' ')} portal and see {String(accessConfig.recordAccess?.scope || 'all_permitted').replaceAll('_', ' ')} records only. Hidden menus never replace backend authorization.
+            </Alert>
+
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: panelBg }}>
+              <Typography variant="subtitle2" fontWeight={900}>Custom job roles</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
+                <TextField fullWidth size="small" label="New job role" value={newJobRoleName} onChange={(event) => setNewJobRoleName(event.target.value)} sx={fieldSx} />
+                <Button variant="outlined" onClick={() => void createCustomJobRole()} disabled={!newJobRoleName.trim()}>Create</Button>
+              </Stack>
+              <Stack spacing={1} sx={{ mt: 1.5 }}>
+                {jobRoleOptions.map((role) => <Paper key={role.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {role.isSystem ? <Chip label={role.name} variant="outlined" sx={{ flex: 1, justifyContent: 'flex-start' }} /> : <TextField defaultValue={role.name} size="small" fullWidth onBlur={(event) => { const name = event.target.value.trim(); if (name && name !== role.name) void updateJobRoleDefinition(role, { name }); }} sx={fieldSx} />}
+                    <Switch checked={role.enabled !== false} onChange={(event) => void updateJobRoleDefinition(role, { enabled: event.target.checked })} inputProps={{ 'aria-label': `Enable ${role.name}` }} />
+                  </Box>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mt: 1 }}>
+                    <TextField select size="small" label="Default portal" value={role.defaultPortalType || 'standard'} onChange={(event) => void updateJobRoleDefinition(role, { defaultPortalType: event.target.value })} SelectProps={{ native: true }} sx={fieldSx}>{PORTAL_TYPE_OPTIONS.map((portal) => <option key={portal} value={portal}>{portal.replaceAll('_',' ')}</option>)}</TextField>
+                    <TextField select size="small" label="Record preset" value={role.recordAccessPreset?.scope || 'all_permitted'} onChange={(event) => void updateJobRoleDefinition(role, { recordAccessPreset: { ...(role.recordAccessPreset || {}), scope: event.target.value } })} SelectProps={{ native: true }} sx={fieldSx}>{RECORD_SCOPE_OPTIONS.map((scope) => <option key={scope} value={scope}>{scope.replaceAll('_',' ')}</option>)}</TextField>
+                    <TextField size="small" label="Navigation items" defaultValue={(role.navigation || []).join(', ')} onBlur={(event) => void updateJobRoleDefinition(role, { navigation: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} sx={fieldSx} />
+                    <TextField size="small" label="Allowed actions" defaultValue={(role.allowedActions || []).join(', ')} onBlur={(event) => void updateJobRoleDefinition(role, { allowedActions: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} sx={fieldSx} />
+                  </Box>
+                </Paper>)}
+              </Stack>
+            </Paper>
+
+            <Box>
+              <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 1.5 }}>Board access</Typography>
+              <TextField fullWidth size="small" placeholder="Filter boards..." value={boardSearchQuery} onChange={(event) => setBoardSearchQuery(event.target.value)} InputProps={{ startAdornment: <SearchIcon sx={{ color: 'text.disabled', mr: 1, fontSize: 18 }} /> }} sx={{ ...fieldSx, mb: 2 }} />
+              <List sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {accessConfig.boardAccess?.filter((board: any) => board.tableName?.toLowerCase().includes(boardSearchQuery.toLowerCase())).map((board: any) => <Paper key={board.tableId} variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: panelBg }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography fontWeight={850}>{board.tableName}</Typography>
+                    <Switch checked={board.hasAccess !== false} onChange={(event) => patchAccessConfig({ boardAccess: accessConfig.boardAccess.map((item: any) => item.tableId === board.tableId ? { ...item, hasAccess: event.target.checked, boardRole: item.boardRole || 'viewer' } : item) })} inputProps={{ 'aria-label': `Board access for ${board.tableName}` }} />
+                  </Box>
+                  <TextField select fullWidth size="small" label="Board role" value={board.boardRole || 'viewer'} disabled={board.hasAccess === false} onChange={(event) => patchAccessConfig({ boardAccess: accessConfig.boardAccess.map((item: any) => item.tableId === board.tableId ? { ...item, boardRole: event.target.value } : item) })} SelectProps={{ native: true }} sx={{ ...fieldSx, mt: 1 }}>
+                    {BOARD_ACCESS_ROLES.map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}
+                  </TextField>
+                </Paper>)}
+              </List>
+            </Box>
+          </Stack>}
         </DialogContent>
         <DialogActions sx={{ p: { xs: 2, sm: 4 }, pt: 2 }}>
-            <Button 
-                fullWidth 
-                variant="outlined" 
-                onClick={() => setAccessDialogOpen(false)}
-                sx={{ borderRadius: 2, py: 1.5, fontWeight: 800, textTransform: 'none', borderColor: 'transparent', bgcolor: alpha(theme.palette.text.primary, 0.06) }}
-            >
-                Close
-            </Button>
+            <Button fullWidth variant="outlined" onClick={() => setAccessDialogOpen(false)} sx={{ borderRadius: 2, py: 1.5, fontWeight: 800, textTransform: 'none' }}>Cancel</Button>
+            <Button fullWidth variant="contained" onClick={() => void saveStructuredAccess()} disabled={savingAccessConfig || loadingAccessConfig || !accessConfig} sx={{ borderRadius: 2, py: 1.5, fontWeight: 800, textTransform: 'none' }}>{savingAccessConfig ? <CircularProgress size={22} color="inherit" /> : 'Save access'}</Button>
         </DialogActions>
       </Dialog>
     </Box>

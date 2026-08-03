@@ -1,18 +1,19 @@
 const express = require("express");
 
-function createTaskReadsRouter({ logger, requireTablePermission, tableService }) {
+function createTaskReadsRouter({ logger, requireTablePermission, requireRowPermission, tableService }) {
   const router = express.Router();
+  const requireScopedRow = typeof requireRowPermission === "function" ? requireRowPermission : requireTablePermission;
 
   router.get("/tables/:tableId/tasks", requireTablePermission("viewer"), async (req, res) => {
     try {
-      return res.json(await tableService.getRows(req.params.tableId));
+      return res.json(await tableService.getRows(req.params.tableId, req.table, req.user.id));
     } catch (error) {
       logger.error("tasks_fetch_failed", { tableId: req.params.tableId, userId: req.user.id, error: error.message });
       return res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  router.get("/tables/:tableId/tasks/:taskId", requireTablePermission("viewer"), async (req, res) => {
+  router.get("/tables/:tableId/tasks/:taskId", requireScopedRow("viewer"), async (req, res) => {
     try {
       const row = await tableService.getRow(req.params.tableId, req.params.taskId);
       if (!row) return res.status(404).json({ error: "Task not found" });

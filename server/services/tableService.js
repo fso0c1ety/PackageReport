@@ -12,8 +12,11 @@ function normalizeAttachment(attachment) {
   return attachment && typeof attachment === "object" ? attachment : null;
 }
 
-async function getRows(tableId) {
-  return tablesRepository.listRows(tableId);
+async function getRows(tableId, table = null, userId = null) {
+  const rows = await tablesRepository.listRows(tableId);
+  if (!table || !userId) return rows;
+  const { rowMatchesRecordAccess } = require("./permissions");
+  return rows.filter((row) => rowMatchesRecordAccess(row, table, userId));
 }
 
 async function getRow(tableId, rowId) {

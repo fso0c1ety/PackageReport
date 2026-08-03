@@ -36,3 +36,11 @@ test("tenant file security migration is included in production deploys", () => {
   assert.match(migration, /table_id TEXT/);
   assert.match(migration, /row_id TEXT/);
 });
+
+test("universal role and portal migration is included in production deploys", () => {
+  const source = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  assert.match(source, /022_universal_roles_and_portals\.sql/);
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "022_universal_roles_and_portals.sql"), "utf8");
+  for (const field of ["workspace_role", "job_roles", "portal_type", "record_access", "board_member_access", "workspace_job_roles"]) assert.match(migration, new RegExp(field));
+  assert.match(migration, /smart_manage_row_visible/);
+});

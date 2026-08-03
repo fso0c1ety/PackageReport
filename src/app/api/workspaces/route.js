@@ -7,6 +7,15 @@ import { ensureLogisticsSchema, LOGISTICS_TEMPLATE_KEYS } from "../_lib/logistic
 
 export const runtime = "nodejs";
 
+function jobRoleProvision(role) {
+  const portalByRole = { driver: "driver", dispatcher: "dispatcher", client: "client", doctor: "doctor", dentist: "doctor", dental_assistant: "dental_assistant", receptionist: "receptionist", teacher: "teacher", educator: "teacher", parent: "parent", sales_representative: "sales", account_manager: "sales", project_manager: "project", site_manager: "project", field_worker: "field_worker", store_employee: "store_employee", cashier: "store_employee", warehouse_worker: "warehouse", production_manager: "production", machine_operator: "production", employee: "hr_employee" };
+  const portalType = portalByRole[role.key] || "standard";
+  const external = ["client", "parent", "patient", "supplier", "viewer"].includes(role.key);
+  const manager = /manager|admin|dispatcher/.test(role.key);
+  const scope = external ? "my_company" : ["standard", "dispatcher"].includes(portalType) ? "all_permitted" : "assigned_to_me";
+  return { workspaceRole: external ? "guest" : manager ? "manager" : "member", portalType, recordAccess: { scope }, landingRoute: portalType === "driver" ? "/driver-trips" : portalType === "standard" ? "/dashboard" : `/portal/${portalType.replaceAll("_", "-")}` };
+}
+
 export async function GET(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -81,8 +90,15 @@ export async function POST(req) {
       await ensureLogisticsSchema();
       await client.query("INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3)", [newWorkspace.id, newWorkspace.name, newWorkspace.owner_id]);
       await client.query("UPDATE workspaces SET template_key=$1 WHERE id=$2", [template.key, newWorkspace.id]);
-      if (LOGISTICS_TEMPLATE_KEYS.includes(template.key)) {
-        await client.query("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,'logistics_admin') ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='logistics_admin',updated_at=NOW()", [newWorkspace.id, String(user.id)]);
+      await client.query(`
+        INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,record_access)
+        VALUES($1,$2,$3,'owner',$4::jsonb,'standard','/dashboard','{"scope":"all_permitted"}'::jsonb)
+        ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role,workspace_role='owner',
+          job_roles=EXCLUDED.job_roles,portal_type='standard',landing_route='/dashboard',updated_at=NOW()
+      `, [newWorkspace.id, String(user.id), LOGISTICS_TEMPLATE_KEYS.includes(template.key) ? "logistics_admin" : "owner", JSON.stringify(LOGISTICS_TEMPLATE_KEYS.includes(template.key) ? ["logistics_admin"] : [])]);
+      for (const role of template.roles) {
+        const defaults = jobRoleProvision(role);
+        await client.query(`INSERT INTO workspace_job_roles(id,workspace_id,key,name,enabled,is_system,default_workspace_role,default_portal_type,default_landing_route,record_access_preset,navigation,allowed_actions) VALUES($1,$2,$3,$4,TRUE,TRUE,$5,$6,$7,$8::jsonb,'[]'::jsonb,$9::jsonb) ON CONFLICT(workspace_id,key) DO UPDATE SET name=EXCLUDED.name,enabled=TRUE,default_workspace_role=EXCLUDED.default_workspace_role,default_portal_type=EXCLUDED.default_portal_type,default_landing_route=EXCLUDED.default_landing_route,record_access_preset=EXCLUDED.record_access_preset,allowed_actions=EXCLUDED.allowed_actions,updated_at=NOW()`, [uuidv4(),newWorkspace.id,role.key,role.name,defaults.workspaceRole,defaults.portalType,defaults.landingRoute,JSON.stringify(defaults.recordAccess),JSON.stringify(role.permissions)]);
       }
       for (const board of template.boards) {
         const tableId = uuidv4();

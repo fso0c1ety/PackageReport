@@ -12,6 +12,7 @@ import { requireWritableSubscription } from "../../../_lib/billing";
 import { syncTripAssignment } from "../../../_lib/logistics";
 import automationBuilder from "../../../../../../server/services/automationBuilderEngine.cjs";
 import { isSafePublicHttpsUrl } from "../../../_lib/security";
+import { recordAccessQueryContext, requireBoardPermission, requireRowPermission } from "../../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -512,44 +513,31 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
-    const accessRes = await pool.query(
-      `
-        SELECT t.*
-        FROM tables t
-        JOIN workspaces w ON t.workspace_id = w.id
-        WHERE t.id = $1
-          AND (
-            w.owner_id = $2
-            OR EXISTS (
-              SELECT 1
-              FROM jsonb_array_elements(t.shared_users) AS elem
-              WHERE elem->>'userId' = $2
-            )
-          )
-      `,
-      [tableId, user.id]
-    );
-
-    if (accessRes.rows.length === 0) {
+    const table = await requireBoardPermission(pool, user.id, tableId, "viewer");
+    if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
+
+    const visibility = recordAccessQueryContext(table, user.id);
+    const visibilityParams = [tableId, JSON.stringify(visibility.columns), visibility.userId,
+      JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
+    const visibleWhere = `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
 
     const [result, countResult] = await Promise.all([
       paginated
         ? pool.query(
-          "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $2 OFFSET $3",
-          [tableId, limit, offset]
+          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
+          [...visibilityParams, limit, offset]
         )
         : pool.query(
-          "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC",
-          [tableId]
+          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
+          visibilityParams
         ),
       paginated
-        ? pool.query("SELECT COUNT(*)::int AS total FROM rows WHERE table_id = $1", [tableId])
+        ? pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)
         : Promise.resolve({ rows: [{ total: 0 }] }),
     ]);
 
-    const table = accessRes.rows[0];
     const hasDueScheduledMessage = result.rows.some((row) =>
       toArray(row?.values?.message).some((message) =>
         message?.scheduledFor
@@ -590,27 +578,7 @@ export async function POST(req, { params }) {
     if (billingError) return billingError;
     const body = await req.json();
 
-    const accessRes = await pool.query(
-      `
-        SELECT t.id
-        FROM tables t
-        JOIN workspaces w ON t.workspace_id = w.id
-        WHERE t.id = $1
-          AND (
-            w.owner_id = $2
-            OR EXISTS (
-              SELECT 1
-              FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
-              WHERE elem->>'userId' = $2
-                AND COALESCE(elem->>'permission', 'edit') <> 'read'
-                AND COALESCE((elem->'capabilities'->>'editRows')::boolean, true)
-            )
-          )
-      `,
-      [tableId, user.id]
-    );
-
-    if (accessRes.rows.length === 0) {
+    if (!(await requireBoardPermission(pool, user.id, tableId, "editor"))) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
@@ -660,37 +628,13 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const tableRes = await pool.query(
-      `
-        SELECT t.*
-        FROM tables t
-        JOIN workspaces w ON t.workspace_id = w.id
-        WHERE t.id = $1
-          AND (
-            w.owner_id = $2
-            OR EXISTS (
-              SELECT 1
-              FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
-              WHERE elem->>'userId' = $2
-                AND COALESCE(elem->>'permission', 'edit') <> 'read'
-                AND COALESCE((elem->'capabilities'->>'editRows')::boolean, true)
-            )
-          )
-      `,
-      [tableId, user.id]
-    );
-
-    const table = tableRes.rows[0];
+    const table = await requireBoardPermission(pool, user.id, tableId, "editor");
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
-    const rowRes = await pool.query(
-      "SELECT * FROM rows WHERE id = $1 AND table_id = $2",
-      [id, tableId]
-    );
-
-    const row = rowRes.rows[0];
+    const rowAccess = await requireRowPermission(pool, user.id, id, "editor", tableId);
+    const row = rowAccess?.row;
     if (!row) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }

@@ -237,6 +237,21 @@ const modulesFor = (category: string) => [...new Set([
   ...(["Logistics", "Sales", "Healthcare", "Education", "Retail", "Retail & Services", "Professional Services"].includes(category) ? ["customers"] : []),
 ])];
 
+const jobRolesFor = (template: WorkspaceTemplate, category: string): WorkspaceTemplateManifest["roles"] => {
+  const role = (key: string, name: string, permissions: string[] = ["view_assigned_records"]) => ({ key, name, permissions });
+  if (["freight_broker", "fleet_management"].includes(template.key)) return [role("logistics_admin", "Logistics Admin", ["manage_logistics"]), role("dispatcher", "Dispatcher", ["manage_trips"]), role("fleet_manager", "Fleet Manager", ["manage_fleet"]), role("driver", "Driver", ["view_assigned_trips", "update_trip_status"]), role("viewer", "Viewer", ["view"])];
+  if (/dental/.test(template.key)) return [role("dentist", "Dentist"), role("dental_assistant", "Dental Assistant"), role("receptionist", "Receptionist"), role("patient", "Patient")];
+  if (category === "Healthcare") return [role("doctor", "Doctor"), role("nurse", "Nurse"), role("receptionist", "Receptionist"), role("patient", "Patient")];
+  if (category === "Education" || /school|daycare|student|training/.test(template.key)) return [role("teacher", "Teacher"), role("educator", "Daycare Educator"), role("parent", "Parent"), role("student", "Student")];
+  if (/crm|sales|marketing|real_estate/.test(template.key)) return [role("sales_representative", "Sales Representative"), role("account_manager", "Account Manager"), role("client", "Client")];
+  if (/construction|architecture|project/.test(template.key)) return [role("project_manager", "Project Manager"), role("site_manager", "Site Manager"), role("engineer", "Engineer"), role("field_worker", "Field Worker"), role("client", "Client")];
+  if (/retail|store|restaurant|cafe|hotel/.test(template.key) || category === "Retail & Services") return [role("store_manager", "Store Manager"), role("cashier", "Cashier"), role("store_employee", "Store Employee"), role("supplier", "Supplier")];
+  if (/manufactur|production|machine|raw_material|quality/.test(template.key) || category === "Manufacturing") return [role("production_manager", "Production Manager"), role("machine_operator", "Machine Operator"), role("warehouse_worker", "Warehouse Worker")];
+  if (/warehouse|inventory/.test(template.key)) return [role("warehouse_manager", "Warehouse Manager"), role("warehouse_worker", "Warehouse Worker"), role("supplier", "Supplier")];
+  if (/hr|employee|recruitment/.test(template.key)) return [role("hr_manager", "HR Manager"), role("employee", "Employee")];
+  return [role("employee", "Employee"), role("client", "Client"), role("supplier", "Supplier"), role("custom", "Custom")];
+};
+
 export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateManifest => {
   const template = getWorkspaceTemplate(key);
   const category = template.category ?? categoryFor(template.key);
@@ -317,15 +332,7 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
     ]),
     dashboards: [{ name: `${template.name} Overview`, widgets: template.dashboardWidgets ?? [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
     automations: template.automations?.length ? template.automations : defaultAutomations,
-    roles: ["freight_broker", "fleet_management"].includes(template.key)
-      ? [
-          { key: "logistics_admin", name: "Logistics Admin", permissions: ["*"] },
-          { key: "dispatcher", name: "Dispatcher", permissions: ["view", "edit", "assign_trips"] },
-          { key: "fleet_manager", name: "Fleet Manager", permissions: ["view", "edit", "manage_fleet"] },
-          { key: "driver", name: "Driver", permissions: ["view_assigned_trips", "update_trip_status", "upload_trip_documents"] },
-          { key: "viewer", name: "Viewer", permissions: ["view"] },
-        ]
-      : [{ key: "owner", name: "Owner", permissions: ["*"] }, { key: "admin", name: "Admin", permissions: ["manage_workspace"] }, { key: "employee", name: "Employee", permissions: ["view", "edit"] }],
+    roles: jobRolesFor(template, category),
   };
 };
 

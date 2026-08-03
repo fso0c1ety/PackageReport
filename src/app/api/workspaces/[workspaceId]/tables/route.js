@@ -20,31 +20,14 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
     }
 
-    const sharedTablesCount = await pool.query(
-      `SELECT COUNT(*) FROM tables
-       WHERE workspace_id = $1
-         AND EXISTS (
-           SELECT 1 FROM jsonb_array_elements(shared_users) AS elem
-           WHERE elem->>'userId' = $2
-         )`,
-      [workspaceId, user.id]
-    );
-
-    const isOwner = workspace.owner_id === user.id;
-    const hasSharedTables = parseInt(sharedTablesCount.rows[0].count, 10) > 0;
-
-    if (!isOwner && !hasSharedTables) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const tablesResult = await pool.query(
-      `SELECT * FROM tables
-       WHERE workspace_id = $1
-         AND ($2 = $3 OR EXISTS (
-           SELECT 1 FROM jsonb_array_elements(shared_users) AS elem
-           WHERE elem->>'userId' = $3
-         ))`,
-      [workspaceId, workspace.owner_id, user.id]
+      `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
+       LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
+       LEFT JOIN board_member_access bma ON bma.table_id=t.id AND bma.user_id::text=$2::text
+       WHERE t.workspace_id=$1 AND (w.owner_id::text=$2::text OR bma.user_id IS NOT NULL OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') OR EXISTS (
+         SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) elem WHERE elem->>'userId'=$2::text
+       ))`,
+      [workspaceId, String(user.id)]
     );
 
     return NextResponse.json(tablesResult.rows);
@@ -67,7 +50,8 @@ export async function POST(req, { params }) {
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
-    if (!workspace || workspace.owner_id !== user.id) {
+    const canCreate = workspace && (String(workspace.owner_id) === String(user.id) || (await pool.query("SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id::text=$2::text AND (workspace_role='admin' OR (workspace_role='manager' AND allowed_actions @> '[\"create_board\"]'::jsonb))", [workspaceId,String(user.id)])).rows[0]);
+    if (!canCreate) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

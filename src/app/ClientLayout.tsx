@@ -120,13 +120,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       setLoading(false);
       return;
     }
-    authenticatedFetch(getApiUrl("logistics/context"), { suppressNativeErrorAlert: true })
+    let workspaceId = "";
+    try {
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const storedWorkspace = JSON.parse(localStorage.getItem(`lastWorkspace_${storedUser.id}`) || "{}");
+      workspaceId = storedWorkspace.id || "";
+    } catch {}
+    authenticatedFetch(getApiUrl(`portal-context${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ""}`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
-        const workspaceId = data?.driver ? data?.workspace?.id : null;
+        const membership = data?.active;
+        const workspaceId = membership?.workspaceId || null;
+        const portalType = membership?.portalType || "standard";
         const allowedDriverPath = normalizedPathname === "/driver-trips" || normalizedPathname === "/calendar" || normalizedPathname === "/settings";
-        if (workspaceId && !allowedDriverPath) {
+        if (workspaceId && portalType === "driver" && !allowedDriverPath) {
           redirectToAppRoute(`/driver-trips?id=${encodeURIComponent(workspaceId)}`, true);
+          return;
+        }
+        if (workspaceId && portalType !== "standard" && portalType !== "driver" && !normalizedPathname.startsWith("/portal/") && normalizedPathname !== "/settings") {
+          redirectToAppRoute(membership.landingRoute || `/portal/${portalType.replaceAll("_", "-")}`, true);
           return;
         }
         setDriverCheckComplete(true);

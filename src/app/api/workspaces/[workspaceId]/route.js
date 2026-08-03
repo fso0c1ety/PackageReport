@@ -20,8 +20,9 @@ export async function GET(req, { params }) {
         WHERE w.id = $1
           AND (
             w.owner_id = $2
+            OR EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id::text=$2::text)
             OR EXISTS (
-              SELECT 1 FROM jsonb_array_elements(t.shared_users) AS elem
+              SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) AS elem
               WHERE elem->>'userId' = $2
             )
           )
@@ -53,14 +54,7 @@ export async function PUT(req, { params }) {
     const { workspaceId } = await params;
     const billingError = await requireWritableSubscription(user.id, { workspaceId });
     if (billingError) return billingError;
-    const { name } = await req.json();
-
-    if (!name || !name.trim()) {
-      return NextResponse.json(
-        { error: "Workspace name is required" },
-        { status: 400 }
-      );
-    }
+    const { name, transferOwnerId } = await req.json();
 
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
@@ -72,6 +66,22 @@ export async function PUT(req, { params }) {
     if (workspace.owner_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    if (transferOwnerId) {
+      const target = (await pool.query("SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id::text=$2::text", [workspaceId,String(transferOwnerId)])).rows[0];
+      if (!target) return NextResponse.json({ error: "New owner must already be a workspace member" }, { status: 400 });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("UPDATE workspaces SET owner_id=$1,updated_at=NOW() WHERE id=$2", [String(transferOwnerId),workspaceId]);
+        await client.query("UPDATE workspace_members SET workspace_role='admin',role='admin',updated_at=NOW() WHERE workspace_id=$1 AND user_id::text=$2::text", [workspaceId,String(user.id)]);
+        await client.query("UPDATE workspace_members SET workspace_role='owner',role='owner',portal_type='standard',landing_route='/dashboard',updated_at=NOW() WHERE workspace_id=$1 AND user_id::text=$2::text", [workspaceId,String(transferOwnerId)]);
+        await client.query("COMMIT");
+      } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+      return NextResponse.json({ ...workspace, owner_id: String(transferOwnerId) });
+    }
+
+    if (!name || !name.trim()) return NextResponse.json({ error: "Workspace name is required" }, { status: 400 });
 
     const result = await pool.query(
       "UPDATE workspaces SET name = $1 WHERE id = $2 RETURNING *",

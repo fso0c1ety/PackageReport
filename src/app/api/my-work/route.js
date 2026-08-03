@@ -24,11 +24,17 @@ function classify(row){
 export async function GET(req){
   const user=getAuthenticatedUser(req);if(!user?.id)return NextResponse.json({error:"Unauthorized"},{status:401});
   const result=await pool.query(`WITH accessible AS (
-    SELECT DISTINCT t.id,t.name,t.workspace_id,t.columns FROM tables t JOIN workspaces w ON w.id=t.workspace_id
-    WHERE w.owner_id=$1 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) m WHERE m->>'userId'=$1)
+    SELECT DISTINCT t.id,t.name,t.workspace_id,t.columns,
+      CASE WHEN w.owner_id::text=$1::text OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') THEN '{"scope":"all_permitted"}'::jsonb ELSE COALESCE(bma.record_access,wm.record_access,'{"scope":"all_permitted"}'::jsonb) END record_access,
+      wm.team_id,wm.department_id,wm.company_id
+    FROM tables t JOIN workspaces w ON w.id=t.workspace_id
+    LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$1::text
+    LEFT JOIN board_member_access bma ON bma.table_id=t.id AND bma.user_id::text=$1::text
+    WHERE w.owner_id::text=$1::text OR bma.user_id IS NOT NULL OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) m WHERE m->>'userId'=$1)
   ) SELECT r.id,r.values,r.created_at,a.id table_id,a.name board_name,a.workspace_id,a.columns
     FROM rows r JOIN accessible a ON a.id=r.table_id
-    WHERE r.created_by=$1 OR r.values::text ILIKE $2
+    WHERE (r.created_by=$1 OR r.values::text ILIKE $2)
+      AND smart_manage_row_visible(r.values,r.id::text,r.created_by::text,a.columns,$1::text,a.record_access,a.team_id,a.department_id,a.company_id)
     ORDER BY r.created_at DESC LIMIT 100`,[String(user.id),`%${String(user.email||user.id)}%`]);
   const [notificationCounts,recentActivity]=await Promise.all([
     pool.query(`SELECT

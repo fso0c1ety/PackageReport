@@ -12,7 +12,7 @@ export async function GET(req) {
   try {
     const query = `
       WITH owned_tables AS (
-          SELECT t.id, t.name as table_name, t.shared_users, w.name as workspace_name
+          SELECT t.id, t.name as table_name, t.shared_users, w.id as workspace_id, w.name as workspace_name
           FROM tables t
           JOIN workspaces w ON t.workspace_id = w.id
           WHERE w.owner_id = $1
@@ -23,6 +23,7 @@ export async function GET(req) {
             'joined' as status,
             ot.id as table_id,
             ot.table_name,
+            ot.workspace_id,
             ot.workspace_name,
             (elem->>'permission') as permission,
             COALESCE(
@@ -42,6 +43,7 @@ export async function GET(req) {
             'pending' as status,
             NULL as table_id,
             NULL as table_name,
+            NULL as workspace_id,
             NULL as workspace_name,
             'edit' as permission,
             'employee' as role,
@@ -57,6 +59,7 @@ export async function GET(req) {
               jsonb_build_object(
                 'tableId', table_id,
                 'tableName', table_name,
+                'workspaceId', workspace_id,
                 'workspaceName', workspace_name,
                 'permission', permission,
                 'role', role,
@@ -67,7 +70,19 @@ export async function GET(req) {
           WHERE user_id != $1::text
           GROUP BY user_id
       )
-      SELECT u.id, u.name, u.email, u.avatar, uc.status, uc.access
+      SELECT u.id, u.name, u.email, u.avatar, uc.status, uc.access,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'workspaceId',w.id,'workspaceName',w.name,
+            'workspaceRole',COALESCE(wm.workspace_role,wm.role,'member'),
+            'jobRoles',COALESCE(wm.job_roles,'[]'::jsonb),
+            'portalType',COALESCE(wm.portal_type,'standard'),
+            'landingRoute',wm.landing_route,'recordAccess',wm.record_access,
+            'navigation',wm.navigation,'allowedActions',wm.allowed_actions
+          ))
+          FROM workspace_members wm JOIN workspaces w ON w.id=wm.workspace_id
+          WHERE wm.user_id::text=u.id::text AND w.owner_id::text=$1::text
+        ),'[]'::jsonb) AS memberships
       FROM users u
       JOIN unique_collaborators uc ON u.id::text = uc.user_id
     `;

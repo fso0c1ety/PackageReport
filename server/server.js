@@ -193,7 +193,7 @@ mountCoreRoutes(app, {
     users: createUsersRouter({ db, logger }),
     workspaces: createWorkspacesRouter({ db, logger }),
     tableMetadata: createTableMetadataRouter({ db, logger, requireTablePermission, requireWorkspacePermission }),
-    taskReads: createTaskReadsRouter({ logger, requireTablePermission, tableService }),
+    taskReads: createTaskReadsRouter({ logger, requireTablePermission, requireRowPermission, tableService }),
     taskMutations: createTaskMutationsRouter({ db, getTableAccess, logger, requireTablePermission, requireRowPermission }),
     taskUpdates: createTaskUpdatesRouter({ appQueue, db, logger, requireRowPermission, sendNotification }),
     tableSharing: createTableSharingRouter({ billingService, db, logger, sendPushNotification }),

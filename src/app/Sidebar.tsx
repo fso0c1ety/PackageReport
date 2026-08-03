@@ -266,6 +266,8 @@ export default function Sidebar({
   const currentWorkspaceId = searchParams.get("id");
   const [workspaceModules, setWorkspaceModules] = useState<string[]>([]);
   const [driverPortal, setDriverPortal] = useState(false);
+  const [portalContext, setPortalContext] = useState<any>(null);
+  const dedicatedPortal = portalContext?.portalType && portalContext.portalType !== "standard";
   useEffect(() => {
     if (!currentWorkspaceId) { setWorkspaceModules([]); return; }
     const loadModules = () => authenticatedFetch(getApiUrl(`workspaces/${currentWorkspaceId}/modules`), { suppressNativeErrorAlert: true })
@@ -275,11 +277,10 @@ export default function Sidebar({
     return () => window.removeEventListener("workspaceModulesUpdated", loadModules);
   }, [currentWorkspaceId]);
   useEffect(() => {
-    if (!currentWorkspaceId) { setDriverPortal(false); return; }
-    authenticatedFetch(getApiUrl(`logistics/context?workspaceId=${encodeURIComponent(currentWorkspaceId)}`), { suppressNativeErrorAlert: true })
+    authenticatedFetch(getApiUrl(`portal-context${currentWorkspaceId ? `?workspaceId=${encodeURIComponent(currentWorkspaceId)}` : ""}`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
-      .then((data) => setDriverPortal(Boolean(data?.driver)))
-      .catch(() => setDriverPortal(false));
+      .then((data) => { setPortalContext(data?.active || null); setDriverPortal(data?.active?.portalType === "driver"); })
+      .catch(() => { setPortalContext(null); setDriverPortal(false); });
   }, [currentWorkspaceId]);
   // Fetch workspaces and user
   useEffect(() => {
@@ -482,7 +483,7 @@ export default function Sidebar({
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", px: 2.1, pb: 2 }}>
-          <InlineHeader label={driverPortal ? "Driver Portal" : "Navigation"} />
+          <InlineHeader label={driverPortal ? "Driver Portal" : dedicatedPortal ? `${String(portalContext.portalType).replaceAll("_", " ")} Portal` : "Navigation"} />
           <Box sx={{ display: "grid", gap: 0.75 }}>
             {driverPortal ? <>
               <SidebarItem icon={<HomeIcon fontSize="small" />} label="Home" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
@@ -492,6 +493,13 @@ export default function Sidebar({
               {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="My Expenses" href={`/driver-trips?id=${currentWorkspaceId}&section=expenses`} isActive={searchParams.get("section") === "expenses"} onClick={onClose} />}
               {workspaceModules.includes("fleet") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="My Fuel" href={`/driver-trips?id=${currentWorkspaceId}&section=fuel`} isActive={searchParams.get("section") === "fuel"} onClick={onClose} />}
               <SidebarItem icon={<SettingsIcon fontSize="small" />} label="My Profile" href={`/settings?tab=profile&id=${currentWorkspaceId}`} isActive={pathname === "/settings"} onClick={onClose} />
+            </> : dedicatedPortal ? <>
+              {(portalContext.navigation?.length ? portalContext.navigation : ["home", "my_records", "calendar", "documents", "profile"]).map((item: string) => {
+                const workspaceId = portalContext.workspaceId || currentWorkspaceId || "";
+                const portalHref = portalContext.landingRoute || `/portal/${String(portalContext.portalType).replaceAll("_", "-")}`;
+                const href = item.includes("calendar") ? `/calendar?id=${workspaceId}` : item.includes("profile") ? `/settings?tab=profile&id=${workspaceId}` : `${portalHref}?id=${workspaceId}&section=${encodeURIComponent(item)}`;
+                return <SidebarItem key={item} icon={<HomeIcon fontSize="small" />} label={item.replaceAll("_", " ")} href={href} isActive={pathname === portalHref && (item === "home" || searchParams.get("section") === item)} onClick={onClose} />;
+              })}
             </> : <>
             <SidebarItem
               icon={<HomeIcon fontSize="small" />}
@@ -547,7 +555,7 @@ export default function Sidebar({
             </>}
           </Box>
 
-          {currentWorkspaceId && !driverPortal && (
+          {currentWorkspaceId && !dedicatedPortal && (
             <>
               <InlineHeader label="Modules" />
               <Box sx={{ display: "grid", gap: 0.55 }}>
@@ -567,7 +575,7 @@ export default function Sidebar({
             </>
           )}
 
-          {!driverPortal && <><InlineHeader label="Workspace" />
+          {!dedicatedPortal && <><InlineHeader label="Workspace" />
           <Box
             sx={{
               p: 0.55,

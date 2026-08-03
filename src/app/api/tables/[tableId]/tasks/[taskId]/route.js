@@ -1,37 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../_lib/billing";
+import { requireRowPermission } from "../../../../_lib/authorization";
 
 export const runtime = "nodejs";
-
-async function canAccessTable(tableId, userId, requireEdit = false) {
-  const accessRes = await pool.query(
-    `
-      SELECT t.id
-      FROM tables t
-      JOIN workspaces w ON t.workspace_id = w.id
-      WHERE t.id = $1
-        AND (
-          w.owner_id = $2
-          OR EXISTS (
-            SELECT 1
-            FROM jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) AS elem
-            WHERE elem->>'userId' = $2
-              AND (
-                NOT $3::boolean
-                OR (
-                  COALESCE(elem->>'permission', 'edit') <> 'read'
-                  AND COALESCE((elem->'capabilities'->>'editRows')::boolean, true)
-                )
-              )
-          )
-        )
-    `,
-    [tableId, userId, requireEdit]
-  );
-
-  return accessRes.rows.length > 0;
-}
 
 export async function GET(req, { params }) {
   const user = getAuthenticatedUser(req);
@@ -42,22 +14,11 @@ export async function GET(req, { params }) {
   try {
     const { tableId, taskId } = await params;
 
-    const allowed = await canAccessTable(tableId, user.id);
-    if (!allowed) {
+    const access = await requireRowPermission(pool, user.id, taskId, "viewer", tableId);
+    if (!access) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
-
-    const result = await pool.query(
-      "SELECT * FROM rows WHERE id = $1 AND table_id = $2",
-      [taskId, tableId]
-    );
-
-    const row = result.rows[0];
-    if (!row) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(row);
+    return NextResponse.json(access.row);
   } catch (err) {
     console.error("[TABLE TASK BY ID][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -75,8 +36,8 @@ export async function DELETE(req, { params }) {
     const billingError = await requireWritableSubscription(user.id, { tableId });
     if (billingError) return billingError;
 
-    const allowed = await canAccessTable(tableId, user.id, true);
-    if (!allowed) {
+    const access = await requireRowPermission(pool, user.id, taskId, "editor", tableId);
+    if (!access) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 

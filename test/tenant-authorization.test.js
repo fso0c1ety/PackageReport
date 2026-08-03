@@ -25,9 +25,9 @@ test("row permission derives tenant access from its real table", async () => {
   assert.equal(await getRowAccess(db, "row-b", "user-a", "viewer", "table-a"), null);
 });
 
-test("workspace membership grants only its configured hierarchy level", async () => {
+test("workspace membership never implies board access without an explicit board grant", async () => {
   const db = { query: async () => ({ rows: [{ id: "table-a", workspace_owner_id: "owner", workspace_role: "viewer", shared_users: [] }] }) };
-  assert.ok(await getTableAccess(db, "table-a", "member", "viewer"));
+  assert.equal(await getTableAccess(db, "table-a", "member", "viewer"), null);
   assert.equal(await getTableAccess(db, "table-a", "member", "editor"), null);
 });
 
