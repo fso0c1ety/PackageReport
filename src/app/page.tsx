@@ -47,6 +47,7 @@ import emailjs from "@emailjs/browser";
 export default function LandingPage() {
   const router = useRouter();
   const [showWebLanding, setShowWebLanding] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contactValues, setContactValues] = useState({ name: "", email: "", company: "", subject: "", message: "" });
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
@@ -128,13 +129,7 @@ export default function LandingPage() {
       return;
     }
 
-    if (hasToken) {
-      // Use a hard navigation on initial web startup to avoid occasional client-router stalls
-      // when a stale tab/session is resumed after deploys or expired auth state.
-      redirectToAppRoute("/home", true);
-      return;
-    }
-
+    setAuthenticated(hasToken);
     setShowWebLanding(true);
   }, [router]);
 
@@ -265,13 +260,17 @@ export default function LandingPage() {
               }}
             >
               <Button onClick={() => scrollToSection("top")} sx={navButtonSx}>Home</Button>
-              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Services</Button>
+              <Button onClick={() => scrollToSection("product")} sx={navButtonSx}>Product</Button>
+              <Button onClick={() => scrollToSection("solutions")} sx={navButtonSx}>Solutions</Button>
+              <Button onClick={() => scrollToSection("templates")} sx={navButtonSx}>Templates</Button>
+              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Features</Button>
               <Button onClick={() => scrollToSection("about")} sx={navButtonSx}>About Us</Button>
               <Button onClick={() => navigateToAppRoute("/pricing", router)} sx={navButtonSx}>Pricing</Button>
               <Button onClick={() => scrollToSection("contact")} sx={navButtonSx}>Contact</Button>
             </Stack>
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              {authenticated && <Button onClick={() => navigateToAppRoute("/home", router)} sx={{ ...navButtonSx, color: LIGHT.primary }}>Open Smart Manage</Button>}
               <Button
                 component="a"
                 href={desktopDownloadUrl}
@@ -396,7 +395,7 @@ export default function LandingPage() {
                     fontWeight: 900,
                   }}
                 >
-                  ALL-IN-ONE WORKSPACE
+                  ONE WORKSPACE. EVERY PROCESS.
                 </Typography>
 
                 <Typography
@@ -408,7 +407,7 @@ export default function LandingPage() {
                     letterSpacing: "-0.065em",
                   }}
                 >
-                  Manage everything.<br />One place.<br /><Box component="span" sx={{ background: "linear-gradient(135deg,#6D4AFF,#3B82F6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Zero chaos.</Box>
+                  Manage your entire business from one <Box component="span" sx={{ background: "linear-gradient(135deg,#6D4AFF,#3B82F6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>powerful workspace.</Box>
                 </Typography>
 
                 <Typography
@@ -418,7 +417,7 @@ export default function LandingPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  Organize projects, tasks, teams and deadlines without switching between multiple apps.
+                  Plan work, manage operations, coordinate teams, track customers and organize data in flexible boards built around the way your business works.
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
@@ -440,7 +439,7 @@ export default function LandingPage() {
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Get Started
+                    Start for free
                   </Button>
 
                   <Button
@@ -453,7 +452,7 @@ export default function LandingPage() {
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    Learn More
+                    See how it works
                   </Button>
 
                 </Stack>
@@ -537,6 +536,59 @@ export default function LandingPage() {
                 </Box>
               </Box>
             </motion.div>
+
+            <Box id="product" sx={{ scrollMarginTop: 96 }}>
+              <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>BUILT FOR CLARITY, SPEED AND CONTROL</Typography>
+              <Typography component="h2" sx={{ fontSize: { xs: 32, md: 48 }, fontWeight: 900, letterSpacing: "-.04em", mt: 1 }}>One connected platform for real work.</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(4,1fr)" }, gap: 2, mt: 4 }}>
+                {[
+                  ["Organize everything", "Bring tasks, customers, operations, files and communication into one connected workspace."],
+                  ["Adapt to your workflow", "Create flexible boards, columns, views and templates without forcing your team into a rigid process."],
+                  ["Work together in real time", "Use comments, chat, files, notifications and live updates to keep every team member aligned."],
+                  ["See what matters", "Turn operational data into dashboards, reports and clear business decisions."],
+                ].map(([title, text]) => <Box key={title} sx={{ p: 3, border: `1px solid ${LIGHT.border}`, borderRadius: 4, bgcolor: "#fff" }}><Typography fontWeight={900} fontSize={18}>{title}</Typography><Typography sx={{ color: LIGHT.textSecondary, mt: 1.2, lineHeight: 1.7 }}>{text}</Typography></Box>)}
+              </Box>
+            </Box>
+
+            <Box id="solutions" sx={{ scrollMarginTop: 96, p: { xs: 3, md: 5 }, borderRadius: 5, bgcolor: "#11152d", color: "#fff" }}>
+              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900 }}>Flexible across industries.</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(5,1fr)" }, gap: 2, mt: 3 }}>
+                {[
+                  ["Logistics", "Plan shipments, assign drivers, organize documents and follow trips."],
+                  ["Sales & CRM", "Track leads, opportunities, follow-ups and customer relationships."],
+                  ["Project teams", "Manage responsibilities, deadlines, files and progress."],
+                  ["Service businesses", "Coordinate appointments, customers, staff and records."],
+                  ["Construction", "Track sites, teams, materials, deadlines and field issues."],
+                ].map(([title, text]) => <Box key={title} sx={{ p: 2.5, borderRadius: 3, bgcolor: "rgba(255,255,255,.07)" }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: "#cbd5e1", fontSize: 13, mt: 1, lineHeight: 1.65 }}>{text}</Typography></Box>)}
+              </Box>
+            </Box>
+
+            <Box id="templates" sx={{ scrollMarginTop: 96 }}>
+              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900 }}>Start with a proven template.</Typography>
+              <Typography sx={{ color: LIGHT.textSecondary, mt: 1 }}>Choose a starting point, customize every detail, then invite your team.</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4,1fr)" }, gap: 1.5, mt: 3 }}>
+                {["Logistics — Freight Broker","Logistics — Fleet Management","CRM & Sales","Project Management","Construction","Dental Clinic","Daycare","Retail & Store","Manufacturing","HR & Employees","Depot Management","Blank Workspace"].map((name) => <Box key={name} sx={{ p: 2.2, border: `1px solid ${LIGHT.border}`, borderRadius: 3, bgcolor: "#fff" }}><Typography fontWeight={850}>{name}</Typography><Button onClick={handleGetStarted} sx={{ p: 0, mt: 1, textTransform: "none", fontWeight: 800 }}>Use template →</Button></Box>)}
+              </Box>
+            </Box>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
+              <Box sx={{ p: 4, borderRadius: 4, bgcolor: "#eef2ff" }}><Typography component="h2" fontSize={30} fontWeight={900}>Security built into everyday work.</Typography><Typography sx={{ color: LIGHT.textMuted, lineHeight: 1.8, mt: 1.5 }}>Role-based access, protected workspaces, HTTPS traffic, secure password reset, session management and controlled private file access.</Typography></Box>
+              <Box sx={{ p: 4, borderRadius: 4, bgcolor: "#ecfdf5" }}><Typography component="h2" fontSize={30} fontWeight={900}>Work everywhere.</Typography><Typography sx={{ color: LIGHT.textMuted, lineHeight: 1.8, mt: 1.5 }}>Use Smart Manage on the web, the Windows desktop application, Android and mobile-ready layouts. iOS support is available where configured.</Typography></Box>
+            </Box>
+
+            <Box>
+              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900 }}>Frequently asked questions.</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.5, mt: 3 }}>
+                {[
+                  ["What is Smart Manage?", "A flexible platform for boards, operations, teamwork, data and reporting."],
+                  ["Is it only for logistics?", "No. Logistics is supported alongside CRM, projects, services, construction and more."],
+                  ["Can I customize boards and columns?", "Yes. Workspaces, boards, columns, views and templates adapt to your process."],
+                  ["Can I invite team members?", "Yes, with workspace, board and role-based permissions."],
+                  ["Does it work on mobile?", "Yes. The web application includes responsive mobile experiences and dedicated portals."],
+                  ["Can I import Excel data?", "Yes. Supported boards can import and export Excel data."],
+                ].map(([question, answer]) => <Box key={question} sx={{ p: 2.5, borderBottom: `1px solid ${LIGHT.border}` }}><Typography fontWeight={900}>{question}</Typography><Typography sx={{ color: LIGHT.textSecondary, mt: .7 }}>{answer}</Typography></Box>)}
+              </Box>
+            </Box>
 
             <motion.div
               initial={{ opacity: 0, y: 28 }}
