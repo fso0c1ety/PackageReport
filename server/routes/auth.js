@@ -3,7 +3,6 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
@@ -16,12 +15,30 @@ const { sendEmail } = require('../mailer');
 const { buildPasswordResetEmail } = require('../utils/emailTemplates');
 const authenticateToken = require('../middleware/authenticateToken');
 const billingService = require('../services/billingService');
+const {
+  createSession,
+  revokeSessions,
+  rotateSession,
+  sessionMetadata,
+} = require('../services/authSessionService');
 
 const SECRET_KEY = getJwtSecret();
 const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: 'auth' });
 const passwordResetRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5, keyPrefix: 'password-reset' });
 
 const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const REFRESH_COOKIE = 'smart_manage_refresh';
+const refreshCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/api',
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+});
+const readCookie = (req, name) => String(req.headers.cookie || '')
+  .split(';')
+  .map((entry) => entry.trim().split('='))
+  .find(([key]) => key === name)?.[1];
 // Login Endpoint
 router.post('/login', authRateLimit, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
@@ -50,19 +67,61 @@ router.post('/login', authRateLimit, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Create token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      SECRET_KEY,
-      { expiresIn: '24h' }
-    );
+    const session = await createSession(db, user, SECRET_KEY, sessionMetadata(req));
+    res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
 
     const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, avatar: avatarUrl } });
+    res.json({
+      token: session.accessToken,
+      refreshToken: req.body?.nativeClient ? session.refreshToken : undefined,
+      sessionId: session.sessionId,
+      user: { id: user.id, name: user.name, email: user.email, avatar: avatarUrl },
+    });
   } catch (err) {
     logger.error('login_failed', { requestId: req.requestId, email, error: err.message });
     res.status(500).json({ error: 'Internal server error during login' });
   }
+});
+
+router.post('/auth/refresh', authRateLimit, async (req, res) => {
+  const refreshToken = String(req.body?.refreshToken || readCookie(req, REFRESH_COOKIE) || '');
+  if (!refreshToken) return res.status(401).json({ error: 'Refresh token required' });
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const session = await rotateSession(client, refreshToken, SECRET_KEY, sessionMetadata(req));
+    if (!session) {
+      await client.query('ROLLBACK');
+      res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: undefined });
+      return res.status(401).json({ error: 'Refresh session is invalid or expired' });
+    }
+    await client.query('COMMIT');
+    res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
+    return res.json({
+      token: session.accessToken,
+      refreshToken: req.body?.nativeClient ? session.refreshToken : undefined,
+      sessionId: session.sessionId,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    logger.error('refresh_session_failed', { requestId: req.requestId, error: err.message });
+    return res.status(500).json({ error: 'Unable to refresh session' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/auth/logout', authenticateToken, async (req, res) => {
+  await revokeSessions(db, req.user.id, { sessionId: req.user.sid || null, reason: 'logout' });
+  res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: undefined });
+  return res.json({ success: true });
+});
+
+router.post('/auth/logout-all', authenticateToken, async (req, res) => {
+  await revokeSessions(db, req.user.id, { reason: 'logout_all' });
+  res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: undefined });
+  return res.json({ success: true });
 });
 
 // Register Endpoint
@@ -217,6 +276,7 @@ router.post('/reset-password', passwordResetRateLimit, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
     await client.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, resetToken.user_id]);
     await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL', [resetToken.user_id]);
+    await revokeSessions(client, resetToken.user_id, { reason: 'password_reset' });
     await client.query('COMMIT');
     logger.info('password_reset_completed', { requestId: req.requestId, userId: resetToken.user_id });
     return res.json({ success: true, message: 'Password reset successfully. You can now sign in.' });
@@ -249,6 +309,7 @@ router.post('/change-password', authenticateToken, authRateLimit, async (req, re
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await db.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.user.id]);
     await db.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL', [req.user.id]);
+    await revokeSessions(db, req.user.id, { reason: 'password_change' });
     logger.info('password_changed', { requestId: req.requestId, userId: req.user.id });
     return res.json({ success: true, message: 'Password updated successfully' });
   } catch (err) {
