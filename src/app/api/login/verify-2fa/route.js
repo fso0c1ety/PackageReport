@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST(req) {
   try {
-    const { challengeId, code } = await req.json();
+    const { challengeId, code, nativeClient = false } = await req.json();
     if (!challengeId || !/^\d{6}$/.test(String(code || ""))) {
       return NextResponse.json({ error: "Enter the 6-digit verification code" }, { status: 400 });
     }
@@ -19,7 +19,7 @@ export async function POST(req) {
     const user = verification.user;
     const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
     const session = await issueSession(user, req);
-    const response = NextResponse.json({ token: session.token, sessionId: session.sessionId, user: { ...user, avatar } });
+    const response = NextResponse.json({ token: session.token, refreshToken: nativeClient ? session.refreshToken : undefined, sessionId: session.sessionId, user: { ...user, avatar } });
     if (session.refreshToken) response.cookies.set(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
     return response;
   } catch (error) {

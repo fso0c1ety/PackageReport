@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { ensureExtendedUserProfileColumns, pool } from "../_lib/server";
+import { sendEmail } from "../_lib/mailer";
+import { buildAccountActionEmail } from "../_lib/emailTemplates";
+import { publicAppUrl, replaceAccountToken } from "../_lib/accountTokens";
+import { isValidEmail, validatePassword } from "../_lib/passwordReset";
 
 export const runtime = "nodejs";
+const genericResponse = {
+  success: true,
+  verificationRequired: true,
+  message: "Check your email to verify or activate your account before signing in.",
+};
 
 export async function POST(req) {
   try {
@@ -29,27 +38,35 @@ export async function POST(req) {
 
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     const existingUser = result.rows[0];
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     if (existingUser) {
       if (existingUser.password) {
-        return NextResponse.json({ error: "User already exists" }, { status: 400 });
+        return NextResponse.json(genericResponse);
       }
 
       const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
         name
       )}&background=random&color=fff&bold=true`;
 
-      await pool.query(
-        `UPDATE users SET name=$1, password=$2, avatar=$3, first_name=$4, last_name=$5,
-         phone=$6, job_title=$7, company=$8, birth_date=$9, gender=$10 WHERE id=$11`,
-        [name, hashedPassword, avatarUrl, firstName, lastName, phone, jobTitle, company, birthDate, gender, existingUser.id]
-      );
-
-      return NextResponse.json({
-        success: true,
-        message: "Account updated with password and avatar successfully",
+      const rawToken = await replaceAccountToken({
+        table: "account_activation_tokens",
+        userId: existingUser.id,
+        pendingProfile: { name, passwordHash: hashedPassword, avatar: avatarUrl, firstName, lastName, phone, jobTitle, company, birthDate, gender },
       });
+      const actionUrl = `${publicAppUrl(req)}/activate-account/?token=${encodeURIComponent(rawToken)}`;
+      try {
+        await sendEmail({
+          to: existingUser.email,
+          subject: "Activate your Smart Manage account",
+          text: `Confirm ownership and activate your account: ${actionUrl}. This link expires in 24 hours.`,
+          html: buildAccountActionEmail({ displayName: existingUser.name || name, actionUrl, activation: true }),
+        });
+      } catch (emailError) {
+        await pool.query("DELETE FROM account_activation_tokens WHERE user_id=$1", [existingUser.id]);
+        console.error("[REGISTER] Activation email failed:", emailError);
+      }
+      return NextResponse.json(genericResponse);
     }
 
     const userId = uuidv4();
@@ -59,15 +76,26 @@ export async function POST(req) {
 
     await pool.query(
       `INSERT INTO users
-       (id, name, email, avatar, password, first_name, last_name, phone, job_title, company, birth_date, gender)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+       (id, name, email, avatar, password, first_name, last_name, phone, job_title, company, birth_date, gender, email_verified_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL)`,
       [userId, name, email, avatarUrl, hashedPassword, firstName, lastName, phone, jobTitle, company, birthDate, gender]
     );
 
-    return NextResponse.json({
-      success: true,
-      message: "User registered successfully",
-    });
+    const rawToken = await replaceAccountToken({ table: "email_verification_tokens", userId });
+    const actionUrl = `${publicAppUrl(req)}/verify-email/?token=${encodeURIComponent(rawToken)}`;
+    try {
+      await sendEmail({
+        to: email, subject: "Verify your Smart Manage email",
+        text: `Verify your Smart Manage email: ${actionUrl}. This link expires in 24 hours.`,
+        html: buildAccountActionEmail({ displayName: name, actionUrl }),
+      });
+    } catch (emailError) {
+      console.error("[REGISTER] Verification email failed:", emailError);
+    }
+    if (!isValidEmail(email)) return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    const passwordError = validatePassword(password);
+    if (passwordError) return NextResponse.json({ error: passwordError }, { status: 400 });
+    return NextResponse.json(genericResponse);
   } catch (err) {
     console.error("[REGISTER] Error:", err);
     return NextResponse.json(

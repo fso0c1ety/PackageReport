@@ -36,3 +36,13 @@ export function buildPasswordResetEmail({ displayName, resetUrl }) {
   </div>
 </div>`;
 }
+
+export function buildAccountActionEmail({ displayName, actionUrl, activation = false }) {
+  const safeName = escapeHtml(displayName || "there");
+  const safeUrl = escapeHtml(actionUrl);
+  const title = activation ? "Activate your account" : "Verify your email";
+  const explanation = activation
+    ? "A Smart Manage account already exists for this email. Confirm ownership before a password or profile can be assigned."
+    : "Confirm this email address to finish securing your Smart Manage account.";
+  return `<div style="font-family:Arial,sans-serif;background:#f3f4f6;padding:32px"><div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:32px"><h1 style="color:#4f46e5">Smart Manage</h1><h2>${title}</h2><p>Hi ${safeName},</p><p>${explanation}</p><p><a href="${safeUrl}" style="display:inline-block;background:#4f46e5;color:white;padding:13px 22px;border-radius:8px;text-decoration:none;font-weight:700">${title}</a></p><p style="color:#64748b">This single-use link expires in 24 hours. If you did not request it, ignore this email.</p></div></div>`;
+}

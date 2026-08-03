@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, protocol, net, Tray, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, shell, protocol, net, Tray, Menu, nativeImage, ipcMain, safeStorage } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
@@ -9,6 +9,33 @@ let tray = null;
 let isQuitting = false;
 let closeToTrayNoticeShown = false;
 const SPLASH_MINIMUM_MS = 10000;
+
+function secureAuthFile() {
+  return path.join(app.getPath("userData"), "secure-auth.bin");
+}
+
+function registerSecureAuthStorage() {
+  ipcMain.handle("secure-auth:get", () => {
+    try {
+      const file = secureAuthFile();
+      if (!safeStorage.isEncryptionAvailable() || !fs.existsSync(file)) return null;
+      return safeStorage.decryptString(fs.readFileSync(file));
+    } catch (error) {
+      console.warn("[electron] Unable to read secure auth storage:", error.message);
+      return null;
+    }
+  });
+  ipcMain.handle("secure-auth:set", (_event, value) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error("OS encryption is unavailable");
+    fs.writeFileSync(secureAuthFile(), safeStorage.encryptString(String(value || "")));
+    return true;
+  });
+  ipcMain.handle("secure-auth:clear", () => {
+    const file = secureAuthFile();
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    return true;
+  });
+}
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
@@ -87,6 +114,7 @@ function createSplashWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
       backgroundThrottling: false,
     },
   });
@@ -290,6 +318,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
       backgroundThrottling: false,
     },
   });
@@ -339,6 +368,7 @@ function createMainWindow() {
 app.whenReady().then(() => {
   app.setName("Smart Manage");
   app.setAppUserModelId("com.packagereport.desktop");
+  registerSecureAuthStorage();
 
   const { session } = require("electron");
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {

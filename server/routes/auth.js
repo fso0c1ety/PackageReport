@@ -12,7 +12,7 @@ const { createRateLimiter } = require('../middleware/rateLimit');
 const { isValidEmail, validatePassword } = require('../middleware/validate');
 const logger = require('../utils/logger');
 const { sendEmail } = require('../mailer');
-const { buildPasswordResetEmail } = require('../utils/emailTemplates');
+const { buildAccountActionEmail, buildPasswordResetEmail } = require('../utils/emailTemplates');
 const authenticateToken = require('../middleware/authenticateToken');
 const billingService = require('../services/billingService');
 const {
@@ -23,6 +23,8 @@ const {
   rotateSession,
   sessionMetadata,
 } = require('../services/authSessionService');
+const { consumeAccountToken, replaceAccountToken } = require('../services/accountTokenService');
+const { getLoginProtectionState, recordAuthenticationEvent } = require('../services/loginProtectionService');
 
 const SECRET_KEY = getJwtSecret();
 const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: 'auth' });
@@ -41,6 +43,27 @@ const readCookie = (req, name) => String(req.headers.cookie || '')
   .split(';')
   .map((entry) => entry.trim().split('='))
   .find(([key]) => key === name)?.[1];
+const publicAppUrl = () => String(
+  process.env.APP_URL || process.env.NEXT_PUBLIC_FRONTEND_URL ||
+  (process.env.NODE_ENV === 'production' ? 'https://package-report.vercel.app' : 'http://localhost:3000')
+).replace(/\/$/, '');
+const registrationResponse = {
+  success: true,
+  verificationRequired: true,
+  message: 'Check your email to verify or activate your account before signing in.',
+};
+const pendingProfileFromRequest = (req, { name, firstName, lastName, passwordHash }) => ({
+  name,
+  firstName,
+  lastName,
+  passwordHash,
+  avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`,
+  phone: String(req.body?.phone || ''),
+  jobTitle: String(req.body?.job_title || ''),
+  company: String(req.body?.company || ''),
+  birthDate: req.body?.birth_date || null,
+  gender: req.body?.gender || null,
+});
 // Login Endpoint
 router.post('/login', authRateLimit, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
@@ -53,19 +76,27 @@ router.post('/login', authRateLimit, async (req, res) => {
   }
 
   try {
+    const protection = await getLoginProtectionState(db, { email, ipAddress: req.ip || null });
+    if (protection.retryAfter > 0) {
+      res.setHeader('Retry-After', protection.retryAfter);
+      return res.status(429).json({ error: 'Invalid credentials. Please wait before trying again.' });
+    }
     const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = result.rows[0];
 
     if (!user) {
+      await recordAuthenticationEvent(db, { email, eventType: 'login_failed', req, metadata: { reason: 'invalid_credentials' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     if (!user.password) {
-      return res.status(401).json({ error: 'Account not set up for password login. Please register again with the same email to set a password.' });
+      await recordAuthenticationEvent(db, { userId: user.id, email, eventType: 'login_failed', req, metadata: { reason: 'invalid_credentials' } });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      await recordAuthenticationEvent(db, { userId: user.id, email, eventType: 'login_failed', req, metadata: { suspicious: protection.suspicious } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -80,6 +111,7 @@ router.post('/login', authRateLimit, async (req, res) => {
     if (session.refreshToken) res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
 
     const avatarUrl = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`;
+    await recordAuthenticationEvent(db, { userId: user.id, email, eventType: 'login_succeeded', req, metadata: { sessionId: session.sessionId } });
     res.json({
       token: session.accessToken,
       refreshToken: req.body?.nativeClient ? session.refreshToken : undefined,
@@ -155,22 +187,31 @@ router.post('/register', authRateLimit, async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     const existingUser = result.rows[0];
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     if (existingUser) {
       if (existingUser.password) {
-        return res.status(400).json({ error: 'User already exists' });
+        return res.json(registrationResponse);
       }
 
-      // Update legacy user with password and generate avatar
-      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
-      await db.query(
-        `UPDATE users SET name=$1, password=$2, avatar=$3, first_name=$4, last_name=$5,
-         phone=$6, job_title=$7, company=$8, birth_date=$9, gender=$10 WHERE id=$11`,
-        [name, hashedPassword, avatarUrl, firstName, lastName, req.body.phone || '', req.body.job_title || '', req.body.company || '', req.body.birth_date || null, req.body.gender || null, existingUser.id]
-      );
-      await billingService.ensureSubscription(existingUser.id);
-      return res.json({ success: true, message: 'Account updated with password and avatar successfully' });
+      const pendingProfile = pendingProfileFromRequest(req, { name, firstName, lastName, passwordHash: hashedPassword });
+      const activation = await replaceAccountToken(db, {
+        table: 'account_activation_tokens', userId: existingUser.id, pendingProfile,
+      });
+      const activationUrl = `${publicAppUrl()}/activate-account?token=${encodeURIComponent(activation.rawToken)}`;
+      try {
+        await sendEmail({
+          to: existingUser.email,
+          subject: 'Activate your Smart Manage account',
+          text: `Confirm ownership and activate your account: ${activationUrl}. This link expires in 24 hours.`,
+          html: buildAccountActionEmail({ displayName: existingUser.name || name, actionUrl: activationUrl, activation: true }),
+        });
+      } catch (emailError) {
+        await db.query('DELETE FROM account_activation_tokens WHERE user_id=$1', [existingUser.id]);
+        logger.error('account_activation_email_failed', { requestId: req.requestId, userId: existingUser.id, error: emailError.message });
+      }
+      logger.info('legacy_account_activation_requested', { requestId: req.requestId, userId: existingUser.id });
+      return res.json(registrationResponse);
     }
 
     // Create new user with generated avatar
@@ -178,16 +219,114 @@ router.post('/register', authRateLimit, async (req, res) => {
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&bold=true`;
     await db.query(
       `INSERT INTO users
-       (id,name,email,avatar,password,first_name,last_name,phone,job_title,company,birth_date,gender)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+       (id,name,email,avatar,password,first_name,last_name,phone,job_title,company,birth_date,gender,email_verified_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL)`,
       [userId, name, email, avatarUrl, hashedPassword, firstName, lastName, req.body.phone || '', req.body.job_title || '', req.body.company || '', req.body.birth_date || null, req.body.gender || null]
     );
     await billingService.ensureSubscription(userId);
-
-    res.json({ success: true, message: 'User registered successfully' });
+    const verification = await replaceAccountToken(db, { table: 'email_verification_tokens', userId });
+    const verificationUrl = `${publicAppUrl()}/verify-email?token=${encodeURIComponent(verification.rawToken)}`;
+    try {
+      await sendEmail({
+        to: email,
+        subject: 'Verify your Smart Manage email',
+        text: `Verify your Smart Manage email: ${verificationUrl}. This link expires in 24 hours.`,
+        html: buildAccountActionEmail({ displayName: name, actionUrl: verificationUrl }),
+      });
+    } catch (emailError) {
+      logger.error('email_verification_send_failed', { requestId: req.requestId, userId, error: emailError.message });
+    }
+    res.json(registrationResponse);
   } catch (err) {
     logger.error('registration_failed', { requestId: req.requestId, email, error: err.message });
     res.status(500).json({ error: 'Internal server error during registration' });
+  }
+});
+
+router.post('/auth/activate-account', authRateLimit, async (req, res) => {
+  const token = String(req.body?.token || '');
+  if (!token) return res.status(400).json({ error: 'Activation token is required' });
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const activation = await consumeAccountToken(client, { table: 'account_activation_tokens', rawToken: token });
+    if (!activation) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Activation link is invalid or has expired' });
+    }
+    const profile = activation.pending_profile || {};
+    const updated = await client.query(
+      `UPDATE users SET name=$1,password=$2,avatar=$3,first_name=$4,last_name=$5,phone=$6,
+       job_title=$7,company=$8,birth_date=$9,gender=$10,email_verified_at=NOW()
+       WHERE id=$11 AND password IS NULL RETURNING id`,
+      [profile.name, profile.passwordHash, profile.avatar, profile.firstName, profile.lastName,
+       profile.phone || '', profile.jobTitle || '', profile.company || '', profile.birthDate || null,
+       profile.gender || null, activation.user_id]
+    );
+    if (!updated.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Account is already active' });
+    }
+    await client.query('UPDATE account_activation_tokens SET used_at=NOW() WHERE id=$1', [activation.id]);
+    await client.query(
+      `INSERT INTO authentication_audit_events (id,user_id,event_type,ip_address,user_agent,request_id)
+       VALUES ($1,$2,'legacy_account_activated',$3,$4,$5)`,
+      [uuidv4(), activation.user_id, req.ip || null, req.headers['user-agent'] || null, req.requestId || null]
+    );
+    await client.query('COMMIT');
+    await billingService.ensureSubscription(activation.user_id);
+    return res.json({ success: true, message: 'Account activated. You can now sign in.' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    logger.error('account_activation_failed', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({ error: 'Unable to activate account' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/auth/verify-email', authRateLimit, async (req, res) => {
+  const token = String(req.body?.token || '');
+  if (!token) return res.status(400).json({ error: 'Verification token is required' });
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const verification = await consumeAccountToken(client, { table: 'email_verification_tokens', rawToken: token });
+    if (!verification) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Verification link is invalid or has expired' });
+    }
+    await client.query('UPDATE users SET email_verified_at=COALESCE(email_verified_at,NOW()) WHERE id=$1', [verification.user_id]);
+    await client.query('UPDATE email_verification_tokens SET used_at=NOW() WHERE id=$1', [verification.id]);
+    await client.query('COMMIT');
+    return res.json({ success: true, message: 'Email verified successfully.' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    return res.status(500).json({ error: 'Unable to verify email' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/auth/resend-verification', passwordResetRateLimit, async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const generic = { success: true, message: 'If verification is needed, a new link has been sent.' };
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
+  try {
+    const result = await db.query('SELECT id,name,email,email_verified_at FROM users WHERE email=$1', [email]);
+    const user = result.rows[0];
+    if (!user || user.email_verified_at) return res.json(generic);
+    const verification = await replaceAccountToken(db, { table: 'email_verification_tokens', userId: user.id });
+    const verificationUrl = `${publicAppUrl()}/verify-email?token=${encodeURIComponent(verification.rawToken)}`;
+    await sendEmail({
+      to: user.email, subject: 'Verify your Smart Manage email',
+      text: `Verify your Smart Manage email: ${verificationUrl}. This link expires in 24 hours.`,
+      html: buildAccountActionEmail({ displayName: user.name, actionUrl: verificationUrl }),
+    });
+    return res.json(generic);
+  } catch (error) {
+    logger.error('resend_verification_failed', { requestId: req.requestId, error: error.message });
+    return res.json(generic);
   }
 });
 

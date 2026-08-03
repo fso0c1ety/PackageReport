@@ -9,7 +9,7 @@ WHERE password IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
   id UUID PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   refresh_token_hash TEXT NOT NULL UNIQUE,
   device_name TEXT,
   user_agent TEXT,
@@ -27,7 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_active
 
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
   id UUID PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
   used_at TIMESTAMPTZ,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 
 CREATE TABLE IF NOT EXISTS account_activation_tokens (
   id UUID PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE,
   pending_profile JSONB NOT NULL DEFAULT '{}'::jsonb,
   expires_at TIMESTAMPTZ NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS account_activation_tokens (
 
 CREATE TABLE IF NOT EXISTS authentication_audit_events (
   id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   normalized_email TEXT,
   event_type TEXT NOT NULL,
   ip_address TEXT,

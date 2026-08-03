@@ -12,6 +12,6 @@ test("email validation rejects malformed addresses", () => {
 
 test("password policy requires length and mixed character classes", () => {
   assert.equal(validatePassword("short1").includes("at least"), true);
-  assert.equal(validatePassword("longpassword").includes("letters and numbers"), true);
-  assert.equal(validatePassword("longpassword1"), null);
+  assert.equal(validatePassword("longpassword1").includes("uppercase"), true);
+  assert.equal(validatePassword("LongPassword1"), null);
 });

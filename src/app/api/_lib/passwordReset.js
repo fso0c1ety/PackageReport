@@ -6,9 +6,9 @@ export const isValidEmail = (email) =>
 
 export function validatePassword(password) {
   const value = String(password || "");
-  if (value.length < 8) return "Password must be at least 8 characters long";
-  if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) {
-    return "Password must include letters and numbers";
+  if (value.length < 10) return "Password must be at least 10 characters long";
+  if (!/[a-z]/.test(value) || !/[A-Z]/.test(value) || !/[0-9]/.test(value)) {
+    return "Password must include uppercase, lowercase and number characters";
   }
   return null;
 }

@@ -1,4 +1,5 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { clearNativeRefreshToken, getNativeRefreshToken, setNativeRefreshToken } from "./authStorage";
 
 const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
 
@@ -774,16 +775,21 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     !requestUrl.includes('/api/auth/refresh') && typeof window !== 'undefined'
   ) {
     try {
+      const nativeClient = isNativeStaticRuntime();
+      const nativeRefreshToken = nativeClient ? await getNativeRefreshToken() : null;
       const refreshResponse = await fetch(getApiUrl('auth/refresh'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nativeClient: isNativeStaticRuntime() }),
+        body: JSON.stringify({ nativeClient, refreshToken: nativeRefreshToken }),
       });
       if (refreshResponse.ok) {
         const refreshed = await refreshResponse.json();
         if (refreshed?.token) {
           localStorage.setItem('token', refreshed.token);
+          if (nativeClient && refreshed.refreshToken) {
+            await setNativeRefreshToken(refreshed.refreshToken);
+          }
           return authenticatedFetch(url, { ...options, skipSessionRefresh: true });
         }
       }
@@ -794,6 +800,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
 
   if (handleAuthErrors && response.status === 401) {
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      void clearNativeRefreshToken();
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       sessionStorage.removeItem('token');
@@ -813,6 +820,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
       authMessage.includes('invalid or expired');
 
     if (tokenIsInvalid && typeof window !== 'undefined') {
+      void clearNativeRefreshToken();
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       sessionStorage.removeItem('token');

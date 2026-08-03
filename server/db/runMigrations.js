@@ -19,7 +19,15 @@ async function ensureMigrationTable() {
 
 function migrationFiles() {
   const dir = path.join(__dirname, "migrations");
-  return fs.readdirSync(dir).filter((file) => file.endsWith(".sql")).sort();
+  const files = fs.readdirSync(dir).filter((file) => file.endsWith(".sql")).sort();
+  const requestedTargets = String(process.env.MIGRATION_TARGET || "")
+    .split(",")
+    .map((file) => file.trim())
+    .filter(Boolean);
+  if (requestedTargets.length === 0) return files;
+  const missing = requestedTargets.filter((file) => !files.includes(file));
+  if (missing.length > 0) throw new Error(`Unknown migration target: ${missing.join(", ")}`);
+  return files.filter((file) => requestedTargets.includes(file));
 }
 
 async function runMigrations() {

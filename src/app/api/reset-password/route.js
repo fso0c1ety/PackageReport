@@ -50,6 +50,12 @@ export async function POST(req) {
       "UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL",
       [resetToken.user_id]
     );
+    await client.query(
+      "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,NOW()),revoked_reason=COALESCE(revoked_reason,'password_reset') WHERE user_id=$1 AND revoked_at IS NULL",
+      [resetToken.user_id]
+    ).catch((error) => {
+      if (error?.code !== "42P01") throw error;
+    });
     await client.query("COMMIT");
     return NextResponse.json({
       success: true,

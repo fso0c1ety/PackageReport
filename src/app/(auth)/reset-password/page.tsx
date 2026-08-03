@@ -45,7 +45,7 @@ function ResetPasswordForm() {
     <Paper sx={{ width: "100%", maxWidth: 460, p: { xs: 3, md: 4 }, borderRadius: 3 }}>
       <Typography variant="h4" fontWeight={800} mb={1}>Choose a new password</Typography>
       <Typography color="text.secondary" mb={3}>
-        Use at least 8 characters with uppercase, lowercase and a number.
+        Use at least 10 characters with uppercase, lowercase and a number.
       </Typography>
       <Box component="form" onSubmit={submit} display="flex" flexDirection="column" gap={2}>
         <TextField required fullWidth type="password" label="New password" value={password} onChange={(event) => setPassword(event.target.value)} />

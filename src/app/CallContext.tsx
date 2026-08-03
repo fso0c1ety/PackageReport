@@ -31,6 +31,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useRouter } from "next/navigation";
 import { getAvatarUrl, getApiUrl, authenticatedFetch, navigateToAppRoute } from "./apiUrl";
 import { supabase } from "../lib/supabase";
+import { clearNativeRefreshToken } from "./authStorage";
 
 type CallContextType = {
     startCall: (targetId: string, isVideo: boolean, otherUser?: any) => Promise<void>;
@@ -427,6 +428,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const handleCancelTakeover = () => {
+        void clearNativeRefreshToken();
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         setCurrentUser(null);

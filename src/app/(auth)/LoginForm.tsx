@@ -19,6 +19,7 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getApiUrl, redirectToAppRoute, isNativeStaticRuntime, publicFetch } from '../apiUrl';
+import { setNativeRefreshToken } from '../authStorage';
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -84,9 +85,10 @@ export function LoginForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(twoFactorChallengeId
-          ? { challengeId: twoFactorChallengeId, code: otpCode }
+          ? { challengeId: twoFactorChallengeId, code: otpCode, nativeClient: isNativeStaticRuntime() }
           : {
               ...formData,
+              nativeClient: isNativeStaticRuntime(),
               name: isLogin
                 ? formData.name
                 : `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim(),
@@ -118,6 +120,7 @@ export function LoginForm() {
 
       if (isLogin) {
         if (typeof window !== 'undefined') {
+          if (data.refreshToken) await setNativeRefreshToken(data.refreshToken);
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
           localStorage.removeItem('subscriptionBannerDismissed');

@@ -27,6 +27,7 @@ import { authenticatedFetch, getApiUrl, getAvatarUrl, navigateToAppRoute, redire
 import { useThemeContext } from "./ThemeContext";
 import { useCallContext } from "./CallContext";
 import UserProfileDialog from "./UserProfileDialog";
+import { clearNativeRefreshToken, getNativeRefreshToken } from "./authStorage";
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -196,6 +197,17 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     } catch (e) {
       console.error("Failed to clear FCM token on server", e);
     }
+    try {
+      const refreshToken = await getNativeRefreshToken();
+      await authenticatedFetch(getApiUrl('auth/logout'), {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+        suppressNativeErrorAlert: true,
+      });
+    } catch (e) {
+      console.error("Failed to revoke session on server", e);
+    }
+    await clearNativeRefreshToken();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     redirectToAppRoute('/login');
