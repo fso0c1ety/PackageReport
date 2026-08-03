@@ -124,3 +124,20 @@ button:focus,
 .ring-ripple:nth-of-type(3) {
   animation-delay: 1s;
 }
+:root {
+  --sm-brand: #5b4df5;
+  --sm-brand-strong: #4338ca;
+  --sm-surface: #ffffff;
+  --sm-canvas: #f8fafc;
+  --sm-text: #0f172a;
+  --sm-muted: #64748b;
+  --sm-border: rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="dark"] {
+  --sm-surface: #111827;
+  --sm-canvas: #070b16;
+  --sm-text: #f8fafc;
+  --sm-muted: #94a3b8;
+  --sm-border: rgba(255, 255, 255, 0.12);
+}

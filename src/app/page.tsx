@@ -95,7 +95,7 @@ export default function LandingPage() {
   const contactOptions = [
     {
       title: "Sales questions",
-      text: "Learn how PackageReport can fit your workflow and reporting needs.",
+      text: "Learn how Smart Manage can fit your workflow and reporting needs.",
     },
     {
       title: "Product support",
@@ -236,7 +236,7 @@ export default function LandingPage() {
               <Box
                 component="img"
                 src="/icon.png"
-                alt="PackageReport logo"
+                alt="Smart Manage logo"
                 sx={{
                   width: 40,
                   height: 40,
