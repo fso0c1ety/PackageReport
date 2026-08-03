@@ -255,6 +255,7 @@ const automationRoute = require('./routes/automation');
 const emailerRoute = require('./routes/emailer');
 const friendsRoute = require('./routes/friends');
 const chatsRoute = require('./routes/chats');
+const { createUsersRouter } = require('./routes/users');
 
 mountCoreRoutes(app, {
   authenticateToken,
@@ -262,6 +263,7 @@ mountCoreRoutes(app, {
   routes: {
     auth: authRoute,
     billing: billingRoute,
+    users: createUsersRouter({ db, logger }),
     people: peopleRoute,
     automation: automationRoute,
     emailer: emailerRoute,
@@ -391,82 +393,6 @@ app.post('/api/upload', authenticateToken, async (req, res) => {
 });
 
 // Get complete user profile
-app.get('/api/users/profile', authenticateToken, async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  try {
-    const result = await db.query(
-      'SELECT id, name, email, avatar, phone, job_title, company, first_name, last_name, birth_date, gender, email_notifications, push_notifications FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    const user = result.rows[0];
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json(user);
-  } catch (err) {
-    console.error('Error fetching profile:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Update user profile
-app.put('/api/users/profile', authenticateToken, async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  try {
-    const currentResult = await db.query(
-      'SELECT name, avatar, phone, job_title, company, first_name, last_name, birth_date, gender, email_notifications, push_notifications FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    const current = currentResult.rows[0];
-    if (!current) return res.status(404).json({ error: 'User not found' });
-
-    const nextName = req.body.name === undefined ? current.name : String(req.body.name).trim();
-    const nextAvatar = req.body.avatar === undefined ? current.avatar : String(req.body.avatar || '').trim();
-    const nextPhone = req.body.phone === undefined ? current.phone : String(req.body.phone || '').trim();
-    const nextJobTitle = req.body.job_title === undefined ? current.job_title : String(req.body.job_title || '').trim();
-    const nextCompany = req.body.company === undefined ? current.company : String(req.body.company || '').trim();
-    const nextFirstName = req.body.first_name === undefined ? current.first_name : String(req.body.first_name || '').trim();
-    const nextLastName = req.body.last_name === undefined ? current.last_name : String(req.body.last_name || '').trim();
-    const nextBirthDate = req.body.birth_date === undefined ? current.birth_date : (req.body.birth_date || null);
-    const nextGender = req.body.gender === undefined ? current.gender : String(req.body.gender || '').trim() || null;
-    const nextEmailNotifications = typeof req.body.email_notifications === 'boolean'
-      ? req.body.email_notifications
-      : current.email_notifications;
-    const nextPushNotifications = typeof req.body.push_notifications === 'boolean'
-      ? req.body.push_notifications
-      : current.push_notifications;
-
-    if (!nextName || nextName.length > 100) return res.status(400).json({ error: 'Name must be between 1 and 100 characters' });
-    if (nextAvatar.length > 2048) return res.status(400).json({ error: 'Avatar URL is too long' });
-    if (nextPhone.length > 50 || nextJobTitle.length > 100 || nextCompany.length > 100) {
-      return res.status(400).json({ error: 'Profile field is too long' });
-    }
-
-    const result = await db.query(
-      `UPDATE users
-       SET name=$1, avatar=$2, phone=$3, job_title=$4, company=$5,
-           first_name=$6, last_name=$7, birth_date=$8, gender=$9,
-           email_notifications=$10, push_notifications=$11
-       WHERE id=$12
-       RETURNING id, name, email, avatar, phone, job_title, company, first_name, last_name, birth_date, gender, email_notifications, push_notifications`,
-      [nextName, nextAvatar, nextPhone, nextJobTitle, nextCompany, nextFirstName, nextLastName, nextBirthDate, nextGender, nextEmailNotifications, nextPushNotifications, req.user.id]
-    );
-    if (result.rows.length === 0) {
-      console.error('[PROFILE UPDATE] No user updated for id:', req.user.id);
-      return res.status(404).json({ error: 'User not found or not updated' });
-    }
-    const updatedUser = result.rows[0];
-    res.json(updatedUser);
-  } catch (err) {
-    console.error('[PROFILE UPDATE] Error updating profile:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // --- Nexus Brain (AI) Endpoint ---
 app.post('/api/nexus/chat', authenticateToken, async (req, res) => {
     const { messages, systemPrompt, input } = req.body;
