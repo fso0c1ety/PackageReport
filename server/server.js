@@ -7,6 +7,7 @@ const { configureCoreMiddleware, mountCoreRoutes } = require('./app');
 const { createNexusRouter } = require('./routes/nexus');
 const { createSystemRouter } = require('./routes/system');
 const { createUploadsRouter } = require('./routes/uploads');
+const { createPushNotificationsRouter } = require('./routes/pushNotifications');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
@@ -184,6 +185,7 @@ mountCoreRoutes(app, {
     users: createUsersRouter({ db, logger }),
     nexus: createNexusRouter({ fetch, logger }),
     uploads: createUploadsRouter({ db, logger, sharedUploadDir: SHARED_UPLOAD_DIR, legacyUploadDir: LEGACY_UPLOAD_DIR }),
+    pushNotifications: createPushNotificationsRouter({ db, logger, sendPushNotification }),
     people: peopleRoute,
     automation: automationRoute,
     emailer: emailerRoute,
@@ -1986,94 +1988,6 @@ app.put('/api/tables/:tableId/tasks/order', authenticateToken, async (req, res) 
   }
 });
 
-
-// --- User FCM Token Endpoint ---
-app.put('/api/users/fcm', authenticateToken, async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'Token is required' });
-  try {
-    console.log('[FCM] PUT /api/users/fcm called');
-    console.log('User from token:', req.user);
-    console.log('Token in body:', token);
-    // 1. Update the singular field (for backward compatibility)
-    await db.query('UPDATE public.users SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
-    console.log('Updated fcm_token for user', req.user.id);
-    // 2. Best-effort update of the plural array for multi-device support.
-    // Older production databases may not have this column yet, so we avoid failing the whole request.
-    let updatedPluralTokens = false;
-    try {
-      await db.query(`
-          UPDATE public.users
-          SET fcm_tokens = CASE
-              WHEN fcm_tokens IS NULL THEN jsonb_build_array($1::text)
-              WHEN jsonb_typeof(fcm_tokens) <> 'array' THEN jsonb_build_array($1::text)
-              WHEN NOT (fcm_tokens @> jsonb_build_array($1::text)) THEN fcm_tokens || jsonb_build_array($1::text)
-              ELSE fcm_tokens
-          END
-          WHERE id = $2
-      `, [token, req.user.id]);
-      updatedPluralTokens = true;
-      console.log('Updated fcm_tokens for user', req.user.id);
-    } catch (pluralErr) {
-      console.warn('[FCM] Non-fatal error updating fcm_tokens:', pluralErr.message);
-    }
-    res.json({ success: true, storedInArray: updatedPluralTokens });
-  } catch (err) {
-    console.error('Error updating FCM token:', err);
-    if (err.stack) console.error(err.stack);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: err && err.message ? err.message : null,
-      stack: err && err.stack ? err.stack : null,
-      full: JSON.stringify(err)
-    });
-  }
-});
-
-app.delete('/api/users/fcm', authenticateToken, async (req, res) => {
-  try {
-    await db.query('UPDATE public.users SET fcm_token = NULL WHERE id = $1', [req.user.id]);
-    try {
-      await db.query('UPDATE public.users SET fcm_tokens = \'[]\'::jsonb WHERE id = $1', [req.user.id]);
-    } catch (pluralErr) {
-      console.warn('[FCM] Non-fatal error clearing fcm_tokens:', pluralErr.message);
-    }
-    console.log(`[FCM] Cleared tokens for user ${req.user.id}`);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error clearing FCM token:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// --- Test Notification Endpoint ---
-app.post('/api/test-notification', authenticateToken, async (req, res) => {
-    try {
-        const userRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = $1', [req.user.id]);
-        if (userRes.rows.length === 0) {
-            return res.status(400).json({ error: 'User not found' });
-        }
-        
-        const r = userRes.rows[0];
-        let tokens = new Set();
-        if (r.fcm_token) tokens.add(r.fcm_token);
-        if (Array.isArray(r.fcm_tokens)) {
-            r.fcm_tokens.forEach(t => { if (t) tokens.add(t); });
-        }
-        const tokensArray = Array.from(tokens);
-
-        if (tokensArray.length === 0) {
-            return res.status(400).json({ error: 'No FCM tokens found for user' });
-        }
-        
-        console.log(`Sending test notification to user ${req.user.id} with ${tokensArray.length} tokens...`);
-        await sendPushNotification(tokensArray, 'Test Notification', 'This is a test from SmartManage!');
-        res.json({ success: true, message: 'Notification sent' });
-    } catch (err) {
-        console.error('Error sending test notification:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
 
 // --- Table Chat Endpoints ---
 // Using a table in PostgreSQL for chats
