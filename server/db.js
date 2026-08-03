@@ -1,5 +1,7 @@
 ﻿const { Pool } = require('pg');
 const { getDatabaseUrl } = require('./config/env');
+const logger = require('./utils/logger');
+const metrics = require('./observability/metrics');
 
 const configuredConnectionString = getDatabaseUrl();
 const dbUrl = new URL(configuredConnectionString);
@@ -25,11 +27,20 @@ const pool = new Pool({
 });
 
 pool.on('error', (err, client) => {
-    console.error('Unexpected error on idle client', err);
-    process.exit(-1);
+    logger.error('database_idle_client_error', { error: err.message });
 });
 
+async function query(text, params) {
+    const startedAt = Date.now();
+    try { return await pool.query(text, params); }
+    finally {
+        const durationMs = Date.now() - startedAt;
+        metrics.timing('database_query_duration_ms', durationMs, { operation: String(text).trim().split(/\s+/)[0]?.toUpperCase() || 'UNKNOWN' });
+        if (durationMs > Number(process.env.SLOW_QUERY_MS || 1000)) logger.warn('database_slow_query', { durationMs, operation: String(text).trim().split(/\s+/)[0] });
+    }
+}
+
 module.exports = {
-    query: (text, params) => pool.query(text, params),
+    query,
     pool: pool
 };

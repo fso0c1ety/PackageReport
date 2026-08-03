@@ -5,6 +5,7 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const { createClient } = require("@supabase/supabase-js");
 const { createStorageKey, runVirusScanHook, validateFile } = require("../services/fileSecurity");
+const metrics = require("../observability/metrics");
 
 function uploadMiddleware() {
   return multer({
@@ -105,6 +106,7 @@ function createUploadsRouter({ db, getRowAccess, getTableAccess, getWorkspaceAcc
           persisted: persistedToDb,
         });
       } catch (uploadError) {
+        metrics.increment("upload_failures_total", { reason: uploadError.name || "error" });
         logger.error("upload_failed", { requestId: req.requestId, error: uploadError.message });
         return res.status(500).json({ error: "Failed to persist file data", details: uploadError.message });
       }

@@ -49,7 +49,9 @@ logger.info('server_build', { commit: BUILD_COMMIT, date: BUILD_DATE });
 const http = require('http');
 const { Server } = require("socket.io");
 const { attachSocketServer } = require('./socket');
-const { configureSocketRedisAdapter, createRealtimeState } = require('./realtime/redis');
+const { closeRedis, configureSocketRedisAdapter, createRealtimeState } = require('./realtime/redis');
+const metrics = require('./observability/metrics');
+const { closeQueues } = require('./jobs/queue');
 const { bootstrap } = require('./bootstrap');
 const dev = process.env.NODE_ENV !== 'production';
 const next = require('next');
@@ -175,7 +177,9 @@ configureCoreMiddleware(app, {
   requestContext,
 });
 
-app.use('/api', createSystemRouter({ buildCommit: BUILD_COMMIT, buildDate: BUILD_DATE }));
+const systemRouter = createSystemRouter({ buildCommit: BUILD_COMMIT, buildDate: BUILD_DATE, db, metrics });
+app.use('/api', systemRouter);
+app.use(systemRouter);
 // Register people and automation routes at /api
 const authRoute = require('./routes/auth');
 const billingRoute = require('./routes/billing');
@@ -260,4 +264,18 @@ bootstrap({
   process.exit(1);
 });
 
-startScheduledMessageJob({ db, sendNotification, logger });
+const stopScheduledMessages = startScheduledMessageJob({ db, sendNotification, logger });
+
+let shuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (shuttingDown) return; shuttingDown = true;
+  logger.info('graceful_shutdown_started', { signal });
+  stopScheduledMessages();
+  await new Promise((resolve) => server.close(resolve));
+  await io.close();
+  await closeQueues();
+  await closeRedis();
+  await db.pool.end();
+  logger.info('graceful_shutdown_complete', { signal });
+}
+for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => gracefulShutdown(signal).then(() => process.exit(0)).catch((error) => { logger.error('graceful_shutdown_failed', { error: error.message }); process.exit(1); }));

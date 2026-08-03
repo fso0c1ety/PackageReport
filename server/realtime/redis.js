@@ -31,6 +31,13 @@ async function configureSocketRedisAdapter(io, logger = console) {
   return true;
 }
 
+async function closeRedis() {
+  if (!sharedClientPromise) return;
+  const client = await sharedClientPromise.catch(() => null);
+  sharedClientPromise = null;
+  if (client?.isOpen) await client.quit();
+}
+
 function createRealtimeState({ logger = console } = {}) {
   const memorySockets = new Map();
   const memoryCalls = new Map();
@@ -93,4 +100,4 @@ function createRealtimeState({ logger = console } = {}) {
   };
 }
 
-module.exports = { CALL_TTL_SECONDS, PRESENCE_TTL_SECONDS, configureSocketRedisAdapter, createRealtimeState, getRedisClient };
+module.exports = { CALL_TTL_SECONDS, PRESENCE_TTL_SECONDS, closeRedis, configureSocketRedisAdapter, createRealtimeState, getRedisClient };

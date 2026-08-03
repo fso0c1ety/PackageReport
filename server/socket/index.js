@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { assertSocketIdentity, authenticatedCallPayload, socketUserId } = require("./identity");
 const { createSocketEventGuard, isSafeIdentifier, usersMayCommunicate } = require("./security");
+const metrics = require("../observability/metrics");
 
 function attachSocketServer(io, {
   db,
@@ -34,6 +35,8 @@ function attachSocketServer(io, {
   io.on("connection", (socket) => {
     const userId = socketUserId(socket);
     logger.info("socket_connected", { socketId: socket.id, userId });
+    metrics.increment("socket_connections_total");
+    metrics.gauge("socket_connections_active", io.engine.clientsCount);
 
     socket.on("join_table", async (tableId) => {
       try {
@@ -170,6 +173,7 @@ function attachSocketServer(io, {
     });
 
     socket.on("disconnect", async () => {
+      metrics.gauge("socket_connections_active", Math.max(0, io.engine.clientsCount - 1));
       clearInterval(socket.data.presenceTimer);
       await realtimeState.removeSocket(userId, socket.id).catch((error) => logger.error("socket_presence_cleanup_failed", { userId, error: error.message }));
       logger.info("socket_disconnected", { socketId: socket.id, userId });

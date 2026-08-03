@@ -29,6 +29,9 @@ test("extracted routers preserve their legacy endpoint contracts", () => {
   const permission = () => (_req, _res, next) => next();
   assert.deepEqual(routeContracts(createSystemRouter({ buildCommit: "test", buildDate: "test" })), [
     { path: "/version", methods: ["get"] },
+    { path: "/health", methods: ["get"] },
+    { path: "/ready", methods: ["get"] },
+    { path: "/metrics", methods: ["get"] },
   ]);
   assert.deepEqual(routeContracts(createNexusRouter({ fetch() {}, logger })), [
     { path: "/nexus/chat", methods: ["post"] },

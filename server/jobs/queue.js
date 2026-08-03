@@ -1,5 +1,6 @@
 const { Queue, Worker, QueueEvents } = require("bullmq");
 const logger = require("../utils/logger");
+const metrics = require("../observability/metrics");
 
 const queues = new Map();
 const safeJobId = (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 160);
@@ -20,16 +21,17 @@ class MemoryQueue {
     const id = safeJobId(options.idempotencyKey || `${type}_${Date.now()}_${Math.random().toString(36).slice(2)}`);
     if (this.jobs.has(id)) return this.jobs.get(id);
     const job = { id, name: type, type, payload, data: payload, attempts: 0, maxAttempts: options.attempts || 5, status: "waiting", error: null };
-    this.jobs.set(id, job); this.pending.push(job); queueMicrotask(() => this.drain()); return job;
+    this.jobs.set(id, job); this.pending.push(job); metrics.increment("jobs_enqueued_total", { queue: this.name, type }); queueMicrotask(() => this.drain()); return job;
   }
   async getJob(id) { return this.jobs.get(String(id)) || null; }
   async getStatus(id) { const job = await this.getJob(id); return job ? { id: job.id, name: job.name, status: job.status, attempts: job.attempts, error: job.error } : null; }
+  async close() { this.pending.length = 0; }
   async drain() {
     if (this.running) return; this.running = true;
     while (this.pending.length) {
       const job = this.pending.shift(); const handler = this.handlers.get(job.type);
       if (!handler) { job.status = "failed"; job.error = "Missing handler"; continue; }
-      try { job.status = "active"; job.attempts += 1; await handler(job.payload, job); job.status = "completed"; }
+      try { job.status = "active"; job.attempts += 1; await handler(job.payload, job); job.status = "completed"; metrics.increment("jobs_completed_total", { queue: this.name, type: job.type }); }
       catch (error) {
         job.error = error.message;
         if (job.attempts < job.maxAttempts) { job.status = "waiting"; this.pending.push(job); }
@@ -65,6 +67,7 @@ class RedisQueue {
     });
   }
   async add(type, payload = {}, options = {}) {
+    metrics.increment("jobs_enqueued_total", { queue: this.name, type });
     return this.queue.add(type, payload, {
       jobId: safeJobId(options.idempotencyKey || `${type}_${Date.now()}_${Math.random().toString(36).slice(2)}`),
       attempts: options.attempts || 5,
@@ -77,6 +80,7 @@ class RedisQueue {
     const job = await this.getJob(id); if (!job) return null;
     return { id: job.id, name: job.name, status: await job.getState(), attempts: job.attemptsMade, progress: job.progress, error: job.failedReason || null };
   }
+  async close() { await Promise.allSettled([this.worker?.close(), this.events.close(), this.queue.close(), this.deadLetter.close()]); }
 }
 
 function createQueue(name) {
@@ -86,5 +90,6 @@ function createQueue(name) {
 }
 
 function getQueue(name) { return queues.get(name) || createQueue(name); }
+async function closeQueues() { await Promise.allSettled([...queues.values()].map((queue) => queue.close())); }
 
-module.exports = { createQueue, getQueue, MemoryQueue, RedisQueue, redisConnection, safeJobId };
+module.exports = { closeQueues, createQueue, getQueue, MemoryQueue, RedisQueue, redisConnection, safeJobId };
