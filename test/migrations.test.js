@@ -44,3 +44,11 @@ test("universal role and portal migration is included in production deploys", ()
   for (const field of ["workspace_role", "job_roles", "portal_type", "record_access", "board_member_access", "workspace_job_roles"]) assert.match(migration, new RegExp(field));
   assert.match(migration, /smart_manage_row_visible/);
 });
+
+test("template portal preset migration is included in production deploys", () => {
+  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  assert.match(buildScript, /023_template_portal_presets\.sql/);
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "023_template_portal_presets.sql"), "utf8");
+  assert.match(migration, /primary_job_role/);
+  assert.match(migration, /permitted_portals/);
+});

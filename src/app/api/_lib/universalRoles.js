@@ -3,7 +3,8 @@ export const BOARD_ROLES = ["owner", "editor", "commenter", "viewer"];
 export const PORTAL_TYPES = [
   "standard", "driver", "dispatcher", "client", "doctor", "dental_assistant",
   "receptionist", "teacher", "parent", "sales", "project", "field_worker",
-  "store_employee", "warehouse", "production", "hr_employee", "depot", "custom",
+  "store_employee", "warehouse", "production", "hr_employee", "depot", "fleet_manager",
+  "site_manager", "patient", "mechanic", "quality", "inventory", "custom",
 ];
 export const RECORD_ACCESS_SCOPES = [
   "assigned_to_me", "created_by_me", "my_team", "my_department", "my_company",
@@ -28,6 +29,12 @@ export const PORTAL_ROUTES = {
   production: "/portal/production",
   hr_employee: "/portal/employee",
   depot: "/portal/depot",
+  fleet_manager: "/portal/fleet-manager",
+  site_manager: "/portal/site-manager",
+  patient: "/portal/patient",
+  mechanic: "/portal/mechanic",
+  quality: "/portal/quality",
+  inventory: "/portal/inventory",
   custom: "/portal/custom",
 };
 
@@ -92,7 +99,9 @@ export function membershipFromRow(row) {
     templateKey: row.template_key || null,
     workspaceRole,
     jobRoles,
+    primaryJobRole: row?.primary_job_role || jobRoles[0] || null,
     portalType,
+    permittedPortals: Array.isArray(row?.permitted_portals) && row.permitted_portals.length ? row.permitted_portals : [portalType],
     landingRoute: row?.landing_route || PORTAL_ROUTES[portalType],
     recordAccess: normalizeRecordAccess(row?.record_access),
     navigation: Array.isArray(row?.navigation) ? row.navigation : [],
@@ -107,7 +116,7 @@ export async function listUserMemberships(pool, userId) {
   const result = await pool.query(`
     SELECT w.id AS workspace_id, w.name AS workspace_name, w.template_key,
            (w.owner_id::text=$1::text) AS is_owner,
-           wm.role, wm.workspace_role, wm.job_roles, wm.portal_type,
+           wm.role, wm.workspace_role, wm.job_roles, wm.primary_job_role, wm.portal_type, wm.permitted_portals,
            wm.landing_route, wm.record_access, wm.navigation, wm.allowed_actions,
            wm.team_id, wm.department_id, wm.company_id
     FROM workspaces w

@@ -10,10 +10,16 @@ async function canManage(workspaceId, userId) {
   return Boolean(result.rows[0]);
 }
 
+async function canView(workspaceId, userId) {
+  const result = await pool.query("SELECT 1 FROM workspaces w LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text WHERE w.id=$1 AND (w.owner_id::text=$2::text OR wm.user_id IS NOT NULL) LIMIT 1", [workspaceId, String(userId)]);
+  return Boolean(result.rows[0]);
+}
+
 export async function GET(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await params;
+  if (!(await canView(workspaceId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const result = await pool.query(`SELECT id,key,name,enabled,is_system AS "isSystem",default_workspace_role AS "defaultWorkspaceRole",default_portal_type AS "defaultPortalType",default_landing_route AS "defaultLandingRoute",record_access_preset AS "recordAccessPreset",navigation,allowed_actions AS "allowedActions" FROM workspace_job_roles WHERE workspace_id=$1 ORDER BY is_system DESC,name`, [workspaceId]);
   return NextResponse.json(result.rows);
 }

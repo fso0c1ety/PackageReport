@@ -71,7 +71,7 @@ interface TabPanelProps {
 
 const WORKSPACE_ACCESS_ROLES = ["owner", "admin", "manager", "member", "guest"] as const;
 const BOARD_ACCESS_ROLES = ["owner", "editor", "commenter", "viewer"] as const;
-const PORTAL_TYPE_OPTIONS = ["standard", "driver", "dispatcher", "client", "doctor", "dental_assistant", "receptionist", "teacher", "parent", "sales", "project", "field_worker", "store_employee", "warehouse", "production", "hr_employee", "depot", "custom"];
+const PORTAL_TYPE_OPTIONS = ["standard", "driver", "dispatcher", "client", "doctor", "dental_assistant", "receptionist", "teacher", "parent", "patient", "sales", "project", "site_manager", "field_worker", "store_employee", "warehouse", "inventory", "production", "quality", "hr_employee", "depot", "fleet_manager", "mechanic", "custom"];
 const RECORD_SCOPE_OPTIONS = ["assigned_to_me", "created_by_me", "my_team", "my_department", "my_company", "selected_records", "selected_customers", "all_permitted", "custom"];
 const SAFE_JOB_DEFAULTS: Record<string, any> = {
   driver: { workspaceRole: "member", portalType: "driver", recordAccess: { scope: "assigned_to_me", field: "assignedDriverUserId" } },
@@ -511,6 +511,8 @@ export default function SettingsPage() {
       recordAccess: configured.recordAccessPreset,
       navigation: configured.navigation,
       allowedActions: configured.allowedActions,
+      primaryJobRole: roleKey,
+      permittedPortals: [configured.defaultPortalType],
     } : SAFE_JOB_DEFAULTS[roleKey];
     setAccessConfig((current: any) => current ? { ...current, jobRoles: [roleKey], ...(defaults || {}) } : current);
   };
@@ -1880,12 +1882,16 @@ export default function SettingsPage() {
                   {WORKSPACE_ACCESS_ROLES.map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}
                 </TextField>
                 <Autocomplete multiple options={jobRoleOptions.filter((role) => role.enabled !== false).map((role) => role.key)} value={accessConfig.jobRoles || []} getOptionLabel={(key) => jobRoleOptions.find((role) => role.key === key)?.name || key} onChange={(_, roles) => { const added = roles.find((role) => !(accessConfig.jobRoles || []).includes(role)); if (added && roles.length === 1) applyJobRoleDefaults(added); else patchAccessConfig({ jobRoles: roles }); }} renderInput={(params) => <TextField {...params} label="Job roles" size="small" sx={fieldSx} />} />
+                <TextField select label="Primary job role" value={accessConfig.primaryJobRole || accessConfig.jobRoles?.[0] || ''} onChange={(event) => patchAccessConfig({ primaryJobRole: event.target.value })} SelectProps={{ native: true }} size="small" sx={fieldSx}>
+                  <option value="">None</option>{(accessConfig.jobRoles || []).map((role: string) => <option key={role} value={role}>{jobRoleOptions.find((item) => item.key === role)?.name || role}</option>)}
+                </TextField>
                 <TextField select label="Portal type" value={accessConfig.portalType || 'standard'} onChange={(event) => patchAccessConfig({ portalType: event.target.value })} SelectProps={{ native: true }} size="small" sx={fieldSx}>
                   {PORTAL_TYPE_OPTIONS.map((portal) => <option key={portal} value={portal}>{portal.replaceAll('_', ' ')}</option>)}
                 </TextField>
                 <TextField select label="Record access" value={accessConfig.recordAccess?.scope || 'all_permitted'} onChange={(event) => patchAccessConfig({ recordAccess: { ...accessConfig.recordAccess, scope: event.target.value } })} SelectProps={{ native: true }} size="small" sx={fieldSx}>
                   {RECORD_SCOPE_OPTIONS.map((scope) => <option key={scope} value={scope}>{scope.replaceAll('_', ' ')}</option>)}
                 </TextField>
+                <Autocomplete multiple options={PORTAL_TYPE_OPTIONS} value={accessConfig.permittedPortals || [accessConfig.portalType || 'standard']} onChange={(_, portals) => patchAccessConfig({ permittedPortals: portals.includes(accessConfig.portalType) ? portals : [accessConfig.portalType, ...portals] })} getOptionLabel={(portal) => portal.replaceAll('_', ' ')} renderInput={(params) => <TextField {...params} label="Permitted portals" size="small" sx={fieldSx} />} />
                 <TextField label="Default landing route" value={accessConfig.landingRoute || ''} onChange={(event) => patchAccessConfig({ landingRoute: event.target.value })} size="small" sx={{ ...fieldSx, gridColumn: { sm: '1 / -1' } }} />
               </Box>
             </Paper>

@@ -28,7 +28,7 @@ async function loadMembership(workspaceId, userId) {
   const result = await pool.query(`
     SELECT w.id AS workspace_id, w.name AS workspace_name, w.template_key,
       (w.owner_id::text=$2::text) AS is_owner,
-      wm.role, wm.workspace_role, wm.job_roles, wm.portal_type, wm.landing_route,
+      wm.role, wm.workspace_role, wm.job_roles, wm.primary_job_role, wm.portal_type, wm.permitted_portals, wm.landing_route,
       wm.record_access, wm.navigation, wm.allowed_actions, wm.team_id,
       wm.department_id, wm.company_id
     FROM workspaces w
@@ -89,7 +89,9 @@ export async function PUT(req, { params }) {
   }
 
   const jobRoles = normalizeJobRoles(body.jobRoles);
+  const primaryJobRole = jobRoles.includes(body.primaryJobRole) ? body.primaryJobRole : jobRoles[0] || null;
   const portalType = normalizePortalType(body.portalType);
+  const permittedPortals = [...new Set([portalType, ...(Array.isArray(body.permittedPortals) ? body.permittedPortals.map(normalizePortalType) : [])])];
   const recordAccess = normalizeRecordAccess(body.recordAccess);
   const landingRoute = String(body.landingRoute || PORTAL_ROUTES[portalType]).slice(0, 255);
   const navigation = Array.isArray(body.navigation) ? body.navigation.map(String).slice(0, 50) : [];
@@ -100,16 +102,16 @@ export async function PUT(req, { params }) {
     await client.query("BEGIN");
     await client.query(`
       INSERT INTO workspace_members(
-        workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,
+        workspace_id,user_id,role,workspace_role,job_roles,primary_job_role,portal_type,permitted_portals,landing_route,
         record_access,navigation,allowed_actions,team_id,department_id,company_id,updated_at
-      ) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,NOW())
+      ) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8::jsonb,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,NOW())
       ON CONFLICT(workspace_id,user_id) DO UPDATE SET
         role=EXCLUDED.role, workspace_role=EXCLUDED.workspace_role, job_roles=EXCLUDED.job_roles,
-        portal_type=EXCLUDED.portal_type, landing_route=EXCLUDED.landing_route,
+        primary_job_role=EXCLUDED.primary_job_role, portal_type=EXCLUDED.portal_type, permitted_portals=EXCLUDED.permitted_portals, landing_route=EXCLUDED.landing_route,
         record_access=EXCLUDED.record_access, navigation=EXCLUDED.navigation,
         allowed_actions=EXCLUDED.allowed_actions, team_id=EXCLUDED.team_id,
         department_id=EXCLUDED.department_id, company_id=EXCLUDED.company_id, updated_at=NOW()
-    `, [workspaceId, String(userId), legacyRole, workspaceRole, JSON.stringify(jobRoles), portalType, landingRoute,
+    `, [workspaceId, String(userId), legacyRole, workspaceRole, JSON.stringify(jobRoles), primaryJobRole, portalType, JSON.stringify(permittedPortals), landingRoute,
       JSON.stringify(recordAccess), JSON.stringify(navigation), JSON.stringify(allowedActions),
       body.teamId || null, body.departmentId || null, body.companyId || null]);
 

@@ -33,7 +33,7 @@ export type WorkspaceTemplateManifest = WorkspaceTemplate & {
   views: Array<{ boardName: string; name: string; type: string; isDefault?: boolean; config?: Record<string, unknown> }>;
   dashboards: Array<{ name: string; widgets: Array<Record<string, unknown>> }>;
   automations: Array<Record<string, unknown>>;
-  roles: Array<{ key: string; name: string; permissions: string[] }>;
+  roles: Array<{ key: string; name: string; permissions: string[]; portalType?: string; navigation?: string[]; recordAccess?: Record<string, unknown>; workspaceRole?: string }>;
 };
 
 const status = (values = ["New", "In Progress", "Done"], name = "Status"): SeedColumn => ({
@@ -252,6 +252,36 @@ const jobRolesFor = (template: WorkspaceTemplate, category: string): WorkspaceTe
   return [role("employee", "Employee"), role("client", "Client"), role("supplier", "Supplier"), role("custom", "Custom")];
 };
 
+const portalPresetForRole = (key: string) => {
+  const presets: Record<string, { portalType: string; navigation: string[]; scope?: string; field?: string; workspaceRole?: string }> = {
+    driver: { portalType: "driver", navigation: ["home", "my_trips", "calendar", "documents", "my_expenses", "my_fuel", "profile"], scope: "assigned_to_me", field: "assignedDriverUserId" },
+    dispatcher: { portalType: "dispatcher", navigation: ["home", "assigned_shipments", "trips", "drivers", "calendar", "maps", "documents", "messages", "notifications", "profile"], workspaceRole: "manager" },
+    fleet_manager: { portalType: "fleet_manager", navigation: ["fleet_overview", "vehicles", "drivers", "trips", "maintenance", "fuel", "expenses", "compliance", "reports", "calendar", "profile"], workspaceRole: "manager" },
+    doctor: { portalType: "doctor", navigation: ["home", "my_patients", "my_appointments", "treatment_plans", "clinical_notes", "documents", "calendar", "messages", "profile"], scope: "assigned_to_me", field: "assignedDoctorUserId" },
+    dentist: { portalType: "doctor", navigation: ["home", "my_patients", "my_appointments", "treatment_plans", "clinical_notes", "documents", "calendar", "messages", "profile"], scope: "assigned_to_me", field: "assignedDentistUserId" },
+    dental_assistant: { portalType: "dental_assistant", navigation: ["home", "todays_appointments", "assigned_patients", "preparation_tasks", "sterilization", "inventory", "documents", "messages", "profile"] },
+    receptionist: { portalType: "receptionist", navigation: ["home", "appointments", "patients", "waiting_list", "calls_requests", "documents", "messages", "profile"] },
+    teacher: { portalType: "teacher", navigation: ["home", "my_classes", "my_children", "attendance", "daily_activities", "meals_sleep", "observations", "parent_messages", "calendar", "documents", "profile"], scope: "assigned_to_me", field: "classTeacherUserId" },
+    educator: { portalType: "teacher", navigation: ["home", "my_groups", "children", "attendance", "daily_care", "parent_messages", "calendar", "documents", "profile"], scope: "assigned_to_me", field: "educatorUserId" },
+    parent: { portalType: "parent", navigation: ["home", "my_children", "attendance", "daily_report", "activities", "meals_sleep", "messages", "documents", "payments", "profile"], scope: "custom", field: "linkedParentUserId", workspaceRole: "guest" },
+    patient: { portalType: "patient", navigation: ["home", "my_appointments", "my_treatment_plan", "shared_documents", "messages", "invoices", "profile"], scope: "custom", field: "linkedPatientUserId", workspaceRole: "guest" },
+    client: { portalType: "client", navigation: ["home", "my_records", "tracking", "documents", "messages", "invoices", "notifications", "profile"], scope: "my_company", field: "clientCompanyId", workspaceRole: "guest" },
+    sales_representative: { portalType: "sales", navigation: ["home", "my_leads", "my_opportunities", "my_customers", "follow_ups", "calendar", "tasks", "messages", "documents", "profile"], scope: "assigned_to_me", field: "salesOwnerUserId" },
+    account_manager: { portalType: "sales", navigation: ["accounts", "contacts", "renewals", "open_issues", "meetings", "documents", "messages", "reports", "profile"], scope: "assigned_to_me", field: "accountManagerUserId" },
+    project_manager: { portalType: "project", navigation: ["portfolio", "my_projects", "tasks", "milestones", "team", "calendar", "files", "risks", "reports", "messages", "profile"], workspaceRole: "manager" },
+    site_manager: { portalType: "site_manager", navigation: ["home", "my_sites", "daily_progress", "teams", "materials", "issues", "inspections", "documents", "calendar", "reports", "profile"], scope: "assigned_to_me", field: "siteManagerUserId" },
+    field_worker: { portalType: "field_worker", navigation: ["home", "my_tasks", "today", "site_instructions", "safety", "documents", "report_issue", "time_entry", "profile"], scope: "assigned_to_me", field: "assigneeUserId" },
+    store_employee: { portalType: "store_employee", navigation: ["home", "my_shift", "tasks", "products", "stock_requests", "sales_goals", "messages", "documents", "profile"] },
+    cashier: { portalType: "store_employee", navigation: ["home", "my_shift", "assigned_register", "tasks", "issues", "documents", "messages", "profile"] },
+    warehouse_worker: { portalType: "warehouse", navigation: ["home", "my_tasks", "receiving", "picking", "packing", "loading", "stock_check", "issues", "documents", "profile"], scope: "assigned_to_me", field: "assigneeUserId" },
+    production_manager: { portalType: "production", navigation: ["production_overview", "orders", "lines", "shifts", "materials", "quality", "downtime", "reports", "calendar", "profile"], workspaceRole: "manager" },
+    machine_operator: { portalType: "production", navigation: ["home", "my_machine", "my_production_orders", "work_instructions", "quality_checks", "downtime_report", "safety_documents", "profile"], scope: "assigned_to_me", field: "operatorUserId" },
+    employee: { portalType: "hr_employee", navigation: ["home", "my_tasks", "my_schedule", "leave_requests", "my_documents", "announcements", "training", "expenses", "profile"], scope: "assigned_to_me", field: "employeeUserId" },
+  };
+  const preset = presets[key] || { portalType: "standard", navigation: [] };
+  return { portalType: preset.portalType, navigation: preset.navigation, workspaceRole: preset.workspaceRole, recordAccess: { scope: preset.scope || "all_permitted", ...(preset.field ? { field: preset.field } : {}) } };
+};
+
 export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateManifest => {
   const template = getWorkspaceTemplate(key);
   const category = template.category ?? categoryFor(template.key);
@@ -332,7 +362,7 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
     ]),
     dashboards: [{ name: `${template.name} Overview`, widgets: template.dashboardWidgets ?? [{ type: "kpi", title: "Total rows", aggregation: "count" }, { type: "status", title: "Status overview", aggregation: "count" }] }],
     automations: template.automations?.length ? template.automations : defaultAutomations,
-    roles: jobRolesFor(template, category),
+    roles: jobRolesFor(template, category).map((role) => ({ ...role, ...portalPresetForRole(role.key) })),
   };
 };
 
