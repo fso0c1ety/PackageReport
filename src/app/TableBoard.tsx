@@ -1,10 +1,7 @@
 "use client";
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import { evaluateBoardFormula } from "../lib/safeFormula";
-import MapBoardView from "./board/views/MapBoardView";
-import ChartBoardView from "./board/views/ChartBoardView";
-import FormBoardView from "./board/views/FormBoardView";
-import DashboardBoardView from "./board/views/DashboardBoardView";
+import dynamic from "next/dynamic";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams, useRouter } from "next/navigation";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -130,8 +127,13 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import BackupTableIcon from '@mui/icons-material/BackupTable';
-import ImportExcelDialog from './ImportExcelDialog';
 import { supabase } from "../lib/supabase";
+
+const MapBoardView = dynamic(() => import("./board/views/MapBoardView"), { ssr: false });
+const ChartBoardView = dynamic(() => import("./board/views/ChartBoardView"), { ssr: false });
+const FormBoardView = dynamic(() => import("./board/views/FormBoardView"), { ssr: false });
+const DashboardBoardView = dynamic(() => import("./board/views/DashboardBoardView"), { ssr: false });
+const ImportExcelDialog = dynamic(() => import("./ImportExcelDialog"), { ssr: false });
 
 // Columns will be loaded dynamically from backend; do not use hardcoded IDs.
 const initialColumns: Column[] = [];

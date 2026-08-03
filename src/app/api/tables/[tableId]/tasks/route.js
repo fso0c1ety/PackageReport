@@ -507,7 +507,7 @@ export async function GET(req, { params }) {
 
     const accessRes = await pool.query(
       `
-        SELECT t.id
+        SELECT t.*
         FROM tables t
         JOIN workspaces w ON t.workspace_id = w.id
         WHERE t.id = $1
@@ -532,11 +532,19 @@ export async function GET(req, { params }) {
       [tableId]
     );
 
-    const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
-    const table = tableResult.rows[0];
-    if (table) await processDueScheduledMessages(table, result.rows);
+    const table = accessRes.rows[0];
+    const hasDueScheduledMessage = result.rows.some((row) =>
+      toArray(row?.values?.message).some((message) =>
+        message?.scheduledFor
+        && !message.notificationSent
+        && new Date(message.scheduledFor) <= new Date()
+      )
+    );
+    if (hasDueScheduledMessage) await processDueScheduledMessages(table, result.rows);
 
-    return NextResponse.json(result.rows);
+    return NextResponse.json(result.rows, {
+      headers: { "Cache-Control": "private, no-store, max-age=0" },
+    });
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
