@@ -409,7 +409,7 @@ export default function LandingPage() {
                     letterSpacing: "-0.065em",
                   }}
                 >
-                  Manage your entire business from one <Box component="span" sx={{ background: "linear-gradient(135deg,#6D4AFF,#3B82F6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>powerful workspace.</Box>
+                  Manage your entire business. <Box component="span" sx={{ background: "linear-gradient(135deg,#6D4AFF,#3B82F6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>One powerful workspace.</Box>
                 </Typography>
 
                 <Typography
@@ -419,7 +419,7 @@ export default function LandingPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  Plan work, manage operations, coordinate teams, track customers and organize data in flexible boards built around the way your business works.
+                  Plan work, run operations, coordinate teams, manage customers and build industry-specific workflows from one flexible platform.
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
@@ -447,14 +447,14 @@ export default function LandingPage() {
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={() => scrollToSection("services")}
+                    onClick={() => scrollToSection("request-demo")}
                     sx={{
                       borderRadius: 999, px: 4, py: 1.5, fontWeight: 900,
                       textTransform: "none", background: "transparent", color: LIGHT.text, border: `1px solid ${LIGHT.border}`, boxShadow: "none",
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
-                    See how it works
+                    Request Demo
                   </Button>
 
                 </Stack>
@@ -568,6 +568,20 @@ export default function LandingPage() {
                   ["Construction", "Track sites, teams, materials, deadlines and field issues."],
                 ].map(([title, text]) => <Box key={title} sx={{ p: 2.5, borderRadius: 3, bgcolor: "rgba(255,255,255,.07)" }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: "#cbd5e1", fontSize: 13, mt: 1, lineHeight: 1.65 }}>{text}</Typography></Box>)}
               </Box>
+            </Box>
+
+            <Box sx={{ scrollMarginTop: 96 }}>
+              <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>SEE SMART MANAGE IN ACTION</Typography>
+              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Real workflows. Real product UI.</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(3,1fr)" }, gap: 2, mt: 3 }}>
+                {[["Boards","Structure work around the way your team operates.","/marketing/boards.webp"],["Operations","Follow logistics work from assignment to completion.","/marketing/logistics.webp"],["CRM","Keep companies, contacts and deals connected.","/marketing/crm.webp"]].map(([title,copy,image]) => <Box key={title} sx={{ border: `1px solid ${LIGHT.border}`, borderRadius: 4, overflow: "hidden", bgcolor: "#fff" }}><Box component="img" loading="lazy" src={image} alt={`${title} in Smart Manage`} sx={{ width: "100%", aspectRatio: "16/10", objectFit: "cover", objectPosition: "top left", display: "block" }} /><Box sx={{ p: 2.5 }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: LIGHT.textSecondary, mt: .7 }}>{copy}</Typography></Box></Box>)}
+              </Box>
+            </Box>
+
+            <Box sx={{ p: { xs: 3, md: 5 }, borderRadius: 5, bgcolor: "#F8FAFC" }}>
+              <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>ONE PLATFORM. THE RIGHT EXPERIENCE FOR EVERY ROLE.</Typography>
+              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Full control for managers. Focused access for every role.</Typography>
+              <Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 2, maxWidth: 900 }}>Managers receive the complete operational picture. Operational and external users receive focused portals with only the data and actions relevant to their work. Driver workflows are available for configured logistics workspaces; other portals are presented only when fully configured.</Typography>
             </Box>
 
             <Box id="templates" sx={{ scrollMarginTop: 96 }}>
