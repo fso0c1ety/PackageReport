@@ -50,6 +50,8 @@ export default function LandingPage() {
   const [showWebLanding, setShowWebLanding] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [productPreview, setProductPreview] = useState("Dashboard");
+  const [industryPreview, setIndustryPreview] = useState("Logistics");
   const [contactValues, setContactValues] = useState({ name: "", email: "", company: "", subject: "", message: "" });
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
   const [contactSending, setContactSending] = useState(false);
@@ -162,7 +164,7 @@ export default function LandingPage() {
 
     setContactSending(true);
     try {
-      const response = await fetch("/api/contact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...contactValues, website: "", startedAt: contactStartedAt }) });
+      const response = await fetch("/api/contact/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...contactValues, website: "", startedAt: contactStartedAt }) });
       if (!response.ok) throw new Error("Contact delivery failed");
       trackMarketingEvent("contact_submission");
       setContactValues({ name: "", email: "", company: "", subject: "", message: "" });
@@ -268,7 +270,6 @@ export default function LandingPage() {
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
               {authenticated && <Button onClick={() => navigateToAppRoute("/home", router)} sx={{ ...navButtonSx, color: LIGHT.primary }}>Open Smart Manage</Button>}
-              <Button component="a" href={desktopDownloadUrl} target="_blank" rel="noopener noreferrer" startIcon={<DownloadIcon />} sx={{ display: { xs: "none", lg: "inline-flex" }, ...navButtonSx, color: LIGHT.primary }}>Download</Button>
               <Button onClick={() => scrollToSection("request-demo")} variant="outlined" sx={{ display: { xs: "none", md: "inline-flex" }, borderRadius: 999, px: 2, textTransform: "none", fontWeight: 800, borderColor: LIGHT.primary, color: LIGHT.primary }}>Request Demo</Button>
               <Button
                 onClick={() => navigateToAppRoute("/login", router)}
@@ -346,15 +347,15 @@ export default function LandingPage() {
       </Drawer>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, py: { xs: 5, md: 8 } }}>
+      <Box sx={{ flex: 1, pt: { xs: 4, md: 3 }, pb: { xs: 5, md: 8 } }}>
         <Container maxWidth="xl">
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1.05fr .95fr" },
-              gap: { xs: 5, md: 8 },
+              gridTemplateColumns: { xs: "1fr", md: ".86fr 1.14fr" },
+              gap: { xs: 5, md: 4 },
               alignItems: "center",
-              minHeight: { md: "70vh" },
+              minHeight: { md: "620px" },
             }}
           >
             {/* Left Content */}
@@ -413,7 +414,7 @@ export default function LandingPage() {
                     onClick={() => navigateToAppRoute("/login?mode=signup", router)}
                     sx={{
                       borderRadius: 999, px: 4, py: 1.5, fontWeight: 900,
-                      textTransform: "none", background: "#171a38", boxShadow: "none",
+                      textTransform: "none", background: "linear-gradient(135deg,#6D4AFF,#4F46E5)", boxShadow: "0 12px 30px rgba(109,74,255,.24)",
                       "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                     }}
                   >
@@ -534,31 +535,42 @@ export default function LandingPage() {
               </Box>
             </Box>
 
-            <Box id="solutions" sx={{ scrollMarginTop: 96, p: { xs: 3, md: 5 }, borderRadius: 5, bgcolor: "#11152d", color: "#fff" }}>
-              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900 }}>Flexible across industries.</Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(5,1fr)" }, gap: 2, mt: 3 }}>
-                {[
-                  ["Logistics", "Plan shipments, assign drivers, organize documents and follow trips."],
-                  ["Sales & CRM", "Track leads, opportunities, follow-ups and customer relationships."],
-                  ["Project teams", "Manage responsibilities, deadlines, files and progress."],
-                  ["Service businesses", "Coordinate appointments, customers, staff and records."],
-                  ["Construction", "Track sites, teams, materials, deadlines and field issues."],
-                ].map(([title, text]) => <Box key={title} sx={{ p: 2.5, borderRadius: 3, bgcolor: "rgba(255,255,255,.07)" }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: "#cbd5e1", fontSize: 13, mt: 1, lineHeight: 1.65 }}>{text}</Typography></Box>)}
-              </Box>
-            </Box>
-
             <Box sx={{ scrollMarginTop: 96 }}>
               <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>SEE SMART MANAGE IN ACTION</Typography>
               <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Real workflows. Real product UI.</Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(3,1fr)" }, gap: 2, mt: 3 }}>
-                {[["Boards","Structure work around the way your team operates.",marketingScreenshots.boards],["Operations","Follow logistics work from assignment to completion.",marketingScreenshots.operations],["CRM","Keep companies, contacts and deals connected.",marketingScreenshots.crm]].map(([title,copy,image]) => <Box key={title} sx={{ border: `1px solid ${LIGHT.border}`, borderRadius: 4, overflow: "hidden", bgcolor: "#fff" }}><Box component="img" loading="lazy" src={image} alt={`${title} in Smart Manage`} sx={{ width: "100%", aspectRatio: "16/10", objectFit: "cover", objectPosition: "top left", display: "block" }} /><Box sx={{ p: 2.5 }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: LIGHT.textSecondary, mt: .7 }}>{copy}</Typography></Box></Box>)}
-              </Box>
+              <Stack direction="row" flexWrap="wrap" gap={1} mt={3}>{Object.keys({ Dashboard: 1, Boards: 1, Logistics: 1, CRM: 1, Calendar: 1, Portals: 1 }).map((tab) => <Button key={tab} onClick={() => setProductPreview(tab)} variant={productPreview === tab ? "contained" : "outlined"} sx={{ borderRadius: 999, textTransform: "none", fontWeight: 800 }}>{tab}</Button>)}</Stack>
+              {(() => { const previews: Record<string, { image: string; copy: string }> = {
+                Dashboard: { image: marketingScreenshots.hero, copy: "See priorities, progress and performance in one clear operational overview." },
+                Boards: { image: marketingScreenshots.boards, copy: "Structure work exactly around the way your team operates." },
+                Logistics: { image: marketingScreenshots.operations, copy: "Coordinate shipments, routes, documents and delivery work." },
+                CRM: { image: marketingScreenshots.crm, copy: "Keep companies, contacts, deals and follow-ups connected." },
+                Calendar: { image: marketingScreenshots.education, copy: "Coordinate appointments, schedules and deadlines across the team." },
+                Portals: { image: marketingScreenshots.fleet, copy: "Give operational users focused access without exposing the full workspace." },
+              }; const current = previews[productPreview]; return <Box sx={{ mt: 2, p: { xs: 1, md: 2 }, border: `1px solid ${LIGHT.border}`, borderRadius: 5, bgcolor: "#fff", boxShadow: "0 30px 80px rgba(16,24,40,.10)" }}><Box component="img" loading="lazy" src={current.image} alt={`${productPreview} in Smart Manage`} sx={{ width: "100%", display: "block", borderRadius: 3, aspectRatio: { xs: "16/11", md: "16/8.5" }, objectFit: "cover", objectPosition: "top left" }} /><Typography sx={{ px: { xs: 1, md: 2 }, py: 2, color: LIGHT.textSecondary, fontSize: { xs: 15, md: 18 }, fontWeight: 650 }}>{current.copy}</Typography></Box>; })()}
+            </Box>
+
+            <Box id="solutions" sx={{ scrollMarginTop: 96, p: { xs: 3, md: 5 }, borderRadius: 5, bgcolor: "#11152d", color: "#fff" }}>
+              <Typography sx={{ color: "#a5b4fc", fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>BUILT AROUND YOUR BUSINESS</Typography>
+              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Professional workflows for every industry.</Typography>
+              <Stack direction="row" flexWrap="wrap" gap={1} mt={3}>{["Logistics","Healthcare","Education","Construction","Sales & CRM","Retail","Manufacturing","Hospitality","Professional Services"].map((tab) => <Button key={tab} onClick={() => setIndustryPreview(tab)} sx={{ borderRadius: 999, px: 2, textTransform: "none", fontWeight: 800, color: industryPreview === tab ? "#11152d" : "#fff", bgcolor: industryPreview === tab ? "#fff" : "rgba(255,255,255,.08)", "&:hover": { bgcolor: industryPreview === tab ? "#fff" : "rgba(255,255,255,.16)" } }}>{tab}</Button>)}</Stack>
+              {(() => { const industries: Record<string, { image: string; name: string; copy: string; capabilities: string }> = {
+                Logistics: { image: marketingScreenshots.operations, name: "Logistics — Freight Broker", copy: "Plan and follow every shipment from assignment through delivery.", capabilities: "Shipments • Trips • Drivers • Documents • Reporting" },
+                Healthcare: { image: marketingScreenshots.healthcare, name: "Dental Clinic", copy: "Coordinate patients, appointments, treatments and billing.", capabilities: "Patients • Appointments • Treatments • Documents" },
+                Education: { image: marketingScreenshots.education, name: "Kindergarten & Nursery", copy: "Keep attendance, schedules, parents and activities organized.", capabilities: "Children • Parents • Attendance • Payments" },
+                Construction: { image: marketingScreenshots.construction, name: "Construction", copy: "Connect projects, field teams, materials and daily progress.", capabilities: "Sites • Teams • Materials • Reports" },
+                "Sales & CRM": { image: marketingScreenshots.crm, name: "CRM & Sales", copy: "Move prospects from first contact to closed business.", capabilities: "Companies • Contacts • Deals • Follow-ups" },
+                Retail: { image: marketingScreenshots.boards, name: "Retail Store", copy: "Manage products, suppliers, sales and stock movement.", capabilities: "Products • Suppliers • Sales • Inventory" },
+                Manufacturing: { image: marketingScreenshots.hero, name: "Manufacturing", copy: "Coordinate orders, materials, machines and production reporting.", capabilities: "Orders • Materials • Machines • Quality" },
+                Hospitality: { image: marketingScreenshots.education, name: "Hotel", copy: "Manage reservations, guests, services and housekeeping.", capabilities: "Guests • Rooms • Reservations • Services" },
+                "Professional Services": { image: marketingScreenshots.crm, name: "Marketing Agency", copy: "Connect clients, campaigns, content, tasks and budgets.", capabilities: "Clients • Campaigns • Content • Reports" },
+              }; const current = industries[industryPreview]; return <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.35fr .65fr" }, gap: 3, mt: 3, alignItems: "center" }}><Box component="img" loading="lazy" src={current.image} alt={`${current.name} template`} sx={{ width: "100%", borderRadius: 3, aspectRatio: "16/9", objectFit: "cover", objectPosition: "top left" }} /><Box><Typography fontSize={25} fontWeight={900}>{current.name}</Typography><Typography sx={{ color: "#cbd5e1", lineHeight: 1.7, mt: 1 }}>{current.copy}</Typography><Typography sx={{ color: "#a5b4fc", fontWeight: 800, mt: 2 }}>{current.capabilities}</Typography><Button onClick={() => scrollToSection("request-demo")} variant="contained" sx={{ mt: 3, bgcolor: "#6D4AFF", textTransform: "none", fontWeight: 900 }}>Request Demo</Button></Box></Box>; })()}
             </Box>
 
             <Box sx={{ p: { xs: 3, md: 5 }, borderRadius: 5, bgcolor: "#F8FAFC" }}>
               <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>ONE PLATFORM. THE RIGHT EXPERIENCE FOR EVERY ROLE.</Typography>
               <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Full control for managers. Focused access for every role.</Typography>
-              <Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 2, maxWidth: 900 }}>Managers receive the complete operational picture. Operational and external users receive focused portals with only the data and actions relevant to their work. Driver workflows are available for configured logistics workspaces; other portals are presented only when fully configured.</Typography>
+              <Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 2, maxWidth: 900 }}>Managers receive the complete operational picture. Drivers receive a focused mobile experience with only their assigned work and actions.</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.25fr .75fr" }, gap: 3, mt: 3, alignItems: "center" }}><Box component="img" loading="lazy" src={marketingScreenshots.fleet} alt="Verified Smart Manage Driver Portal" sx={{ width: "100%", borderRadius: 3, border: `1px solid ${LIGHT.border}`, aspectRatio: "16/9", objectFit: "cover", objectPosition: "top left" }} /><Box><Chip label="Verified portal" color="success" /><Typography fontSize={27} fontWeight={900} mt={2}>Driver Portal</Typography><Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 1 }}>Trips, documents, fuel, expenses and delivery updates—without exposing the full company workspace.</Typography></Box></Box>
             </Box>
 
             <Box id="templates" sx={{ scrollMarginTop: 96 }}>

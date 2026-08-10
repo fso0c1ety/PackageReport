@@ -26,12 +26,19 @@ export default function DemoRequestForm() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setState({ sending: true, error: "", success: false });
     try {
-      const response = await fetch("/api/demo-requests", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, managementInterests: interests, startedAt }) });
+      const response = await fetch("/api/demo-requests/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, managementInterests: interests, startedAt }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to submit your request");
       setState({ sending: false, error: "", success: true });
     } catch (error) { setState({ sending: false, error: error instanceof Error ? error.message : "Unable to submit your request", success: false }); }
   };
+  if (state.success) return <Box role="status" sx={{ minHeight: 360, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", p: { xs: 1, md: 4 } }}>
+    <Box sx={{ width: 52, height: 52, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "#DCFCE7", color: "#15803D", fontSize: 28, fontWeight: 900 }}>✓</Box>
+    <Typography component="h3" sx={{ mt: 2.5, fontSize: { xs: 28, md: 36 }, fontWeight: 900, color: "#11162F" }}>Demo request received.</Typography>
+    <Typography sx={{ mt: 1.5, fontSize: 19, fontWeight: 800, color: "#11162F" }}>Thanks, {values.name.trim().split(/\s+/)[0]}.</Typography>
+    <Typography sx={{ mt: 1, color: "#475569", lineHeight: 1.8, maxWidth: 560 }}>We&apos;ll prepare the Smart Manage experience most relevant to {values.companyName} and contact you as soon as it&apos;s ready.</Typography>
+    <Button href="#top" variant="outlined" sx={{ mt: 3, borderRadius: 999, px: 3, textTransform: "none", fontWeight: 800 }}>Back to Smart Manage</Button>
+  </Box>;
   return <Box component="form" onSubmit={submit} noValidate sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
     <TextField sx={fieldSx} required label="Full Name" value={values.name} onChange={set("name")} inputProps={{ maxLength: 120 }} />
     <TextField sx={fieldSx} required label="Company Name" value={values.companyName} onChange={set("companyName")} inputProps={{ maxLength: 160 }} />
@@ -45,7 +52,6 @@ export default function DemoRequestForm() {
     <TextField sx={{ ...fieldSx, gridColumn: "1/-1" }} multiline minRows={4} label="Message / Requirements" value={values.message} onChange={set("message")} inputProps={{ maxLength: 3000 }} />
     <Box component="input" aria-hidden tabIndex={-1} autoComplete="off" value={values.website} onChange={set("website")} sx={{ position: "absolute", left: -10000, width: 1, height: 1 }} />
     {state.error && <Alert severity="error" sx={{ gridColumn: "1/-1" }}>{state.error}</Alert>}
-    {state.success && <Alert severity="success" sx={{ gridColumn: "1/-1" }}>Thank you. Our team will contact you about your Smart Manage demo.</Alert>}
     <Button type="submit" variant="contained" disabled={state.sending} sx={{ gridColumn: "1/-1", minHeight: 52, bgcolor: "#6D4AFF", fontWeight: 900 }}>{state.sending ? "Submitting..." : "Request Demo"}</Button>
   </Box>;
 }

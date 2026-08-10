@@ -4,7 +4,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 
 const LoginForm = dynamic(() => import('../LoginForm').then((mod) => mod.LoginForm), {
@@ -47,47 +46,32 @@ export default function LoginPage() {
       </Box>
 
       <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 } }}>
-        <Box sx={{ minHeight: { md: 'calc(100vh - 124px)' }, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1.08fr) minmax(420px,.92fr)' }, gap: { xs: 3, lg: 4 }, alignItems: 'stretch' }}>
-          <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: { xs: 5, md: 7 }, p: { xs: 3, sm: 5, md: 7 }, minHeight: { xs: 380, lg: 650 }, color: '#fff', background: 'linear-gradient(135deg,#15173b 0%,#3f3fc9 55%,#7258ef 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 30px 80px rgba(55,52,170,.25)' }}>
+        <Box sx={{ minHeight: { md: 'calc(100vh - 124px)' }, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,.82fr) minmax(480px,1.18fr)' }, gap: { xs: 3, lg: 4 }, alignItems: 'stretch' }}>
+          <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: { xs: 5, md: 7 }, p: { xs: 3, sm: 5, md: 6 }, minHeight: { xs: 340, lg: 610 }, color: '#fff', background: 'linear-gradient(135deg,#15173b 0%,#3f3fc9 55%,#7258ef 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 30px 80px rgba(55,52,170,.25)' }}>
             <Box sx={{ position: 'absolute', width: 420, height: 420, borderRadius: '50%', right: -150, top: -130, bgcolor: 'rgba(255,255,255,.10)', border: '1px solid rgba(255,255,255,.16)' }} />
             <Box sx={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', left: -100, bottom: -120, bgcolor: '#88f0d2', opacity: .22, filter: 'blur(4px)' }} />
 
             <Box sx={{ position: 'relative', zIndex: 1 }}>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ width: 'fit-content', px: 1.5, py: .8, borderRadius: 999, bgcolor: 'rgba(255,255,255,.11)', border: '1px solid rgba(255,255,255,.15)' }}>
-                <AutoAwesomeRoundedIcon sx={{ fontSize: 17, color: '#9ff3d9' }} />
-                <Typography sx={{ fontSize: '.8rem', fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>One workspace. Total clarity.</Typography>
-              </Stack>
-              <Typography component="h1" sx={{ mt: 4, maxWidth: 670, fontSize: { xs: '2.5rem', sm: '3.6rem', xl: '4.5rem' }, lineHeight: .98, fontWeight: 900, letterSpacing: '-.065em' }}>
-                Turn busy work into smooth progress.
+              <Typography component="h1" sx={{ maxWidth: 590, fontSize: { xs: '2.5rem', sm: '3.35rem', xl: '4rem' }, lineHeight: .98, fontWeight: 900, letterSpacing: '-.065em' }}>
+                Your workspace. Ready when you are.
               </Typography>
               <Typography sx={{ mt: 3, maxWidth: 560, color: 'rgba(255,255,255,.74)', fontSize: { xs: '1rem', md: '1.12rem' }, lineHeight: 1.7 }}>
                 Organize packages, automate follow-ups and give your whole team a clear view of what moves next.
               </Typography>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,1fr)' }, gap: 1.2, mt: 4, maxWidth: 650 }}>
-                {['Real-time reports', 'Cloud synchronization', 'Team collaboration'].map((item) => (
+                {['No card required', 'Secure workspace', 'Cancel anytime'].map((item) => (
                   <Stack key={item} direction="row" spacing={1} alignItems="center" sx={{ p: 1.25, borderRadius: 2.5, bgcolor: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}>
                     <Box sx={{ width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(159,243,217,.15)' }}><CheckRoundedIcon sx={{ fontSize: 16, color: '#9ff3d9' }} /></Box>
                     <Typography sx={{ fontSize: '.78rem', fontWeight: 800 }}>{item}</Typography>
                   </Stack>
                 ))}
               </Box>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2.5 }}>
-                {['1 workspace', 'Live updates', 'Secure access'].map((item) => <Typography key={item} sx={{ px: 1.2, py: .6, borderRadius: 999, bgcolor: 'rgba(9,12,35,.22)', color: 'rgba(255,255,255,.78)', fontSize: '.72rem', fontWeight: 700 }}>{item}</Typography>)}
-              </Stack>
             </Box>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ position: 'relative', zIndex: 1, mt: 5 }}>
-              {['7-day free trial', 'No card required', 'Live team updates'].map((item) => (
-                <Stack key={item} direction="row" spacing={.7} alignItems="center" sx={{ px: 1.4, py: 1, borderRadius: 2.5, bgcolor: 'rgba(9,12,35,.20)' }}>
-                  <CheckRoundedIcon sx={{ fontSize: 18, color: '#9ff3d9' }} />
-                  <Typography sx={{ fontSize: '.88rem', fontWeight: 700 }}>{item}</Typography>
-                </Stack>
-              ))}
-            </Stack>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', px: { xs: 0, sm: 3, xl: 7 }, py: { xs: 0, lg: 3 } }}>
-            <Box sx={{ width: '100%', maxWidth: 500 }}><LoginForm /></Box>
+            <Box sx={{ width: '100%', maxWidth: 570 }}><LoginForm /></Box>
           </Box>
         </Box>
       </Container>
