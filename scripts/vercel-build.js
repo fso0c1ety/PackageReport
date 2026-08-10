@@ -10,7 +10,7 @@ function run(command, args, extraEnv = {}) {
 }
 
 if (process.env.VERCEL_ENV === 'production') {
-  run('npm', ['run', 'db:migrate'], { MIGRATION_TARGET: '020_account_security.sql,021_tenant_file_security.sql,022_universal_roles_and_portals.sql,023_template_portal_presets.sql' });
+  run('npm', ['run', 'db:migrate'], { MIGRATION_TARGET: '020_account_security.sql,021_tenant_file_security.sql,022_universal_roles_and_portals.sql,023_template_portal_presets.sql,027_demo_requests_and_demo_workspaces.sql' });
 }
 
 run('npm', ['run', 'build']);
