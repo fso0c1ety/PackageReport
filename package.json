@@ -15,6 +15,7 @@
     "test:ci": "npm run typecheck && npm run lint && npm test && npm run build && npm run test:e2e",
     "db:migrate": "node server/db/runMigrations.js",
     "demo:seed": "node scripts/seed-marketing-demo.mjs",
+    "demo:verify-db": "node scripts/verify-demo-database-target.mjs",
     "files:migrate": "node scripts/migrate-files-to-object-storage.js",
     "start": "set NODE_ENV=production&& node server/index.js",
     "start-server": "set SKIP_NEXT_APP=true&& set NODE_ENV=development&& nodemon server/index.js",

@@ -6,6 +6,7 @@ const { join } = require("node:path");
 const root = process.cwd();
 const migrationPath = join(root, "server", "db", "migrations", "027_demo_requests_and_demo_workspaces.sql");
 const seedPath = join(root, "scripts", "seed-marketing-demo.mjs");
+const targetVerifierPath = join(root, "scripts", "verify-demo-database-target.mjs");
 
 test("demo migration is additive and defines isolated workspace metadata", () => {
   const sql = readFileSync(migrationPath, "utf8");
@@ -47,4 +48,22 @@ test("demo password and workspace guards fail closed", async () => {
 test("production deploy includes migration 027", () => {
   const build = readFileSync(join(root, "scripts", "vercel-build.js"), "utf8");
   assert.match(build, /027_demo_requests_and_demo_workspaces\.sql/);
+});
+
+test("demo database target verification fails closed and never logs credentials", async () => {
+  const verifier = await import("../scripts/verify-demo-database-target.mjs");
+  const identity = verifier.normalizedDatabaseIdentity("postgresql://secret-user:secret-password@db.smartmanage.example:5432/smart_manage");
+  assert.deepEqual(identity, { host: "db.smartmanage.example", port: "5432", database: "smart_manage" });
+  assert.throws(() => verifier.assertExpectedDatabaseTarget(identity, {}), /required for target verification/);
+  assert.throws(() => verifier.assertExpectedDatabaseTarget(identity, { SMART_MANAGE_DEMO_DB_HOST: "other.example", SMART_MANAGE_DEMO_DB_NAME: "smart_manage" }), /does not match/);
+  assert.doesNotThrow(() => verifier.assertExpectedDatabaseTarget(identity, { SMART_MANAGE_DEMO_DB_HOST: "db.smartmanage.example", SMART_MANAGE_DEMO_DB_NAME: "smart_manage" }));
+  assert.doesNotMatch(readFileSync(targetVerifierPath, "utf8"), /console\.log\([^\n]*(connectionString|DATABASE_URL)/);
+});
+
+test("Phase B seeder includes all priority datasets and a fleet portal dataset", () => {
+  const source = readFileSync(seedPath, "utf8");
+  for (const key of ["project_management", "freight_broker", "crm_sales", "kindergarten_nursery", "dental_clinic", "construction", "fleet_management"]) assert.match(source, new RegExp(`templateKey: \\"${key}\\"`));
+  assert.match(source, /broken relations detected/);
+  assert.match(source, /Driver Portal has no assigned trip/);
+  assert.match(source, /_assignedDriverUserId/);
 });
