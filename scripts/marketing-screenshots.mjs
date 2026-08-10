@@ -36,8 +36,8 @@ async function capture(target, name, route) {
   await target.goto(`${baseUrl}${route}`, { waitUntil: "domcontentloaded" }); await settle(target);
   if (route.startsWith("/workspace")) {
     await target.waitForFunction(() => {
-      const table = document.querySelector("table");
-      return table && (table.textContent || "").trim().length > 120;
+      const text = document.body.innerText;
+      return text.length > 700 && /\bitems?\b/i.test(text) && !/Loading\.\.\.|Compiling/i.test(text);
     }, null, { timeout: 60_000 });
     await target.waitForTimeout(1200);
   }
