@@ -17,3 +17,10 @@ test("landing communicates universal product, templates, security and honest FAQ
   for (const text of ["ONE WORKSPACE. EVERY PROCESS.", "Role-based access", "Frequently asked questions"])
     assert.equal(page.includes(text), true, `missing ${text}`);
 });
+
+test("major marketing screenshot assignments are unique", () => {
+  const registry = fs.readFileSync(require.resolve("../src/app/marketingScreenshots.ts"), "utf8");
+  const images = [...registry.matchAll(/:\s*"(\/marketing\/[^"]+\.webp)"/g)].map((match) => match[1]);
+  assert.ok(images.length >= 8);
+  assert.equal(new Set(images).size, images.length);
+});

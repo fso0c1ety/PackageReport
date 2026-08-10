@@ -25,12 +25,22 @@ async function settle(target) {
     return !/^Compiling\s*\.{0,3}/m.test(text) && !/^Loading\.{0,3}$/m.test(text);
   }, null, { timeout: 60_000 });
   await target.waitForTimeout(2500);
+  const closeTrial = target.getByRole("button", { name: /close subscription banner/i });
+  if (await closeTrial.count()) await closeTrial.first().click().catch(() => undefined);
   const body = await target.locator("body").innerText();
   if (/application error|internal server error/i.test(body)) throw new Error(`Page failed QA at ${target.url()}`);
+  if (/\b\d+\s+Issue\b|Free Trial|trial\s+—\s+\d+\s+days/i.test(body)) throw new Error(`Page contains a marketing-blocking warning at ${target.url()}`);
   if (body.trim().length < 80) throw new Error(`Page is visually empty at ${target.url()}`);
 }
 async function capture(target, name, route) {
   await target.goto(`${baseUrl}${route}`, { waitUntil: "domcontentloaded" }); await settle(target);
+  if (route.startsWith("/workspace")) {
+    await target.waitForFunction(() => {
+      const table = document.querySelector("table");
+      return table && (table.textContent || "").trim().length > 120;
+    }, null, { timeout: 60_000 });
+    await target.waitForTimeout(1200);
+  }
   await target.screenshot({ path: path.join(outputDir, `${name}.webp`), type: "webp", quality: 86, fullPage: false });
   const size = (await stat(path.join(outputDir, `${name}.webp`))).size;
   if (size < 20_000) throw new Error(`${name}.webp failed minimum visual size validation`);

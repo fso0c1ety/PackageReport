@@ -70,3 +70,10 @@ test("Phase B seeder includes all priority datasets and a fleet portal dataset",
   assert.match(source, /information_schema\.columns/);
   assert.match(source, /hasUniversalMembership/);
 });
+
+test("marketing demo-only owners receive a screenshot-safe internal entitlement", () => {
+  const billing = readFileSync(join(root, "src", "app", "api", "_lib", "billing.js"), "utf8");
+  assert.match(billing, /demoOnlyOwner/);
+  assert.match(billing, /COUNT\(\*\) FILTER \(WHERE COALESCE\(is_demo, false\)\)/);
+  assert.doesNotMatch(billing, /demo@smartmanage\.com/);
+});

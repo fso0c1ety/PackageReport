@@ -70,7 +70,18 @@ export async function getBillingStatus(userId) {
     [userId]
   );
   const value = subscription.rows[0];
-  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(accountEmail);
+  let demoOnlyOwner = false;
+  try {
+    const demoScope = await pool.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE COALESCE(is_demo, false))::int AS demo_count
+       FROM workspaces WHERE owner_id = $1`,
+      [userId]
+    );
+    const counts = demoScope.rows[0] || {};
+    demoOnlyOwner = Number(counts.total) > 0 && Number(counts.total) === Number(counts.demo_count);
+  } catch {}
+  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(accountEmail) || demoOnlyOwner;
 
   if (unlimited) {
     await pool.query(

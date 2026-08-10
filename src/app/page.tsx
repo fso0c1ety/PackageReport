@@ -39,6 +39,7 @@ import HandshakeRoundedIcon from "@mui/icons-material/HandshakeRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import DemoRequestForm from "./DemoRequestForm";
 import { WORKSPACE_TEMPLATES } from "../workspaceTemplates";
+import { marketingScreenshots } from "./marketingScreenshots";
 
 function trackMarketingEvent(name: string, detail: Record<string, string> = {}) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("smartmanage:analytics", { detail: { name, ...detail } }));
@@ -68,20 +69,18 @@ export default function LandingPage() {
 
   const serviceItems = [
     {
-      title: "Project Management",
-      description: "Organize projects and track their progress in real time.",
+      title: "Run operations",
+      description: "Plan work, assign teams and keep every process moving.",
     },
     {
-      title: "Task Management",
-      description: "Create, assign and complete tasks efficiently.",
+      title: "Connect your business",
+      description: "Bring customers, projects, documents and communication together.",
     },
     {
-      title: "Calendar & Deadlines",
-      description: "Keep meetings, events and deadlines organized.",
+      title: "Give every role the right experience",
+      description: "Managers and operational users see only the information and actions they need.",
     },
-    { title: "Reports", description: "Create and manage business reports in one place." },
-    { title: "Team Collaboration", description: "Work together with your team and share updates." },
-    { title: "File Management", description: "Store and organize important files securely." },
+    { title: "Adapt to any industry", description: "Start from a professional template and customize it around your business." },
   ];
 
   const serviceIcons = [<FolderCopyRoundedIcon key="project" />, <ChecklistRoundedIcon key="tasks" />, <CalendarMonthRoundedIcon key="calendar" />, <InsertChartRoundedIcon key="reports" />, <GroupsRoundedIcon key="team" />, <FolderOpenRoundedIcon key="files" />];
@@ -255,60 +254,36 @@ export default function LandingPage() {
 
             <Stack
               direction="row"
-              spacing={3}
+              spacing={2.5}
               sx={{
                 display: { xs: "none", md: "flex" },
                 alignItems: "center",
               }}
             >
-              <Button onClick={() => scrollToSection("top")} sx={navButtonSx}>Home</Button>
               <Button onClick={() => scrollToSection("product")} sx={navButtonSx}>Product</Button>
               <Button onClick={() => scrollToSection("solutions")} sx={navButtonSx}>Solutions</Button>
               <Button onClick={() => scrollToSection("templates")} sx={navButtonSx}>Templates</Button>
-              <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Features</Button>
-              <Button onClick={() => scrollToSection("about")} sx={navButtonSx}>About Us</Button>
               <Button onClick={() => navigateToAppRoute("/pricing", router)} sx={navButtonSx}>Pricing</Button>
-              <Button onClick={() => scrollToSection("request-demo")} sx={{ ...navButtonSx, color: LIGHT.primary }}>Request Demo</Button>
             </Stack>
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
               {authenticated && <Button onClick={() => navigateToAppRoute("/home", router)} sx={{ ...navButtonSx, color: LIGHT.primary }}>Open Smart Manage</Button>}
+              <Button onClick={() => scrollToSection("request-demo")} variant="outlined" sx={{ display: { xs: "none", md: "inline-flex" }, borderRadius: 999, px: 2, textTransform: "none", fontWeight: 800, borderColor: LIGHT.primary, color: LIGHT.primary }}>Request Demo</Button>
               <Button
-                component="a"
-                href={desktopDownloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                startIcon={<DownloadIcon />}
+                onClick={() => navigateToAppRoute("/login", router)}
                 sx={{
-                  display: { xs: "none", md: "inline-flex" },
+                  display: { xs: "none", sm: "inline-flex" },
                   color: LIGHT.text,
                   borderRadius: 999,
                   px: 2,
                   py: 0.8,
                   textTransform: "none",
                   fontWeight: 700,
-                  border: `1px solid ${LIGHT.border}`,
-                  backgroundColor: "#fff",
-                  "&:hover": { backgroundColor: "#f8fafc", borderColor: LIGHT.primary },
+                  backgroundColor: "transparent",
+                  "&:hover": { backgroundColor: "rgba(99,102,241,.06)" },
                 }}
               >
-                Download
-              </Button>
-              <Button
-                onClick={() => navigateToAppRoute("/login", router)}
-                sx={{
-                  display: { xs: "none", sm: "inline-flex" },
-                  color: "#fff",
-                  borderRadius: 999,
-                  px: 2,
-                  py: 0.8,
-                  textTransform: "none",
-                  fontWeight: 700,
-                  backgroundColor: LIGHT.primary,
-                  "&:hover": { backgroundColor: LIGHT.primaryDark },
-                }}
-              >
-                Login
+                Sign In
               </Button>
               <Button
                 variant="contained"
@@ -325,7 +300,7 @@ export default function LandingPage() {
                   "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
                 }}
               >
-                Sign Up
+                Start Free
               </Button>
               <IconButton
                 aria-label="Open navigation"
@@ -423,7 +398,7 @@ export default function LandingPage() {
                 </Typography>
 
                 <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap>
-                  {["Projects","Tasks","Calendar","Reports","Team Chat"].map((label) => <Stack key={label} direction="row" spacing={.6} alignItems="center"><CheckCircleRoundedIcon sx={{fontSize:18,color:"#6D4AFF"}}/><Typography sx={{fontSize:14,fontWeight:700}}>{label}</Typography></Stack>)}
+                  {["Flexible workflows","Role-based access","Real-time collaboration"].map((label) => <Stack key={label} direction="row" spacing={.6} alignItems="center"><CheckCircleRoundedIcon sx={{fontSize:18,color:"#6D4AFF"}}/><Typography sx={{fontSize:14,fontWeight:700}}>{label}</Typography></Stack>)}
                 </Stack>
 
                 <Stack
@@ -458,6 +433,7 @@ export default function LandingPage() {
                   </Button>
 
                 </Stack>
+                <Button onClick={() => scrollToSection("product")} sx={{ alignSelf: "flex-start", p: 0, color: LIGHT.text, textTransform: "none", fontWeight: 800 }}>See how it works →</Button>
               </Stack>
             </motion.div>
 
@@ -480,7 +456,7 @@ export default function LandingPage() {
               >
                 <Box
                   component="img"
-                  src="/marketing/boards.webp"
+                  src={marketingScreenshots.hero}
                   alt="Smart Manage project board with real demo workspace data"
                   sx={{ width: "100%", borderRadius: { xs: 3, md: 5 }, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 28px 80px rgba(37,42,88,.18)" }}
                 />
@@ -508,7 +484,7 @@ export default function LandingPage() {
                 </Stack>
 
                 <Box sx={{ display:"grid",gridTemplateColumns:{xs:"1fr",md:"1fr 1fr"},gap:{xs:4,md:6},alignItems:"center" }}>
-                  <Box component="img" src="/marketing/logistics.webp" alt="Smart Manage logistics workspace" sx={{ width: "100%", borderRadius: 4, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 24px 60px rgba(16,24,40,.12)" }} />
+                  <Box component="img" src={marketingScreenshots.fleet} alt="Smart Manage fleet operations workspace" sx={{ width: "100%", borderRadius: 4, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 24px 60px rgba(16,24,40,.12)" }} />
                   <Box sx={{display:"grid",gridTemplateColumns:{xs:"1fr",sm:"repeat(2,1fr)"},gap:2}}>{serviceItems.map((item, idx) => (
                     <motion.div
                       key={item.title}
@@ -574,7 +550,7 @@ export default function LandingPage() {
               <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>SEE SMART MANAGE IN ACTION</Typography>
               <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Real workflows. Real product UI.</Typography>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(3,1fr)" }, gap: 2, mt: 3 }}>
-                {[["Boards","Structure work around the way your team operates.","/marketing/boards.webp"],["Operations","Follow logistics work from assignment to completion.","/marketing/logistics.webp"],["CRM","Keep companies, contacts and deals connected.","/marketing/crm.webp"]].map(([title,copy,image]) => <Box key={title} sx={{ border: `1px solid ${LIGHT.border}`, borderRadius: 4, overflow: "hidden", bgcolor: "#fff" }}><Box component="img" loading="lazy" src={image} alt={`${title} in Smart Manage`} sx={{ width: "100%", aspectRatio: "16/10", objectFit: "cover", objectPosition: "top left", display: "block" }} /><Box sx={{ p: 2.5 }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: LIGHT.textSecondary, mt: .7 }}>{copy}</Typography></Box></Box>)}
+                {[["Boards","Structure work around the way your team operates.",marketingScreenshots.boards],["Operations","Follow logistics work from assignment to completion.",marketingScreenshots.operations],["CRM","Keep companies, contacts and deals connected.",marketingScreenshots.crm]].map(([title,copy,image]) => <Box key={title} sx={{ border: `1px solid ${LIGHT.border}`, borderRadius: 4, overflow: "hidden", bgcolor: "#fff" }}><Box component="img" loading="lazy" src={image} alt={`${title} in Smart Manage`} sx={{ width: "100%", aspectRatio: "16/10", objectFit: "cover", objectPosition: "top left", display: "block" }} /><Box sx={{ p: 2.5 }}><Typography fontWeight={900}>{title}</Typography><Typography sx={{ color: LIGHT.textSecondary, mt: .7 }}>{copy}</Typography></Box></Box>)}
               </Box>
             </Box>
 
@@ -588,8 +564,9 @@ export default function LandingPage() {
               <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900 }}>Start with a proven template.</Typography>
               <Typography sx={{ color: LIGHT.textSecondary, mt: 1 }}>Choose a starting point, customize every detail, then invite your team.</Typography>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4,1fr)" }, gap: 1.5, mt: 3 }}>
-                {WORKSPACE_TEMPLATES.filter((template) => template.key !== "blank").slice(0, 12).map((template) => <Box key={template.key} sx={{ p: 2.2, border: `1px solid ${LIGHT.border}`, borderRadius: 3, bgcolor: "#fff" }}><Typography fontWeight={850}>{template.name}</Typography><Button onClick={handleGetStarted} sx={{ p: 0, mt: 1, textTransform: "none", fontWeight: 800 }}>Use template →</Button></Box>)}
+                {WORKSPACE_TEMPLATES.filter((template) => ["freight_broker","crm_sales","construction","dental_clinic","kindergarten_nursery","hotel"].includes(template.key)).map((template) => <Box key={template.key} sx={{ p: 2.5, border: `1px solid ${LIGHT.border}`, borderRadius: 3, bgcolor: "#fff" }}><Typography fontSize={24} aria-hidden>{template.icon}</Typography><Typography fontWeight={850} mt={1}>{template.name}</Typography><Typography sx={{ color: LIGHT.textSecondary, fontSize: 13, mt: .7 }}>{template.description}</Typography><Button onClick={handleGetStarted} sx={{ p: 0, mt: 1.5, textTransform: "none", fontWeight: 800 }}>Preview →</Button></Box>)}
               </Box>
+              <Button onClick={() => navigateToAppRoute("/marketplace", router)} sx={{ mt: 2, textTransform: "none", fontWeight: 900 }}>Explore All Templates →</Button>
             </Box>
 
             <Box id="request-demo" sx={{ scrollMarginTop: 96, display: "grid", gridTemplateColumns: { xs: "1fr", md: ".8fr 1.2fr" }, gap: 5, p: { xs: 3, md: 6 }, borderRadius: 5, bgcolor: "#F7F5FF", border: "1px solid #E8E3FF" }}>
@@ -599,7 +576,7 @@ export default function LandingPage() {
 
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
               <Box sx={{ p: 4, borderRadius: 4, bgcolor: "#eef2ff" }}><Typography component="h2" fontSize={30} fontWeight={900}>Security built into everyday work.</Typography><Typography sx={{ color: LIGHT.textMuted, lineHeight: 1.8, mt: 1.5 }}>Role-based access, protected workspaces, HTTPS traffic, secure password reset, session management and controlled private file access.</Typography></Box>
-              <Box sx={{ p: 4, borderRadius: 4, bgcolor: "#ecfdf5" }}><Typography component="h2" fontSize={30} fontWeight={900}>Work everywhere.</Typography><Typography sx={{ color: LIGHT.textMuted, lineHeight: 1.8, mt: 1.5 }}>Use Smart Manage on the web, the Windows desktop application, Android and mobile-ready layouts. iOS support is available where configured.</Typography></Box>
+              <Box sx={{ p: 4, borderRadius: 4, bgcolor: "#ecfdf5" }}><Typography sx={{ color: "#047857", fontWeight: 900, letterSpacing: ".14em", fontSize: 12 }}>WORK WHEREVER YOU DO.</Typography><Typography component="h2" fontSize={30} fontWeight={900} mt={1}>Web, Windows and mobile.</Typography><Typography sx={{ color: LIGHT.textMuted, lineHeight: 1.8, mt: 1.5 }}>Use Smart Manage on the web, Windows desktop and responsive Android/mobile layouts. iOS is available only where configured.</Typography><Button component="a" href={desktopDownloadUrl} target="_blank" rel="noopener noreferrer" startIcon={<DownloadIcon />} sx={{ mt: 2, textTransform: "none", fontWeight: 900 }}>Download Desktop App</Button></Box>
             </Box>
 
             <Box>
@@ -624,7 +601,7 @@ export default function LandingPage() {
             >
               <Box id="about" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: { xs: 3, md: 6 }, alignItems: "center", p: { xs: 2, md: 5 }, mb: 3, bgcolor: "#F6F3FF", borderRadius: 4 }}>
-                  <Box component="img" src="/marketing/crm.webp" alt="Smart Manage CRM workspace" sx={{ width: "100%", borderRadius: 3, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 18px 50px rgba(16,24,40,.12)" }} />
+                  <Box component="img" loading="lazy" src={marketingScreenshots.healthcare} alt="Smart Manage healthcare workspace" sx={{ width: "100%", borderRadius: 3, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 18px 50px rgba(16,24,40,.12)" }} />
                   <Box><Typography sx={{ textTransform: "uppercase", letterSpacing: ".18em", color: "#6D4AFF", fontWeight: 800, fontSize: 12 }}>ABOUT SMART MANAGE</Typography><Typography sx={{ fontSize: { xs: 28, md: 42 }, fontWeight: 900, lineHeight: 1.08, my: 2 }}>Built to make<br/>everyday work simpler</Typography><Typography sx={{ color: "#667085", lineHeight: 1.75 }}>Smart Manage brings your projects, tasks, reports and team together in one place so you can focus on what matters most.</Typography><Button variant="contained" onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ mt: 3, background: "linear-gradient(135deg,#6D4AFF,#3B82F6)" }}>Get Started</Button></Box>
                 </Box>
               </Box>
@@ -697,7 +674,7 @@ export default function LandingPage() {
               </Box>
             </motion.div>
           </Stack>
-          <Box sx={{ mt: 8, p: { xs: 3, md: 4 }, borderRadius: 4, background: "linear-gradient(135deg,#6D4AFF,#4F46E5 55%,#3B82F6)", color: "#fff", display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", gap: 3 }}><Box><Typography sx={{ fontSize: { xs: 24, md: 32 }, fontWeight: 900 }}>Ready to organize your business?</Typography><Typography sx={{ opacity: .82 }}>Join Smart Manage and bring everything together in one smart workspace.</Typography></Box><Button endIcon={<ArrowForwardRoundedIcon />} onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ minHeight: 50, bgcolor: "#fff", color: "#4F46E5", fontWeight: 800, px: 4, transition: "transform .2s ease, box-shadow .2s ease", "&:hover": { bgcolor: "#F8FAFC", transform: "translateY(-2px)", boxShadow: "0 10px 24px rgba(15,23,42,.18)" }, "&:focus-visible": { outline: "3px solid rgba(255,255,255,.5)", outlineOffset: 3 } }}>Get Started Free</Button></Box>
+          <Box sx={{ mt: 8, p: { xs: 3, md: 4 }, borderRadius: 4, bgcolor: "#171A38", color: "#fff", display: "flex", flexDirection: { xs: "column", md: "row" }, alignItems: { xs: "stretch", md: "center" }, justifyContent: "space-between", gap: 3 }}><Box><Typography sx={{ fontSize: { xs: 24, md: 34 }, fontWeight: 900 }}>Build a workspace that works the way your business does.</Typography><Typography sx={{ color: "#CBD5E1", mt: 1 }}>Start with a template, customize your workflows and bring your team into one connected platform.</Typography></Box><Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}><Button endIcon={<ArrowForwardRoundedIcon />} onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ minHeight: 50, bgcolor: "#fff", color: "#4F46E5", fontWeight: 800, px: 3, "&:hover": { bgcolor: "#F8FAFC" } }}>Start Free</Button><Button onClick={() => scrollToSection("request-demo")} variant="outlined" sx={{ minHeight: 50, color: "#fff", borderColor: "rgba(255,255,255,.7)", fontWeight: 800, px: 3 }}>Request Demo</Button></Stack></Box>
         </Container>
       </Box>
       <Box component="footer" sx={{ bgcolor: "#0F172A", color: "#fff", py: 6 }}><Container maxWidth="xl"><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "2fr repeat(4,1fr)" }, gap: 4 }}><Box sx={{ gridColumn: { xs: "1/-1", md: "auto" } }}><Stack direction="row" spacing={1.2} alignItems="center"><Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 38, height: 38, borderRadius: 2 }}/><Typography fontWeight={900}>Smart Manage</Typography></Stack><Typography sx={{ color: "#94A3B8", fontSize: 13, mt: 2, maxWidth: 260 }}>An all-in-one workspace to manage projects, tasks, reports, files and your team.</Typography></Box>{[["Product","Features","Integrations","Updates","Pricing"],["Resources","Documentation","Help Center","Templates","Blog"],["Company","About Us","Careers","Press Kit","Contact"],["Legal","Privacy Policy","Terms of Service","Cookie Policy","Security"]].map(([head,...links]) => <Box key={head}><Typography fontWeight={900} mb={1.5}>{head}</Typography>{links.map((x) => <Typography key={x} sx={{ color: "#94A3B8", fontSize: 13, py: .45 }}>{x}</Typography>)}</Box>)}</Box><Stack direction="row" justifyContent="space-between" sx={{ color: "#64748B", fontSize: 12, mt: 5 }}><Typography fontSize="inherit">© {new Date().getFullYear()} Smart Manage. All rights reserved.</Typography><Typography fontSize="inherit">Version 1.0</Typography></Stack></Container></Box>
