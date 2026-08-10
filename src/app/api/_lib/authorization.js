@@ -1,6 +1,25 @@
 const WORKSPACE_RANK = Object.freeze({ guest: 10, viewer: 10, member: 20, editor: 20, admin: 30, owner: 40 });
 const BOARD_RANK = Object.freeze({ guest: 10, viewer: 10, commenter: 15, member: 20, editor: 20, admin: 30, owner: 40 });
 
+let universalRoleSchemaCache = { checkedAt: 0, available: false };
+
+async function hasUniversalRoleSchema(pool) {
+  const now = Date.now();
+  if (now - universalRoleSchemaCache.checkedAt < 60_000) return universalRoleSchemaCache.available;
+  const result = await pool.query(`
+    SELECT to_regclass('public.board_member_access') IS NOT NULL AS has_board_access,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='workspace_members' AND column_name='workspace_role'
+      ) AS has_workspace_role
+  `);
+  universalRoleSchemaCache = {
+    checkedAt: now,
+    available: Boolean(result.rows[0]?.has_board_access && result.rows[0]?.has_workspace_role),
+  };
+  return universalRoleSchemaCache.available;
+}
+
 function normalizeRole(value, fallback = "viewer") {
   const role = String(value || fallback).toLowerCase();
   if (role === "read") return "viewer";
@@ -84,6 +103,25 @@ export async function requireWorkspacePermission(pool, userId, workspaceId, requ
 
 export async function requireBoardPermission(pool, userId, tableId, required = "viewer") {
   if (!userId || !tableId) return null;
+  if (!(await hasUniversalRoleSchema(pool))) {
+    const legacyResult = await pool.query(`
+      SELECT t.*,w.owner_id AS workspace_owner_id,NULL::text AS workspace_role,
+        NULL::jsonb AS record_access,NULL::text AS member_team_id,NULL::text AS member_department_id,
+        NULL::text AS member_company_id,NULL::jsonb AS board_record_access,
+        CASE WHEN w.owner_id::text=$2::text THEN 'owner'
+          ELSE (SELECT LOWER(CASE
+            WHEN COALESCE(member->>'boardRole',member->>'role','') IN ('owner','admin') THEN COALESCE(member->>'boardRole',member->>'role')
+            WHEN COALESCE(member->>'permission','')='admin' THEN 'admin'
+            WHEN COALESCE(member->>'permission','')='read' THEN 'viewer'
+            WHEN COALESCE(member->>'permission','')='comment' THEN 'commenter'
+            ELSE 'editor' END)
+          FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
+          WHERE COALESCE(member->>'userId',member#>>'{}')=$2::text LIMIT 1) END AS access_role
+      FROM tables t JOIN workspaces w ON w.id=t.workspace_id
+      WHERE t.id=$1 LIMIT 1`, [tableId, String(userId)]);
+    const legacyBoard = legacyResult.rows[0];
+    return legacyBoard && allows(legacyBoard.access_role, required, BOARD_RANK) ? legacyBoard : null;
+  }
   const result = await pool.query(`
     SELECT t.*,w.owner_id AS workspace_owner_id,
       COALESCE(wm.workspace_role,wm.role) AS workspace_role,
@@ -147,4 +185,4 @@ export async function usersMayCommunicate(pool, userId, targetId) {
   return result.rowCount > 0;
 }
 
-export const authorizationInternals = { allows, normalizeRole, BOARD_RANK, WORKSPACE_RANK };
+export const authorizationInternals = { allows, normalizeRole, BOARD_RANK, WORKSPACE_RANK, hasUniversalRoleSchema };

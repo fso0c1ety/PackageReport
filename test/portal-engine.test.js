@@ -36,3 +36,12 @@ test("portal context returns the resolved configuration", () => {
   assert.match(route, /resolvePortalConfig/);
   assert.match(route, /portalConfig/);
 });
+
+test("board authorization safely supports databases before the universal-role migration", () => {
+  const source = read("src", "app", "api", "_lib", "authorization.js");
+  assert.match(source, /hasUniversalRoleSchema/);
+  assert.match(source, /to_regclass\('public\.board_member_access'\)/);
+  assert.match(source, /if \(!\(await hasUniversalRoleSchema\(pool\)\)\)/);
+  assert.match(source, /jsonb_array_elements\(CASE WHEN jsonb_typeof/);
+  assert.doesNotMatch(source, /wm\.user_id IS NOT NULL AS access_role/);
+});
