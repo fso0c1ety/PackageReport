@@ -60,6 +60,20 @@ test("admin API enforces platform permissions and supports retry lifecycle actio
   assert.match(read("src","app","api","_lib","demoProvisioning.js"), /access_email_status='failed'/);
 });
 
+test("authorized platform staff can discover Demo Requests navigation without exposing it to workspace admins", () => {
+  const access = read("src","app","api","internal","platform-access","route.js");
+  const sidebar = read("src","app","Sidebar.tsx");
+  assert.match(access, /platform_staff_roles/);
+  assert.match(access, /hasPlatformPermission\(actor, "demo_requests\.read"\)/);
+  assert.match(sidebar, /platformAccess\?\.canReadDemoRequests/);
+  assert.match(sidebar, /label="Demo Requests"/);
+  const grant = read("scripts","grant-platform-role.mjs");
+  assert.match(grant, /verifyDemoDatabaseTarget\(\)/);
+  assert.match(grant, /PLATFORM_STAFF_EMAIL/);
+  assert.match(grant, /platform_admin.*demo_manager.*demo_sales/);
+  assert.doesNotMatch(grant, /a\.gjendzz@gmail\.com/);
+});
+
 test("request form keeps entered values readable", () => {
   const source = read("src","app","DemoRequestForm.tsx");
   assert.match(source, /WebkitTextFillColor: "#11162F"/);

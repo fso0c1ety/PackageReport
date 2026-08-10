@@ -44,6 +44,7 @@ import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
+import AdminPanelSettingsRoundedIcon from "@mui/icons-material/AdminPanelSettingsRounded";
 import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
@@ -63,6 +64,10 @@ interface BillingStatus {
   trial_ends_at?: string | null;
   writable?: boolean;
   unlimited?: boolean;
+}
+
+interface PlatformAccess {
+  canReadDemoRequests?: boolean;
 }
 
 interface SidebarItemProps {
@@ -195,9 +200,19 @@ export default function Sidebar({
   const { showNotification } = useNotification();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  const [platformAccess, setPlatformAccess] = useState<PlatformAccess | null>(null);
   const [calendarReminderCount, setCalendarReminderCount] = useState(0);
   const [maintenanceReminderCount, setMaintenanceReminderCount] = useState(0);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    authenticatedFetch(getApiUrl("internal/platform-access"), { suppressNativeErrorAlert: true })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => { if (active) setPlatformAccess(data || null); })
+      .catch(() => { if (active) setPlatformAccess(null); });
+    return () => { active = false; };
+  }, []);
 
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -555,6 +570,15 @@ export default function Sidebar({
               isActive={pathname === "/settings"}
               onClick={onClose}
             />
+            {platformAccess?.canReadDemoRequests && (
+              <SidebarItem
+                icon={<AdminPanelSettingsRoundedIcon fontSize="small" />}
+                label="Demo Requests"
+                href="/demo-requests"
+                isActive={pathname === "/demo-requests"}
+                onClick={onClose}
+              />
+            )}
             </>}
           </Box>
 

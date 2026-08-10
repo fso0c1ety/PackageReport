@@ -21,6 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 import { WORKSPACE_TEMPLATES } from "../../../workspaceTemplates";
+import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 
 type DemoRequest = {
   id: string;
@@ -80,7 +81,7 @@ export default function DemoRequestsPage() {
   const load = async () => {
     setLoading(true);
     setError("");
-    const response = await fetch("/api/internal/demo-requests");
+    const response = await authenticatedFetch(getApiUrl("internal/demo-requests"));
     const data = await response.json();
     if (!response.ok) setError(data.error || "Unable to load demo requests");
     else {
@@ -98,7 +99,7 @@ export default function DemoRequestsPage() {
     void load();
   }, []);
   const updateStatus = async (id: string, status: string) => {
-    const response = await fetch("/api/internal/demo-requests", {
+    const response = await authenticatedFetch(getApiUrl("internal/demo-requests"), {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id, status }),
@@ -120,7 +121,7 @@ export default function DemoRequestsPage() {
     setBusy(true);
     setError("");
     setNotice("");
-    const response = await fetch("/api/internal/demo-requests", {
+    const response = await authenticatedFetch(getApiUrl("internal/demo-requests"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: selected.id, action: actionName, ...extra }),
