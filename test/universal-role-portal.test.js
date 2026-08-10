@@ -47,3 +47,11 @@ test("invite UI and API submit the four independent access dimensions", () => {
     assert.match(invite, new RegExp(field));
   }
 });
+
+test("invite acceptance preserves portal metadata on legacy databases", () => {
+  const accept = read("src", "app", "api", "notifications", "[id]", "accept", "route.js");
+  assert.match(accept, /hasUniversalMembership/);
+  assert.match(accept, /hasBoardMemberAccess/);
+  assert.match(accept, /portalType, landingRoute: PORTAL_ROUTES\[portalType\], recordAccess/);
+  assert.match(accept, /INSERT INTO workspace_members\(workspace_id,user_id,role,updated_at\)/);
+});

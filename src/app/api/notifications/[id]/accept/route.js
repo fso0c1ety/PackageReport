@@ -49,14 +49,29 @@ export async function POST(req, { params }) {
     const jobRoles = normalizeJobRoles(data.jobRoles);
     const portalType = normalizePortalType(data.portalType || (jobRoles.includes("driver") ? "driver" : "standard"));
     const recordAccess = normalizeRecordAccess(data.recordAccess || { scope: "all_permitted" });
+    const schema = await pool.query(`SELECT
+      EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_members' AND column_name='portal_type') AS has_portal_type,
+      to_regclass('public.board_member_access') IS NOT NULL AS has_board_member_access`);
+    const hasUniversalMembership = Boolean(schema.rows[0]?.has_portal_type);
+    const hasBoardMemberAccess = Boolean(schema.rows[0]?.has_board_member_access);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const sharedUsers = (Array.isArray(table.shared_users) ? table.shared_users : []).filter((entry) => String(entry?.userId || entry) !== String(user.id));
-      sharedUsers.push({ userId: String(user.id), permission, role: boardRole, boardRole });
+      sharedUsers.push({
+        userId: String(user.id), permission, role: boardRole, boardRole,
+        workspaceRole, jobRoles, jobRole: jobRoles[0] || null,
+        portalType, landingRoute: PORTAL_ROUTES[portalType], recordAccess,
+      });
       await client.query("UPDATE tables SET shared_users=$1::jsonb WHERE id=$2", [JSON.stringify(sharedUsers), tableId]);
-      await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,record_access,updated_at) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8::jsonb,NOW()) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role,workspace_role=EXCLUDED.workspace_role,job_roles=EXCLUDED.job_roles,portal_type=EXCLUDED.portal_type,landing_route=EXCLUDED.landing_route,record_access=EXCLUDED.record_access,updated_at=NOW()`, [table.workspace_id,String(user.id),jobRoles.includes("driver")?"driver":workspaceRole,workspaceRole,JSON.stringify(jobRoles),portalType,PORTAL_ROUTES[portalType],JSON.stringify(recordAccess)]);
-      await client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,$3,'{}'::jsonb,$4::jsonb,NOW()) ON CONFLICT(table_id,user_id) DO UPDATE SET board_role=EXCLUDED.board_role,record_access=EXCLUDED.record_access,updated_at=NOW()`, [tableId,String(user.id),boardRole,JSON.stringify(recordAccess)]);
+      if (hasUniversalMembership) {
+        await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,record_access,updated_at) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8::jsonb,NOW()) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role,workspace_role=EXCLUDED.workspace_role,job_roles=EXCLUDED.job_roles,portal_type=EXCLUDED.portal_type,landing_route=EXCLUDED.landing_route,record_access=EXCLUDED.record_access,updated_at=NOW()`, [table.workspace_id,String(user.id),jobRoles.includes("driver")?"driver":workspaceRole,workspaceRole,JSON.stringify(jobRoles),portalType,PORTAL_ROUTES[portalType],JSON.stringify(recordAccess)]);
+      } else {
+        await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,updated_at) VALUES($1,$2,$3,NOW()) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role,updated_at=NOW()`, [table.workspace_id,String(user.id),jobRoles.includes("driver")?"driver":workspaceRole]);
+      }
+      if (hasBoardMemberAccess) {
+        await client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,$3,'{}'::jsonb,$4::jsonb,NOW()) ON CONFLICT(table_id,user_id) DO UPDATE SET board_role=EXCLUDED.board_role,record_access=EXCLUDED.record_access,updated_at=NOW()`, [tableId,String(user.id),boardRole,JSON.stringify(recordAccess)]);
+      }
       await client.query("DELETE FROM notifications WHERE id=$1", [notificationId]);
       await client.query("COMMIT");
     } catch (error) {
