@@ -22,6 +22,7 @@ test("database triggers prevent demo account access to non-demo resources", () =
   assert.match(sql, /smart_manage_enforce_demo_workspace_member/);
   assert.match(sql, /smart_manage_enforce_demo_legacy_share/);
   assert.match(sql, /smart_manage_enforce_demo_board_access/);
+  assert.match(sql, /to_regclass\('public\.board_member_access'\)/);
   assert.match(sql, /LOWER\(email\)='demo@smartmanage\.com'/);
   assert.match(sql, /is_demo=TRUE/);
 });
@@ -66,4 +67,6 @@ test("Phase B seeder includes all priority datasets and a fleet portal dataset",
   assert.match(source, /broken relations detected/);
   assert.match(source, /Driver Portal has no assigned trip/);
   assert.match(source, /_assignedDriverUserId/);
+  assert.match(source, /information_schema\.columns/);
+  assert.match(source, /hasUniversalMembership/);
 });

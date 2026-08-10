@@ -34,7 +34,8 @@ export async function verifyDemoDatabaseTarget({ connectionString = process.env.
         to_regclass('public.platform_staff_roles') IS NOT NULL AS platform_staff_roles,
         (SELECT COUNT(*)=4 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspaces' AND column_name=ANY(ARRAY['is_demo','demo_request_id','demo_expires_at','demo_metadata'])) AS workspace_columns,
         (SELECT COUNT(*)>=6 FROM pg_indexes WHERE schemaname='public' AND indexname=ANY(ARRAY['idx_demo_requests_status_created','idx_demo_requests_email','idx_demo_requests_assigned_to','idx_workspaces_demo_owner','idx_workspaces_demo_expiry','idx_platform_staff_active'])) AS indexes,
-        (SELECT COUNT(*)=4 FROM pg_trigger WHERE NOT tgisinternal AND tgname=ANY(ARRAY['trg_demo_workspace_owner','trg_demo_workspace_member','trg_demo_legacy_share','trg_demo_board_access'])) AS triggers`);
+        (SELECT COUNT(*)=3 + CASE WHEN to_regclass('public.board_member_access') IS NULL THEN 0 ELSE 1 END
+          FROM pg_trigger WHERE NOT tgisinternal AND tgname=ANY(ARRAY['trg_demo_workspace_owner','trg_demo_workspace_member','trg_demo_legacy_share','trg_demo_board_access'])) AS triggers`);
       migration027Schema = schema.rows[0];
       if (Object.values(migration027Schema).some((value) => value !== true)) throw new Error("Migration 027 is recorded but its required schema objects are incomplete");
     }

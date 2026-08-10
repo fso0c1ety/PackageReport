@@ -33,6 +33,16 @@ export function assertWorkspaceMayBeSeeded(workspace) {
   if (!workspace || workspace.is_demo !== true) throw new Error("Refusing to seed a workspace that is not explicitly marked as demo");
 }
 
+async function tableHasColumn(client, table, column) {
+  const result = await client.query("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2) AS exists", [table, column]);
+  return result.rows[0]?.exists === true;
+}
+
+async function tableExists(client, table) {
+  const result = await client.query("SELECT to_regclass($1) IS NOT NULL AS exists", [`public.${table}`]);
+  return result.rows[0]?.exists === true;
+}
+
 const boardNames = (board, count) => {
   if (board === "Projects") return PROJECTS.slice(0, count);
   if (board === "Companies" || board === "Clients") return COMPANIES.slice(0, count);
@@ -95,13 +105,21 @@ async function assertDemoAccountIsolation(client, userId) {
 
 async function ensureDemoUser(client, password) {
   const existing = await client.query("SELECT id,password FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1", [DEMO_EMAIL]);
+  const hasVerifiedAt = await tableHasColumn(client, "users", "email_verified_at");
+  const hasUserUpdatedAt = await tableHasColumn(client, "users", "updated_at");
   if (existing.rows[0]) {
     await assertDemoAccountIsolation(client, existing.rows[0].id);
-    if (!existing.rows[0].password || !(await bcrypt.compare(password, existing.rows[0].password))) await client.query("UPDATE users SET password=$1,email_verified_at=COALESCE(email_verified_at,NOW()),updated_at=NOW() WHERE id=$2", [await bcrypt.hash(password, 12), existing.rows[0].id]);
+    if (!existing.rows[0].password || !(await bcrypt.compare(password, existing.rows[0].password))) {
+      const verifiedUpdate = hasVerifiedAt ? ",email_verified_at=COALESCE(email_verified_at,NOW())" : "";
+      const timestampUpdate = hasUserUpdatedAt ? ",updated_at=NOW()" : "";
+      await client.query(`UPDATE users SET password=$1${verifiedUpdate}${timestampUpdate} WHERE id=$2`, [await bcrypt.hash(password, 12), existing.rows[0].id]);
+    }
     return existing.rows[0].id;
   }
   const id = randomUUID();
-  await client.query("INSERT INTO users(id,name,email,password,first_name,last_name,company,email_verified_at,created_at,updated_at) VALUES($1,'Smart Manage Demo',$2,$3,'Smart Manage','Demo','Smart Manage',NOW(),NOW(),NOW())", [id, DEMO_EMAIL, await bcrypt.hash(password, 12)]);
+  await client.query(hasVerifiedAt
+    ? "INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,'Smart Manage Demo',$2,$3,NOW())"
+    : "INSERT INTO users(id,name,email,password) VALUES($1,'Smart Manage Demo',$2,$3)", [id, DEMO_EMAIL, await bcrypt.hash(password, 12)]);
   return id;
 }
 
@@ -109,21 +127,27 @@ async function ensureWorkspace(client, userId, config, template) {
   const existing = (await client.query("SELECT * FROM workspaces WHERE owner_id=$1 AND name=$2 LIMIT 1", [userId, config.name])).rows[0];
   if (existing) { assertWorkspaceMayBeSeeded(existing); return existing.id; }
   const id = randomUUID();
-  await client.query("INSERT INTO workspaces(id,name,owner_id,template_key,is_demo,demo_expires_at,demo_metadata,created_at,updated_at) VALUES($1,$2,$3,$4,TRUE,NOW()+INTERVAL '180 days',$5::jsonb,NOW(),NOW())", [id, config.name, userId, template.key, JSON.stringify({ purpose: "marketing_screenshots", seedVersion: SEED_VERSION, templateKey: template.key, dataset: config.key })]);
-  await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,record_access) VALUES($1,$2,'owner','owner','[]'::jsonb,'standard','/dashboard','{"scope":"all_permitted"}'::jsonb) ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role='owner',role='owner',updated_at=NOW()`, [id, userId]);
+  await client.query("INSERT INTO workspaces(id,name,owner_id,template_key,is_demo,demo_expires_at,demo_metadata) VALUES($1,$2,$3,$4,TRUE,NOW()+INTERVAL '180 days',$5::jsonb)", [id, config.name, userId, template.key, JSON.stringify({ purpose: "marketing_screenshots", seedVersion: SEED_VERSION, templateKey: template.key, dataset: config.key })]);
+  const hasUniversalMembership = await tableHasColumn(client, "workspace_members", "workspace_role");
+  await client.query(hasUniversalMembership
+    ? `INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,record_access) VALUES($1,$2,'owner','owner','[]'::jsonb,'standard','/dashboard','{"scope":"all_permitted"}'::jsonb) ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role='owner',role='owner',updated_at=NOW()`
+    : "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,'owner') ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='owner',updated_at=NOW()", [id, userId]);
   return id;
 }
 
 async function seedWorkspace(client, workspaceId, userId, config, template) {
   const workspace = (await client.query("SELECT id,is_demo,demo_metadata FROM workspaces WHERE id=$1 FOR UPDATE", [workspaceId])).rows[0];
   assertWorkspaceMayBeSeeded(workspace);
-  if (Number(workspace.demo_metadata?.seedVersion) === SEED_VERSION) return (await client.query("SELECT id,name FROM tables WHERE workspace_id=$1", [workspaceId])).rows;
+  if (Number(workspace.demo_metadata?.seedVersion) === SEED_VERSION) {
+    const existingBoards = (await client.query("SELECT id,name FROM tables WHERE workspace_id=$1", [workspaceId])).rows;
+    if (existingBoards.length === template.boards.length) return existingBoards;
+  }
   await client.query("DELETE FROM tables WHERE workspace_id=$1", [workspaceId]);
   const boards = [];
   for (const board of template.boards) {
     const id = randomUUID();
     const columns = board.columns.map((column, order) => ({ ...column, id: randomUUID(), order }));
-    await client.query("INSERT INTO tables(id,name,workspace_id,columns,created_at,updated_at) VALUES($1,$2,$3,$4::jsonb,NOW(),NOW())", [id, board.name, workspaceId, JSON.stringify(columns)]);
+    await client.query("INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,$2,$3,$4::jsonb)", [id, board.name, workspaceId, JSON.stringify(columns)]);
     boards.push({ id, name: board.name, columns });
   }
   const relatedRows = new Map();
@@ -132,7 +156,7 @@ async function seedWorkspace(client, workspaceId, userId, config, template) {
     const names = boardNames(board.name, count);
     const rows = names.map((label) => ({ id: randomUUID(), label }));
     relatedRows.set(board.name, rows);
-    for (const row of rows) await client.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,'{}'::jsonb,$3,NOW(),NOW())", [row.id, board.id, userId]);
+    for (const row of rows) await client.query("INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,'{}'::jsonb,$3)", [row.id, board.id, userId]);
   }
   for (const board of boards) {
     const rows = relatedRows.get(board.name);
@@ -153,28 +177,34 @@ async function seedWorkspace(client, workspaceId, userId, config, template) {
         values._assignedDriverProfileId = driver?.id || null;
         if (index === 0) values._assignedDriverUserId = String(userId);
       }
-      await client.query("UPDATE rows SET values=$1::jsonb,updated_at=NOW() WHERE id=$2", [JSON.stringify(values), rows[index].id]);
+      await client.query("UPDATE rows SET values=$1::jsonb WHERE id=$2", [JSON.stringify(values), rows[index].id]);
     }
   }
-  for (const view of template.views || []) {
-    const board = boards.find((item) => item.name === view.boardName);
-    if (board) await client.query("INSERT INTO board_views(id,table_id,owner_id,name,type,visibility,config,is_default) VALUES($1,$2,$3,$4,$5,'workspace',$6::jsonb,$7)", [randomUUID(), board.id, userId, view.name, view.type, JSON.stringify(view.config || {}), Boolean(view.isDefault)]);
+  if (await tableExists(client, "board_views")) {
+    for (const view of template.views || []) {
+      const board = boards.find((item) => item.name === view.boardName);
+      if (board) await client.query("INSERT INTO board_views(id,table_id,owner_id,name,type,visibility,config,is_default) VALUES($1,$2,$3,$4,$5,'workspace',$6::jsonb,$7)", [randomUUID(), board.id, userId, view.name, view.type, JSON.stringify(view.config || {}), Boolean(view.isDefault)]);
+    }
   }
-  for (const dashboard of template.dashboards || []) {
-    const dashboardId = randomUUID();
-    await client.query("INSERT INTO dashboards(id,workspace_id,owner_id,name,description,layout,settings) VALUES($1,$2,$3,$4,$5,'[]'::jsonb,$6::jsonb)", [dashboardId, workspaceId, userId, dashboard.name, template.description, JSON.stringify({ demo: true, templateKey: template.key })]);
-    for (const [index, widget] of (dashboard.widgets || []).entries()) await client.query("INSERT INTO dashboard_widgets(id,dashboard_id,type,title,config,position) VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb)", [randomUUID(), dashboardId, widget.type, widget.title || widget.type, JSON.stringify(widget), JSON.stringify({ index, size: "medium" })]);
+  if (await tableExists(client, "dashboards") && await tableExists(client, "dashboard_widgets")) {
+    for (const dashboard of template.dashboards || []) {
+      const dashboardId = randomUUID();
+      await client.query("INSERT INTO dashboards(id,workspace_id,owner_id,name,description,layout,settings) VALUES($1,$2,$3,$4,$5,'[]'::jsonb,$6::jsonb)", [dashboardId, workspaceId, userId, dashboard.name, template.description, JSON.stringify({ demo: true, templateKey: template.key })]);
+      for (const [index, widget] of (dashboard.widgets || []).entries()) await client.query("INSERT INTO dashboard_widgets(id,dashboard_id,type,title,config,position) VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb)", [randomUUID(), dashboardId, widget.type, widget.title || widget.type, JSON.stringify(widget), JSON.stringify({ index, size: "medium" })]);
+    }
   }
-  await client.query("UPDATE workspaces SET demo_metadata=$1::jsonb,updated_at=NOW() WHERE id=$2", [JSON.stringify({ purpose: "marketing_screenshots", seedVersion: SEED_VERSION, templateKey: template.key, dataset: config.key, fictionalDataOnly: true }), workspaceId]);
+  await client.query("UPDATE workspaces SET demo_metadata=$1::jsonb WHERE id=$2", [JSON.stringify({ purpose: "marketing_screenshots", seedVersion: SEED_VERSION, templateKey: template.key, dataset: config.key, fictionalDataOnly: true }), workspaceId]);
   return boards;
 }
 
 async function validateQuality(client, workspaceId, config) {
   const counts = await client.query("SELECT t.name,COUNT(r.id)::int AS count FROM tables t LEFT JOIN rows r ON r.table_id=t.id WHERE t.workspace_id=$1 GROUP BY t.id,t.name", [workspaceId]);
   const byBoard = Object.fromEntries(counts.rows.map((row) => [row.name, row.count]));
-  for (const [board, minimum] of Object.entries(config.counts)) if ((byBoard[board] || 0) < minimum) throw new Error(`${config.name} quality check failed: ${board} requires ${minimum} rows`);
-  const dashboards = await client.query("SELECT COUNT(dw.id)::int count FROM dashboards d JOIN dashboard_widgets dw ON dw.dashboard_id=d.id WHERE d.workspace_id=$1", [workspaceId]);
-  if (dashboards.rows[0].count < 1) throw new Error(`${config.name} quality check failed: dashboard widgets are empty`);
+  for (const [board, minimum] of Object.entries(config.counts)) if ((byBoard[board] || 0) < minimum) throw new Error(`${config.name} quality check failed: ${board} requires ${minimum} rows; observed ${JSON.stringify(byBoard)}`);
+  if (await tableExists(client, "dashboards") && await tableExists(client, "dashboard_widgets")) {
+    const dashboards = await client.query("SELECT COUNT(dw.id)::int count FROM dashboards d JOIN dashboard_widgets dw ON dw.dashboard_id=d.id WHERE d.workspace_id=$1", [workspaceId]);
+    if (dashboards.rows[0].count < 1) throw new Error(`${config.name} quality check failed: dashboard widgets are empty`);
+  }
   const brokenRelations = await client.query(`SELECT COUNT(*)::int count FROM rows r JOIN tables t ON t.id=r.table_id
     CROSS JOIN LATERAL jsonb_each(r.values) cell
     CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(cell.value)='array' THEN cell.value ELSE '[]'::jsonb END) relation
