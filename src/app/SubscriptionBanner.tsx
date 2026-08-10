@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
 
 const DISMISSED_STORAGE_KEY = "subscriptionBannerDismissed";
@@ -21,6 +21,7 @@ interface BillingStatus {
 
 export default function SubscriptionBanner() {
   const router = useRouter();
+  const pathname = usePathname();
   const workspaceId = useSearchParams().get("id");
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -31,11 +32,25 @@ export default function SubscriptionBanner() {
       return;
     }
 
-    authenticatedFetch(getApiUrl(`billing/status${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ""}`))
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => data && setBilling(data))
-      .catch(() => {});
-  }, [workspaceId]);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        let scopedWorkspaceId = workspaceId;
+        const normalizedPath = pathname.replace(/\/+$/, "");
+        if (!scopedWorkspaceId && normalizedPath.startsWith("/portal/")) {
+          const portalType = normalizedPath.slice("/portal/".length).replaceAll("-", "_");
+          const contextResponse = await authenticatedFetch(getApiUrl(`portal-context?portalType=${encodeURIComponent(portalType)}`));
+          const context = contextResponse.ok ? await contextResponse.json() : null;
+          scopedWorkspaceId = context?.active?.workspaceId || null;
+        }
+        const response = await authenticatedFetch(getApiUrl(`billing/status${scopedWorkspaceId ? `?workspaceId=${encodeURIComponent(scopedWorkspaceId)}` : ""}`));
+        const data = response.ok ? await response.json() : null;
+        if (!cancelled && data) setBilling(data);
+      } catch {}
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [pathname, workspaceId]);
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSED_STORAGE_KEY, "true");
