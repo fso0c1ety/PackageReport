@@ -55,3 +55,11 @@ test("invite acceptance preserves portal metadata on legacy databases", () => {
   assert.match(accept, /portalType, landingRoute: PORTAL_ROUTES\[portalType\], recordAccess/);
   assert.match(accept, /INSERT INTO workspace_members\(workspace_id,user_id,role,updated_at\)/);
 });
+
+test("team listing supports legacy membership columns and portal metadata", () => {
+  const teammates = read("src", "app", "api", "teammates", "route.js");
+  assert.match(teammates, /membershipProjection/);
+  assert.match(teammates, /has_portal_type/);
+  assert.match(teammates, /elem->>'portalType'/);
+  assert.match(teammates, /elem->'recordAccess'/);
+});
