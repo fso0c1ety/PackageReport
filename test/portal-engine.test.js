@@ -43,5 +43,13 @@ test("board authorization safely supports databases before the universal-role mi
   assert.match(source, /to_regclass\('public\.board_member_access'\)/);
   assert.match(source, /if \(!\(await hasUniversalRoleSchema\(pool\)\)\)/);
   assert.match(source, /jsonb_array_elements\(CASE WHEN jsonb_typeof/);
+  assert.match(source, /legacy_shared_role === "driver"/);
   assert.doesNotMatch(source, /wm\.user_id IS NOT NULL AS access_role/);
+});
+
+test("legacy task listing avoids missing SQL function and still filters driver rows", () => {
+  const source = read("src", "app", "api", "tables", "[tableId]", "tasks", "route.js");
+  assert.match(source, /if \(table\.legacy_authorization\)/);
+  assert.match(source, /rowMatchesRecordAccess/);
+  assert.match(source, /visibleRows\.slice/);
 });

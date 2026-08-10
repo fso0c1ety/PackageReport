@@ -108,6 +108,9 @@ export async function requireBoardPermission(pool, userId, tableId, required = "
       SELECT t.*,w.owner_id AS workspace_owner_id,NULL::text AS workspace_role,
         NULL::jsonb AS record_access,NULL::text AS member_team_id,NULL::text AS member_department_id,
         NULL::text AS member_company_id,NULL::jsonb AS board_record_access,
+        (SELECT LOWER(COALESCE(member->>'boardRole',member->>'role',member->>'permission',''))
+          FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
+          WHERE COALESCE(member->>'userId',member#>>'{}')=$2::text LIMIT 1) AS legacy_shared_role,
         CASE WHEN w.owner_id::text=$2::text THEN 'owner'
           ELSE (SELECT LOWER(CASE
             WHEN COALESCE(member->>'boardRole',member->>'role','') IN ('owner','admin') THEN COALESCE(member->>'boardRole',member->>'role')
@@ -120,6 +123,12 @@ export async function requireBoardPermission(pool, userId, tableId, required = "
       FROM tables t JOIN workspaces w ON w.id=t.workspace_id
       WHERE t.id=$1 LIMIT 1`, [tableId, String(userId)]);
     const legacyBoard = legacyResult.rows[0];
+    if (legacyBoard) {
+      legacyBoard.legacy_authorization = true;
+      if (legacyBoard.legacy_shared_role === "driver") {
+        legacyBoard.board_record_access = { scope: "assigned_to_me", field: "_assignedDriverUserId" };
+      }
+    }
     return legacyBoard && allows(legacyBoard.access_role, required, BOARD_RANK) ? legacyBoard : null;
   }
   const result = await pool.query(`

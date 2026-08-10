@@ -12,7 +12,7 @@ import { requireWritableSubscription } from "../../../_lib/billing";
 import { syncTripAssignment } from "../../../_lib/logistics";
 import automationBuilder from "../../../../../../server/services/automationBuilderEngine.cjs";
 import { isSafePublicHttpsUrl } from "../../../_lib/security";
-import { recordAccessQueryContext, requireBoardPermission, requireRowPermission } from "../../../_lib/authorization";
+import { recordAccessQueryContext, requireBoardPermission, requireRowPermission, rowMatchesRecordAccess } from "../../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -518,25 +518,33 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
-    const visibility = recordAccessQueryContext(table, user.id);
-    const visibilityParams = [tableId, JSON.stringify(visibility.columns), visibility.userId,
-      JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
-    const visibleWhere = `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
-
-    const [result, countResult] = await Promise.all([
-      paginated
-        ? pool.query(
-          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
-          [...visibilityParams, limit, offset]
-        )
-        : pool.query(
-          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
-          visibilityParams
-        ),
-      paginated
-        ? pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)
-        : Promise.resolve({ rows: [{ total: 0 }] }),
-    ]);
+    let result;
+    let countResult;
+    if (table.legacy_authorization) {
+      const legacyRows = await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
+      const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
+      result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
+      countResult = { rows: [{ total: visibleRows.length }] };
+    } else {
+      const visibility = recordAccessQueryContext(table, user.id);
+      const visibilityParams = [tableId, JSON.stringify(visibility.columns), visibility.userId,
+        JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
+      const visibleWhere = `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
+      [result, countResult] = await Promise.all([
+        paginated
+          ? pool.query(
+            `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
+            [...visibilityParams, limit, offset]
+          )
+          : pool.query(
+            `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
+            visibilityParams
+          ),
+        paginated
+          ? pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)
+          : Promise.resolve({ rows: [{ total: 0 }] }),
+      ]);
+    }
 
     const hasDueScheduledMessage = result.rows.some((row) =>
       toArray(row?.values?.message).some((message) =>
