@@ -91,8 +91,12 @@ export function normalizeRecordAccess(value = {}) {
 export function membershipFromRow(row) {
   const legacyRole = String(row?.role || "").toLowerCase();
   const workspaceRole = row?.is_owner ? "owner" : normalizeWorkspaceRole(row?.workspace_role || legacyRole);
-  const jobRoles = normalizeJobRoles(row?.job_roles?.length ? row.job_roles : [legacyRole].filter((role) => ["driver", "dispatcher", "fleet_manager", "client", "employee"].includes(role)));
-  const portalType = normalizePortalType(row?.portal_type || (legacyRole === "driver" ? "driver" : "standard"));
+  const legacyPortalType = normalizePortalType(legacyRole);
+  const inferredPortalType = legacyPortalType !== "standard" || legacyRole === "standard" ? legacyPortalType : "standard";
+  const jobRoles = normalizeJobRoles(row?.job_roles?.length
+    ? row.job_roles
+    : [legacyRole].filter((role) => inferredPortalType !== "standard" || ["employee"].includes(role)));
+  const portalType = normalizePortalType(row?.portal_type || inferredPortalType);
   return {
     workspaceId: row.workspace_id,
     workspaceName: row.workspace_name,

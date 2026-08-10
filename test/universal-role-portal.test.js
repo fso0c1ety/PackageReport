@@ -63,3 +63,12 @@ test("team listing supports legacy membership columns and portal metadata", () =
   assert.match(teammates, /elem->>'portalType'/);
   assert.match(teammates, /elem->'recordAccess'/);
 });
+
+test("legacy memberships preserve every valid non-driver portal role", async () => {
+  const { membershipFromRow } = await import("../src/app/api/_lib/universalRoles.js");
+  for (const portalType of ["doctor", "teacher", "patient", "sales", "project", "store_employee", "production", "hr_employee"]) {
+    const membership = membershipFromRow({ workspace_id: "workspace", workspace_name: "Test", role: portalType });
+    assert.equal(membership.portalType, portalType);
+    assert.deepEqual(membership.jobRoles, [portalType]);
+  }
+});
