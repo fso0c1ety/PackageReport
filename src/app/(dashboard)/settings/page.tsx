@@ -170,6 +170,9 @@ export default function SettingsPage() {
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [billingSection, setBillingSection] = useState("overview");
+  const [billingOverview, setBillingOverview] = useState<any>({ invoices: [], paymentMethod: null, contact: null });
+  const [billingPortalBusy, setBillingPortalBusy] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
   const [shareTableId, setShareTableId] = useState("");
@@ -350,11 +353,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (tabValue !== 5) return;
     setLoadingBilling(true);
-    authenticatedFetch(getApiUrl("billing/status"))
+    authenticatedFetch(getApiUrl("billing/overview"))
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Failed to load billing");
-        setBillingStatus(data);
+        setBillingStatus(data.billing);
+        setBillingOverview(data);
       })
       .catch((error) => showNotification(error.message, "error"))
       .finally(() => setLoadingBilling(false));
@@ -498,6 +502,19 @@ export default function SettingsPage() {
       setAccessDialogOpen(false);
     } finally {
       setLoadingAccessConfig(false);
+    }
+  };
+
+  const openBillingPortal = async () => {
+    setBillingPortalBusy(true);
+    try {
+      const response = await authenticatedFetch(getApiUrl("billing/portal"), { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to open billing portal");
+      window.location.href = data.url;
+    } catch (error: any) {
+      showNotification(error.message || "Unable to open billing portal", "error");
+      setBillingPortalBusy(false);
     }
   };
 
@@ -1435,6 +1452,77 @@ export default function SettingsPage() {
             </Box>
           ) : (
             <>
+              <Paper variant="outlined" sx={{ p: 1, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
+                <Stack direction={{ xs: "column", md: "row" }} gap={1}>
+                  {[
+                    ["overview", "Overview"], ["settings", "Settings"], ["invoices", "Invoices"],
+                    ["payment", "Payment method"], ["contacts", "Billing contacts"],
+                  ].map(([id, label]) => (
+                    <Button key={id} onClick={() => setBillingSection(id)} variant={billingSection === id ? "contained" : "text"}
+                      sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 800, borderRadius: 2 }}>
+                      {label}
+                    </Button>
+                  ))}
+                </Stack>
+              </Paper>
+
+              {billingSection === "payment" && (
+                <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
+                  <Typography variant="h6" fontWeight={800}>Payment method</Typography>
+                  <Typography color="text.secondary" sx={{ mb: 2 }}>The card used for renewals and subscription charges.</Typography>
+                  {billingOverview.paymentMethod ? (
+                    <Stack direction="row" alignItems="center" gap={2} sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                      <CreditCardIcon color="primary" />
+                      <Box sx={{ flex: 1 }}><Typography fontWeight={800} sx={{ textTransform: "capitalize" }}>{billingOverview.paymentMethod.brand} •••• {billingOverview.paymentMethod.last4}</Typography>
+                      <Typography variant="body2" color="text.secondary">Expires {billingOverview.paymentMethod.expMonth}/{billingOverview.paymentMethod.expYear}</Typography></Box>
+                      <Button variant="outlined" onClick={openBillingPortal} disabled={billingPortalBusy}>Update card</Button>
+                    </Stack>
+                  ) : <Alert severity="info">No credit card is connected yet. A payment method will appear after checkout.</Alert>}
+                </Paper>
+              )}
+
+              {billingSection === "invoices" && (
+                <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
+                  <Typography variant="h6" fontWeight={800} sx={{ mb: 2 }}>Invoices</Typography>
+                  {billingOverview.invoices?.length ? billingOverview.invoices.map((invoice: any) => (
+                    <Stack key={invoice.id} direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1} sx={{ py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
+                      <Box><Typography fontWeight={800}>{invoice.number || "Invoice"}</Typography><Typography variant="body2" color="text.secondary">{new Date(invoice.created * 1000).toLocaleDateString()} · {invoice.status}</Typography></Box>
+                      <Stack direction="row" alignItems="center" gap={1}><Typography fontWeight={800}>{new Intl.NumberFormat(undefined, { style: "currency", currency: String(invoice.currency || "EUR").toUpperCase() }).format(invoice.amount / 100)}</Typography>
+                      {(invoice.hostedUrl || invoice.pdfUrl) && <Button component="a" href={invoice.hostedUrl || invoice.pdfUrl} target="_blank" rel="noreferrer">View</Button>}</Stack>
+                    </Stack>
+                  )) : <Alert severity="info">No invoices are available for this account.</Alert>}
+                </Paper>
+              )}
+
+              {billingSection === "contacts" && (
+                <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
+                  <Typography variant="h6" fontWeight={800}>Billing contacts</Typography>
+                  <Typography color="text.secondary" sx={{ mb: 2 }}>Receipt and billing contact information from your secure payment account.</Typography>
+                  <Stack gap={2} maxWidth={560}>
+                    <TextField label="Billing name" value={billingOverview.contact?.name || ""} InputProps={{ readOnly: true }} />
+                    <TextField label="Billing email" value={billingOverview.contact?.email || user?.email || ""} InputProps={{ readOnly: true }} />
+                    <TextField label="Phone" value={billingOverview.contact?.phone || ""} InputProps={{ readOnly: true }} />
+                    <Button variant="outlined" onClick={openBillingPortal} disabled={billingPortalBusy} sx={{ alignSelf: "flex-start" }}>Edit billing details</Button>
+                  </Stack>
+                </Paper>
+              )}
+
+              {billingSection === "settings" && (
+                <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
+                  <Typography variant="h6" fontWeight={800}>Subscription settings</Typography>
+                  <Typography color="text.secondary" sx={{ mb: 3 }}>Manage renewal, payment details, invoices or cancel your subscription securely.</Typography>
+                  <Stack direction={{ xs: "column", sm: "row" }} gap={1.5}>
+                    <Button variant="contained" onClick={openBillingPortal} disabled={billingPortalBusy}>{billingPortalBusy ? <CircularProgress size={20} color="inherit" /> : "Manage subscription"}</Button>
+                    <Button color="error" variant="outlined" disabled={!billingStatus?.stripe_customer_id || billingPortalBusy}
+                      onClick={() => { if (window.confirm("Open secure billing settings to cancel your subscription? Your access remains active until the end of the paid period.")) openBillingPortal(); }}>
+                      Cancel subscription
+                    </Button>
+                  </Stack>
+                  {!billingStatus?.stripe_customer_id && <Alert severity="info" sx={{ mt: 2 }}>Cancellation becomes available after a paid subscription is activated.</Alert>}
+                </Paper>
+              )}
+
+              {billingSection === "overview" && <>
               <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
                 <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={2}>
                   <Box>
@@ -1546,6 +1634,7 @@ export default function SettingsPage() {
                   );
                 })}
               </Box>
+              </>}
             </>
           )}
         </TabPanel>
