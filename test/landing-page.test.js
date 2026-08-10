@@ -11,6 +11,9 @@ test("public web landing remains visible and authenticated users get an explicit
 
 test("landing communicates universal product, templates, security and honest FAQ", () => {
   const page = fs.readFileSync(require.resolve("../src/app/page.tsx"), "utf8");
-  for (const text of ["ONE WORKSPACE. EVERY PROCESS.", "CRM & Sales", "Logistics — Fleet Management", "Role-based access", "Frequently asked questions"])
+  const catalog = fs.readFileSync(require.resolve("../src/workspaceTemplates.ts"), "utf8");
+  assert.match(page, /WORKSPACE_TEMPLATES/);
+  for (const text of ["CRM & Sales", "Logistics - Fleet Management"]) assert.equal(catalog.includes(text), true, `missing ${text} from catalog`);
+  for (const text of ["ONE WORKSPACE. EVERY PROCESS.", "Role-based access", "Frequently asked questions"])
     assert.equal(page.includes(text), true, `missing ${text}`);
 });

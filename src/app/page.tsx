@@ -25,8 +25,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
-import { LaptopPreview, MapVisual, PhoneMockup } from "./LandingVisuals";
-import PolishedAboutVisual from "./PolishedAboutVisual";
+import { MapVisual } from "./LandingVisuals";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import FolderCopyRoundedIcon from "@mui/icons-material/FolderCopyRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
@@ -38,10 +37,8 @@ import PhoneInTalkRoundedIcon from "@mui/icons-material/PhoneInTalkRounded";
 import HeadsetMicRoundedIcon from "@mui/icons-material/HeadsetMicRounded";
 import HandshakeRoundedIcon from "@mui/icons-material/HandshakeRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
-import LinkedInIcon from "@mui/icons-material/LinkedIn";
-import InstagramIcon from "@mui/icons-material/Instagram";
-import XIcon from "@mui/icons-material/X";
-import GitHubIcon from "@mui/icons-material/GitHub";
+import DemoRequestForm from "./DemoRequestForm";
+import { WORKSPACE_TEMPLATES } from "../workspaceTemplates";
 
 function trackMarketingEvent(name: string, detail: Record<string, string> = {}) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("smartmanage:analytics", { detail: { name, ...detail } }));
@@ -271,7 +268,7 @@ export default function LandingPage() {
               <Button onClick={() => scrollToSection("services")} sx={navButtonSx}>Features</Button>
               <Button onClick={() => scrollToSection("about")} sx={navButtonSx}>About Us</Button>
               <Button onClick={() => navigateToAppRoute("/pricing", router)} sx={navButtonSx}>Pricing</Button>
-              <Button onClick={() => scrollToSection("contact")} sx={navButtonSx}>Contact</Button>
+              <Button onClick={() => scrollToSection("request-demo")} sx={{ ...navButtonSx, color: LIGHT.primary }}>Request Demo</Button>
             </Stack>
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
@@ -358,7 +355,7 @@ export default function LandingPage() {
           </Stack>
           <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,.1)" }} />
           <Stack spacing={.6}>
-            {[['Home','top'],['Services','services'],['About Us','about'],['Contact','contact']].map(([label,id], index) => (
+            {[['Home','top'],['Product','product'],['Solutions','solutions'],['Templates','templates'],['Request Demo','request-demo'],['Contact','contact']].map(([label,id], index) => (
               <Button key={id} onClick={() => scrollToSection(id)} endIcon={<ArrowOutwardRoundedIcon />} sx={{ justifyContent: "space-between", color: "#fff", textTransform: "none", fontSize: "1.3rem", fontWeight: 800, py: 1.5, px: 1, borderBottom: "1px solid rgba(255,255,255,.08)", borderRadius: 0 }}>
                 <Stack direction="row" spacing={1.4}><Typography sx={{ color: "rgba(255,255,255,.35)", fontWeight: 700 }}>0{index + 1}</Typography><span>{label}</span></Stack>
               </Button>
@@ -481,7 +478,12 @@ export default function LandingPage() {
                   overflow: "hidden",
                 }}
               >
-                <PhoneMockup />
+                <Box
+                  component="img"
+                  src="/marketing/boards.webp"
+                  alt="Smart Manage project board with real demo workspace data"
+                  sx={{ width: "100%", borderRadius: { xs: 3, md: 5 }, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 28px 80px rgba(37,42,88,.18)" }}
+                />
               </Box>
             </motion.div>
           </Box>
@@ -506,7 +508,7 @@ export default function LandingPage() {
                 </Stack>
 
                 <Box sx={{ display:"grid",gridTemplateColumns:{xs:"1fr",md:"1fr 1fr"},gap:{xs:4,md:6},alignItems:"center" }}>
-                  <LaptopPreview />
+                  <Box component="img" src="/marketing/logistics.webp" alt="Smart Manage logistics workspace" sx={{ width: "100%", borderRadius: 4, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 24px 60px rgba(16,24,40,.12)" }} />
                   <Box sx={{display:"grid",gridTemplateColumns:{xs:"1fr",sm:"repeat(2,1fr)"},gap:2}}>{serviceItems.map((item, idx) => (
                     <motion.div
                       key={item.title}
@@ -572,8 +574,13 @@ export default function LandingPage() {
               <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900 }}>Start with a proven template.</Typography>
               <Typography sx={{ color: LIGHT.textSecondary, mt: 1 }}>Choose a starting point, customize every detail, then invite your team.</Typography>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4,1fr)" }, gap: 1.5, mt: 3 }}>
-                {["Logistics — Freight Broker","Logistics — Fleet Management","CRM & Sales","Project Management","Construction","Dental Clinic","Daycare","Retail & Store","Manufacturing","HR & Employees","Depot Management","Blank Workspace"].map((name) => <Box key={name} sx={{ p: 2.2, border: `1px solid ${LIGHT.border}`, borderRadius: 3, bgcolor: "#fff" }}><Typography fontWeight={850}>{name}</Typography><Button onClick={handleGetStarted} sx={{ p: 0, mt: 1, textTransform: "none", fontWeight: 800 }}>Use template →</Button></Box>)}
+                {WORKSPACE_TEMPLATES.filter((template) => template.key !== "blank").slice(0, 12).map((template) => <Box key={template.key} sx={{ p: 2.2, border: `1px solid ${LIGHT.border}`, borderRadius: 3, bgcolor: "#fff" }}><Typography fontWeight={850}>{template.name}</Typography><Button onClick={handleGetStarted} sx={{ p: 0, mt: 1, textTransform: "none", fontWeight: 800 }}>Use template →</Button></Box>)}
               </Box>
+            </Box>
+
+            <Box id="request-demo" sx={{ scrollMarginTop: 96, display: "grid", gridTemplateColumns: { xs: "1fr", md: ".8fr 1.2fr" }, gap: 5, p: { xs: 3, md: 6 }, borderRadius: 5, bgcolor: "#F7F5FF", border: "1px solid #E8E3FF" }}>
+              <Box><Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>REQUEST A PERSONALIZED DEMO</Typography><Typography component="h2" sx={{ fontSize: { xs: 32, md: 48 }, fontWeight: 900, lineHeight: 1.05, mt: 1.5 }}>See how Smart Manage fits your business.</Typography><Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 2 }}>Tell us what you manage today. We will prepare the most relevant workspace, workflows and role experience for your team.</Typography></Box>
+              <DemoRequestForm />
             </Box>
 
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
@@ -603,7 +610,7 @@ export default function LandingPage() {
             >
               <Box id="about" sx={{ scrollMarginTop: { xs: 88, md: 96 } }}>
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: { xs: 3, md: 6 }, alignItems: "center", p: { xs: 2, md: 5 }, mb: 3, bgcolor: "#F6F3FF", borderRadius: 4 }}>
-                  <PolishedAboutVisual />
+                  <Box component="img" src="/marketing/crm.webp" alt="Smart Manage CRM workspace" sx={{ width: "100%", borderRadius: 3, border: "1px solid rgba(15,23,42,.08)", boxShadow: "0 18px 50px rgba(16,24,40,.12)" }} />
                   <Box><Typography sx={{ textTransform: "uppercase", letterSpacing: ".18em", color: "#6D4AFF", fontWeight: 800, fontSize: 12 }}>ABOUT SMART MANAGE</Typography><Typography sx={{ fontSize: { xs: 28, md: 42 }, fontWeight: 900, lineHeight: 1.08, my: 2 }}>Built to make<br/>everyday work simpler</Typography><Typography sx={{ color: "#667085", lineHeight: 1.75 }}>Smart Manage brings your projects, tasks, reports and team together in one place so you can focus on what matters most.</Typography><Button variant="contained" onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ mt: 3, background: "linear-gradient(135deg,#6D4AFF,#3B82F6)" }}>Get Started</Button></Box>
                 </Box>
               </Box>
@@ -679,7 +686,7 @@ export default function LandingPage() {
           <Box sx={{ mt: 8, p: { xs: 3, md: 4 }, borderRadius: 4, background: "linear-gradient(135deg,#6D4AFF,#4F46E5 55%,#3B82F6)", color: "#fff", display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", gap: 3 }}><Box><Typography sx={{ fontSize: { xs: 24, md: 32 }, fontWeight: 900 }}>Ready to organize your business?</Typography><Typography sx={{ opacity: .82 }}>Join Smart Manage and bring everything together in one smart workspace.</Typography></Box><Button endIcon={<ArrowForwardRoundedIcon />} onClick={() => navigateToAppRoute("/login?mode=signup", router)} sx={{ minHeight: 50, bgcolor: "#fff", color: "#4F46E5", fontWeight: 800, px: 4, transition: "transform .2s ease, box-shadow .2s ease", "&:hover": { bgcolor: "#F8FAFC", transform: "translateY(-2px)", boxShadow: "0 10px 24px rgba(15,23,42,.18)" }, "&:focus-visible": { outline: "3px solid rgba(255,255,255,.5)", outlineOffset: 3 } }}>Get Started Free</Button></Box>
         </Container>
       </Box>
-      <Box component="footer" sx={{ bgcolor: "#0F172A", color: "#fff", py: 6 }}><Container maxWidth="xl"><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "2fr repeat(4,1fr)" }, gap: 4 }}><Box sx={{ gridColumn: { xs: "1/-1", md: "auto" } }}><Stack direction="row" spacing={1.2} alignItems="center"><Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 38, height: 38, borderRadius: 2 }}/><Typography fontWeight={900}>Smart Manage</Typography></Stack><Typography sx={{ color: "#94A3B8", fontSize: 13, mt: 2, maxWidth: 260 }}>An all-in-one workspace to manage projects, tasks, reports, files and your team.</Typography><Stack direction="row" spacing={1} sx={{mt:2}}>{[["LinkedIn",<LinkedInIcon key="li"/>],["Instagram",<InstagramIcon key="ig"/>],["X",<XIcon key="x"/>],["GitHub",<GitHubIcon key="gh"/>]].map(([label,icon])=><IconButton key={String(label)} component="a" href="#" aria-label={String(label)} sx={{width:34,height:34,color:"#CBD5E1",bgcolor:"rgba(255,255,255,.07)","&:hover":{color:"#fff",bgcolor:"#6D4AFF"}}}>{icon}</IconButton>)}</Stack></Box>{[["Product","Features","Integrations","Updates","Pricing"],["Resources","Documentation","Help Center","Templates","Blog"],["Company","About Us","Careers","Press Kit","Contact"],["Legal","Privacy Policy","Terms of Service","Cookie Policy","Security"]].map(([head,...links]) => <Box key={head}><Typography fontWeight={900} mb={1.5}>{head}</Typography>{links.map((x) => <Typography key={x} sx={{ color: "#94A3B8", fontSize: 13, py: .45 }}>{x}</Typography>)}</Box>)}</Box><Stack direction="row" justifyContent="space-between" sx={{ color: "#64748B", fontSize: 12, mt: 5 }}><Typography fontSize="inherit">© {new Date().getFullYear()} Smart Manage. All rights reserved.</Typography><Typography fontSize="inherit">Version 1.0</Typography></Stack></Container></Box>
+      <Box component="footer" sx={{ bgcolor: "#0F172A", color: "#fff", py: 6 }}><Container maxWidth="xl"><Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "2fr repeat(4,1fr)" }, gap: 4 }}><Box sx={{ gridColumn: { xs: "1/-1", md: "auto" } }}><Stack direction="row" spacing={1.2} alignItems="center"><Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 38, height: 38, borderRadius: 2 }}/><Typography fontWeight={900}>Smart Manage</Typography></Stack><Typography sx={{ color: "#94A3B8", fontSize: 13, mt: 2, maxWidth: 260 }}>An all-in-one workspace to manage projects, tasks, reports, files and your team.</Typography></Box>{[["Product","Features","Integrations","Updates","Pricing"],["Resources","Documentation","Help Center","Templates","Blog"],["Company","About Us","Careers","Press Kit","Contact"],["Legal","Privacy Policy","Terms of Service","Cookie Policy","Security"]].map(([head,...links]) => <Box key={head}><Typography fontWeight={900} mb={1.5}>{head}</Typography>{links.map((x) => <Typography key={x} sx={{ color: "#94A3B8", fontSize: 13, py: .45 }}>{x}</Typography>)}</Box>)}</Box><Stack direction="row" justifyContent="space-between" sx={{ color: "#64748B", fontSize: 12, mt: 5 }}><Typography fontSize="inherit">© {new Date().getFullYear()} Smart Manage. All rights reserved.</Typography><Typography fontSize="inherit">Version 1.0</Typography></Stack></Container></Box>
       <Snackbar open={contactToast.open} autoHideDuration={5000} onClose={() => setContactToast((current) => ({ ...current, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}><Alert onClose={() => setContactToast((current) => ({ ...current, open: false }))} severity={contactToast.severity} variant="filled" sx={{ width: "100%" }}>{contactToast.message}</Alert></Snackbar>
     </Box>
   );
