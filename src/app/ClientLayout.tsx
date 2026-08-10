@@ -138,6 +138,14 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         const membership = data?.active;
         const workspaceId = membership?.workspaceId || null;
         const portalType = membership?.portalType || "standard";
+        // Dedicated portal pages validate the requested portal against the full
+        // membership list themselves. Do not let a different active role (for
+        // example Driver in another workspace) redirect a multi-role user away.
+        if (requestedPortalType) {
+          setDriverCheckComplete(true);
+          setLoading(false);
+          return;
+        }
         const allowedDriverPath = normalizedPathname === "/driver-trips" || normalizedPathname === "/calendar" || normalizedPathname === "/settings";
         if (workspaceId && portalType === "driver" && !allowedDriverPath) {
           redirectToAppRoute(`/driver-trips?id=${encodeURIComponent(workspaceId)}`, true);
