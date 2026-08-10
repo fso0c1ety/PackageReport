@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { pool } from "../_lib/server";
 import { sendEmail } from "../_lib/mailer";
 import { WORKSPACE_TEMPLATES } from "../../../workspaceTemplates";
+import { recommendDemoTemplate } from "../_lib/demoProvisioning";
 
 export const runtime = "nodejs";
 const attempts = new Map();
@@ -24,14 +25,14 @@ export async function POST(req) {
   const phone = clean(body.phone, 60), businessType = clean(body.businessType, 100), teamSize = clean(body.teamSize, 20), message = clean(body.message, 3000);
   const managementInterests = [...new Set((Array.isArray(body.managementInterests) ? body.managementInterests : []).map((item) => clean(item, 40)).filter((item) => INTERESTS.has(item)))];
   if (!name || !companyName || !templateKeys.has(businessType) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (teamSize && !TEAM_SIZES.has(teamSize))) return NextResponse.json({ error: "Please complete all required fields with valid information." }, { status: 400 });
-  const recommendedTemplate = businessType;
+  const recommendedTemplate = recommendDemoTemplate(businessType);
   const id = randomUUID();
   await pool.query(`INSERT INTO demo_requests(id,name,company_name,email,phone,business_type,team_size,management_interests,message,recommended_template)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)`, [id, name, companyName, email, phone || null, businessType, teamSize || null, JSON.stringify(managementInterests), message, recommendedTemplate]);
   const safe = { name: escapeHtml(name), company: escapeHtml(companyName), email: escapeHtml(email), type: escapeHtml(businessType), size: escapeHtml(teamSize || "Not specified"), message: escapeHtml(message || "—") };
   await Promise.allSettled([
     sendEmail({ to: process.env.DEMO_REQUESTS_EMAIL_TO || process.env.CONTACT_EMAIL_TO || "a.gjendzz@gmail.com", subject: `[Demo Request] ${companyName}`, text: `Company: ${companyName}\nContact: ${name}\nEmail: ${email}\nBusiness type: ${businessType}\nTeam size: ${teamSize || "Not specified"}\nInterests: ${managementInterests.join(", ") || "Not specified"}\n\n${message}`, html: `<h2>New Smart Manage demo request</h2><p><b>Company:</b> ${safe.company}</p><p><b>Contact:</b> ${safe.name}</p><p><b>Email:</b> ${safe.email}</p><p><b>Business type:</b> ${safe.type}</p><p><b>Team size:</b> ${safe.size}</p><p>${safe.message}</p>` }),
-    sendEmail({ to: email, subject: "We received your Smart Manage demo request", text: `Hi ${name},\n\nThank you for requesting a Smart Manage demo. We will review your requirements and contact you shortly.\n\nSmart Manage` }),
+    sendEmail({ to: email, subject: "We received your Smart Manage demo request", text: `Hi ${name.split(/\s+/)[0]},\n\nThanks for requesting a Smart Manage demo.\n\nWe've received your request for ${companyName}. Our team will review your requirements and prepare the Smart Manage experience most relevant to your business.\n\nWe'll contact you as soon as your demo is ready.\n\nSmart Manage\nby Aximo Studio` }),
   ]).then((results) => { if (results.some((result) => result.status === "rejected")) console.warn("demo_request_email_delivery_failed", { requestId: id }); });
   return NextResponse.json({ success: true, requestId: id }, { status: 201 });
 }

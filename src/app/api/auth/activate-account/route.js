@@ -2,11 +2,20 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { pool } from "../../_lib/server";
 import { hashAccountToken } from "../../_lib/accountTokens";
+import bcrypt from "bcryptjs";
+import { validatePassword } from "../../_lib/passwordReset";
 
 export const runtime = "nodejs";
 
+export async function GET(req) {
+  const token = new URL(req.url).searchParams.get("token") || "";
+  if (!token) return NextResponse.json({ error: "Activation token is required" }, { status: 400 });
+  const row = (await pool.query("SELECT pending_profile,expires_at FROM account_activation_tokens WHERE token_hash=$1 AND used_at IS NULL AND expires_at>NOW()", [hashAccountToken(token)])).rows[0];
+  return row ? NextResponse.json({ valid: true, requiresPassword: Boolean(row.pending_profile?.setupPassword), expiresAt: row.expires_at }) : NextResponse.json({ error: "Activation link is invalid or has expired" }, { status: 400 });
+}
+
 export async function POST(req) {
-  const { token } = await req.json().catch(() => ({}));
+  const { token, password } = await req.json().catch(() => ({}));
   if (!token) return NextResponse.json({ error: "Activation token is required" }, { status: 400 });
   const client = await pool.connect();
   try {
@@ -21,11 +30,18 @@ export async function POST(req) {
       return NextResponse.json({ error: "Activation link is invalid or has expired" }, { status: 400 });
     }
     const p = activation.pending_profile || {};
+    let passwordHash = p.passwordHash;
+    if (p.setupPassword) {
+      const passwordError = validatePassword(String(password || ""));
+      if (passwordError) { await client.query("ROLLBACK"); return NextResponse.json({ error: passwordError }, { status: 400 }); }
+      passwordHash = await bcrypt.hash(String(password), 12);
+    }
+    if (!passwordHash) { await client.query("ROLLBACK"); return NextResponse.json({ error: "A password is required" }, { status: 400 }); }
     const updated = await client.query(
       `UPDATE users SET name=$1,password=$2,avatar=$3,first_name=$4,last_name=$5,phone=$6,
        job_title=$7,company=$8,birth_date=$9,gender=$10,email_verified_at=NOW()
        WHERE id=$11 AND password IS NULL RETURNING id`,
-      [p.name,p.passwordHash,p.avatar,p.firstName,p.lastName,p.phone||"",p.jobTitle||"",p.company||"",p.birthDate||null,p.gender||null,activation.user_id]
+      [p.name,passwordHash,p.avatar,p.firstName,p.lastName,p.phone||"",p.jobTitle||"",p.company||"",p.birthDate||null,p.gender||null,activation.user_id]
     );
     if (!updated.rows[0]) {
       await client.query("ROLLBACK");

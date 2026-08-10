@@ -268,6 +268,7 @@ export default function LandingPage() {
 
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
               {authenticated && <Button onClick={() => navigateToAppRoute("/home", router)} sx={{ ...navButtonSx, color: LIGHT.primary }}>Open Smart Manage</Button>}
+              <Button component="a" href={desktopDownloadUrl} target="_blank" rel="noopener noreferrer" startIcon={<DownloadIcon />} sx={{ display: { xs: "none", lg: "inline-flex" }, ...navButtonSx, color: LIGHT.primary }}>Download</Button>
               <Button onClick={() => scrollToSection("request-demo")} variant="outlined" sx={{ display: { xs: "none", md: "inline-flex" }, borderRadius: 999, px: 2, textTransform: "none", fontWeight: 800, borderColor: LIGHT.primary, color: LIGHT.primary }}>Request Demo</Button>
               <Button
                 onClick={() => navigateToAppRoute("/login", router)}
