@@ -29,15 +29,45 @@ test("template recommendation uses catalog-backed explicit mappings", () => {
   assert.match(source, /marketing_agency[\s\S]*marketing_agency/);
 });
 
-test("provisioning is isolated, idempotent and seeds relational sample rows", () => {
+test("provisioning is isolated, idempotent and delegates to the professional relational seed", () => {
   const source = read("src","app","api","_lib","demoProvisioning.js");
   assert.match(source, /SELECT \* FROM demo_requests WHERE id=\$1 FOR UPDATE/);
   assert.match(source, /if \(locked\.demo_workspace_id\)/);
   assert.match(source, /is_demo,demo_request_id,demo_expires_at,demo_metadata/);
   assert.match(source, /source: "request_demo"/);
-  assert.match(source, /board\.rows\?\.\[0\]/);
-  assert.match(source, /__relationBoard/);
+  assert.match(source, /seedProfessionalDemoWorkspace/);
+  assert.match(source, /PROSPECT_DEMO_SEED_VERSION/);
   assert.doesNotMatch(source, /demo@smartmanage\.com/);
+});
+
+test("marketing demo seed is substantial, fictional and guarded against non-demo targets", () => {
+  const source = read("src","app","api","_lib","professionalDemoSeed.js");
+  for (const [board, count] of Object.entries({ Clients: 10, Campaigns: 12, Content: 20, Tasks: 32, Budgets: 10, Reports: 8 })) {
+    assert.match(source, new RegExp(`${board}: ${count}`));
+  }
+  for (const status of ["Planning", "In Progress", "Waiting for Client", "Review", "Scheduled", "Completed", "On Hold"]) assert.match(source, new RegExp(status));
+  assert.match(source, /target workspace is not a demo/);
+  assert.match(source, /Relation[\s\S]*tableId[\s\S]*rowId/);
+  assert.doesNotMatch(source, /Lorem Ipsum|John Doe|Aximo Studio.*Clients/);
+});
+
+test("demo lifecycle supports audited reactivation and destructive protection", () => {
+  const api = read("src","app","api","internal","demo-requests","route.js");
+  for (const event of ["access_resent", "demo_extended", "demo_revoked", "demo_converted", "demo_deleted"]) assert.match(api, new RegExp(event));
+  assert.match(api, /demo_metadata=.*-'revoked'/);
+  assert.match(api, /revoked_at=NULL/);
+  assert.match(api, /confirmDelete \|\| ""\) !== "DELETE"/);
+  assert.match(api, /is_demo=TRUE AND demo_request_id/);
+});
+
+test("provisioned prospect demos use dedicated billing state instead of free trial copy", () => {
+  const billing = read("src","app","api","_lib","billing.js");
+  const banner = read("src","app","SubscriptionBanner.tsx");
+  assert.match(billing, /plan: "demo"/);
+  assert.match(billing, /is_demo: true/);
+  assert.match(banner, /DEMO ACCESS/);
+  assert.match(banner, /Your Smart Manage demo has ended/);
+  assert.match(banner, /Contact Smart Manage/);
 });
 
 test("new users receive expiring hashed single-use setup tokens without plaintext passwords", () => {

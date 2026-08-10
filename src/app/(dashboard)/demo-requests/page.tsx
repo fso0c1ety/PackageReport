@@ -39,6 +39,7 @@ type DemoRequest = {
   created_at: string;
   demo_workspace_id?: string;
   workspace_name?: string;
+  workspace_created_at?: string;
   demo_expires_at?: string;
   access_email_status?: string;
   access_email_last_error?: string;
@@ -70,6 +71,7 @@ export default function DemoRequestsPage() {
   const [provisionOpen, setProvisionOpen] = useState(false);
   const [templateKey, setTemplateKey] = useState("");
   const [duration, setDuration] = useState(7);
+  const [durationPreset, setDurationPreset] = useState("7");
   const [workspaceName, setWorkspaceName] = useState("");
   const templateName = useMemo(
     () =>
@@ -146,6 +148,7 @@ export default function DemoRequestsPage() {
     if (!selected) return;
     setTemplateKey(selected.recommended_template || "");
     setDuration(7);
+    setDurationPreset("7");
     setWorkspaceName(`${selected.company_name} — Demo`);
     setProvisionOpen(true);
   };
@@ -278,6 +281,7 @@ export default function DemoRequestsPage() {
               </Typography>
             </Box>
             {selected.demo_workspace_id && (
+              <Paper variant="outlined" sx={{ p: 2.5 }}>
               <Alert
                 severity={
                   selected.access_email_status === "failed"
@@ -287,6 +291,10 @@ export default function DemoRequestsPage() {
               >
                 <b>{selected.workspace_name}</b>
                 <br />
+                Template: {templateName}<br />
+                Prospect: {selected.email}<br />
+                Status: {label(selected.status)}<br />
+                Created: {selected.workspace_created_at ? new Date(selected.workspace_created_at).toLocaleString() : "—"}<br />
                 Expires:{" "}
                 {selected.demo_expires_at
                   ? new Date(selected.demo_expires_at).toLocaleDateString()
@@ -300,6 +308,8 @@ export default function DemoRequestsPage() {
                   </>
                 ) : null}
               </Alert>
+              <Typography mt={1} fontWeight={800}>Days Remaining: {selected.demo_expires_at ? Math.max(0, Math.ceil((new Date(selected.demo_expires_at).getTime() - Date.now()) / 86400000)) : "—"}</Typography>
+              </Paper>
             )}
             <Stack direction="row" flexWrap="wrap" gap={1}>
               {!selected.demo_workspace_id && (
@@ -328,12 +338,8 @@ export default function DemoRequestsPage() {
                   <Button disabled={busy} onClick={() => action("resend")}>
                     Resend Access
                   </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() => action("extend", { days: 7 })}
-                  >
-                    Extend 7 Days
-                  </Button>
+                  {[7, 14, 30].map((days) => <Button key={days} disabled={busy} onClick={() => action("extend", { days })}>Extend +{days}</Button>)}
+                  <Button disabled={busy} onClick={() => { const days = Number(window.prompt("Custom extension in days (1-90):", "7")); if (days >= 1 && days <= 90) void action("extend", { days }); }}>Custom Extension</Button>
                   <Button
                     disabled={busy}
                     onClick={() =>
@@ -346,7 +352,7 @@ export default function DemoRequestsPage() {
                   <Button
                     disabled={busy}
                     color="warning"
-                    onClick={() => action("revoke")}
+                    onClick={() => window.confirm("Revoke prospect access immediately? The demo will remain available to platform administrators.") && action("revoke")}
                   >
                     Revoke Demo
                   </Button>
@@ -357,10 +363,8 @@ export default function DemoRequestsPage() {
                     disabled={busy}
                     color="error"
                     onClick={() => {
-                      const confirmation = window.prompt(
-                        `Type ${selected.company_name} to permanently delete this demo workspace.`,
-                      );
-                      if (confirmation === selected.company_name)
+                      const confirmation = window.prompt("Type DELETE to permanently delete this demo workspace.");
+                      if (confirmation === "DELETE")
                         void action("delete", { confirmDelete: confirmation });
                     }}
                   >
@@ -386,7 +390,9 @@ export default function DemoRequestsPage() {
               value={selected?.company_name || ""}
               disabled
             />
+            <TextField label="Contact" value={selected?.name || ""} disabled />
             <TextField label="Email" value={selected?.email || ""} disabled />
+            <TextField label="Recommended Template" value={WORKSPACE_TEMPLATES.find((item) => item.key === selected?.recommended_template)?.name || "Selection required"} disabled />
             <TextField
               select
               required
@@ -402,13 +408,10 @@ export default function DemoRequestsPage() {
                 )
               )}
             </TextField>
-            <TextField
-              type="number"
-              label="Demo Duration (days)"
-              value={duration}
-              onChange={(event) => setDuration(Number(event.target.value))}
-              inputProps={{ min: 1, max: 90 }}
-            />
+            <TextField select label="Demo Duration" value={durationPreset} onChange={(event) => { const value = event.target.value; setDurationPreset(value); if (value !== "custom") setDuration(Number(value)); }}>
+              <MenuItem value="7">7 days</MenuItem><MenuItem value="14">14 days</MenuItem><MenuItem value="30">30 days</MenuItem><MenuItem value="custom">Custom</MenuItem>
+            </TextField>
+            {durationPreset === "custom" && <TextField type="number" label="Custom Duration (days)" value={duration} onChange={(event) => setDuration(Number(event.target.value))} inputProps={{ min: 1, max: 90 }} />}
             <TextField
               label="Workspace Name"
               value={workspaceName}

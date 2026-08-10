@@ -125,6 +125,19 @@ async function resolveBillingOwner(userId, { tableId, workspaceId } = {}) {
 }
 
 export async function getScopedBillingStatus(userId, scope = {}) {
+  let workspaceId = scope.workspaceId;
+  if (!workspaceId && scope.tableId) workspaceId = (await pool.query("SELECT workspace_id FROM tables WHERE id=$1", [scope.tableId])).rows[0]?.workspace_id;
+  if (workspaceId) {
+    const demo = (await pool.query(`SELECT w.id,w.demo_expires_at,w.demo_metadata,dr.revoked_at
+      FROM workspaces w LEFT JOIN demo_requests dr ON dr.id=w.demo_request_id
+      WHERE w.id=$1 AND w.is_demo=TRUE AND (w.owner_id=$2 OR EXISTS(SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id=$2))`, [workspaceId, userId])).rows[0];
+    if (demo) {
+      const revoked = Boolean(demo.revoked_at || demo.demo_metadata?.revoked);
+      const expiresAt = demo.demo_expires_at ? new Date(demo.demo_expires_at) : null;
+      const expired = revoked || !expiresAt || expiresAt <= new Date();
+      return { plan: "demo", status: revoked ? "revoked" : expired ? "expired" : "active", writable: !expired, unlimited: false, is_demo: true, demo_expires_at: demo.demo_expires_at, days_remaining: expiresAt ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86400000)) : 0 };
+    }
+  }
   const ownerId = await resolveBillingOwner(userId, scope);
   return getBillingStatus(ownerId);
 }

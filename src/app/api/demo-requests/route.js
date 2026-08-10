@@ -29,6 +29,7 @@ export async function POST(req) {
   const id = randomUUID();
   await pool.query(`INSERT INTO demo_requests(id,name,company_name,email,phone,business_type,team_size,management_interests,message,recommended_template)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)`, [id, name, companyName, email, phone || null, businessType, teamSize || null, JSON.stringify(managementInterests), message, recommendedTemplate]);
+  await pool.query("INSERT INTO demo_request_events(id,demo_request_id,actor_id,event_type,data) VALUES($1,$2,NULL,'demo_requested',$3::jsonb)", [randomUUID(), id, JSON.stringify({ recommendedTemplate })]);
   const safe = { name: escapeHtml(name), company: escapeHtml(companyName), email: escapeHtml(email), type: escapeHtml(businessType), size: escapeHtml(teamSize || "Not specified"), message: escapeHtml(message || "—") };
   await Promise.allSettled([
     sendEmail({ to: process.env.DEMO_REQUESTS_EMAIL_TO || process.env.CONTACT_EMAIL_TO || "a.gjendzz@gmail.com", subject: `[Demo Request] ${companyName}`, text: `Company: ${companyName}\nContact: ${name}\nEmail: ${email}\nBusiness type: ${businessType}\nTeam size: ${teamSize || "Not specified"}\nInterests: ${managementInterests.join(", ") || "Not specified"}\n\n${message}`, html: `<h2>New Smart Manage demo request</h2><p><b>Company:</b> ${safe.company}</p><p><b>Contact:</b> ${safe.name}</p><p><b>Email:</b> ${safe.email}</p><p><b>Business type:</b> ${safe.type}</p><p><b>Team size:</b> ${safe.size}</p><p>${safe.message}</p>` }),

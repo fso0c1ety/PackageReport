@@ -17,6 +17,9 @@ interface BillingStatus {
   trial_ends_at?: string | null;
   purge_at?: string | null;
   current_period_end?: string | null;
+  is_demo?: boolean;
+  demo_expires_at?: string | null;
+  days_remaining?: number;
 }
 
 export default function SubscriptionBanner() {
@@ -78,13 +81,19 @@ export default function SubscriptionBanner() {
 
   if (!billing || dismissed || billing.unlimited) return null;
 
+  const isDemo = billing.is_demo || billing.plan === "demo";
+
   const expired = !billing.writable;
   const isTrial = billing.plan === "trial" && billing.status === "trialing";
   const isPaid = billing.plan !== "trial" && billing.status === "active";
 
   if (!expired && !isTrial && !isPaid) return null;
 
-  const message = expired
+  const message = isDemo
+    ? expired
+      ? "Your Smart Manage demo has ended. Thanks for exploring Smart Manage with Aximo Studio."
+      : `DEMO ACCESS — ${billing.days_remaining ?? 0} day${billing.days_remaining === 1 ? "" : "s"} remaining.`
+    : expired
     ? `Your subscription has expired. Boards are view-only and will be deleted in ${daysUntilDeletion} day${daysUntilDeletion === 1 ? "" : "s"}.`
     : isTrial
       ? `You are using the Free Trial${daysUntilTrialEnd === null ? "" : ` — ${daysUntilTrialEnd} day${daysUntilTrialEnd === 1 ? "" : "s"} remaining`}. Choose a plan before it ends to keep your workspace active.`
@@ -100,7 +109,7 @@ export default function SubscriptionBanner() {
         pl: 2,
         pr: 5,
         py: 0.5,
-        bgcolor: expired ? "#dc354f" : isTrial ? "#d97706" : "#2563eb",
+        bgcolor: expired ? "#dc354f" : isDemo ? "#4f46e5" : isTrial ? "#d97706" : "#2563eb",
         color: "#fff",
         display: "flex",
         alignItems: "center",
@@ -117,7 +126,7 @@ export default function SubscriptionBanner() {
       </Typography>
       <Button
         size="small"
-        onClick={() => navigateToAppRoute("/pricing", router)}
+        onClick={() => isDemo ? window.location.assign("mailto:info@aximostudio.com?subject=Smart%20Manage%20Demo") : navigateToAppRoute("/pricing", router)}
         sx={{
           color: "#fff",
           p: 0,
@@ -128,7 +137,7 @@ export default function SubscriptionBanner() {
           textDecoration: "underline",
         }}
       >
-        {expired || isTrial ? "Choose a plan" : "Manage billing"}
+        {isDemo ? "Contact Smart Manage" : expired || isTrial ? "Choose a plan" : "Manage billing"}
       </Button>
       <IconButton
         aria-label="Close subscription banner"
