@@ -25,6 +25,10 @@ test("workspace legacy shared users are normalized safely", () => {
   const route = read("server", "routes", "workspaces.js");
   assert.doesNotMatch(route, /jsonb_array_elements\(shared_users\)/);
   assert.doesNotMatch(route, /jsonb_array_elements\(t\.shared_users\)/);
+  const nextRoute = read("src", "app", "api", "workspaces", "[workspaceId]", "tables", "route.js");
+  assert.doesNotMatch(nextRoute, /JOIN board_member_access/);
+  assert.match(nextRoute, /workspace_role,wm\.role/);
+  assert.match(nextRoute, /logistics_admin/);
 });
 
 test("portal context returns the resolved configuration", () => {
