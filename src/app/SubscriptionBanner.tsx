@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
 
 const DISMISSED_STORAGE_KEY = "subscriptionBannerDismissed";
@@ -21,6 +21,7 @@ interface BillingStatus {
 
 export default function SubscriptionBanner() {
   const router = useRouter();
+  const workspaceId = useSearchParams().get("id");
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -30,11 +31,11 @@ export default function SubscriptionBanner() {
       return;
     }
 
-    authenticatedFetch(getApiUrl("billing/status"))
+    authenticatedFetch(getApiUrl(`billing/status${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ""}`))
       .then((response) => response.ok ? response.json() : null)
       .then((data) => data && setBilling(data))
       .catch(() => {});
-  }, []);
+  }, [workspaceId]);
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSED_STORAGE_KEY, "true");

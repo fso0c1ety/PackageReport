@@ -126,7 +126,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       const storedWorkspace = JSON.parse(localStorage.getItem(`lastWorkspace_${storedUser.id}`) || "{}");
       workspaceId = storedWorkspace.id || "";
     } catch {}
-    authenticatedFetch(getApiUrl(`portal-context${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ""}`), { suppressNativeErrorAlert: true })
+    const requestedPortalType = normalizedPathname.startsWith("/portal/")
+      ? normalizedPathname.slice("/portal/".length).replaceAll("-", "_")
+      : "";
+    const portalQuery = new URLSearchParams();
+    if (requestedPortalType) portalQuery.set("portalType", requestedPortalType);
+    else if (workspaceId) portalQuery.set("workspaceId", workspaceId);
+    authenticatedFetch(getApiUrl(`portal-context${portalQuery.size ? `?${portalQuery.toString()}` : ""}`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         const membership = data?.active;

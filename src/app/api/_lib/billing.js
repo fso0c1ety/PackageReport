@@ -113,6 +113,11 @@ async function resolveBillingOwner(userId, { tableId, workspaceId } = {}) {
   return userId;
 }
 
+export async function getScopedBillingStatus(userId, scope = {}) {
+  const ownerId = await resolveBillingOwner(userId, scope);
+  return getBillingStatus(ownerId);
+}
+
 export async function requireWritableSubscription(userId, scope = {}) {
   const ownerId = await resolveBillingOwner(userId, scope);
   const billing = await getBillingStatus(ownerId);

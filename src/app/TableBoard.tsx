@@ -2713,7 +2713,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   useEffect(() => {
     let cancelled = false;
 
-    authenticatedFetch(getApiUrl('/billing/status'))
+    authenticatedFetch(getApiUrl(`/billing/status?tableId=${encodeURIComponent(tableId)}`))
       .then(async (response) => {
         if (!response.ok) return null;
         return response.json();
@@ -2728,7 +2728,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tableId]);
 
   const [boardTitle, setBoardTitle] = useState("");
 

@@ -11,8 +11,11 @@ export async function GET(req) {
 
   try {
     const memberships = await listUserMemberships(pool, user.id);
-    const requestedWorkspaceId = new URL(req.url).searchParams.get("workspaceId");
-    const active = memberships.find((membership) => String(membership.workspaceId) === String(requestedWorkspaceId))
+    const searchParams = new URL(req.url).searchParams;
+    const requestedWorkspaceId = searchParams.get("workspaceId");
+    const requestedPortalType = searchParams.get("portalType");
+    const active = memberships.find((membership) => requestedPortalType && membership.portalType === normalizePortalType(requestedPortalType))
+      || memberships.find((membership) => requestedWorkspaceId && String(membership.workspaceId) === String(requestedWorkspaceId))
       || memberships.find((membership) => membership.portalType !== "standard")
       || memberships[0]
       || null;
