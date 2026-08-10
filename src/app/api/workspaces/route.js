@@ -24,7 +24,6 @@ export async function GET(req) {
   }
 
   try {
-    await ensureLogisticsSchema();
     await ensureFleetDriverAccess(user);
     const result = await pool.query(
       `
@@ -37,7 +36,7 @@ export async function GET(req) {
               SELECT jsonb_agg(jsonb_build_object('id', um.id, 'name', um.name, 'avatar', um.avatar))
               FROM (
                   SELECT DISTINCT (elem->>'userId') as uid
-                  FROM tables t2, jsonb_array_elements(t2.shared_users) elem
+                  FROM tables t2, jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t2.shared_users,'[]'::jsonb))='array' THEN COALESCE(t2.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) elem
                   WHERE t2.workspace_id = w.id
               ) distinct_users
               JOIN users um ON um.id = distinct_users.uid
@@ -50,8 +49,8 @@ export async function GET(req) {
         LEFT JOIN tables t ON w.id = t.workspace_id
         WHERE w.owner_id = $1 OR EXISTS (
           SELECT 1
-          FROM jsonb_array_elements(t.shared_users) AS elem
-          WHERE elem->>'userId' = $1
+          FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) AS elem
+          WHERE COALESCE(elem->>'userId',elem#>>'{}') = $1
         ) OR EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id=$1)
       `,
       [user.id]

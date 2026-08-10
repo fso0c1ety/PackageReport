@@ -46,7 +46,7 @@ async function loadMembership(workspaceId, userId) {
           WHEN LOWER(COALESCE(member->>'permission',''))='edit' THEN 'editor'
           WHEN LOWER(COALESCE(member->>'role','')) IN ('client','commenter') THEN 'commenter'
           ELSE 'viewer' END
-         FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) member
+         FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
          WHERE COALESCE(member->>'userId',member#>>'{}')=$2::text LIMIT 1)
       ) AS "boardRole",
       bma.capabilities, bma.record_access AS "recordAccess"

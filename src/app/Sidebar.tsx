@@ -483,23 +483,26 @@ export default function Sidebar({
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", px: 2.1, pb: 2 }}>
-          <InlineHeader label={driverPortal ? "Driver Portal" : dedicatedPortal ? `${String(portalContext.portalType).replaceAll("_", " ")} Portal` : "Navigation"} />
+          <InlineHeader label={portalContext?.portalConfig?.name || (driverPortal ? "Driver Portal" : dedicatedPortal ? `${String(portalContext.portalType).replaceAll("_", " ")} Portal` : "Navigation")} />
           <Box sx={{ display: "grid", gap: 0.75 }}>
-            {driverPortal ? <>
-              <SidebarItem icon={<HomeIcon fontSize="small" />} label="Home" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
-              <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="My Trips" href={`/driver-trips?id=${currentWorkspaceId}`} isActive={pathname === "/driver-trips"} onClick={onClose} />
-              <SidebarItem icon={<CalendarMonthRoundedIcon fontSize="small" />} label="My Calendar" href={`/calendar?id=${currentWorkspaceId}`} isActive={pathname === "/calendar"} onClick={onClose} />
-              <SidebarItem icon={<FolderRoundedIcon fontSize="small" />} label="My Documents" href={`/driver-trips?id=${currentWorkspaceId}&section=documents`} isActive={searchParams.get("section") === "documents"} onClick={onClose} />
-              {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="My Expenses" href={`/driver-trips?id=${currentWorkspaceId}&section=expenses`} isActive={searchParams.get("section") === "expenses"} onClick={onClose} />}
-              {workspaceModules.includes("fleet") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="My Fuel" href={`/driver-trips?id=${currentWorkspaceId}&section=fuel`} isActive={searchParams.get("section") === "fuel"} onClick={onClose} />}
-              <SidebarItem icon={<SettingsIcon fontSize="small" />} label="My Profile" href={`/settings?tab=profile&id=${currentWorkspaceId}`} isActive={pathname === "/settings"} onClick={onClose} />
-            </> : dedicatedPortal ? <>
+            {dedicatedPortal ? <>
+              {Array.isArray(portalContext?.portalConfig?.navigation) && portalContext.portalConfig.navigation.map((item: any) => {
+                if (item.feature === "expenses" && !workspaceModules.includes("finance")) return null;
+                if (item.feature === "fuel" && !workspaceModules.includes("fleet")) return null;
+                const route = String(item.route || portalContext.landingRoute || "/dashboard");
+                const separator = route.includes("?") ? "&" : "?";
+                const href = `${route}${separator}id=${encodeURIComponent(portalContext.workspaceId || currentWorkspaceId || "")}`;
+                const icon = item.id.includes("calendar") ? <CalendarMonthRoundedIcon fontSize="small" /> : item.id.includes("document") ? <FolderRoundedIcon fontSize="small" /> : item.id.includes("expense") ? <AccountBalanceWalletRoundedIcon fontSize="small" /> : item.id.includes("trip") || item.id.includes("fuel") ? <LocalShippingRoundedIcon fontSize="small" /> : item.id.includes("profile") ? <SettingsIcon fontSize="small" /> : <HomeIcon fontSize="small" />;
+                return <SidebarItem key={item.id} icon={icon} label={item.label} href={href} isActive={pathname === route.split("?")[0] && (!route.includes("section=") || searchParams.get("section") === new URLSearchParams(route.split("?")[1]).get("section"))} onClick={onClose} />;
+              })}
+              {!portalContext?.portalConfig && <>
               {(portalContext.navigation?.length ? portalContext.navigation : ["home", "my_records", "calendar", "documents", "profile"]).map((item: string) => {
                 const workspaceId = portalContext.workspaceId || currentWorkspaceId || "";
                 const portalHref = portalContext.landingRoute || `/portal/${String(portalContext.portalType).replaceAll("_", "-")}`;
                 const href = item.includes("calendar") ? `/calendar?id=${workspaceId}` : item.includes("profile") ? `/settings?tab=profile&id=${workspaceId}` : `${portalHref}?id=${workspaceId}&section=${encodeURIComponent(item)}`;
                 return <SidebarItem key={item} icon={<HomeIcon fontSize="small" />} label={item.replaceAll("_", " ")} href={href} isActive={pathname === portalHref && (item === "home" || searchParams.get("section") === item)} onClick={onClose} />;
               })}
+              </>}
             </> : <>
             <SidebarItem
               icon={<HomeIcon fontSize="small" />}

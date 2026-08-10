@@ -47,7 +47,10 @@ function createWorkspacesRouter({ db, logger }) {
     try {
       const result = await db.query(`SELECT DISTINCT w.* FROM workspaces w LEFT JOIN tables t ON w.id = t.workspace_id
         WHERE w.id = $1 AND (w.owner_id = $2 OR EXISTS
-          (SELECT 1 FROM jsonb_array_elements(t.shared_users) elem WHERE elem->>'userId' = $2))`,
+          (SELECT 1 FROM jsonb_array_elements(
+            CASE WHEN jsonb_typeof(COALESCE(t.shared_users, '[]'::jsonb)) = 'array'
+              THEN COALESCE(t.shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
+          ) elem WHERE COALESCE(elem->>'userId', elem#>>'{}') = $2))`,
       [req.params.workspaceId, req.user.id]);
       if (!result.rows[0]) return res.status(403).json({ error: "Workspace not found or forbidden" });
       return res.json(result.rows[0]);
@@ -123,10 +126,16 @@ function createWorkspacesRouter({ db, logger }) {
       const workspace = existing.rows[0];
       if (!workspace) return res.status(404).json({ error: "Workspace not found" });
       const shared = await db.query(`SELECT COUNT(*) FROM tables WHERE workspace_id = $1 AND EXISTS
-        (SELECT 1 FROM jsonb_array_elements(shared_users) elem WHERE elem->>'userId' = $2)`, [req.params.workspaceId, req.user.id]);
+        (SELECT 1 FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(COALESCE(shared_users, '[]'::jsonb)) = 'array'
+            THEN COALESCE(shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
+        ) elem WHERE COALESCE(elem->>'userId', elem#>>'{}') = $2)`, [req.params.workspaceId, req.user.id]);
       if (workspace.owner_id !== req.user.id && parseInt(shared.rows[0].count, 10) === 0) return res.status(403).json({ error: "Forbidden" });
       const result = await db.query(`SELECT * FROM tables WHERE workspace_id = $1 AND ($2 = $3 OR EXISTS
-        (SELECT 1 FROM jsonb_array_elements(shared_users) elem WHERE elem->>'userId' = $3))`,
+        (SELECT 1 FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(COALESCE(shared_users, '[]'::jsonb)) = 'array'
+            THEN COALESCE(shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
+        ) elem WHERE COALESCE(elem->>'userId', elem#>>'{}') = $3))`,
       [req.params.workspaceId, workspace.owner_id, req.user.id]);
       return res.json(result.rows);
     } catch (error) {

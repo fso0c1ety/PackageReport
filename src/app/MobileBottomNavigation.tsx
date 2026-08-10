@@ -29,22 +29,19 @@ export default function MobileBottomNavigation() {
       .then((data) => setPortalContext(data?.active || null))
       .catch(() => setPortalContext(null));
   }, [workspaceId]);
-  const driverDestinations = [
-    { label: "Home", path: `/driver-trips?id=${workspaceId}`, icon: <HomeRoundedIcon /> },
-    { label: "My Trips", path: `/driver-trips?id=${workspaceId}`, icon: <LocalShippingRoundedIcon /> },
-    { label: "Calendar", path: `/calendar?id=${workspaceId}`, icon: <CalendarMonthRoundedIcon /> },
-    { label: "Documents", path: `/driver-trips?id=${workspaceId}&section=documents`, icon: <FolderRoundedIcon /> },
-    { label: "Profile", path: `/settings?tab=profile&id=${workspaceId}`, icon: <SettingsRoundedIcon /> },
-  ];
   const dedicatedPortal = portalContext?.portalType && portalContext.portalType !== "standard";
   const portalBase = portalContext?.landingRoute || `/portal/${String(portalContext?.portalType || "standard").replaceAll("_", "-")}`;
   const iconFor = (item: string) => item.includes("calendar") ? <CalendarMonthRoundedIcon /> : item.includes("document") ? <FolderRoundedIcon /> : item.includes("profile") || item.includes("setting") ? <SettingsRoundedIcon /> : item.includes("trip") || item.includes("delivery") ? <LocalShippingRoundedIcon /> : item.includes("work") || item.includes("record") ? <AssignmentTurnedInRoundedIcon /> : <HomeRoundedIcon />;
-  const portalDestinations = (portalContext?.navigation?.length ? portalContext.navigation : ["home", "my_records", "calendar", "documents", "profile"]).slice(0, 5).map((item: string) => ({
-    label: item.replace(/^my_/, "My ").replaceAll("_", " ").replace(/\b\w/g, (letter: string) => letter.toUpperCase()),
-    path: `${portalBase}${portalBase.includes("?") ? "&" : "?"}id=${encodeURIComponent(portalContext?.workspaceId || workspaceId || "")}&section=${encodeURIComponent(item)}`,
-    icon: iconFor(item),
-  }));
-  const visibleDestinations = portalContext?.portalType === "driver" ? driverDestinations : dedicatedPortal ? portalDestinations : destinations;
+  const configuredNavigation = portalContext?.portalConfig?.navigation;
+  const portalDestinations = (Array.isArray(configuredNavigation) && configuredNavigation.length
+    ? configuredNavigation.filter((item: any) => item.mobile !== false).slice(0, 5)
+    : (portalContext?.navigation?.length ? portalContext.navigation : ["home", "my_records", "calendar", "documents", "profile"]).slice(0, 5).map((id: string) => ({ id, label: id.replace(/^my_/, "My ").replaceAll("_", " ").replace(/\b\w/g, (letter: string) => letter.toUpperCase()), route: `${portalBase}?section=${encodeURIComponent(id)}` })))
+    .map((item: any) => {
+      const route = String(item.route || portalBase);
+      const separator = route.includes("?") ? "&" : "?";
+      return { label: item.label, path: `${route}${separator}id=${encodeURIComponent(portalContext?.workspaceId || workspaceId || "")}`, icon: iconFor(item.id || item.label) };
+    });
+  const visibleDestinations = dedicatedPortal ? portalDestinations : destinations;
   const current = visibleDestinations.find((item) => `${pathname}${typeof window !== "undefined" ? window.location.search : ""}`.startsWith(item.path))?.path || false;
   return (
     <Paper data-mobile-bottom-navigation="true" elevation={12} sx={{ display: { xs: "block", md: "none" }, position: "fixed", zIndex: 1300, left: 0, right: 0, bottom: 0, pb: "env(safe-area-inset-bottom)", borderRadius: 0, borderTop: "1px solid", borderColor: "divider" }}>

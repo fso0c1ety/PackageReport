@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { listUserMemberships, normalizePortalType, PORTAL_ROUTES } from "../_lib/universalRoles";
+import { resolvePortalConfig } from "../../../portal-engine/registry";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,8 @@ export async function GET(req) {
       || memberships.find((membership) => membership.portalType !== "standard")
       || memberships[0]
       || null;
-    return NextResponse.json({ active, memberships });
+    const withConfig = (membership) => membership ? { ...membership, portalConfig: resolvePortalConfig(membership) } : null;
+    return NextResponse.json({ active: withConfig(active), memberships: memberships.map(withConfig) });
   } catch (error) {
     console.error("[PORTAL CONTEXT][GET]", error);
     return NextResponse.json({ error: "Unable to resolve portal" }, { status: 500 });
@@ -37,5 +39,6 @@ export async function PATCH(req) {
   `, [workspaceId, String(user.id), portalType, PORTAL_ROUTES[portalType]]);
   if (!result.rows[0]) return NextResponse.json({ error: "Portal is not assigned to this account" }, { status: 403 });
   const memberships = await listUserMemberships(pool, user.id);
-  return NextResponse.json({ active: memberships.find((membership) => String(membership.workspaceId) === workspaceId) || null, memberships });
+  const withConfig = (membership) => membership ? { ...membership, portalConfig: resolvePortalConfig(membership) } : null;
+  return NextResponse.json({ active: withConfig(memberships.find((membership) => String(membership.workspaceId) === workspaceId) || null), memberships: memberships.map(withConfig) });
 }

@@ -22,8 +22,8 @@ export async function GET(req, { params }) {
             w.owner_id = $2
             OR EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id::text=$2::text)
             OR EXISTS (
-              SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) AS elem
-              WHERE elem->>'userId' = $2
+              SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) AS elem
+              WHERE COALESCE(elem->>'userId',elem#>>'{}') = $2
             )
           )
       `,

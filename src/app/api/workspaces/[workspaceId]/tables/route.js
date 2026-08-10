@@ -25,7 +25,8 @@ export async function GET(req, { params }) {
        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
        LEFT JOIN board_member_access bma ON bma.table_id=t.id AND bma.user_id::text=$2::text
        WHERE t.workspace_id=$1 AND (w.owner_id::text=$2::text OR bma.user_id IS NOT NULL OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') OR EXISTS (
-         SELECT 1 FROM jsonb_array_elements(COALESCE(t.shared_users,'[]'::jsonb)) elem WHERE elem->>'userId'=$2::text
+         SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) elem
+         WHERE COALESCE(elem->>'userId',elem#>>'{}')=$2::text
        ))`,
       [workspaceId, String(user.id)]
     );

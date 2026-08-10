@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
-import { Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
+import { Alert, Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "../../apiUrl";
 import AddIcon from "@mui/icons-material/Add";
@@ -60,6 +60,7 @@ function WorkspaceContent() {
   }, [tableIdParam]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuTableId, setMenuTableId] = useState<string | null>(null);
@@ -167,6 +168,7 @@ function WorkspaceContent() {
   const fetchTables = async () => {
     if (!workspaceId) return;
     setLoading(true);
+    setLoadError(null);
     const [res, modulesRes] = await Promise.all([
       authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`)),
       authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true }),
@@ -204,7 +206,7 @@ function WorkspaceContent() {
   useEffect(() => {
     fetchTables().catch(err => {
       console.error('Failed to fetch workspace tables', err);
-      setTables([]);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load workspace tables');
       setLoading(false);
     });
     // Reset selected tab on workspace change
@@ -250,6 +252,13 @@ function WorkspaceContent() {
   const selectedTableId = tables.some((table) => table.id === selected) ? selected : (tables[0]?.id || "");
 
   if (loading) return <CircularProgress sx={{ m: 4 }} />;
+  if (loadError) return (
+    <Box sx={{ p: 4, maxWidth: 720 }}>
+      <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => fetchTables().catch(() => undefined)}>Retry</Button>}>
+        The workspace could not be loaded. Your tables and data have not been removed. ({loadError})
+      </Alert>
+    </Box>
+  );
   if (!tables.length) return (
     <Box sx={{ p: 4 }}>
       <div>No tables found in this workspace.</div>
