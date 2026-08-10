@@ -113,6 +113,36 @@ export function membershipFromRow(row) {
 }
 
 export async function listUserMemberships(pool, userId) {
+  const schema = await pool.query(`SELECT
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_members' AND column_name='workspace_role') AS has_workspace_role,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_members' AND column_name='portal_type') AS has_portal_type`);
+  if (!schema.rows[0]?.has_workspace_role || !schema.rows[0]?.has_portal_type) {
+    const legacy = await pool.query(`
+      SELECT w.id AS workspace_id,w.name AS workspace_name,w.template_key,
+        (w.owner_id::text=$1::text) AS is_owner,
+        COALESCE((
+          SELECT LOWER(COALESCE(member->>'portalType',member->>'jobRole',member->>'boardRole',member->>'role',member->>'permission',''))
+          FROM tables t,LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END
+          ) member
+          WHERE t.workspace_id=w.id AND COALESCE(member->>'userId',member#>>'{}')=$1::text
+          ORDER BY CASE WHEN LOWER(COALESCE(member->>'portalType',member->>'jobRole',member->>'boardRole',member->>'role',''))='driver' THEN 0 ELSE 1 END
+          LIMIT 1
+        ),wm.role) AS role,
+        NULL::text AS workspace_role,NULL::jsonb AS job_roles,NULL::text AS primary_job_role,
+        NULL::text AS portal_type,NULL::jsonb AS permitted_portals,NULL::text AS landing_route,
+        NULL::jsonb AS record_access,NULL::jsonb AS navigation,NULL::jsonb AS allowed_actions,
+        NULL::text AS team_id,NULL::text AS department_id,NULL::text AS company_id
+      FROM workspaces w
+      LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$1::text
+      WHERE w.owner_id::text=$1::text OR wm.user_id IS NOT NULL OR EXISTS(
+        SELECT 1 FROM tables t,LATERAL jsonb_array_elements(
+          CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END
+        ) member WHERE t.workspace_id=w.id AND COALESCE(member->>'userId',member#>>'{}')=$1::text)
+      ORDER BY (w.owner_id::text=$1::text) DESC,w.updated_at DESC NULLS LAST,w.created_at DESC
+    `,[String(userId)]);
+    return legacy.rows.map(membershipFromRow);
+  }
   const result = await pool.query(`
     SELECT w.id AS workspace_id, w.name AS workspace_name, w.template_key,
            (w.owner_id::text=$1::text) AS is_owner,
