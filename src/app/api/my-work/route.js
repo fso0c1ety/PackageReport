@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
+import { rowMatchesRecordAccess } from "../_lib/authorization";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 
@@ -23,7 +24,13 @@ function classify(row){
 
 export async function GET(req){
   const user=getAuthenticatedUser(req);if(!user?.id)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const result=await pool.query(`WITH accessible AS (
+  const schema=await pool.query(`SELECT
+    to_regclass('public.board_member_access') IS NOT NULL AS has_board_access,
+    to_regprocedure('smart_manage_row_visible(jsonb,text,text,jsonb,text,jsonb,text,text,text)') IS NOT NULL AS has_row_visibility,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_members' AND column_name='workspace_role') AS has_workspace_role`);
+  const universal=Boolean(schema.rows[0]?.has_board_access&&schema.rows[0]?.has_row_visibility&&schema.rows[0]?.has_workspace_role);
+  let result;
+  if(universal){result=await pool.query(`WITH accessible AS (
     SELECT DISTINCT t.id,t.name,t.workspace_id,t.columns,
       CASE WHEN w.owner_id::text=$1::text OR COALESCE(wm.workspace_role,wm.role) IN ('owner','admin','logistics_admin') THEN '{"scope":"all_permitted"}'::jsonb ELSE COALESCE(bma.record_access,wm.record_access,'{"scope":"all_permitted"}'::jsonb) END record_access,
       wm.team_id,wm.department_id,wm.company_id
@@ -35,7 +42,24 @@ export async function GET(req){
     FROM rows r JOIN accessible a ON a.id=r.table_id
     WHERE (r.created_by=$1 OR r.values::text ILIKE $2)
       AND smart_manage_row_visible(r.values,r.id::text,r.created_by::text,a.columns,$1::text,a.record_access,a.team_id,a.department_id,a.company_id)
-    ORDER BY r.created_at DESC LIMIT 100`,[String(user.id),`%${String(user.email||user.id)}%`]);
+    ORDER BY r.created_at DESC LIMIT 100`,[String(user.id),`%${String(user.email||user.id)}%`]);}
+  else {
+    const legacy=await pool.query(`SELECT r.id,r.values,r.created_at,r.created_by,
+      t.id table_id,t.name board_name,t.workspace_id,t.columns,w.owner_id workspace_owner_id,
+      (SELECT LOWER(COALESCE(member->>'boardRole',member->>'role',member->>'permission','editor'))
+       FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
+       WHERE COALESCE(member->>'userId',member#>>'{}')=$1::text LIMIT 1) legacy_shared_role
+      FROM rows r JOIN tables t ON t.id=r.table_id JOIN workspaces w ON w.id=t.workspace_id
+      WHERE (w.owner_id::text=$1::text OR EXISTS(
+        SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
+        WHERE COALESCE(member->>'userId',member#>>'{}')=$1::text))
+      AND (r.created_by::text=$1::text OR r.values::text ILIKE $2)
+      ORDER BY r.created_at DESC LIMIT 100`,[String(user.id),`%${String(user.email||user.id)}%`]);
+    result={rows:legacy.rows.filter(row=>rowMatchesRecordAccess(row,{
+      ...row,
+      board_record_access:row.legacy_shared_role==="driver"?{scope:"assigned_to_me",field:"_assignedDriverUserId"}:{scope:"all_permitted"},
+    },user.id))};
+  }
   const [notificationCounts,recentActivity]=await Promise.all([
     pool.query(`SELECT
       COUNT(*) FILTER (WHERE read=FALSE AND type='mention')::int mentions,
