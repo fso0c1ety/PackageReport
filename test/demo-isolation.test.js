@@ -58,6 +58,10 @@ test("demo database target verification fails closed and never logs credentials"
   assert.throws(() => verifier.assertExpectedDatabaseTarget(identity, {}), /required for target verification/);
   assert.throws(() => verifier.assertExpectedDatabaseTarget(identity, { SMART_MANAGE_DEMO_DB_HOST: "other.example", SMART_MANAGE_DEMO_DB_NAME: "smart_manage" }), /does not match/);
   assert.doesNotThrow(() => verifier.assertExpectedDatabaseTarget(identity, { SMART_MANAGE_DEMO_DB_HOST: "db.smartmanage.example", SMART_MANAGE_DEMO_DB_NAME: "smart_manage" }));
+  assert.throws(() => verifier.assertDatabaseFingerprint("abc", {}), /required for target verification/);
+  assert.throws(() => verifier.assertDatabaseFingerprint("abc", { DEMO_DATABASE_FINGERPRINT: "def" }), /does not match/);
+  assert.doesNotThrow(() => verifier.assertDatabaseFingerprint("abc", { DEMO_DATABASE_FINGERPRINT: "abc" }));
+  assert.match(readFileSync(targetVerifierPath, "utf8"), /timingSafeEqual/);
   assert.doesNotMatch(readFileSync(targetVerifierPath, "utf8"), /console\.log\([^\n]*(connectionString|DATABASE_URL)/);
 });
 
