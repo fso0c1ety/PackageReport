@@ -13,13 +13,13 @@ export async function PATCH(req, { params }) {
   if (billingError) return billingError;
   const access = await requireRowPermission(pool, user.id, taskId, "editor", tableId);
   if (!access) return NextResponse.json({ error: "Row not found or forbidden" }, { status: 404 });
-  const columnExists = Array.isArray(access.table.columns) && access.table.columns.some((column) => String(column.id) === String(columnId));
+  const columnExists = Array.isArray(access.board.columns) && access.board.columns.some((column) => String(column.id) === String(columnId));
   if (!columnExists) return NextResponse.json({ error: "Column not found" }, { status: 404 });
 
   const body = await req.json();
   if (!Object.prototype.hasOwnProperty.call(body, "value")) return NextResponse.json({ error: "Value is required" }, { status: 400 });
   const derivedValues = body.derivedValues && typeof body.derivedValues === "object" && !Array.isArray(body.derivedValues) ? body.derivedValues : {};
-  const allowedDerived = Object.fromEntries(Object.entries(derivedValues).filter(([key]) => access.table.columns.some((column) => String(column.id) === key && column.type === "Formula")));
+  const allowedDerived = Object.fromEntries(Object.entries(derivedValues).filter(([key]) => access.board.columns.some((column) => String(column.id) === key && column.type === "Formula")));
   const patch = { [columnId]: body.value, ...allowedDerived };
   const result = await pool.query(
     "UPDATE rows SET values=COALESCE(values,'{}'::jsonb) || $3::jsonb, updated_at=NOW() WHERE id=$1 AND table_id=$2 RETURNING *, EXTRACT(EPOCH FROM updated_at)*1000 AS version",

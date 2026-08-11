@@ -13,4 +13,6 @@ test("Phase 4 cell edits use a granular authorized endpoint", () => {
   assert.match(route, /requireRowPermission/);
   assert.match(route, /Column not found/);
   assert.match(route, /clientVersion/);
+  assert.match(route, /access\.board\.columns/);
+  assert.doesNotMatch(route, /access\.table\.columns/);
 });
