@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, LinearProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 import type { PortalConfig, PortalMembershipContext } from "../../../portal-engine/types";
+import { portalWriteActionOptions } from "../../../portal-engine/writeActions";
 
 type Props = { membership: PortalMembershipContext & { workspaceName?: string }; config?: PortalConfig | null };
 
@@ -18,10 +19,12 @@ export default function PortalShell({ membership, config }: Props) {
   const [reload, setReload] = useState(0);
   const [activeAction, setActiveAction] = useState<any>(null);
   const [targetId, setTargetId] = useState("");
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [writeMessage, setWriteMessage] = useState("");
   const navigation = config?.navigation || (membership.navigation || []).map((id) => ({ id, label: label(id), route: `${membership.landingRoute || "/dashboard"}?section=${id}` }));
+  const availableActions = data?.config?.writeActions || (config?.portalType ? portalWriteActionOptions(config.portalType) : []);
   useEffect(() => {
     if (!config || config.portalType === "driver" || !membership.workspaceId) return;
     const query = new URLSearchParams({ workspaceId: membership.workspaceId, portalType: config.portalType });
@@ -34,13 +37,28 @@ export default function PortalShell({ membership, config }: Props) {
     const entityName = activeAction.mode === "create" ? activeAction.subjectEntity : activeAction.entity;
     return data.entities.find((entity:any) => entity.entity === entityName)?.records || [];
   }, [activeAction, data?.entities]);
-  const openAction = (action:any) => { setActiveAction(action); setTargetId(""); setFormValues({}); setWriteMessage(""); };
+  const openAction = (action:any) => { setActiveAction(action); setTargetId(""); setFormValues({}); setSelectedFile(null); setWriteMessage(""); };
   const submitAction = async () => {
     if (!activeAction || !targetId) return;
     setSaving(true); setWriteMessage("");
     try {
       const target = actionTargets.find((record:any) => record.id === targetId);
-      const response = await authenticatedFetch(getApiUrl("professional-portal"), { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ workspaceId:membership.workspaceId, portalType:config?.portalType, action:activeAction.id, writeToken:target?.writeToken, ...(activeAction.mode === "create" ? {subjectId:targetId} : {recordId:targetId}), values:formValues }), suppressNativeErrorAlert:true });
+      const nextValues = {...formValues};
+      if (activeAction.fileField) {
+        if (!selectedFile) throw new Error("Choose a file to upload");
+        const upload = new FormData();
+        upload.set("file", selectedFile);
+        upload.set("workspaceId", membership.workspaceId);
+        upload.set("rowId", targetId);
+        upload.set("portalType", String(config?.portalType || ""));
+        upload.set("portalAction", activeAction.id);
+        upload.set("writeToken", String(target?.writeToken || ""));
+        const uploadResponse = await authenticatedFetch(getApiUrl("upload"), {method:"POST",body:upload,suppressNativeErrorAlert:true});
+        const uploaded = await uploadResponse.json().catch(() => null);
+        if (!uploadResponse.ok) throw new Error(uploaded?.error || "File upload failed");
+        nextValues[activeAction.fileField] = [{id:uploaded.id,url:uploaded.url,name:uploaded.name,type:uploaded.type,size:uploaded.size}];
+      }
+      const response = await authenticatedFetch(getApiUrl("professional-portal"), { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ workspaceId:membership.workspaceId, portalType:config?.portalType, action:activeAction.id, writeToken:target?.writeToken, ...(activeAction.mode === "create" ? {subjectId:targetId} : {recordId:targetId}), values:nextValues }), suppressNativeErrorAlert:true });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || "Unable to save this action");
       setWriteMessage("Saved successfully. The workspace has been updated.");
@@ -70,7 +88,8 @@ export default function PortalShell({ membership, config }: Props) {
       {displayedEntities.map((entity:any) => { const widget = config?.widgets.find((item) => item.entity === entity.entity); const records = entity?.records || []; return <Card key={entity.entity} variant="outlined" sx={{borderRadius:3,minWidth:0}}><CardContent><Stack direction="row" justifyContent="space-between" gap={1}><Typography fontWeight={900}>{widget?.title || entity.name}</Typography><Chip size="small" label={records.length} /></Stack><Divider sx={{my:1.5}} />{records.length === 0 ? <Typography variant="body2" color="text.secondary">No authorized records available.</Typography> : <Stack spacing={1.25}>{records.slice(0,section === "home" ? 5 : 50).map((record:any) => <Box key={record.id} sx={{p:1.25,borderRadius:2,bgcolor:"action.hover",overflow:"hidden"}}>{Object.entries(record.fields).slice(0,section === "home" ? 4 : 12).map(([key,value]) => <Stack key={key} direction="row" gap={1} justifyContent="space-between"><Typography variant="caption" color="text.secondary">{key}</Typography><Typography variant="caption" fontWeight={700} noWrap sx={{maxWidth:"60%"}}>{typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}</Typography></Stack>)}</Box>)}</Stack>}</CardContent></Card> })}
       {displayedEntities.length === 0 && <Alert severity="info">This section has no authorized records for your account.</Alert>}
     </Box>}
-    {!!data?.config?.writeActions?.length && <Card variant="outlined" sx={{borderRadius:3}}><CardContent><Typography fontWeight={900}>Quick actions</Typography><Typography variant="body2" color="text.secondary" sx={{mb:2}}>Updates are saved directly to the authorized workspace and notify the responsible team.</Typography><Stack direction="row" gap={1} flexWrap="wrap">{data.config.writeActions.map((action:any) => <Button key={action.id} variant="contained" onClick={() => openAction(action)}>{label(action.id.replace(":", " "))}</Button>)}</Stack></CardContent></Card>}
+    {config?.portalType === "parent" && !!data?.timeline?.length && <Card variant="outlined" sx={{borderRadius:3}}><CardContent><Typography fontWeight={900} variant="h6">Child Daily Timeline</Typography><Stack spacing={0} sx={{mt:2}}>{data.timeline.map((event:any) => <Box key={event.id} sx={{display:"grid",gridTemplateColumns:"72px 14px 1fr",gap:1.25,minHeight:70}}><Typography variant="caption" color="text.secondary">{event.at ? new Date(event.at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "—"}</Typography><Box sx={{width:10,height:10,borderRadius:"50%",bgcolor:"primary.main",mt:.5,boxShadow:"0 18px 0 -4px #d9dcff"}} /><Box><Typography fontWeight={800}>{event.type}</Typography><Typography variant="body2" color="text.secondary">{event.description}</Typography></Box></Box>)}</Stack></CardContent></Card>}
+    {!!availableActions.length && <Card variant="outlined" sx={{borderRadius:3}}><CardContent><Typography fontWeight={900}>Quick actions</Typography><Typography variant="body2" color="text.secondary" sx={{mb:2}}>Updates are saved directly to the authorized workspace and notify the responsible team.</Typography><Stack direction="row" gap={1} flexWrap="wrap">{availableActions.map((action:any) => <Button key={action.id} variant="contained" onClick={() => openAction(action)}>{label(action.id.replace(":", " "))}</Button>)}</Stack></CardContent></Card>}
     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,1fr)", lg: "repeat(3,1fr)" }, gap: 2 }}>
       {navigation.map((item) => {
         const separator = item.route.includes("?") ? "&" : "?";
@@ -88,7 +107,9 @@ export default function PortalShell({ membership, config }: Props) {
         <TextField select required label={activeAction?.mode === "create" ? activeAction?.subjectEntity : activeAction?.entity} value={targetId} onChange={(event) => setTargetId(event.target.value)}>
           {actionTargets.map((record:any, index:number) => <MenuItem key={record.id} value={record.id}>{Object.values(record.fields || {}).find((value) => typeof value === "string") || `${activeAction?.entity} ${index + 1}`}</MenuItem>)}
         </TextField>
-        {(activeAction?.fields || []).map((field:string) => <TextField key={field} label={label(field)} value={formValues[field] || ""} multiline={/message|note|text|instruction/i.test(field)} minRows={/message|note|text|instruction/i.test(field) ? 3 : undefined} onChange={(event) => setFormValues((values) => ({...values,[field]:event.target.value}))} />)}
+        {(activeAction?.fields || []).filter((field:string) => field !== activeAction?.fileField).map((field:string) => <TextField key={field} label={label(field)} value={formValues[field] || ""} multiline={/message|note|text|instruction/i.test(field)} minRows={/message|note|text|instruction/i.test(field) ? 3 : undefined} onChange={(event) => setFormValues((values) => ({...values,[field]:event.target.value}))} />)}
+        {activeAction?.fileField && <Button component="label" variant="outlined" size="large">{selectedFile ? selectedFile.name : "Choose file"}<input hidden type="file" accept={activeAction.fileAccept || undefined} onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} /></Button>}
+        {saving && activeAction?.fileField && <LinearProgress aria-label="Upload progress" />}
         {writeMessage && <Alert severity={writeMessage.startsWith("Saved") ? "success" : "error"}>{writeMessage}</Alert>}
       </Stack></DialogContent>
       <DialogActions><Button onClick={() => setActiveAction(null)} disabled={saving}>Close</Button><Button variant="contained" onClick={submitAction} disabled={saving || !targetId}>{saving ? "Saving..." : "Save"}</Button></DialogActions>

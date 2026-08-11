@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { getAuthenticatedUser, pool, SECRET_KEY } from "../_lib/server";
+import { randomUUID } from "node:crypto";
+import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireBoardPermission, rowMatchesRecordAccess } from "../_lib/authorization";
 import { listUserMemberships, selectPortalMembership } from "../_lib/universalRoles";
 import { resolvePortalConfig } from "../../../portal-engine/registry";
 import { portalWriteAction, portalWriteActionOptions } from "../../../portal-engine/writeActions";
+import { portalRecordCapability, validPortalCapability } from "../_lib/portalCapability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,13 +27,6 @@ const safeValue = (value) => {
   }
   return String(value);
 };
-const capabilityBucket = () => Math.floor(Date.now() / 3_600_000);
-const recordCapability = (userId, workspaceId, portalType, entity, recordId, bucket = capabilityBucket()) => createHmac("sha256", SECRET_KEY).update([userId,workspaceId,portalType,entity,recordId,bucket].join(":"),"utf8").digest("base64url");
-const validCapability = (token, userId, workspaceId, portalType, entity, recordId) => [capabilityBucket(),capabilityBucket()-1].some((bucket) => {
-  const expected = recordCapability(userId,workspaceId,portalType,entity,recordId,bucket);
-  const actual = String(token || "");
-  return actual.length === expected.length && timingSafeEqual(Buffer.from(actual),Buffer.from(expected));
-});
 
 export async function GET(req) {
   const user = getAuthenticatedUser(req);
@@ -68,6 +62,7 @@ export async function GET(req) {
     for (const row of await rowsFor("Children")) {
       if (ids(value(row, childrenTable, "Parent")).some((id) => context.parentIds.has(id)) || String(row.values?._linkedParentUserId || "") === String(user.id)) context.childIds.add(String(row.id));
       if (ids(value(row, childrenTable, "Group")).some((id) => context.groupIds.has(id))) context.childIds.add(String(row.id));
+      if (portalType === "parent" && context.childIds.has(String(row.id))) ids(value(row, childrenTable, "Group")).forEach((id) => context.groupIds.add(id));
     }
   }
   if (["doctor","patient"].includes(portalType)) {
@@ -90,15 +85,18 @@ export async function GET(req) {
       if (entity === "Children") return context.childIds.has(String(row.id));
       if (["Attendance","Documents"].includes(entity)) return ids(value(row, table, "Child")).some((id) => context.childIds.has(id));
       if (entity === "Meals") return ids(value(row, table, "Assigned Groups")).some((id) => context.groupIds.has(id));
+      if (entity === "Activities") return ids(value(row, table, "Group")).some((id) => context.groupIds.has(id));
     }
     if (portalType === "parent") {
       if (entity === "Children") return context.childIds.has(String(row.id));
       if (["Attendance","Documents","Payments"].includes(entity)) return ids(value(row, table, "Child")).some((id) => context.childIds.has(id));
-      if (entity === "Meals") return false;
+      if (entity === "Activities") return ids(value(row, table, "Children")).some((id) => context.childIds.has(id)) || ids(value(row, table, "Group")).some((id) => context.groupIds.has(id));
+      if (entity === "Meals") return ids(value(row, table, "Assigned Groups")).some((id) => context.groupIds.has(id));
     }
     if (portalType === "doctor") {
       if (entity === "Patients") return context.patientIds.has(String(row.id));
       if (["Appointments","Treatments"].includes(entity)) return hasUser(value(row, table, "Dentist"), user);
+      if (entity === "Lab Requests") return context.patientIds.has(ids(value(row, table, "Patient"))[0]);
     }
     if (portalType === "patient") return ids(value(row, table, "Patient")).some((id) => context.patientIds.has(id));
     if (portalType === "client") {
@@ -120,15 +118,37 @@ export async function GET(req) {
       .filter((row) => {
         const explicitScope = portalScopeField ? row.values?.[portalScopeField] : null;
         if (explicitScope != null && String(explicitScope) !== portalScopeValue) return false;
-        return rowMatchesRecordAccess(row, scopedBoard, user.id) || relationshipVisible(entity, row, table);
+        const related = rowMatchesRecordAccess(row, scopedBoard, user.id) || relationshipVisible(entity, row, table);
+        if (!related) return false;
+        if (portalType === "parent" && entity === "Documents") return ["approved","shared","parent","shareable"].includes(normalize(value(row, table, "Visibility") || value(row, table, "Status")));
+        if (portalType === "parent" && entity === "Activities") return ["parent","shared","shareable","approved"].includes(normalize(value(row, table, "Visibility")));
+        if (portalType === "patient" && entity === "Documents") return ["shared","patient","approved"].includes(normalize(value(row, table, "Visibility") || value(row, table, "Status")));
+        if (portalType === "patient" && entity === "Lab Requests") return Boolean(value(row, table, "Share With Patient")) && normalize(value(row, table, "Status")) !== "cancelled";
+        return true;
       })
       .slice(0, 50);
     const visible = new Set((config.visibleFields[entity] || []).map(normalize));
     const hidden = new Set((config.hiddenFields[entity] || []).map(normalize));
     const columns = (table.columns || []).filter((column) => visible.has(normalize(column.name)) && !hidden.has(normalize(column.name)));
-    entities.push({ entity, name: table.name, records: rows.map((row) => ({ id: row.id, writeToken: recordCapability(String(user.id),workspaceId,portalType,entity,String(row.id)), updatedAt: row.updated_at, fields: Object.fromEntries(columns.map((column) => [column.name, safeValue(row.values?.[column.id])])) })) });
+    entities.push({ entity, name: table.name, records: rows.map((row) => ({ id: row.id, writeToken: portalRecordCapability(String(user.id),workspaceId,portalType,entity,String(row.id)), updatedAt: row.updated_at, fields: Object.fromEntries(columns.map((column) => [column.name, safeValue(row.values?.[column.id])])) })) });
   }
-  return NextResponse.json({ membership: { workspaceId, workspaceName: membership.workspaceName, portalType: membership.portalType }, config: { id: config.id, name: config.name, widgets: config.widgets, navigation: config.navigation, featureFlags: config.featureFlags, writeActions: portalWriteActionOptions(portalType) }, entities });
+  const timeline = [];
+  if (portalType === "parent") {
+    for (const entity of entities) for (const record of entity.records || []) {
+      if (!["Attendance", "Meals", "Activities", "Documents"].includes(entity.entity)) continue;
+      const dateValue = record.fields?.["Date / Time"] || record.fields?.Date || record.fields?.["Upload Date"] || record.updatedAt;
+      timeline.push({ id: `${entity.entity}:${record.id}`, at: dateValue, type: entity.entity === "Documents" ? "Photo / Document" : entity.entity, description: String(record.fields?.Title || record.fields?.Description || record.fields?.["Present / Absent"] || record.fields?.["Document Type"] || `${entity.entity} update`).slice(0, 180), attachment: record.fields?.File || record.fields?.Attachments || null });
+    }
+    for (const child of await rowsFor("Children")) if (context.childIds.has(String(child.id))) {
+      for (const sleep of Array.isArray(child.values?._sleepEvents) ? child.values._sleepEvents : []) if (sleep?.shareable) {
+        timeline.push({ id: `sleep-start:${sleep.id}`, at: sleep.startedAt, type: "Sleep Started", description: "Sleep started" });
+        if (sleep.endedAt) timeline.push({ id: `sleep-end:${sleep.id}`, at: sleep.endedAt, type: "Sleep Ended", description: `Sleep ended after ${Number(sleep.durationMinutes) || 0} minutes` });
+      }
+      for (const note of Array.isArray(child.values?._teacherObservations) ? child.values._teacherObservations : []) if (note?.shareable) timeline.push({ id: `observation:${note.createdAt}`, at: note.createdAt, type: "Observation", description: String(note.text || "Teacher observation").slice(0, 180) });
+    }
+    timeline.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
+  }
+  return NextResponse.json({ membership: { workspaceId, workspaceName: membership.workspaceName, portalType: membership.portalType }, config: { id: config.id, name: config.name, widgets: config.widgets, navigation: config.navigation, featureFlags: config.featureFlags, writeActions: portalWriteActionOptions(portalType) }, entities, timeline: timeline.slice(0, 100) });
 }
 
 function sanitizeWriteValues(definition, input) {
@@ -179,10 +199,10 @@ export async function POST(req) {
     const recordId = String(body.recordId || "");
     const subjectId = String(body.subjectId || "");
     let row = null;
-    if (["update", "append", "message"].includes(definition.mode)) {
+    if (["update", "append", "message", "sleep_start", "sleep_end"].includes(definition.mode)) {
       row = (await client.query("SELECT id,table_id,values,created_by,created_at,updated_at FROM rows WHERE id=$1 AND table_id=$2 FOR UPDATE", [recordId, table.id])).rows[0];
       const actualScope = String(row?.values?.[definition.scopeField] || "");
-      const capabilityAllowed = row && validCapability(body.writeToken,user.id,workspaceId,portalType,definition.entity,recordId);
+      const capabilityAllowed = row && validPortalCapability(body.writeToken,user.id,workspaceId,portalType,definition.entity,recordId);
       if (!row || (actualScope !== expectedScope && !capabilityAllowed)) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: row ? "Record scope is forbidden" : "Record not found" }, { status: 404 });
@@ -199,11 +219,35 @@ export async function POST(req) {
       const current = Array.isArray(row.values?.[definition.targetField || "_portalMessages"]) ? row.values[definition.targetField || "_portalMessages"] : [];
       const patch = { [definition.targetField || "_portalMessages"]: [event, ...current].slice(0, 100) };
       await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(patch), recordId, table.id]);
+    } else if (["sleep_start", "sleep_end"].includes(definition.mode)) {
+      const now = new Date();
+      const current = Array.isArray(row.values?.[definition.targetField]) ? row.values[definition.targetField] : [];
+      if (definition.mode === "sleep_start" && current.some((event) => event?.type === "sleep" && !event?.endedAt)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Sleep is already in progress" }, { status: 409 });
+      }
+      let events;
+      if (definition.mode === "sleep_start") {
+        events = [{ id: randomUUID(), type: "sleep", startedAt: now.toISOString(), endedAt: null, durationMinutes: null, teacherId: String(user.id), shareable: true }, ...current];
+      } else {
+        let closed = false;
+        events = current.map((event) => {
+          if (closed || event?.type !== "sleep" || event?.endedAt) return event;
+          closed = true;
+          const startedAt = new Date(event.startedAt);
+          return { ...event, endedAt: now.toISOString(), durationMinutes: Math.max(0, Math.round((now.getTime() - startedAt.getTime()) / 60000)) };
+        });
+        if (!closed) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "No sleep is currently in progress" }, { status: 409 });
+        }
+      }
+      await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify({ [definition.targetField]: events.slice(0, 100) }), recordId, table.id]);
     } else if (definition.mode === "create") {
       const subjectNames = access.config.entityScopes[definition.subjectEntity] || [definition.subjectEntity];
       const subjectTable = (await client.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, subjectNames.map(normalize)])).rows[0];
       const subject = subjectTable && (await client.query("SELECT id,table_id,values,created_by,created_at,updated_at FROM rows WHERE id=$1 AND table_id=$2", [subjectId, subjectTable.id])).rows[0];
-      const subjectCapability = subject && validCapability(body.writeToken,user.id,workspaceId,portalType,definition.subjectEntity,subjectId);
+      const subjectCapability = subject && validPortalCapability(body.writeToken,user.id,workspaceId,portalType,definition.subjectEntity,subjectId);
       if (!subject || (String(subject.values?.[definition.scopeField] || "") !== expectedScope && !subjectCapability)) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Related record not found or forbidden" }, { status: 404 });
@@ -211,6 +255,8 @@ export async function POST(req) {
       resultId = randomUUID();
       const relationColumn = column(table, definition.relationField);
       const valuesToInsert = { ...columnPatch(table, accepted), [definition.scopeField]: expectedScope };
+      if (portalType === "teacher" && definition.entity === "Documents") valuesToInsert._linkedParentUserId = subject.values?._linkedParentUserId || null;
+      if (portalType === "doctor" && definition.entity === "Lab Requests") valuesToInsert._linkedPatientUserId = subject.values?._linkedPatientUserId || subject.values?._linkedUserId || null;
       if (relationColumn) valuesToInsert[relationColumn.id] = [{ id: subjectId, rowId: subjectId }];
       if (portalType === "client") valuesToInsert.clientCompanyId = expectedScope;
       await client.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3::jsonb,$4,NOW(),NOW())", [resultId, table.id, JSON.stringify(valuesToInsert), String(user.id)]);
