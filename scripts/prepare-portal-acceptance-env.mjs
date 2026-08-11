@@ -30,7 +30,8 @@ function serializeEnv(env) {
 
 export async function preparePortalAcceptanceEnv() {
   const existing = parseEnv(await readFile(sourcePath, "utf8"));
-  const env = { ...existing, ...process.env };
+  const prepared = await readFile(targetPath, "utf8").then(parseEnv).catch(() => ({}));
+  const env = { ...existing, ...prepared, ...process.env };
   const identity = normalizedDatabaseIdentity(env.DATABASE_URL);
   assertExpectedDatabaseTarget(identity, env);
   const pool = new pg.Pool({ connectionString: env.DATABASE_URL, ssl: env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false }, connectionTimeoutMillis: 20_000, max: 1 });
@@ -46,6 +47,7 @@ export async function preparePortalAcceptanceEnv() {
       DEMO_DATABASE_FINGERPRINT: fingerprint,
       SMART_MANAGE_DEMO_PASSWORD: env.SMART_MANAGE_DEMO_PASSWORD?.length >= 24 ? env.SMART_MANAGE_DEMO_PASSWORD : securePassword(),
       SMART_MANAGE_PORTAL_TEST_PASSWORD: env.SMART_MANAGE_PORTAL_TEST_PASSWORD?.length >= 24 ? env.SMART_MANAGE_PORTAL_TEST_PASSWORD : securePassword(),
+      JWT_SECRET: env.JWT_SECRET?.length >= 32 ? env.JWT_SECRET : securePassword(64),
     };
     await writeFile(targetPath, serializeEnv(output), { encoding: "utf8", mode: 0o600, flag: "w" });
     return { configured: true, targetPath: path.basename(targetPath) };

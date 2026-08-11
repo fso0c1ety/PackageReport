@@ -88,7 +88,11 @@ export async function GET(req) {
       if (["Appointments","Treatments"].includes(entity)) return hasUser(value(row, table, "Dentist"), user);
     }
     if (portalType === "patient") return ids(value(row, table, "Patient")).some((id) => context.patientIds.has(id));
-    if (portalType === "client") return ids(value(row, table, "Client")).some((id) => context.clientIds.has(id));
+    if (portalType === "client") {
+      const explicitCompanyId = String(row.values?.clientCompanyId || "");
+      if (explicitCompanyId) return context.clientIds.has(explicitCompanyId);
+      return ids(value(row, table, "Client")).some((id) => context.clientIds.has(id));
+    }
     return false;
   };
   const entities = [];
