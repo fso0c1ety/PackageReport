@@ -41,6 +41,7 @@ import DemoRequestForm from "./DemoRequestForm";
 import { WORKSPACE_TEMPLATES } from "../workspaceTemplates";
 import { marketingScreenshots } from "./marketingScreenshots";
 import emailjs from "@emailjs/browser";
+import PortalShowcase from "./PortalShowcase";
 
 function trackMarketingEvent(name: string, detail: Record<string, string> = {}) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("smartmanage:analytics", { detail: { name, ...detail } }));
@@ -361,7 +362,7 @@ export default function LandingPage() {
       </Drawer>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, pt: { xs: 4, md: 3 }, pb: { xs: 5, md: 8 } }}>
+      <Box sx={{ flex: 1, pt: { xs: 4, md: 3 }, pb: { xs: 5, md: 8 }, overflowX: "clip" }}>
         <Container maxWidth="xl">
           <Box
             sx={{
@@ -370,6 +371,7 @@ export default function LandingPage() {
               gap: { xs: 5, md: 4 },
               alignItems: "center",
               minHeight: { md: "620px" },
+              "& > *": { minWidth: 0 },
             }}
           >
             {/* Left Content */}
@@ -580,10 +582,8 @@ export default function LandingPage() {
               }; const current = industries[industryPreview]; return <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.35fr .65fr" }, gap: 3, mt: 3, alignItems: "center" }}><Box component="img" loading="lazy" src={current.image} alt={`${current.name} template`} sx={{ width: "100%", borderRadius: 3, aspectRatio: "16/9", objectFit: "cover", objectPosition: "top left" }} /><Box><Typography fontSize={25} fontWeight={900}>{current.name}</Typography><Typography sx={{ color: "#cbd5e1", lineHeight: 1.7, mt: 1 }}>{current.copy}</Typography><Typography sx={{ color: "#a5b4fc", fontWeight: 800, mt: 2 }}>{current.capabilities}</Typography><Button onClick={() => scrollToSection("request-demo")} variant="contained" sx={{ mt: 3, bgcolor: "#6D4AFF", textTransform: "none", fontWeight: 900 }}>Request Demo</Button></Box></Box>; })()}
             </Box>
 
-            <Box sx={{ p: { xs: 3, md: 5 }, borderRadius: 5, bgcolor: "#F8FAFC" }}>
-              <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>ONE PLATFORM. THE RIGHT EXPERIENCE FOR EVERY ROLE.</Typography>
-              <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Full control for managers. Focused access for every role.</Typography>
-              <Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 2, maxWidth: 900 }}>Managers receive the complete operational picture. Drivers receive a focused mobile experience with only their assigned work and actions.</Typography>
+            <PortalShowcase />
+            <Box aria-hidden sx={{ display: "none" }}>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.25fr .75fr" }, gap: 3, mt: 3, alignItems: "center" }}><Box component="img" loading="lazy" src={marketingScreenshots.fleet} alt="Verified Smart Manage Driver Portal" sx={{ width: "100%", borderRadius: 3, border: `1px solid ${LIGHT.border}`, aspectRatio: "16/9", objectFit: "cover", objectPosition: "top left" }} /><Box><Chip label="Verified portal" color="success" /><Typography fontSize={27} fontWeight={900} mt={2}>Driver Portal</Typography><Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 1 }}>Trips, documents, fuel, expenses and delivery updates—without exposing the full company workspace.</Typography></Box></Box>
             </Box>
 
