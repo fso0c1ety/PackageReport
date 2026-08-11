@@ -165,6 +165,9 @@ export async function requireFilePermission(pool, userId, fileIdOrName, required
   const file = result.rows[0];
   if (!file) return null;
   if (file.visibility === "profile") return { file, role: "viewer" };
+  // The authenticated uploader always retains access to the private object.
+  // Row/table scope below controls access for every other workspace member.
+  if (String(file.uploaded_by || "") === String(userId)) return { file, role: "owner" };
   if (file.row_id) {
     const access = await requireRowPermission(pool, userId, file.row_id, required, file.table_id || null);
     return access ? { file, ...access } : null;

@@ -7,13 +7,10 @@ function createCompatibilityFilesRouter({ authenticateToken, db, legacyUploadDir
   router.get("/uploads/:filename", authenticateToken, requireFilePermission("viewer"), async (req, res) => {
     const filename = req.params.filename;
     const decodedFilename = decodeURIComponent(filename);
+    const authorizedFile = req.fileAccess?.file;
     try {
-      const result = await db.query(
-        "SELECT mimetype, data FROM uploaded_files WHERE filename = $1 OR filename = $2",
-        [filename, decodedFilename],
-      );
-      if (result.rows.length) {
-        const file = result.rows[0];
+      if (authorizedFile?.data) {
+        const file = authorizedFile;
         res.setHeader("Content-Type", file.mimetype || "application/octet-stream");
         res.setHeader("Cache-Control", "private, no-store");
         return res.send(file.data);
@@ -22,12 +19,15 @@ function createCompatibilityFilesRouter({ authenticateToken, db, legacyUploadDir
       logger.error("database_file_serve_failed", { filename: decodedFilename, error: error.message });
     }
     const candidates = [
+      authorizedFile?.storage_path,
+      authorizedFile?.filename && path.join(sharedUploadDir, authorizedFile.filename),
+      authorizedFile?.filename && path.join(legacyUploadDir, authorizedFile.filename),
       path.join(sharedUploadDir, decodedFilename),
       path.join(sharedUploadDir, filename),
       path.join(legacyUploadDir, decodedFilename),
       path.join(legacyUploadDir, filename),
     ];
-    for (const candidate of candidates) {
+    for (const candidate of candidates.filter(Boolean)) {
       if (fs.existsSync(candidate)) {
         res.setHeader("Cache-Control", "private, no-store");
         return res.sendFile(candidate);

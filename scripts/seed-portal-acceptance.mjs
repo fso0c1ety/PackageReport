@@ -30,6 +30,9 @@ async function ensureAccount(client,key,password) {
   if (!user) { user={id:randomUUID()}; await client.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW())",[user.id,name,email,await bcrypt.hash(password,12)]); }
   const unsafe = await client.query("SELECT 1 FROM workspaces w LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$1::text WHERE (w.owner_id::text=$1::text OR wm.user_id IS NOT NULL) AND w.is_demo IS NOT TRUE LIMIT 1",[user.id]);
   if (unsafe.rowCount) throw new Error(`Refusing portal test account with non-demo access: ${email}`);
+  // Acceptance credentials are environment-only and may be rotated between runs.
+  // Synchronize them only after proving this identity cannot access production data.
+  if (user) await client.query("UPDATE users SET password=$1,email_verified_at=COALESCE(email_verified_at,NOW()) WHERE id=$2",[await bcrypt.hash(password,12),user.id]);
   return user.id;
 }
 async function boards(client,workspaceId) { return (await client.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1",[workspaceId])).rows; }

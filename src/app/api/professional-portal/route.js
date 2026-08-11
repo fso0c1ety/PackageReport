@@ -62,6 +62,7 @@ export async function GET(req) {
     for (const row of await rowsFor("Children")) {
       if (ids(value(row, childrenTable, "Parent")).some((id) => context.parentIds.has(id)) || String(row.values?._linkedParentUserId || "") === String(user.id)) context.childIds.add(String(row.id));
       if (ids(value(row, childrenTable, "Group")).some((id) => context.groupIds.has(id))) context.childIds.add(String(row.id));
+      if (portalType === "teacher" && String(row.values?._classTeacherUserId || row.values?.classTeacherUserId || "") === String(user.id)) context.childIds.add(String(row.id));
       if (portalType === "parent" && context.childIds.has(String(row.id))) ids(value(row, childrenTable, "Group")).forEach((id) => context.groupIds.add(id));
     }
   }

@@ -77,6 +77,19 @@ const corsOrigins = getAllowedOrigins();
 const JWT_SECRET = getJwtSecret();
 const apiRateLimit = createRateLimiter({ windowMs: 60 * 1000, max: 240, keyPrefix: 'api' });
 
+// These APIs are implemented by Next route handlers. They must receive the
+// original request stream; the legacy Express JSON parser consumes it and
+// otherwise leaves req.json() waiting forever in production.
+const nextOwnedMutationRoutes = [
+  /^\/api\/login\/?$/,
+  /^\/api\/professional-portal\/?$/,
+  /^\/api\/logistics\/driver\/(?:trips|documents)\/?$/,
+  /^\/api\/upload\/?$/,
+];
+for (const route of nextOwnedMutationRoutes) {
+  app.all(route, (req, res) => handle(req, res));
+}
+
 // Root endpoint handled by Next.js
 // app.get('/', (req, res) => {
 //   res.send('Backend is running!');
