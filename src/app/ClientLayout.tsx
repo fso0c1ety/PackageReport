@@ -94,6 +94,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     // If we are in ClientLayout, it means we are inside (dashboard).
     // So we just check if token exists.
     if (typeof window === 'undefined') return;
+    let cancelled = false;
 
     ensureNativeHistoryRouting();
 
@@ -127,7 +128,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       workspaceId = storedWorkspace.id || "";
     } catch {}
     const requestedPortalType = normalizedPathname.startsWith("/portal/")
-      ? normalizedPathname.slice("/portal/".length).replaceAll("-", "_")
+      ? normalizedPathname.slice("/portal/".length).replace(/^\/+|\/+$/g, "").replaceAll("-", "_")
       : "";
     const portalQuery = new URLSearchParams();
     if (requestedPortalType) portalQuery.set("portalType", requestedPortalType);
@@ -135,6 +136,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     authenticatedFetch(getApiUrl(`portal-context${portalQuery.size ? `?${portalQuery.toString()}` : ""}`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
+        if (cancelled) return;
         const membership = data?.active;
         const workspaceId = membership?.workspaceId || null;
         const portalType = membership?.portalType || "standard";
@@ -158,7 +160,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         setDriverCheckComplete(true);
         setLoading(false);
       })
-      .catch(() => { setDriverCheckComplete(true); setLoading(false); });
+      .catch(() => { if (!cancelled) { setDriverCheckComplete(true); setLoading(false); } });
+    return () => { cancelled = true; };
   }, [normalizedPathname, pathname, router]);
 
   // Failsafe: only release the loading shell if authentication actually exists.

@@ -19,6 +19,9 @@ async function authenticatedContext(browser: Browser, email: string, baseURL: st
   await page.locator('input[name="password"]').fill(password!);
   await page.getByRole("button", { name: "Sign In" }).click();
   await expect(page).not.toHaveURL(/\/login\/?(?:\?|$)/, { timeout: 20_000 });
+  const token = await page.evaluate(() => localStorage.getItem("token"));
+  expect(token).toBeTruthy();
+  await context.setExtraHTTPHeaders({Authorization:`Bearer ${token}`});
   return { context, page };
 }
 
@@ -46,7 +49,7 @@ test.describe("authenticated professional portal isolation", () => {
 
   for (const [portalType, emailA, emailB] of cases) {
     test(`${portalType} A/B accounts remain isolated and render their assigned portal`, async ({ browser, baseURL }, testInfo) => {
-      const viewport = testInfo.project.name.includes("mobile") ? { width: 412, height: 915 } : { width: 1440, height: 900 };
+      const viewport = testInfo.project.name === "pixel-7" ? { width: 412, height: 915 } : testInfo.project.name === "mobile-430" ? {width:430,height:932} : testInfo.project.name === "tablet-768" ? {width:768,height:1024} : { width: 1440, height: 900 };
       const first = await authenticatedContext(browser, emailA, baseURL!, viewport);
       const second = await authenticatedContext(browser, emailB, baseURL!, viewport);
       try {
@@ -59,8 +62,18 @@ test.describe("authenticated professional portal isolation", () => {
 
         const route = portalType === "driver" ? "/driver-trips/" : `/portal/${portalType}/`;
         await first.page.goto(route);
+        await expect(first.page).toHaveURL(new RegExp(route.replaceAll("/", "\\/").replace(/\\\/$/, "\\/?")), {timeout:20_000});
         await expect(first.page.locator("body")).not.toContainText(/not assigned|unauthorized|forbidden/i, { timeout: 20_000 });
         await expect(first.page.locator("body")).not.toContainText(/assignedDriverUserId|internal company notes/i);
+        expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
+        if (portalType !== "driver") {
+          const quickActions = first.page.getByText("Quick actions", {exact:true});
+          await expect(quickActions).toBeVisible();
+          const actionCard = quickActions.locator("xpath=ancestor::*[contains(@class,'MuiCard-root')][1]");
+          await actionCard.getByRole("button").first().click();
+          await expect(first.page.getByRole("dialog")).toBeVisible();
+          expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
+        }
       } finally {
         await first.context.close();
         await second.context.close();

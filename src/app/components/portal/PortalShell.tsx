@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Card, CardActionArea, CardContent, Chip, CircularProgress, Divider, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 import type { PortalConfig, PortalMembershipContext } from "../../../portal-engine/types";
@@ -15,6 +15,12 @@ export default function PortalShell({ membership, config }: Props) {
   const searchParams = useSearchParams();
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
+  const [activeAction, setActiveAction] = useState<any>(null);
+  const [targetId, setTargetId] = useState("");
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [writeMessage, setWriteMessage] = useState("");
   const navigation = config?.navigation || (membership.navigation || []).map((id) => ({ id, label: label(id), route: `${membership.landingRoute || "/dashboard"}?section=${id}` }));
   useEffect(() => {
     if (!config || config.portalType === "driver" || !membership.workspaceId) return;
@@ -22,7 +28,26 @@ export default function PortalShell({ membership, config }: Props) {
     authenticatedFetch(getApiUrl(`professional-portal?${query.toString()}`), { suppressNativeErrorAlert: true })
       .then(async (response) => { const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error || "Unable to load portal data"); return body; })
       .then(setData).catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load portal data"));
-  }, [config, membership.workspaceId]);
+  }, [config, membership.workspaceId, reload]);
+  const actionTargets = useMemo(() => {
+    if (!activeAction || !data?.entities) return [];
+    const entityName = activeAction.mode === "create" ? activeAction.subjectEntity : activeAction.entity;
+    return data.entities.find((entity:any) => entity.entity === entityName)?.records || [];
+  }, [activeAction, data?.entities]);
+  const openAction = (action:any) => { setActiveAction(action); setTargetId(""); setFormValues({}); setWriteMessage(""); };
+  const submitAction = async () => {
+    if (!activeAction || !targetId) return;
+    setSaving(true); setWriteMessage("");
+    try {
+      const target = actionTargets.find((record:any) => record.id === targetId);
+      const response = await authenticatedFetch(getApiUrl("professional-portal"), { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ workspaceId:membership.workspaceId, portalType:config?.portalType, action:activeAction.id, writeToken:target?.writeToken, ...(activeAction.mode === "create" ? {subjectId:targetId} : {recordId:targetId}), values:formValues }), suppressNativeErrorAlert:true });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || "Unable to save this action");
+      setWriteMessage("Saved successfully. The workspace has been updated.");
+      setReload((value) => value + 1);
+    } catch (reason) { setWriteMessage(reason instanceof Error ? reason.message : "Unable to save this action"); }
+    finally { setSaving(false); }
+  };
   const section = searchParams.get("section") || "home";
   const displayedEntities = useMemo(() => {
     const all = data?.entities || [];
@@ -45,6 +70,7 @@ export default function PortalShell({ membership, config }: Props) {
       {displayedEntities.map((entity:any) => { const widget = config?.widgets.find((item) => item.entity === entity.entity); const records = entity?.records || []; return <Card key={entity.entity} variant="outlined" sx={{borderRadius:3,minWidth:0}}><CardContent><Stack direction="row" justifyContent="space-between" gap={1}><Typography fontWeight={900}>{widget?.title || entity.name}</Typography><Chip size="small" label={records.length} /></Stack><Divider sx={{my:1.5}} />{records.length === 0 ? <Typography variant="body2" color="text.secondary">No authorized records available.</Typography> : <Stack spacing={1.25}>{records.slice(0,section === "home" ? 5 : 50).map((record:any) => <Box key={record.id} sx={{p:1.25,borderRadius:2,bgcolor:"action.hover",overflow:"hidden"}}>{Object.entries(record.fields).slice(0,section === "home" ? 4 : 12).map(([key,value]) => <Stack key={key} direction="row" gap={1} justifyContent="space-between"><Typography variant="caption" color="text.secondary">{key}</Typography><Typography variant="caption" fontWeight={700} noWrap sx={{maxWidth:"60%"}}>{typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}</Typography></Stack>)}</Box>)}</Stack>}</CardContent></Card> })}
       {displayedEntities.length === 0 && <Alert severity="info">This section has no authorized records for your account.</Alert>}
     </Box>}
+    {!!data?.config?.writeActions?.length && <Card variant="outlined" sx={{borderRadius:3}}><CardContent><Typography fontWeight={900}>Quick actions</Typography><Typography variant="body2" color="text.secondary" sx={{mb:2}}>Updates are saved directly to the authorized workspace and notify the responsible team.</Typography><Stack direction="row" gap={1} flexWrap="wrap">{data.config.writeActions.map((action:any) => <Button key={action.id} variant="contained" onClick={() => openAction(action)}>{label(action.id.replace(":", " "))}</Button>)}</Stack></CardContent></Card>}
     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,1fr)", lg: "repeat(3,1fr)" }, gap: 2 }}>
       {navigation.map((item) => {
         const separator = item.route.includes("?") ? "&" : "?";
@@ -56,5 +82,16 @@ export default function PortalShell({ membership, config }: Props) {
         </Card>;
       })}
     </Box>
+    <Dialog open={!!activeAction} onClose={() => !saving && setActiveAction(null)} fullWidth maxWidth="sm">
+      <DialogTitle>{activeAction ? label(activeAction.id.replace(":", " ")) : "Portal action"}</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{pt:1}}>
+        <TextField select required label={activeAction?.mode === "create" ? activeAction?.subjectEntity : activeAction?.entity} value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+          {actionTargets.map((record:any, index:number) => <MenuItem key={record.id} value={record.id}>{Object.values(record.fields || {}).find((value) => typeof value === "string") || `${activeAction?.entity} ${index + 1}`}</MenuItem>)}
+        </TextField>
+        {(activeAction?.fields || []).map((field:string) => <TextField key={field} label={label(field)} value={formValues[field] || ""} multiline={/message|note|text|instruction/i.test(field)} minRows={/message|note|text|instruction/i.test(field) ? 3 : undefined} onChange={(event) => setFormValues((values) => ({...values,[field]:event.target.value}))} />)}
+        {writeMessage && <Alert severity={writeMessage.startsWith("Saved") ? "success" : "error"}>{writeMessage}</Alert>}
+      </Stack></DialogContent>
+      <DialogActions><Button onClick={() => setActiveAction(null)} disabled={saving}>Close</Button><Button variant="contained" onClick={submitAction} disabled={saving || !targetId}>{saving ? "Saving..." : "Save"}</Button></DialogActions>
+    </Dialog>
   </Stack>;
 }
