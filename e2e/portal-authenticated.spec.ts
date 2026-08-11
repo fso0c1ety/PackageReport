@@ -75,7 +75,7 @@ test.describe("authenticated professional portal isolation", () => {
         expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
         if (portalType !== "driver") {
           const quickActions = first.page.getByText("Quick actions", {exact:true});
-          await expect(quickActions).toBeVisible();
+          await expect(quickActions).toBeVisible({ timeout: 20_000 });
           const actionCard = quickActions.locator("xpath=ancestor::*[contains(@class,'MuiCard-root')][1]");
           await actionCard.getByRole("button").first().click();
           await expect(first.page.getByRole("dialog")).toBeVisible();

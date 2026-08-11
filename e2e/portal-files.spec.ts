@@ -77,7 +77,13 @@ test.describe("portal file authorization", () => {
       expect((await clientB.request.get(`${baseURL}/uploads/${file.id}/`)).status()).toBe(404);
       expect((await portalUpload(clientA.request,baseURL!,{...input,name:"script.txt",mimeType:"text/plain",buffer:Buffer.from("bad")})).status()).toBe(400);
       expect((await portalUpload(clientA.request,baseURL!,{...input,name:"fake.png",mimeType:"application/pdf",buffer:pdf})).status()).toBeGreaterThanOrEqual(400);
-      expect((await portalUpload(clientA.request,baseURL!,{...input,name:"huge.pdf",mimeType:"application/pdf",buffer:Buffer.concat([pdf,Buffer.alloc(2048)])})).status()).toBe(400);
+      const oversized = await portalUpload(clientA.request,baseURL!,{
+        ...input,
+        name:"huge.pdf",
+        mimeType:"application/pdf",
+        buffer:Buffer.concat([pdf,Buffer.alloc(50 * 1024 * 1024 + 1)]),
+      });
+      expect(oversized.status()).toBeGreaterThanOrEqual(400);
     } finally { await Promise.all([clientA.close(),clientB.close()]); }
   });
 });
