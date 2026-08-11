@@ -197,6 +197,7 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
     board("Payments", [{ name: "Child", type: "Relation" }, { name: "Parent", type: "Relation" }, { name: "Month", type: "Date" }, { name: "Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Discount", type: "Money", settings: { currency: "EUR" } }, { name: "Paid Amount", type: "Money", settings: { currency: "EUR" } }, { name: "Remaining Amount", type: "Formula", settings: { formula: "[Amount] - [Discount] - [Paid Amount]" } }, { name: "Due Date", type: "Date" }, status(["Paid", "Partially Paid", "Unpaid", "Overdue"], "Payment Status") ]),
     board("Employees", [{ name: "Position", type: "Dropdown" }, { name: "Phone", type: "Phone" }, { name: "Email", type: "Email" }, { name: "Contract", type: "Files" }, { name: "Schedule", type: "Timeline" }, { name: "Salary", type: "Money", settings: { currency: "EUR" } }, { name: "Documents", type: "Files" }, status(["Active", "Leave", "Inactive"]) ]),
     board("Meals", [{ name: "Date", type: "Date" }, { name: "Breakfast", type: "LongText" }, { name: "Lunch", type: "LongText" }, { name: "Snack", type: "LongText" }, { name: "Allergens", type: "Tags" }, { name: "Assigned Groups", type: "Relation" }]),
+    board("Activities", [{ name: "Title", type: "Text" }, { name: "Type", type: "Dropdown" }, { name: "Description", type: "LongText" }, { name: "Date / Time", type: "Date" }, { name: "Group", type: "Relation" }, { name: "Children", type: "Relation" }, { name: "Visibility", type: "Dropdown" }, { name: "Attachments", type: "Files" }]),
     board("Documents", [{ name: "Child", type: "Relation" }, { name: "Document Type", type: "Dropdown" }, { name: "Upload Date", type: "Date" }, { name: "Expiry Date", type: "Date" }, { name: "File", type: "Files" }, status(["Valid", "Missing", "Expiring", "Expired"]) ]),
   ], views: [
     { boardName: "Children", name: "Children Table", type: "table", isDefault: true },
@@ -225,6 +226,14 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
   ...ADDITIONAL_INDUSTRY_TEMPLATES,
   { key: "blank", icon: "\u2728", name: "Blank Workspace", category: "General", description: "Start clean and build your own workflow", color: "#a855f7", boards: [board("Main Board", [{ name: "Owner", type: "People" }, status(), { name: "Date", type: "Date" }])]},
 ];
+
+const dentalTemplate = WORKSPACE_TEMPLATES.find((template) => template.key === "dental_clinic");
+if (dentalTemplate && !dentalTemplate.boards.some((item) => item.name === "Lab Requests")) {
+  dentalTemplate.boards.splice(3, 0,
+    board("Lab Requests", [{ name: "Patient", type: "Relation" }, { name: "Test / Request Type", type: "Text" }, { name: "Priority", type: "Priority" }, { name: "Requested Date", type: "Date" }, { name: "Notes", type: "LongText" }, { name: "Share With Patient", type: "Checkbox" }, status(["Requested", "In Progress", "Completed", "Cancelled"]) ]),
+    board("Documents", [{ name: "Patient", type: "Relation" }, { name: "Document Type", type: "Dropdown" }, { name: "File", type: "Files" }, { name: "Visibility", type: "Dropdown" }, status(["Shared", "Staff Only", "Archived"]) ]),
+  );
+}
 
 export const getWorkspaceTemplate = (key?: string) =>
   WORKSPACE_TEMPLATES.find((template) => template.key === key)

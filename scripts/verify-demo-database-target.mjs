@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import pg from "pg";
 
 export function normalizedDatabaseIdentity(connectionString) {
@@ -15,6 +15,16 @@ export function assertExpectedDatabaseTarget(identity, env = process.env) {
   if (/localhost|127\.0\.0\.1|\.local$/i.test(identity.host)) throw new Error("Refusing local/test database target for the production demo environment");
 }
 
+export function assertDatabaseFingerprint(actual, env = process.env) {
+  const expected = String(env.DEMO_DATABASE_FINGERPRINT || "").trim().toLowerCase();
+  if (!expected) throw new Error("DEMO_DATABASE_FINGERPRINT is required for target verification");
+  const actualBuffer = Buffer.from(String(actual).toLowerCase());
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) {
+    throw new Error("Database fingerprint does not match the approved demo database target");
+  }
+}
+
 export async function verifyDemoDatabaseTarget({ connectionString = process.env.DATABASE_URL, env = process.env } = {}) {
   const identity = normalizedDatabaseIdentity(connectionString);
   assertExpectedDatabaseTarget(identity, env);
@@ -27,6 +37,7 @@ export async function verifyDemoDatabaseTarget({ connectionString = process.env.
     const row = result.rows[0];
     if (row.database !== identity.database) throw new Error("Connected database identity differs from DATABASE_URL target");
     const fingerprint = createHash("sha256").update(`${identity.host}:${identity.port}/${row.database}:${row.db_user}`).digest("hex").slice(0, 16);
+    assertDatabaseFingerprint(fingerprint, env);
     let migration027Schema = null;
     if (row.migration_027_applied) {
       const schema = await pool.query(`SELECT

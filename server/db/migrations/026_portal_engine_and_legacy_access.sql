@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS portal_definitions (
 );
 
 CREATE TABLE IF NOT EXISTS workspace_portal_overrides (
-  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   portal_id TEXT NOT NULL,
   portal_version INTEGER NOT NULL,
   overrides JSONB NOT NULL DEFAULT '{}'::jsonb,

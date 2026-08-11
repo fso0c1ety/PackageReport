@@ -18,6 +18,37 @@ test("driver is the first preserved config-driven portal", () => {
   assert.match(driver, /customerPrice.*carrierPrice.*margin.*internalNotes/);
 });
 
+test("professional portal registry contains only template-backed configurations", () => {
+  const registry = read("src", "portal-engine", "registry.ts");
+  const configs = read("src", "portal-engine", "configs", "professionals.ts");
+  for (const portal of ["teacher", "parent", "doctor", "patient", "client"]) {
+    assert.match(registry, new RegExp(`${portal}PortalConfig`));
+    assert.match(configs, new RegExp(`portalType:\\s*"${portal}"`));
+  }
+  assert.match(configs, /kindergarten_nursery/);
+  assert.match(configs, /dental_clinic/);
+  assert.match(configs, /freight_broker/);
+});
+
+test("shared professional portal API enforces exact membership, board permission and row scope", () => {
+  const route = read("src", "app", "api", "professional-portal", "route.js");
+  assert.match(route, /selectPortalMembership\(memberships, \{ workspaceId, portalType \}\)/);
+  assert.match(route, /Portal is not assigned to this account/);
+  assert.match(route, /requireBoardPermission/);
+  assert.match(route, /rowMatchesRecordAccess/);
+  assert.match(route, /config\.visibleFields/);
+  assert.match(route, /config\.hiddenFields/);
+  assert.doesNotMatch(route, /SELECT \*/);
+});
+
+test("patient and client configurations explicitly hide internal fields", () => {
+  const configs = read("src", "portal-engine", "configs", "professionals.ts");
+  for (const field of ["Medical Notes", "Cost", "Buy Rate", "Sell Rate", "Profit", "Dispatcher", "Carrier Paid"]) assert.match(configs, new RegExp(field));
+  assert.match(configs, /linkedPatientUserId/);
+  assert.match(configs, /linkedParentUserId/);
+  assert.match(configs, /clientCompanyId/);
+});
+
 test("workspace legacy shared users are normalized safely", () => {
   const migration = read("server", "db", "migrations", "026_portal_engine_and_legacy_access.sql");
   assert.match(migration, /jsonb_typeof\(shared_users\) = 'object'/);

@@ -72,3 +72,27 @@ test("legacy memberships preserve every valid non-driver portal role", async () 
     assert.deepEqual(membership.jobRoles, [portalType]);
   }
 });
+
+test("portal selection never crosses an explicitly requested workspace or role", async () => {
+  const { selectPortalMembership } = await import("../src/app/api/_lib/universalRoles.js");
+  const memberships = [
+    { workspaceId: "logistics-a", portalType: "driver" },
+    { workspaceId: "clinic-b", portalType: "doctor" },
+    { workspaceId: "school-c", portalType: "teacher" },
+  ];
+  assert.equal(selectPortalMembership(memberships, { workspaceId: "clinic-b" }), memberships[1]);
+  assert.equal(selectPortalMembership(memberships, { portalType: "teacher" }), memberships[2]);
+  assert.equal(selectPortalMembership(memberships, { workspaceId: "clinic-b", portalType: "driver" }), null);
+  assert.equal(selectPortalMembership(memberships, { workspaceId: "missing" }), null);
+  assert.equal(selectPortalMembership(memberships, { portalType: "parent" }), null);
+});
+
+test("portal context rejects an unassigned explicit portal instead of falling back", () => {
+  const route = read("src", "app", "api", "portal-context", "route.js");
+  const page = read("src", "app", "(dashboard)", "portal", "[portalType]", "page.tsx");
+  assert.match(route, /selectPortalMembership/);
+  assert.match(route, /Portal is not assigned to this account/);
+  assert.match(route, /status: 403/);
+  assert.match(page, /portal-context\?\$\{query\.toString\(\)\}/);
+  assert.doesNotMatch(page, /data\.memberships\?\.find/);
+});

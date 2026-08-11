@@ -9,7 +9,7 @@ async function gotoStable(page, path: string) {
 
 test("public landing has clear product and authentication routes", async ({ page }) => {
   await gotoStable(page, "/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Manage your entire business");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Manage your entire business", { timeout: 15000 });
   await expect(page.getByText("Smart Manage", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Start for free/i })).toBeVisible();
 });

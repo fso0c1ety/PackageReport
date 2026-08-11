@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
-import { listUserMemberships, normalizePortalType, PORTAL_ROUTES } from "../_lib/universalRoles";
+import { listUserMemberships, normalizePortalType, PORTAL_ROUTES, selectPortalMembership } from "../_lib/universalRoles";
 import { resolvePortalConfig } from "../../../portal-engine/registry";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(req) {
   const user = getAuthenticatedUser(req);
@@ -14,11 +16,13 @@ export async function GET(req) {
     const searchParams = new URL(req.url).searchParams;
     const requestedWorkspaceId = searchParams.get("workspaceId");
     const requestedPortalType = searchParams.get("portalType");
-    const active = memberships.find((membership) => requestedPortalType && membership.portalType === normalizePortalType(requestedPortalType))
-      || memberships.find((membership) => requestedWorkspaceId && String(membership.workspaceId) === String(requestedWorkspaceId))
-      || memberships.find((membership) => membership.portalType !== "standard")
-      || memberships[0]
-      || null;
+    const active = selectPortalMembership(memberships, {
+      workspaceId: requestedWorkspaceId,
+      portalType: requestedPortalType,
+    });
+    if ((requestedWorkspaceId || requestedPortalType) && !active) {
+      return NextResponse.json({ error: "Portal is not assigned to this account" }, { status: 403 });
+    }
     const withConfig = (membership) => membership ? { ...membership, portalConfig: resolvePortalConfig(membership) } : null;
     return NextResponse.json({ active: withConfig(active), memberships: memberships.map(withConfig) });
   } catch (error) {

@@ -5,6 +5,10 @@ import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireBoardPermission, requireRowPermission, requireWorkspacePermission } from "../_lib/authorization";
+import { listUserMemberships, selectPortalMembership } from "../_lib/universalRoles";
+import { resolvePortalConfig } from "../../../portal-engine/registry";
+import { portalWriteAction } from "../../../portal-engine/writeActions";
+import { validPortalCapability } from "../_lib/portalCapability";
 import fileSecurity from "../../../../server/services/fileSecurity";
 
 export const runtime = "nodejs";
@@ -75,6 +79,19 @@ async function validateUploadScope(formData, userId) {
   const tableId = String(formData.get("tableId") || "") || null;
   const rowId = String(formData.get("rowId") || "") || null;
   const visibility = formData.get("purpose") === "avatar" ? "profile" : "tenant";
+  const portalType = String(formData.get("portalType") || "");
+  const portalAction = String(formData.get("portalAction") || "");
+  if (portalType && portalAction && workspaceId && rowId) {
+    const definition = portalWriteAction(portalType, portalAction);
+    const memberships = await listUserMemberships(pool, userId);
+    const membership = selectPortalMembership(memberships, { workspaceId, portalType });
+    const config = membership && resolvePortalConfig(membership);
+    const subjectEntity = definition?.subjectEntity || definition?.entity;
+    const allowedNames = config?.entityScopes?.[subjectEntity] || [];
+    const row = (await pool.query("SELECT r.id,r.table_id,t.name,t.workspace_id FROM rows r JOIN tables t ON t.id=r.table_id WHERE r.id=$1", [rowId])).rows[0];
+    if (!definition?.fileField || !membership || !config || !row || row.workspace_id !== workspaceId || !allowedNames.some((name) => String(name).toLowerCase() === String(row.name).toLowerCase()) || !validPortalCapability(formData.get("writeToken"), userId, workspaceId, portalType, subjectEntity, rowId)) return null;
+    return { workspaceId, tableId: row.table_id, rowId, visibility: "portal" };
+  }
   if (rowId && !(await requireRowPermission(pool, userId, rowId, "editor", tableId))) return null;
   if (!rowId && tableId && !(await requireBoardPermission(pool, userId, tableId, "editor"))) return null;
   if (!rowId && !tableId && workspaceId && !(await requireWorkspacePermission(pool, userId, workspaceId, "member"))) return null;
