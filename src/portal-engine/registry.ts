@@ -1,7 +1,8 @@
 import { driverPortalConfig } from "./configs/driver";
+import { clientPortalConfig, doctorPortalConfig, parentPortalConfig, patientPortalConfig, teacherPortalConfig } from "./configs/professionals";
 import type { PortalConfig, PortalMembershipContext } from "./types";
 
-const registry: PortalConfig[] = [driverPortalConfig];
+const registry: PortalConfig[] = [driverPortalConfig, teacherPortalConfig, parentPortalConfig, doctorPortalConfig, patientPortalConfig, clientPortalConfig];
 
 export function listPortalConfigs() {
   return registry.slice();

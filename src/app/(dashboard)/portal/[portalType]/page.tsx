@@ -10,11 +10,12 @@ export default function DedicatedPortalPage({ params }: { params: Promise<{ port
   const [error, setError] = useState("");
   useEffect(() => {
     void Promise.resolve(params).then(async ({ portalType }) => {
-      const response = await authenticatedFetch(getApiUrl("portal-context"));
+      const requested = portalType.replaceAll("-", "_");
+      const query = new URLSearchParams({ portalType: requested });
+      const response = await authenticatedFetch(getApiUrl(`portal-context?${query.toString()}`));
       const data = await response.json().catch(() => null);
       if (!response.ok) return setError(data?.error || "Unable to load portal");
-      const requested = portalType.replaceAll("-", "_");
-      const membership = data.memberships?.find((item: any) => item.portalType === requested) || data.active;
+      const membership = data.active;
       if (!membership || membership.portalType !== requested) return setError("This portal is not assigned to your account.");
       setContext(membership);
     });

@@ -116,6 +116,25 @@ export function membershipFromRow(row) {
   };
 }
 
+export function selectPortalMembership(memberships = [], { workspaceId = null, portalType = null } = {}) {
+  const requestedWorkspaceId = workspaceId == null ? null : String(workspaceId);
+  const requestedPortalType = portalType == null ? null : normalizePortalType(portalType);
+
+  if (requestedWorkspaceId && requestedPortalType) {
+    return memberships.find((membership) =>
+      String(membership.workspaceId) === requestedWorkspaceId
+      && membership.portalType === requestedPortalType
+    ) || null;
+  }
+  if (requestedWorkspaceId) {
+    return memberships.find((membership) => String(membership.workspaceId) === requestedWorkspaceId) || null;
+  }
+  if (requestedPortalType) {
+    return memberships.find((membership) => membership.portalType === requestedPortalType) || null;
+  }
+  return memberships.find((membership) => membership.portalType !== "standard") || memberships[0] || null;
+}
+
 export async function listUserMemberships(pool, userId) {
   const schema = await pool.query(`SELECT
     EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_members' AND column_name='workspace_role') AS has_workspace_role,
