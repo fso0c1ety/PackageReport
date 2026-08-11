@@ -21,5 +21,8 @@ test("public contact endpoint validates, rate limits and blocks basic bots", () 
   const page = fs.readFileSync(require.resolve("../src/app/page.tsx"), "utf8");
   assert.match(page, /smartmanage:analytics/);
   assert.match(page, /fetch\("\/api\/contact\/"/);
-  assert.doesNotMatch(page, /emailjs\.send/);
+  assert.match(page, /emailjs\.send/);
+  assert.match(page, /template_iruhxjw/);
+  assert.match(page, /NEXT_PUBLIC_EMAILJS_CONTACT_TEMPLATE_ID/);
+  assert.match(page, /fetch\("\/api\/contact\//);
 });
