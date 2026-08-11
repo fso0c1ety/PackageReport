@@ -40,6 +40,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import DemoRequestForm from "./DemoRequestForm";
 import { WORKSPACE_TEMPLATES } from "../workspaceTemplates";
 import { marketingScreenshots } from "./marketingScreenshots";
+import emailjs from "@emailjs/browser";
 
 function trackMarketingEvent(name: string, detail: Record<string, string> = {}) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("smartmanage:analytics", { detail: { name, ...detail } }));
@@ -164,8 +165,21 @@ export default function LandingPage() {
 
     setContactSending(true);
     try {
-      const response = await fetch("/api/contact/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...contactValues, website: "", startedAt: contactStartedAt }) });
-      if (!response.ok) throw new Error("Contact delivery failed");
+      const templateParams = {
+        ...contactValues,
+        time: new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
+      };
+      try {
+        await emailjs.send(
+          process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "service_5jluyqm",
+          process.env.NEXT_PUBLIC_EMAILJS_CONTACT_TEMPLATE_ID || "template_iruhxjw",
+          templateParams,
+          process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "FGRqzofj81_soljPZ",
+        );
+      } catch {
+        const response = await fetch("/api/contact/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...contactValues, website: "", startedAt: contactStartedAt }) });
+        if (!response.ok) throw new Error("Contact delivery failed");
+      }
       trackMarketingEvent("contact_submission");
       setContactValues({ name: "", email: "", company: "", subject: "", message: "" });
       setContactStartedAt(Date.now());
