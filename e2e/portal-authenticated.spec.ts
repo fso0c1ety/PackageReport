@@ -63,7 +63,9 @@ test.describe("authenticated professional portal isolation", () => {
         expect(a.workspaceId).toBe(b.workspaceId);
         const idsA = recordIds(a.payload);
         const idsB = recordIds(b.payload);
-        expect([...idsA].filter((id) => idsB.has(id))).toEqual([]);
+        const overlap=[...idsA].filter((id) => idsB.has(id));
+        const overlapByEntity=(a.payload.entities || []).map((entity:any)=>({entity:entity.entity,ids:(entity.records || []).map((record:any)=>String(record.id)).filter((id:string)=>overlap.includes(id))})).filter((entry:any)=>entry.ids.length);
+        expect(overlap,JSON.stringify(overlapByEntity)).toEqual([]);
 
         const route = portalType === "driver" ? "/driver-trips/" : `/portal/${portalType}/`;
         await first.page.goto(route);

@@ -15,7 +15,7 @@ const WORKSPACES = [
   { key: "fleet", name: "Smart Manage Fleet Demo", templateKey: "fleet_management", counts: { Trucks: 6, Drivers: 6, Trips: 12, Fuel: 10, Maintenance: 8, Expenses: 10, Documents: 10 } },
   { key: "crm", name: "Smart Manage CRM Demo", templateKey: "crm_sales", counts: { Companies: 18, Contacts: 20, Deals: 12, "Sales Tasks": 16, "CRM Reports": 6 } },
   { key: "daycare", name: "Smart Manage Daycare Demo", templateKey: "kindergarten_nursery", counts: { Children: 16, Parents: 14, Groups: 4, Attendance: 32, Payments: 16, Employees: 6, Meals: 10, Documents: 8 } },
-  { key: "dental", name: "Smart Manage Dental Demo", templateKey: "dental_clinic", counts: { Patients: 16, Appointments: 24, Treatments: 18, "Dental Billing": 14, "Dental Inventory": 12 } },
+  { key: "dental", name: "Smart Manage Dental Demo", templateKey: "dental_clinic", counts: { Patients: 16, Appointments: 24, Treatments: 18, "Lab Requests": 8, Documents: 8, "Dental Billing": 14, "Dental Inventory": 12 } },
   { key: "construction", name: "Smart Manage Construction Demo", templateKey: "construction", counts: { Projects: 4, "Site Tasks": 24, Materials: 16, Contractors: 8, "Construction Reports": 8 } },
 ];
 

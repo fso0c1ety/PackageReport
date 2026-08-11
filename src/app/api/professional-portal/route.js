@@ -61,7 +61,9 @@ export async function GET(req) {
     const childrenTable = byName.get("children");
     for (const row of await rowsFor("Children")) {
       if (ids(value(row, childrenTable, "Parent")).some((id) => context.parentIds.has(id)) || String(row.values?._linkedParentUserId || "") === String(user.id)) context.childIds.add(String(row.id));
-      if (ids(value(row, childrenTable, "Group")).some((id) => context.groupIds.has(id))) context.childIds.add(String(row.id));
+      // A teacher may inherit every child in an assigned group. A parent must
+      // never inherit other children merely because they share that group.
+      if (portalType === "teacher" && ids(value(row, childrenTable, "Group")).some((id) => context.groupIds.has(id))) context.childIds.add(String(row.id));
       if (portalType === "teacher" && String(row.values?._classTeacherUserId || row.values?.classTeacherUserId || "") === String(user.id)) context.childIds.add(String(row.id));
       if (portalType === "parent" && context.childIds.has(String(row.id))) ids(value(row, childrenTable, "Group")).forEach((id) => context.groupIds.add(id));
     }
@@ -99,7 +101,14 @@ export async function GET(req) {
       if (["Appointments","Treatments"].includes(entity)) return hasUser(value(row, table, "Dentist"), user);
       if (entity === "Lab Requests") return context.patientIds.has(ids(value(row, table, "Patient"))[0]);
     }
-    if (portalType === "patient") return ids(value(row, table, "Patient")).some((id) => context.patientIds.has(id));
+    if (portalType === "patient") {
+      // Some patient-facing records are created before a relation column exists,
+      // so the canonical hidden user link must remain a valid backend scope.
+      // This is still tied to the authenticated user and never broadens access to
+      // another patient's rows.
+      if (String(row.values?._linkedPatientUserId || "") === String(user.id)) return true;
+      return ids(value(row, table, "Patient")).some((id) => context.patientIds.has(id));
+    }
     if (portalType === "client") {
       const explicitCompanyId = String(row.values?.clientCompanyId || "");
       if (explicitCompanyId) return context.clientIds.has(explicitCompanyId);
@@ -135,6 +144,16 @@ export async function GET(req) {
   }
   const timeline = [];
   if (portalType === "parent") {
+    for (const child of await rowsFor("Children")) {
+      if (!context.childIds.has(String(child.id))) continue;
+      for (const sleep of Array.isArray(child.values?._sleepEvents) ? child.values._sleepEvents : []) {
+        const start = sleep?.startedAt || sleep?.start;
+        if (!start) continue;
+        const end = sleep?.endedAt || sleep?.end || null;
+        const durationMinutes = end ? Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000)) : null;
+        timeline.push({ id:`Sleep:${child.id}:${start}`, at:start, type:"Sleep", description:end ? `Sleep completed · ${durationMinutes} min` : "Sleep started", durationMinutes });
+      }
+    }
     for (const entity of entities) for (const record of entity.records || []) {
       if (!["Attendance", "Meals", "Activities", "Documents"].includes(entity.entity)) continue;
       const dateValue = record.fields?.["Date / Time"] || record.fields?.Date || record.fields?.["Upload Date"] || record.updatedAt;
