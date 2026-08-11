@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { requireWritableSubscription } from "../../_lib/billing";
 
@@ -96,6 +96,20 @@ function getDeclaredColumnType(value) {
   return typeMap[normalizeMondayValue(value)] || null;
 }
 
+function normalizeExcelCellValue(value) {
+  if (value == null) return "";
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value !== "object") return value;
+  if (Object.prototype.hasOwnProperty.call(value, "result")) {
+    return normalizeExcelCellValue(value.result);
+  }
+  if (typeof value.text === "string") return value.text;
+  if (Array.isArray(value.richText)) {
+    return value.richText.map((part) => part?.text || "").join("");
+  }
+  return String(value);
+}
+
 export async function POST(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -130,19 +144,21 @@ export async function POST(req) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-    const firstSheetName = workbook.SheetNames[0];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const worksheet = workbook.worksheets[0];
+    const firstSheetName = worksheet?.name;
 
     if (!firstSheetName) {
       return NextResponse.json({ error: "Workbook is empty" }, { status: 400 });
     }
 
-    const worksheet = workbook.Sheets[firstSheetName];
-    const rawRows = XLSX.utils.sheet_to_json(worksheet, {
-      header: 1,
-      defval: "",
-      raw: false,
-      blankrows: false,
+    const rawRows = [];
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
+      const values = Array.from({ length: Math.max(row.cellCount, 1) }, (_, index) =>
+        normalizeExcelCellValue(row.getCell(index + 1).value)
+      );
+      rawRows.push(values);
     });
 
     const mondayHeaderRowIndex = rawRows.findIndex((row) => {
