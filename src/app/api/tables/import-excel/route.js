@@ -145,7 +145,11 @@ export async function POST(req) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    try {
+      await workbook.xlsx.load(buffer);
+    } catch {
+      return NextResponse.json({ error: "The uploaded file is not a valid Excel workbook" }, { status: 400 });
+    }
     const worksheet = workbook.worksheets[0];
     const firstSheetName = worksheet?.name;
 
@@ -239,9 +243,13 @@ export async function POST(req) {
 
       columns.forEach((column, columnIndex) => {
         const rawValue = row?.[columnIndex];
-        const normalizedValue = rawValue == null ? "" : String(rawValue).trim();
+        const normalizedValue = rawValue == null
+          ? ""
+          : column.type === "Numbers" && /^-?\d+(?:[.,]\d+)?$/.test(String(rawValue).trim())
+            ? Number(String(rawValue).trim().replace(",", "."))
+            : String(rawValue).trim();
         values[column.id] = normalizedValue;
-        if (normalizedValue) {
+        if (normalizedValue !== "") {
           hasData = true;
         }
       });
