@@ -55,8 +55,30 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Verify Android identity and canonical version
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          AAPT="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          BADGING="$($AAPT dump badging "$APK" | head -n 1)"
+          VERSION_NAME="$(node -p "require('./package.json').version")"
+          VERSION_CODE="$(node -p "require('./package.json').smartManage.androidVersionCode")"
+          echo "$BADGING" | grep -F "name='com.smartmanage.app'"
+          echo "$BADGING" | grep -F "versionName='$VERSION_NAME'"
+          echo "$BADGING" | grep -F "versionCode='$VERSION_CODE'"
+
+          if grep -R -E "REQUEST_INSTALL_PACKAGES|application/vnd\.android\.package-archive" android/app/src/main src/app/SmartManageUpdate.tsx; then
+            echo "Arbitrary APK installation behavior is forbidden."
+            exit 1
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug.apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

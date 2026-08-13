@@ -79,3 +79,15 @@ test("client update UI supports refresh, Windows lifecycle and non-blocking fail
     assert.ok(source.includes(contract), `missing update UI contract: ${contract}`);
   }
 });
+
+test("native PR workflows package and smoke-test Windows and verify Android metadata", () => {
+  const root = path.join(__dirname, "..");
+  const windows = fs.readFileSync(path.join(root, ".github/workflows/desktop-exe.yml"), "utf8");
+  const android = fs.readFileSync(path.join(root, ".github/workflows/android-build.yml"), "utf8");
+  for (const contract of ["pull_request:", "Smart Manage.exe", "app-update.yml", "Start-Process", "ProductVersion", "fso0c1ety", "PackageReport"]) {
+    assert.ok(windows.includes(contract), `missing Windows CI contract: ${contract}`);
+  }
+  for (const contract of ["npx cap sync android", "assembleDebug", "com.smartmanage.app", "versionName", "versionCode", "REQUEST_INSTALL_PACKAGES"]) {
+    assert.ok(android.includes(contract), `missing Android CI contract: ${contract}`);
+  }
+});

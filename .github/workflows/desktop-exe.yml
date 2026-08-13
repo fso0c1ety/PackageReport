@@ -2,6 +2,19 @@ name: Build Windows Desktop EXE
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - "server/**"
+      - "scripts/**"
+      - "electron/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - ".github/workflows/desktop-exe.yml"
   push:
     branches:
       - main
@@ -47,6 +60,35 @@ jobs:
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
+      - name: Verify packaged version and official update source
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json | ConvertFrom-Json
+          $app = Get-Item "dist-electron/win-unpacked/Smart Manage.exe"
+          if (-not $app) { throw "Packaged Smart Manage executable is missing." }
+          if (-not $app.VersionInfo.ProductVersion.StartsWith($package.version)) {
+            throw "Packaged version $($app.VersionInfo.ProductVersion) does not match $($package.version)."
+          }
+
+          $updateConfig = "dist-electron/win-unpacked/resources/app-update.yml"
+          if (-not (Test-Path $updateConfig)) { throw "Packaged updater metadata is missing." }
+          $updateText = Get-Content $updateConfig -Raw
+          if ($updateText -notmatch "provider:\s*github" -or $updateText -notmatch "owner:\s*fso0c1ety" -or $updateText -notmatch "repo:\s*PackageReport") {
+            throw "Packaged updater is not restricted to the official GitHub repository."
+          }
+          if ($updateText -match "(?i)(token|password|secret)\s*:") {
+            throw "Updater metadata contains a forbidden secret field."
+          }
+
+      - name: Smoke test packaged application startup
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "dist-electron/win-unpacked/Smart Manage.exe" -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 25
+          $process.Refresh()
+          if ($process.HasExited) { throw "Packaged Smart Manage exited during startup with code $($process.ExitCode)." }
+          Stop-Process -Id $process.Id -Force
+
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -56,3 +98,4 @@ jobs:
             dist-electron/*.yml
             dist-electron/*.blockmap
           if-no-files-found: error
+          retention-days: 7
