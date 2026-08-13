@@ -471,6 +471,21 @@ function getLocalDevServerUrl() {
 export function getServerUrl() {
   const configuredServer = normalizeBaseUrl(DEFAULT_SERVER_URL);
   if (configuredServer) {
+    if (typeof window !== 'undefined' && !isNativeStaticRuntime()) {
+      try {
+        const configuredHost = new URL(configuredServer).hostname.toLowerCase();
+        const browserHost = window.location.hostname.toLowerCase();
+        const isVercelPreview = browserHost.endsWith('.vercel.app') && browserHost !== configuredHost;
+
+        // Preview deployments include the same API routes as production. Keeping
+        // their requests same-origin avoids crossing into the production API.
+        if (isVercelPreview) {
+          return window.location.origin;
+        }
+      } catch {
+        // Keep the configured URL fallback for malformed browser state.
+      }
+    }
     return configuredServer.replace(/\/api$/i, '');
   }
 
