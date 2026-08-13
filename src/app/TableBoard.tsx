@@ -129,6 +129,79 @@ import CloseIcon from '@mui/icons-material/Close';
 import BackupTableIcon from '@mui/icons-material/BackupTable';
 import { supabase } from "../lib/supabase";
 
+type TableRealtimeListener = () => void;
+type TableRealtimeStatusListener = (status: string) => void;
+type TableRealtimeEntry = {
+  channel: ReturnType<typeof supabase.channel>;
+  listeners: Set<TableRealtimeListener>;
+  statusListeners: Set<TableRealtimeStatusListener>;
+  references: number;
+  cleanupTimer: ReturnType<typeof setTimeout> | null;
+  lastStatus: string | null;
+};
+
+const tableRealtimeEntries = new Map<string, TableRealtimeEntry>();
+
+function acquireTableRealtimeChannel(tableId: string, topic: string, listener: TableRealtimeListener, statusListener: TableRealtimeStatusListener) {
+  let entry = tableRealtimeEntries.get(tableId);
+  if (!entry) {
+    const listeners = new Set<TableRealtimeListener>();
+    const statusListeners = new Set<TableRealtimeStatusListener>();
+    const channel = supabase
+      .channel(topic, { config: { broadcast: { ack: true, self: false } } })
+      .on('broadcast', { event: `row-change:${topic}` }, (message) => {
+        const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
+        if (eventTopic !== topic) return;
+        if (typeof window !== 'undefined') (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
+        listeners.forEach((notify) => notify());
+      })
+      .on('broadcast', { event: `row-order:${topic}` }, (message) => {
+        const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
+        if (eventTopic !== topic) return;
+        if (typeof window !== 'undefined') (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
+        listeners.forEach((notify) => notify());
+      });
+    entry = { channel, listeners, statusListeners, references: 0, cleanupTimer: null, lastStatus: null };
+    tableRealtimeEntries.set(tableId, entry);
+    channel.subscribe((status) => {
+      const current = tableRealtimeEntries.get(tableId);
+      if (!current) return;
+      current.lastStatus = status;
+      current.statusListeners.forEach((notify) => notify(status));
+    });
+  }
+  if (entry.cleanupTimer) clearTimeout(entry.cleanupTimer);
+  entry.cleanupTimer = null;
+  entry.references += 1;
+  entry.listeners.add(listener);
+  entry.statusListeners.add(statusListener);
+  if (entry.lastStatus) statusListener(entry.lastStatus);
+  return {
+    channel: entry.channel,
+    release: () => {
+      const current = tableRealtimeEntries.get(tableId);
+      if (!current) return;
+      current.listeners.delete(listener);
+      current.statusListeners.delete(statusListener);
+      current.references = Math.max(0, current.references - 1);
+      if (current.references > 0) return;
+      current.cleanupTimer = setTimeout(() => {
+        const latest = tableRealtimeEntries.get(tableId);
+        if (latest !== current || latest.references > 0) return;
+        tableRealtimeEntries.delete(tableId);
+        void supabase.removeChannel(latest.channel);
+      }, 2_000);
+    },
+  };
+}
+
+function sendTableRealtimeInvalidation(tableId: string, event: 'row-change' | 'row-order', eventType?: string) {
+  // Mutating APIs publish after the database transaction commits. Keeping the
+  // publisher server-side prevents optimistic or failed writes from creating
+  // duplicate/stale invalidations.
+  void tableId; void event; void eventType;
+}
+
 const MapBoardView = dynamic(() => import("./board/views/MapBoardView"), { ssr: false });
 const ChartBoardView = dynamic(() => import("./board/views/ChartBoardView"), { ssr: false });
 const FormBoardView = dynamic(() => import("./board/views/FormBoardView"), { ssr: false });
@@ -2647,14 +2720,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   }, [rows]);
   const broadcastTableChange = React.useCallback((event: 'row-change' | 'row-order', payload: Record<string, any>) => {
-  const channel = tableRealtimeChannelRef.current;
-  if (!channel) return;
-  void channel.send({ type: 'broadcast', event, payload }).then((result) => {
-  if (result !== 'ok') {
-  console.warn('[TableBoard realtime] Broadcast was not acknowledged', { event, result });
-  }
-  });
-  }, []);
+  sendTableRealtimeInvalidation(tableId, event, payload.eventType);
+  }, [tableId]);
   useEffect(() => {
   rowsRef.current = rows;
   }, [rows]);
@@ -3217,7 +3284,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setRows((current) => {
   const currentRows = current.filter((row) => row.id !== 'placeholder');
   const unchanged = currentRows.length === nextRows.length && currentRows.every((row, index) => (
-  row.id === nextRows[index]?.id && (row as any).updated_at === (nextRows[index] as any)?.updated_at
+  row.id === nextRows[index]?.id
+  && (row as any).updated_at === (nextRows[index] as any)?.updated_at
+  && JSON.stringify(row.values ?? {}) === JSON.stringify(nextRows[index]?.values ?? {})
   ));
   return unchanged ? current : nextRows;
   });
@@ -3232,77 +3301,52 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   fallbackPollingId = setInterval(() => { void pollRowsFallback(); }, 15000);
   };
 
-  const channel = supabase
-  .channel(`table-rows-${tableId}`)
-  .on(
-  'postgres_changes',
-  { event: '*', schema: 'public', table: 'rows', filter: `table_id=eq.${tableId}` },
-  (payload: any) => {
-  if (payload.eventType === 'DELETE') {
-  const deletedId = payload.old?.id;
-  if (!deletedId) return;
-  setRows((prev) => prev.filter((row) => row.id !== deletedId));
-  return;
+  let cancelled = false;
+  let subscription: ReturnType<typeof acquireTableRealtimeChannel> | null = null;
+  const setupRealtime = async () => {
+  try {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/realtime-topic`), { suppressNativeErrorAlert: true });
+  if (!response.ok) throw new Error(`Realtime authorization failed (${response.status})`);
+  const data = await response.json();
+  if (cancelled || typeof data?.topic !== 'string') return;
+  subscription = acquireTableRealtimeChannel(tableId, data.topic, () => { void pollRowsFallback(); }, (status) => {
+  if (typeof window !== 'undefined') {
+  (window as any).__smartManageRealtimeStatus = {
+  ...((window as any).__smartManageRealtimeStatus || {}),
+  [tableId]: status,
+  };
   }
-
-  const realtimeRow = normalizeRealtimeRow(payload.new);
-  if (!realtimeRow?.id) return;
-
-  setRows((prev) => {
-  const withoutPlaceholder = prev.filter((row) => row.id !== 'placeholder');
-  const exists = withoutPlaceholder.some((row) => row.id === realtimeRow.id);
-  const nextRows = exists
-  ? withoutPlaceholder.map((row) => row.id === realtimeRow.id ? realtimeRow : row)
-  : [...withoutPlaceholder, realtimeRow];
-  return sortRowsForRealtime(nextRows);
-  });
-  }
-  )
-  .on('broadcast', { event: 'row-change' }, (message: any) => {
-  const eventType = message.payload?.eventType;
-  if (eventType === 'DELETE') {
-  const deletedId = message.payload?.rowId;
-  if (deletedId) setRows((prev) => prev.filter((row) => row.id !== deletedId));
-  return;
-  }
-
-  const realtimeRow = normalizeRealtimeRow(message.payload?.row);
-  if (!realtimeRow?.id) return;
-  setRows((prev) => {
-  const withoutPlaceholder = prev.filter((row) => row.id !== 'placeholder');
-  const exists = withoutPlaceholder.some((row) => row.id === realtimeRow.id);
-  return sortRowsForRealtime(exists
-  ? withoutPlaceholder.map((row) => row.id === realtimeRow.id ? realtimeRow : row)
-  : [...withoutPlaceholder, realtimeRow]);
-  });
-  })
-  .on('broadcast', { event: 'row-order' }, (message: any) => {
-  const orderedTaskIds = message.payload?.orderedTaskIds;
-  if (!Array.isArray(orderedTaskIds)) return;
-  const orderById = new Map(orderedTaskIds.map((id: string, index: number) => [id, index]));
-  setRows((prev) => withSequentialRowOrder([...prev].sort((a, b) => (
-  (orderById.get(a.id) ?? Number.MAX_SAFE_INTEGER)
-  - (orderById.get(b.id) ?? Number.MAX_SAFE_INTEGER)
-  ))));
-  })
-  .subscribe((status) => {
-  if (status === 'CHANNEL_ERROR') {
+  if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
   console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
   startFallbackPolling();
   } else if (status === 'SUBSCRIBED') {
   stopFallbackPolling();
+  // Recover changes missed while the browser or network was disconnected.
+  void pollRowsFallback();
   }
   });
-  tableRealtimeChannelRef.current = channel;
+  tableRealtimeChannelRef.current = subscription.channel;
+  } catch (error) {
+  if (cancelled) return;
+  console.warn('[TableBoard realtime] Unable to authorize table subscription', { tableId, error });
+  startFallbackPolling();
+  }
+  };
+  void setupRealtime();
 
   return () => {
-  if (tableRealtimeChannelRef.current === channel) {
+  cancelled = true;
+  const channel = subscription?.channel;
+  if (channel && tableRealtimeChannelRef.current === channel) {
   tableRealtimeChannelRef.current = null;
   }
   stopFallbackPolling();
-  void supabase.removeChannel(channel);
+  subscription?.release();
   };
-  }, [tableId, setRows]);
+  // The rows-store action identity may change as the board store rehydrates;
+  // resubscribing for that change creates a gap where edits cannot broadcast.
+  // The subscription is board-scoped and must change only with the board id.
+  }, [tableId]);
 
 
   // Debounced save for document content
@@ -4119,7 +4163,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   cellSaveVersionsRef.current[saveKey] = saveVersion;
   rowsStore.getState().upsertRow(updatedRow);
   rowsRef.current = sourceRows.map((row) => row.id === rowId ? updatedRow : row);
-  broadcastTableChange('row-change', { eventType: 'UPDATE', row: updatedRow, changedColumnId: colId, clientVersion: saveVersion, changedAt: Date.now() });
   if (reviewTaskRef.current?.id === rowId) {
   setReviewTaskSynced(updatedRow);
   }
@@ -4207,6 +4250,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setReviewTaskSynced(mergedRow);
   }
   }
+  broadcastTableChange('row-change', { eventType: 'UPDATE' });
   // Log backend debug logs if present
   const debugLogsHeader = response.headers.get("X-Debug-Logs");
   if (debugLogsHeader) {
