@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import brand from "../../../../config/brand.json";
 import {
   Box,
   Typography,
@@ -366,7 +367,7 @@ export default function SettingsPage() {
 
   const handleChangePlan = async (plan: string) => {
     if (plan === "enterprise") {
-      window.location.href = "mailto:a.gjendzz@gmail.com?subject=Smart%20Manage%20Enterprise%20Plan";
+      window.location.href = `${brand.supportMailto}?subject=Smart%20Manage%20Enterprise%20Plan`;
       return;
     }
     setCheckoutPlan(plan);

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { pool } from "../_lib/server";
 import { sendEmail } from "../_lib/mailer";
+import brand from "../../../../config/brand.json";
 import { WORKSPACE_TEMPLATES } from "../../../workspaceTemplates";
 import { recommendDemoTemplate } from "../_lib/demoProvisioning";
 
@@ -32,7 +33,7 @@ export async function POST(req) {
   await pool.query("INSERT INTO demo_request_events(id,demo_request_id,actor_id,event_type,data) VALUES($1,$2,NULL,'demo_requested',$3::jsonb)", [randomUUID(), id, JSON.stringify({ recommendedTemplate })]);
   const safe = { name: escapeHtml(name), company: escapeHtml(companyName), email: escapeHtml(email), type: escapeHtml(businessType), size: escapeHtml(teamSize || "Not specified"), message: escapeHtml(message || "—") };
   await Promise.allSettled([
-    sendEmail({ to: process.env.DEMO_REQUESTS_EMAIL_TO || process.env.CONTACT_EMAIL_TO || "a.gjendzz@gmail.com", subject: `[Demo Request] ${companyName}`, text: `Company: ${companyName}\nContact: ${name}\nEmail: ${email}\nBusiness type: ${businessType}\nTeam size: ${teamSize || "Not specified"}\nInterests: ${managementInterests.join(", ") || "Not specified"}\n\n${message}`, html: `<h2>New Smart Manage demo request</h2><p><b>Company:</b> ${safe.company}</p><p><b>Contact:</b> ${safe.name}</p><p><b>Email:</b> ${safe.email}</p><p><b>Business type:</b> ${safe.type}</p><p><b>Team size:</b> ${safe.size}</p><p>${safe.message}</p>` }),
+    sendEmail({ to: brand.supportEmail, subject: `[Demo Request] ${companyName}`, text: `Company: ${companyName}\nContact: ${name}\nEmail: ${email}\nBusiness type: ${businessType}\nTeam size: ${teamSize || "Not specified"}\nInterests: ${managementInterests.join(", ") || "Not specified"}\n\n${message}`, html: `<h2>New Smart Manage demo request</h2><p><b>Company:</b> ${safe.company}</p><p><b>Contact:</b> ${safe.name}</p><p><b>Email:</b> ${safe.email}</p><p><b>Business type:</b> ${safe.type}</p><p><b>Team size:</b> ${safe.size}</p><p>${safe.message}</p>` }),
     sendEmail({ to: email, subject: "We received your Smart Manage demo request", text: `Hi ${name.split(/\s+/)[0]},\n\nThanks for requesting a Smart Manage demo.\n\nWe've received your request for ${companyName}. Our team will review your requirements and prepare the Smart Manage experience most relevant to your business.\n\nWe'll contact you as soon as your demo is ready.\n\nSmart Manage\nby Aximo Studio` }),
   ]).then((results) => { if (results.some((result) => result.status === "rejected")) console.warn("demo_request_email_delivery_failed", { requestId: id }); });
   return NextResponse.json({ success: true, requestId: id }, { status: 201 });

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Box, Container, Typography, Stack, useTheme, Divider } from '@mui/material';
+import brand from '../../../config/brand.json';
 
 export default function RefundPage() {
   const theme = useTheme();
@@ -37,7 +38,7 @@ export default function RefundPage() {
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>4. How to Request a Refund</Typography>
             <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-              Please send an email to support@smart-manage.app with your account details and the reason for your refund request.
+              Please send an email to <a href={brand.supportMailto}>{brand.supportEmail}</a> with your account details and the reason for your refund request.
             </Typography>
           </Box>
         </Stack>
@@ -45,7 +46,7 @@ export default function RefundPage() {
         <Divider sx={{ my: 8 }} />
         
         <Typography variant="body2" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-          Questions about our refund policy? Email us at billing@smart-manage.app
+          Questions about our refund policy? Email us at <a href={brand.supportMailto}>{brand.supportEmail}</a>
         </Typography>
       </Container>
     </Box>

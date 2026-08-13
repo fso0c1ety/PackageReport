@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Box, Container, Typography, Stack, useTheme, Divider } from '@mui/material';
+import brand from '../../../config/brand.json';
 
 export default function TermsPage() {
   const theme = useTheme();
@@ -59,7 +60,7 @@ export default function TermsPage() {
         <Divider sx={{ my: 8 }} />
         
         <Typography variant="body2" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-          If you have any questions about these Terms, please contact us at support@smart-manage.app
+          If you have any questions about these Terms, please contact us at <a href={brand.supportMailto}>{brand.supportEmail}</a>
         </Typography>
       </Container>
     </Box>

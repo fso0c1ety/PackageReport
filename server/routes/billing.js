@@ -6,9 +6,10 @@ const authenticateToken = require("../middleware/authenticateToken");
 const { sendEmail } = require("../mailer");
 const billing = require("../services/billingService");
 const { getEnvSource } = require("../config/env");
+const brand = require("../../config/brand.json");
 
 const router = express.Router();
-const contactEmail = process.env.ENTERPRISE_CONTACT_EMAIL || "a.gjendzz@gmail.com";
+const contactEmail = brand.supportEmail;
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
 const stripeKeyPrefix = stripeSecretKey.startsWith("sk_live_")
   ? "sk_live"
