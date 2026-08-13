@@ -4,8 +4,11 @@ const test = require("node:test");
 
 test("public web landing remains visible and authenticated users get an explicit app CTA", () => {
   const page = fs.readFileSync(require.resolve("../src/app/page.tsx"), "utf8");
+  const header = fs.readFileSync(require.resolve("../src/app/PublicHeader.tsx"), "utf8");
   assert.doesNotMatch(page, /if \(hasToken\)[\s\S]{0,180}redirectToAppRoute/);
-  assert.match(page, /Open Smart Manage/);
+  assert.match(page, /<PublicHeader/);
+  assert.match(header, /Open Smart Manage/);
+  assert.match(header, /Public navigation/);
   assert.match(page, /Capacitor\.isNativePlatform\(\) \|\| isElectronRuntime\(\)/);
 });
 

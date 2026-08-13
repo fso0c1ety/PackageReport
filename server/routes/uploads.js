@@ -4,7 +4,7 @@ const path = require("path");
 const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const { createClient } = require("@supabase/supabase-js");
-const { createStorageKey, runVirusScanHook, validateFile } = require("../services/fileSecurity");
+const { createStorageKey, isMimeAllowed, runVirusScanHook, validateFile } = require("../services/fileSecurity");
 const metrics = require("../observability/metrics");
 
 function uploadMiddleware() {
@@ -12,13 +12,7 @@ function uploadMiddleware() {
     storage: multer.memoryStorage(),
     limits: { fileSize: Number(process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024) },
     fileFilter(_req, file, callback) {
-      const allowed = (process.env.ALLOWED_UPLOAD_MIME_TYPES || [
-        "image/jpeg", "image/jpg", "image/png", "application/pdf", "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel.sheet.macroEnabled.12", "application/vnd.ms-word.document.macroEnabled.12",
-      ].join(",")).split(",").map((item) => item.trim()).filter(Boolean);
-      const valid = allowed.some((type) => file.mimetype === type || file.mimetype.startsWith(type));
+      const valid = isMimeAllowed(String(file.mimetype || "").toLowerCase());
       callback(valid ? null : new Error("Unsupported file type"), valid);
     },
   }).single("file");
@@ -28,7 +22,7 @@ function createUploadsRouter({ db, getRowAccess, getTableAccess, getWorkspaceAcc
   const router = express.Router();
   router.post("/upload", (req, res) => {
     uploadMiddleware()(req, res, async (error) => {
-      if (error) return res.status(500).json({ error: "Multer upload error" });
+      if (error) return res.status(400).json({ error: "Unsupported file type or file too large" });
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
       try {
         const tableId = req.body?.tableId || null;

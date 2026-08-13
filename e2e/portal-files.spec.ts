@@ -1,8 +1,10 @@
 import { expect, test, type APIRequestContext, type Browser } from "@playwright/test";
+import ExcelJS from "exceljs";
 
 const password = process.env.SMART_MANAGE_PORTAL_TEST_PASSWORD;
 const pdf = Buffer.from("%PDF-1.4\n%%EOF\n");
 const png = Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);
+const jpeg = Buffer.from([0xff,0xd8,0xff,0xe0,0,0,0xff,0xd9]);
 
 async function login(browser: Browser, baseURL: string, email: string) {
   const context = await browser.newContext({ baseURL });
@@ -85,5 +87,41 @@ test.describe("portal file authorization", () => {
       });
       expect(oversized.status()).toBeGreaterThanOrEqual(400);
     } finally { await Promise.all([clientA.close(),clientB.close()]); }
+  });
+
+  test("general protected upload accepts real supported files and preserves tenant isolation", async ({browser,baseURL}) => {
+    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const clientA=await login(browser,baseURL!,"client-a@smartmanage-demo.com");
+    const clientB=await login(browser,baseURL!,"client-b@smartmanage-demo.com");
+    try {
+      const data=await portal(clientA.request,baseURL!,"client");
+      const load=data.payload.entities.find((entry:any)=>entry.entity==="Loads").records[0];
+      const tablesResponse=await manager.request.get(`${baseURL}/api/workspaces/${data.workspaceId}/tables`);
+      expect(tablesResponse.status()).toBe(200);
+      const loadsTable=(await tablesResponse.json()).find((table:any)=>table.name==="Loads");
+      expect(loadsTable).toBeTruthy();
+
+      const workbook=new ExcelJS.Workbook();
+      const sheet=workbook.addWorksheet("Acceptance");
+      sheet.addRow(["Name","Amount"]);
+      sheet.addRow(["Demo upload",42]);
+      const xlsx=Buffer.from(await workbook.xlsx.writeBuffer());
+      const files=[
+        {name:"acceptance.png",mimeType:"image/png",buffer:png},
+        {name:"acceptance.jpg",mimeType:"image/jpeg",buffer:jpeg},
+        {name:"acceptance.pdf",mimeType:"application/pdf",buffer:pdf},
+        {name:"acceptance.xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",buffer:xlsx},
+      ];
+      for(const fileInput of files){
+        const response=await manager.request.post(`${baseURL}/api/upload/`,{multipart:{
+          workspaceId:data.workspaceId,tableId:loadsTable.id,rowId:load.id,file:fileInput,
+        }});
+        expect(response.status(),await response.text()).toBe(200);
+        const file=await response.json();
+        expect((await manager.request.get(`${baseURL}/uploads/${file.id}/`)).status()).toBe(200);
+        expect((await clientA.request.get(`${baseURL}/uploads/${file.id}/`)).status()).toBe(200);
+        expect((await clientB.request.get(`${baseURL}/uploads/${file.id}/`)).status()).toBe(404);
+      }
+    } finally { await Promise.all([manager.close(),clientA.close(),clientB.close()]); }
   });
 });
