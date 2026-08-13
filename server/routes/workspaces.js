@@ -122,21 +122,23 @@ function createWorkspacesRouter({ db, logger }) {
 
   router.get("/workspaces/:workspaceId/tables", async (req, res) => {
     try {
-      const existing = await db.query("SELECT * FROM workspaces WHERE id = $1", [req.params.workspaceId]);
+      const existing = await db.query(`SELECT w.*,
+        COALESCE(wm.workspace_role,wm.role) AS member_role
+        FROM workspaces w
+        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
+        WHERE w.id=$1 LIMIT 1`, [req.params.workspaceId, req.user.id]);
       const workspace = existing.rows[0];
       if (!workspace) return res.status(404).json({ error: "Workspace not found" });
-      const shared = await db.query(`SELECT COUNT(*) FROM tables WHERE workspace_id = $1 AND EXISTS
+      const workspaceAdmin = workspace.owner_id === req.user.id
+        || ["owner", "admin", "logistics_admin", "manager"].includes(String(workspace.member_role || "").toLowerCase());
+      const result = await db.query(`SELECT t.* FROM tables t WHERE t.workspace_id = $1 AND ($2::boolean OR EXISTS
+        (SELECT 1 FROM board_member_access bma WHERE bma.table_id=t.id AND bma.user_id::text=$3::text) OR EXISTS
         (SELECT 1 FROM jsonb_array_elements(
-          CASE WHEN jsonb_typeof(COALESCE(shared_users, '[]'::jsonb)) = 'array'
-            THEN COALESCE(shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
-        ) elem WHERE COALESCE(elem->>'userId', elem#>>'{}') = $2)`, [req.params.workspaceId, req.user.id]);
-      if (workspace.owner_id !== req.user.id && parseInt(shared.rows[0].count, 10) === 0) return res.status(403).json({ error: "Forbidden" });
-      const result = await db.query(`SELECT * FROM tables WHERE workspace_id = $1 AND ($2 = $3 OR EXISTS
-        (SELECT 1 FROM jsonb_array_elements(
-          CASE WHEN jsonb_typeof(COALESCE(shared_users, '[]'::jsonb)) = 'array'
-            THEN COALESCE(shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
+          CASE WHEN jsonb_typeof(COALESCE(t.shared_users, '[]'::jsonb)) = 'array'
+            THEN COALESCE(t.shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
         ) elem WHERE COALESCE(elem->>'userId', elem#>>'{}') = $3))`,
-      [req.params.workspaceId, workspace.owner_id, req.user.id]);
+      [req.params.workspaceId, workspaceAdmin, req.user.id]);
+      if (!workspaceAdmin && result.rows.length === 0) return res.status(403).json({ error: "Forbidden" });
       return res.json(result.rows);
     } catch (error) {
       logger.error("workspace_tables_fetch_failed", { workspaceId: req.params.workspaceId, userId: req.user.id, error: error.message });

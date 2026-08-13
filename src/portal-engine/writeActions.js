@@ -17,6 +17,7 @@ const actions = Object.freeze({
     "clinical_note:create": { mode: "append", entity: "Treatments", targetField: "_clinicalNotes", fields: ["text"], scopeField: "_assignedDoctorUserId", notifyManager: true, sensitive: true },
     "follow_up:create": { mode: "create", entity: "Appointments", subjectEntity: "Patients", relationField: "Patient", fields: ["Name", "Date", "Treatment", "Status"], scopeField: "_assignedDoctorUserId", notifyExternal: true },
     "lab_request:create": { mode: "create", entity: "Lab Requests", subjectEntity: "Patients", relationField: "Patient", fields: ["Test / Request Type", "Priority", "Requested Date", "Status", "Share With Patient", "Notes"], scopeField: "_assignedDoctorUserId", notifyExternal: true, sensitive: true },
+    "lab_request:update": { mode: "update", entity: "Lab Requests", fields: ["Priority", "Requested Date", "Status", "Share With Patient"], scopeField: "_assignedDoctorUserId", notifyExternal: true, sensitive: true },
   }),
   patient: Object.freeze({
     "message:create": { mode: "message", entity: "Appointments", fields: ["message"], scopeField: "_linkedPatientUserId", notifyManager: true },

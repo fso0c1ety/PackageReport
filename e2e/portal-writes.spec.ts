@@ -11,23 +11,23 @@ const cases = [
 
 async function login(browser: Browser, email: string, baseURL: string) {
   const context = await browser.newContext({baseURL});
-  const page = await context.newPage();
-  await page.goto("/login/");
-  await page.getByLabel("Email Address").fill(email);
-  await page.locator('input[name="password"]').fill(password!);
-  await page.getByRole("button", {name:"Sign In"}).click();
-  await expect(page).not.toHaveURL(/\/login\/?(?:\?|$)/,{timeout:20_000});
-  const token = await page.evaluate(() => localStorage.getItem("token"));
+  const response = await context.request.post(`${baseURL}/api/login/`, {
+    data: { email, password },
+    headers: { Origin: baseURL },
+  });
+  const body = await response.json();
+  expect(response.status(), JSON.stringify(body)).toBe(200);
+  const token = body.token;
   expect(token).toBeTruthy();
   await context.setExtraHTTPHeaders({Authorization:`Bearer ${token}`});
   return context;
 }
 
 async function snapshot(request: APIRequestContext, baseURL: string, portalType: string) {
-  const contextResponse = await request.get(`${baseURL}/api/portal-context?portalType=${portalType}`);
+  const contextResponse = await request.get(`${baseURL}/api/portal-context/?portalType=${portalType}`);
   expect(contextResponse.status()).toBe(200);
   const portal = (await contextResponse.json()).active;
-  const response = await request.get(`${baseURL}/api/professional-portal?workspaceId=${encodeURIComponent(portal.workspaceId)}&portalType=${portalType}`);
+  const response = await request.get(`${baseURL}/api/professional-portal/?workspaceId=${encodeURIComponent(portal.workspaceId)}&portalType=${portalType}`);
   expect(response.status()).toBe(200);
   return {workspaceId:portal.workspaceId,payload:await response.json()};
 }
@@ -41,23 +41,23 @@ test.describe("professional portal write isolation", () => {
     const b = await login(browser,"driver-b@smartmanage-demo.com",baseURL!);
     const manager = await login(browser,"portal-manager@smartmanage-demo.com",baseURL!);
     try {
-      const portalResponse = await a.request.get(`${baseURL}/api/portal-context?portalType=driver`);
+      const portalResponse = await a.request.get(`${baseURL}/api/portal-context/?portalType=driver`);
       expect(portalResponse.status()).toBe(200);
       const workspaceId = (await portalResponse.json()).active.workspaceId;
-      const tripsResponse = await a.request.get(`${baseURL}/api/logistics/driver/trips?workspaceId=${workspaceId}`);
+      const tripsResponse = await a.request.get(`${baseURL}/api/logistics/driver/trips/?workspaceId=${workspaceId}`);
       expect(tripsResponse.status()).toBe(200);
       const trip = (await tripsResponse.json()).trips[0];
       expect(trip?.id).toBeTruthy();
       const nextStatus = trip.status === "Accepted" ? "Going to Pickup" : "Accepted";
-      const statusWrite = await a.request.patch(`${baseURL}/api/logistics/driver/trips`,{data:{workspaceId,tripId:trip.id,status:nextStatus,confirmed:true}});
+      const statusWrite = await a.request.patch(`${baseURL}/api/logistics/driver/trips/`,{data:{workspaceId,tripId:trip.id,status:nextStatus,confirmed:true}});
       expect(statusWrite.status()).toBe(200);
-      const expenseWrite = await a.request.post(`${baseURL}/api/logistics/driver/documents`,{data:{workspaceId,tripId:trip.id,category:"expense",amount:25,expenseType:"Toll",description:"Acceptance expense",file:{url:"https://example.com/acceptance-receipt.pdf",name:"acceptance-receipt.pdf",type:"application/pdf",size:100}}});
+      const expenseWrite = await a.request.post(`${baseURL}/api/logistics/driver/documents/`,{data:{workspaceId,tripId:trip.id,category:"expense",amount:25,expenseType:"Toll",description:"Acceptance expense",file:{url:"https://example.com/acceptance-receipt.pdf",name:"acceptance-receipt.pdf",type:"application/pdf",size:100}}});
       expect(expenseWrite.status()).toBe(200);
       const expense = await expenseWrite.json();
 
-      const foreignPortal = await b.request.get(`${baseURL}/api/portal-context?portalType=driver`);
+      const foreignPortal = await b.request.get(`${baseURL}/api/portal-context/?portalType=driver`);
       const foreignWorkspace = (await foreignPortal.json()).active.workspaceId;
-      const attack = await b.request.patch(`${baseURL}/api/logistics/driver/trips`,{data:{workspaceId:foreignWorkspace,tripId:trip.id,status:"Delivered",confirmed:true}});
+      const attack = await b.request.patch(`${baseURL}/api/logistics/driver/trips/`,{data:{workspaceId:foreignWorkspace,tripId:trip.id,status:"Delivered",confirmed:true}});
       expect(attack.status()).toBe(404);
 
       const tablesResponse = await manager.request.get(`${baseURL}/api/workspaces/${workspaceId}/tables`);
@@ -83,7 +83,7 @@ test.describe("professional portal write isolation", () => {
       const action = before.payload.config.writeActions.find((item:any) => item.id === entry.action);
       expect(action?.fields).toBeTruthy();
 
-      const write = await a.request.post(`${baseURL}/api/professional-portal`,{data:{workspaceId:before.workspaceId,portalType:entry.portalType,action:entry.action,recordId:record.id,writeToken:record.writeToken,values:entry.values,unexpectedAdminField:"must be ignored"}});
+      const write = await a.request.post(`${baseURL}/api/professional-portal/`,{data:{workspaceId:before.workspaceId,portalType:entry.portalType,action:entry.action,recordId:record.id,writeToken:record.writeToken,values:entry.values,unexpectedAdminField:"must be ignored"}});
       expect(write.status(), await write.text()).toBe(200);
       const after = await snapshot(a.request,baseURL!,entry.portalType);
       const updated = after.payload.entities.find((item:any) => item.entity === entry.entity)?.records?.find((item:any) => item.id === record.id);
@@ -101,7 +101,7 @@ test.describe("professional portal write isolation", () => {
       } finally { await manager.close(); }
 
       const foreign = await snapshot(b.request,baseURL!,entry.portalType);
-      const attack = await b.request.post(`${baseURL}/api/professional-portal`,{data:{workspaceId:foreign.workspaceId,portalType:entry.portalType,action:entry.action,recordId:record.id,writeToken:record.writeToken,values:entry.values}});
+      const attack = await b.request.post(`${baseURL}/api/professional-portal/`,{data:{workspaceId:foreign.workspaceId,portalType:entry.portalType,action:entry.action,recordId:record.id,writeToken:record.writeToken,values:entry.values}});
       expect(attack.status()).toBe(404);
     } finally { await a.close(); await b.close(); }
   });

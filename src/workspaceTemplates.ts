@@ -294,6 +294,20 @@ const portalPresetForRole = (key: string) => {
 export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateManifest => {
   const template = getWorkspaceTemplate(key);
   const category = template.category ?? categoryFor(template.key);
+  const boardNames = template.boards.map((seedBoard) => seedBoard.name);
+  const normalizedBoardName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/(?:ies|s)$/, (suffix) => suffix === "ies" ? "y" : "");
+  const relationAliases: Record<string, Record<string, string>> = {
+    construction: { Supplier: "Contractors" },
+    manufacturing: { Product: "Inventory", Materials: "Inventory" },
+    warehouse_distribution: { Order: "Purchase Orders", Orders: "Purchase Orders" },
+    kindergarten_nursery: { Child: "Children", "Assigned Groups": "Groups" },
+  };
+  const relationTarget = (columnName: string) => {
+    const alias = relationAliases[template.key]?.[columnName];
+    if (alias) return alias;
+    const normalizedColumn = normalizedBoardName(columnName);
+    return boardNames.find((boardName) => normalizedBoardName(boardName) === normalizedColumn);
+  };
   const hasFormula = template.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Formula"));
   const hasRelation = template.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Relation"));
   const fleetRelationTarget = (boardName: string, columnName: string) => {
@@ -336,7 +350,9 @@ export const getWorkspaceTemplateManifest = (key?: string): WorkspaceTemplateMan
     ...seedBoard,
     columns: [
       ...seedBoard.columns.map((column) => {
-        const relationBoard = column.type === "Relation" ? fleetRelationTarget(seedBoard.name, column.name) : undefined;
+        const relationBoard = column.type === "Relation"
+          ? column.settings?.relationBoard || fleetRelationTarget(seedBoard.name, column.name) || relationTarget(column.name)
+          : undefined;
         return relationBoard ? { ...column, settings: { ...(column.settings || {}), relationBoard } } : column;
       }),
       ...(template.key === "fleet_management" && seedBoard.name === "Expenses" && !seedBoard.columns.some((column) => column.name === "Driver")
@@ -385,6 +401,14 @@ export const validateWorkspaceTemplateCatalog = () => {
     if (!manifest.boards.length) errors.push(`${template.key}: boards are required`);
     if (template.key !== "blank" && manifest.boards.length < 2) errors.push(`${template.key}: multiple boards are required`);
     if (template.key !== "blank" && !manifest.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Relation"))) errors.push(`${template.key}: relation column is required`);
+    for (const seedBoard of manifest.boards) {
+      for (const column of seedBoard.columns.filter((candidate) => candidate.type === "Relation")) {
+        const relationBoard = column.settings?.relationBoard;
+        if (!relationBoard || !manifest.boards.some((candidate) => candidate.name === relationBoard)) {
+          errors.push(`${template.key}/${seedBoard.name}/${column.name}: relation target is invalid`);
+        }
+      }
+    }
     if (template.key !== "blank" && !manifest.boards.some((seedBoard) => seedBoard.columns.some((column) => column.type === "Formula"))) errors.push(`${template.key}: formula column is required`);
     if (!manifest.views.length) errors.push(`${template.key}: views are required`);
     if (!manifest.dashboards[0]?.widgets.length) errors.push(`${template.key}: dashboard widgets are required`);

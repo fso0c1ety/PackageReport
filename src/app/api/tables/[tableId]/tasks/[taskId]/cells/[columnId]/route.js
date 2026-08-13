@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../../../_lib/billing";
 import { requireRowPermission } from "../../../../../../_lib/authorization";
+import { broadcastTableInvalidation } from "../../../../../../_lib/tableRealtime";
 
 export const runtime = "nodejs";
 
@@ -26,5 +27,6 @@ export async function PATCH(req, { params }) {
     [taskId, tableId, JSON.stringify(patch)],
   );
   if (!result.rows[0]) return NextResponse.json({ error: "Row not found" }, { status: 404 });
-  return NextResponse.json({ success: true, task: result.rows[0], changedColumnId: columnId, version: Number(result.rows[0].version), clientVersion: body.clientVersion ?? null });
+  const realtimeBroadcasted = await broadcastTableInvalidation(tableId, "UPDATE");
+  return NextResponse.json({ success: true, task: result.rows[0], changedColumnId: columnId, version: Number(result.rows[0].version), clientVersion: body.clientVersion ?? null, realtimeBroadcasted });
 }

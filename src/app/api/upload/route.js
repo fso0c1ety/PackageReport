@@ -90,7 +90,7 @@ async function validateUploadScope(formData, userId) {
     const allowedNames = config?.entityScopes?.[subjectEntity] || [];
     const row = (await pool.query("SELECT r.id,r.table_id,t.name,t.workspace_id FROM rows r JOIN tables t ON t.id=r.table_id WHERE r.id=$1", [rowId])).rows[0];
     if (!definition?.fileField || !membership || !config || !row || row.workspace_id !== workspaceId || !allowedNames.some((name) => String(name).toLowerCase() === String(row.name).toLowerCase()) || !validPortalCapability(formData.get("writeToken"), userId, workspaceId, portalType, subjectEntity, rowId)) return null;
-    return { workspaceId, tableId: row.table_id, rowId, visibility: "portal" };
+    return { workspaceId, tableId: row.table_id, rowId, visibility: "tenant" };
   }
   if (rowId && !(await requireRowPermission(pool, userId, rowId, "editor", tableId))) return null;
   if (!rowId && tableId && !(await requireBoardPermission(pool, userId, tableId, "editor"))) return null;
@@ -144,7 +144,8 @@ export async function POST(req) {
   }
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    if (process.env.NODE_ENV === "production") {
+    const acceptanceLocalStorage = process.env.SMART_MANAGE_ACCEPTANCE_LOCAL_STORAGE === "true";
+    if (process.env.NODE_ENV === "production" && !acceptanceLocalStorage) {
       return NextResponse.json({ error: "Private object storage is not configured" }, { status: 503 });
     }
     try {
@@ -158,6 +159,10 @@ export async function POST(req) {
       }
       const scope = await validateUploadScope(formData, user.id);
       if (!scope) return NextResponse.json({ error: "Upload target not found or forbidden" }, { status: 404 });
+      if (acceptanceLocalStorage) {
+        const demo = scope.workspaceId && (await pool.query("SELECT is_demo FROM workspaces WHERE id=$1", [scope.workspaceId])).rows[0];
+        if (demo?.is_demo !== true) return NextResponse.json({ error: "Local acceptance storage is restricted to demo workspaces" }, { status: 403 });
+      }
       const fileBuffer = Buffer.from(await file.arrayBuffer());
       const security = fileSecurity.validateFile({ buffer: fileBuffer, originalName: file.name, mimeType: file.type, size: file.size });
       const scan = await fileSecurity.runVirusScanHook({ buffer: fileBuffer, metadata: security });

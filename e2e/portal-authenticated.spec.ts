@@ -13,26 +13,31 @@ const cases = [
 
 async function authenticatedContext(browser: Browser, email: string, baseURL: string, viewport: { width: number; height: number } | undefined) {
   const context = await browser.newContext({ baseURL, viewport });
-  const page = await context.newPage();
-  await page.goto("/login/");
-  await page.getByLabel("Email Address").fill(email);
-  await page.locator('input[name="password"]').fill(password!);
-  await page.getByRole("button", { name: "Sign In" }).click();
-  await expect(page).not.toHaveURL(/\/login\/?(?:\?|$)/, { timeout: 20_000 });
-  const token = await page.evaluate(() => localStorage.getItem("token"));
+  const response = await context.request.post(`${baseURL}/api/login/`, {
+    data: { email, password },
+    headers: { Origin: baseURL },
+  });
+  const body = await response.json();
+  expect(response.status(), JSON.stringify(body)).toBe(200);
+  const token = body.token;
   expect(token).toBeTruthy();
+  await context.addInitScript(({ accessToken, user }) => {
+    localStorage.setItem("token", accessToken);
+    localStorage.setItem("user", JSON.stringify(user));
+  }, { accessToken: token, user: body.user });
   await context.setExtraHTTPHeaders({Authorization:`Bearer ${token}`});
+  const page = await context.newPage();
   return { context, page };
 }
 
 async function portalPayload(context: BrowserContext, baseURL: string, portalType: string) {
-  const contextResponse = await context.request.get(`${baseURL}/api/portal-context?portalType=${portalType}`);
+  const contextResponse = await context.request.get(`${baseURL}/api/portal-context/?portalType=${portalType}`);
   expect(contextResponse.status()).toBe(200);
   const portalContext = await contextResponse.json();
   expect(portalContext.active?.portalType).toBe(portalType);
   expect(portalContext.active?.workspaceId).toBeTruthy();
 
-  const response = await context.request.get(`${baseURL}/api/professional-portal?workspaceId=${encodeURIComponent(portalContext.active.workspaceId)}&portalType=${portalType}`);
+  const response = await context.request.get(`${baseURL}/api/professional-portal/?workspaceId=${encodeURIComponent(portalContext.active.workspaceId)}&portalType=${portalType}`);
   expect(response.status()).toBe(200);
   const payload = await response.json();
   expect(JSON.stringify(payload)).not.toMatch(/assignedDriverUserId|internal company notes|customer price|carrier price|financial margin/i);
@@ -58,7 +63,9 @@ test.describe("authenticated professional portal isolation", () => {
         expect(a.workspaceId).toBe(b.workspaceId);
         const idsA = recordIds(a.payload);
         const idsB = recordIds(b.payload);
-        expect([...idsA].filter((id) => idsB.has(id))).toEqual([]);
+        const overlap=[...idsA].filter((id) => idsB.has(id));
+        const overlapByEntity=(a.payload.entities || []).map((entity:any)=>({entity:entity.entity,ids:(entity.records || []).map((record:any)=>String(record.id)).filter((id:string)=>overlap.includes(id))})).filter((entry:any)=>entry.ids.length);
+        expect(overlap,JSON.stringify(overlapByEntity)).toEqual([]);
 
         const route = portalType === "driver" ? "/driver-trips/" : `/portal/${portalType}/`;
         await first.page.goto(route);
@@ -68,7 +75,7 @@ test.describe("authenticated professional portal isolation", () => {
         expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
         if (portalType !== "driver") {
           const quickActions = first.page.getByText("Quick actions", {exact:true});
-          await expect(quickActions).toBeVisible();
+          await expect(quickActions).toBeVisible({ timeout: 20_000 });
           const actionCard = quickActions.locator("xpath=ancestor::*[contains(@class,'MuiCard-root')][1]");
           await actionCard.getByRole("button").first().click();
           await expect(first.page.getByRole("dialog")).toBeVisible();

@@ -170,7 +170,7 @@ async function getFileAccess(db, fileIdOrName, userId, required = "viewer") {
   );
   const file = result.rows[0];
   if (!file) return null;
-  if (String(file.uploaded_by || "") === String(userId) && !file.table_id && !file.row_id) return { file, role: "owner" };
+  if (String(file.uploaded_by || "") === String(userId)) return { file, role: "owner" };
   if (file.row_id) {
     const access = await getRowAccess(db, file.row_id, userId, required, file.table_id || null);
     return access ? { file, ...access } : null;

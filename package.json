@@ -29,9 +29,9 @@
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
     "@capacitor-community/fcm": "^8.1.0",
-    "@capacitor/android": "^8.1.0",
-    "@capacitor/cli": "^8.1.0",
-    "@capacitor/core": "^8.1.0",
+    "@capacitor/android": "8.3.0",
+    "@capacitor/cli": "8.3.0",
+    "@capacitor/core": "8.3.0",
     "@capacitor/ios": "^8.1.0",
     "@capacitor/local-notifications": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.1",
@@ -63,7 +63,7 @@
     "leaflet": "^1.9.4",
     "lightningcss": "^1.32.0",
     "multer": "^2.1.0",
-    "next": "16.1.5",
+    "next": "16.3.0",
     "node-fetch": "^2.7.0",
     "openai": "^6.33.0",
     "pg": "^8.19.0",
@@ -76,7 +76,6 @@
     "typescript": "^5",
     "uuid": "^13.0.0",
     "world-countries": "^5.1.0",
-    "xlsx": "^0.18.5",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

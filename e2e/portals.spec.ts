@@ -7,8 +7,8 @@ const portalCases = [
 
 for (const [role, path] of portalCases) {
   test(`${role} portal is protected and cannot leak records anonymously`, async ({ page }) => {
-    await page.goto(path, { waitUntil: "commit" }).catch((error) => { if (!String(error).includes("ERR_ABORTED")) throw error; });
-    await page.waitForTimeout(750);
+    await page.goto(path, { waitUntil: "domcontentloaded" }).catch((error) => { if (!String(error).includes("ERR_ABORTED")) throw error; });
+    await expect(page).toHaveURL(/\/login\/?(?:\?|$)/, { timeout: 20_000 });
     await expect(page).not.toHaveURL(/tripId=|rowId=/);
     await expect(page.locator("body")).not.toContainText(/assignedDriverUserId|internal company notes/i);
   });

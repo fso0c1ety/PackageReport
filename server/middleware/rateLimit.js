@@ -1,8 +1,14 @@
+const { createHash } = require("crypto");
+
 function createRateLimiter({ windowMs = 60000, max = 120, keyPrefix = "global" } = {}) {
   const buckets = new Map();
 
   return function rateLimiter(req, res, next) {
-    const key = `${keyPrefix}:${req.ip}:${req.user?.id || "anon"}`;
+    const bearer = String(req.headers?.authorization || "").replace(/^Bearer\s+/i, "").trim();
+    const authenticatedKey = req.user?.id || (bearer
+      ? `token:${createHash("sha256").update(bearer).digest("hex").slice(0, 20)}`
+      : "anon");
+    const key = `${keyPrefix}:${req.ip}:${authenticatedKey}`;
     if (process.env.REDIS_URL) {
       const { getRedisClient } = require("../realtime/redis");
       return getRedisClient().then(async (client) => {

@@ -25,6 +25,7 @@ const {
 } = require('../services/authSessionService');
 const { consumeAccountToken, replaceAccountToken } = require('../services/accountTokenService');
 const { getLoginProtectionState, recordAuthenticationEvent } = require('../services/loginProtectionService');
+const { resolvePublicAppUrl } = require('../config/publicAppUrl');
 
 const SECRET_KEY = getJwtSecret();
 const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: 'auth' });
@@ -51,10 +52,7 @@ const readCookie = (req, name) => String(req.headers.cookie || '')
   .split(';')
   .map((entry) => entry.trim().split('='))
   .find(([key]) => key === name)?.[1];
-const publicAppUrl = () => String(
-  process.env.APP_URL || process.env.NEXT_PUBLIC_FRONTEND_URL ||
-  (process.env.NODE_ENV === 'production' ? 'https://package-report.vercel.app' : 'http://localhost:3000')
-).replace(/\/$/, '');
+const publicAppUrl = () => resolvePublicAppUrl();
 const registrationResponse = {
   success: true,
   verificationRequired: true,
@@ -369,17 +367,7 @@ router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
       [uuidv4(), user.id, tokenHash, expiresAt, req.ip || null]
     );
 
-    const configuredAppUrl = String(
-      process.env.APP_URL
-      || process.env.NEXT_PUBLIC_FRONTEND_URL
-      || 'http://localhost:3000'
-    );
-    const appUrl = (
-      process.env.NODE_ENV === 'production'
-      && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredAppUrl)
-        ? 'https://package-report.vercel.app'
-        : configuredAppUrl
-    ).replace(/\/$/, '');
+    const appUrl = publicAppUrl();
     const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
     const displayName = user.name || 'there';
     try {

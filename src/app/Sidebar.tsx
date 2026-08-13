@@ -37,6 +37,7 @@ import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import BuildRoundedIcon from "@mui/icons-material/BuildRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
 import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
@@ -589,6 +590,7 @@ export default function Sidebar({
                 <SidebarItem icon={<SettingsIcon fontSize="small" />} label="Manage Modules" href={`/modules?id=${currentWorkspaceId}`} isActive={pathname === "/modules"} onClick={onClose} />
                 {workspaceModules.includes("crm") && <SidebarItem icon={<BusinessCenterRoundedIcon fontSize="small" />} label="CRM" href={`/workspace?id=${currentWorkspaceId}&module=crm`} isActive={searchParams.get("module") === "crm"} onClick={onClose} />}
                 {workspaceModules.includes("finance") && <SidebarItem icon={<AccountBalanceWalletRoundedIcon fontSize="small" />} label="Finance" href="/dashboard" isActive={pathname === "/dashboard"} onClick={onClose} />}
+                {workspaceModules.includes("finance") && <SidebarItem icon={<ReceiptLongRoundedIcon fontSize="small" />} label="Invoices" href={`/invoices?id=${currentWorkspaceId}`} isActive={pathname === "/invoices"} onClick={onClose} />}
                 {workspaceModules.includes("inventory") && <SidebarItem icon={<Inventory2RoundedIcon fontSize="small" />} label="Inventory" href={`/workspace?id=${currentWorkspaceId}&module=inventory`} isActive={searchParams.get("module") === "inventory"} onClick={onClose} />}
                 {workspaceModules.includes("hr") && <SidebarItem icon={<BadgeRoundedIcon fontSize="small" />} label="HR" href={`/workspace?id=${currentWorkspaceId}&module=hr`} isActive={searchParams.get("module") === "hr"} onClick={onClose} />}
                 {workspaceModules.includes("fleet") && <SidebarItem icon={<LocalShippingRoundedIcon fontSize="small" />} label="Fleet" href={`/workspace?id=${currentWorkspaceId}&module=fleet`} isActive={searchParams.get("module") === "fleet"} onClick={onClose} />}
