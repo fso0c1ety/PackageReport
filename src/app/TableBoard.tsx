@@ -2240,7 +2240,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   };
 
-  const handleDownloadInvoicePdf = async (draft: any) => {
+  const handleDownloadInvoicePdf = async (draft: any, download = true) => {
   if (!draft) return;
   try {
   const { jsPDF } = await import('jspdf');
@@ -2396,12 +2396,50 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const rawName = String(draft?.invoiceNumber || `invoice-${Date.now()}`);
   const safeName = rawName.replace(/[^a-z0-9-_]/gi, '_');
+  if (draft?.id && !draft?.pdfFileId && workspaceIdForImport) {
+  const blob = doc.output('blob');
+  const formData = new FormData();
+  formData.append('file', new File([blob], `${safeName}.pdf`, { type: 'application/pdf' }));
+  formData.append('workspaceId', workspaceIdForImport);
+  const upload = await authenticatedFetch(getApiUrl('/upload'), { method: 'POST', body: formData });
+  const uploaded = await upload.json();
+  if (!upload.ok || !uploaded?.id) throw new Error(uploaded?.error || 'Invoice PDF upload failed');
+  const attach = await authenticatedFetch(getApiUrl(`/invoices/${draft.id}`), {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pdfFileId: uploaded.id })
+  });
+  if (!attach.ok) throw new Error('Invoice PDF could not be attached');
+  const nextDraft = { ...draft, pdfFileId: uploaded.id };
+  setInvoiceDraft(nextDraft);
+  draft = nextDraft;
+  }
+  if (download) {
   doc.save(`${safeName}.pdf`);
   showNotification('Invoice PDF downloaded', 'success');
+  }
+  return draft;
   } catch (err) {
   console.error('Invoice PDF export failed:', err);
   showNotification('Failed to download invoice PDF', 'error');
   }
+  };
+
+  const persistGeneratedInvoice = async (draft: any, selectedRows: Row[]) => {
+  if (!workspaceIdForImport) throw new Error('Select a workspace before generating an invoice');
+  const response = await authenticatedFetch(getApiUrl('/invoices'), {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+  workspaceId: workspaceIdForImport, clientName: draft.clientName || draft.billTo,
+  issueDate: draft.issueDate, dueDate: draft.dueDate, currency: draft.currency,
+  subtotal: draft.subtotal, taxRate: draft.taxPercent, taxAmount: draft.taxAmount, total: draft.total,
+  items: draft.items, notes: draft.assumptions,
+  branding: { companyName: draft.companyName || draft.billFrom, logoUrl: draft.logoDataUrl || null, stampUrl: draft.stampDataUrl || null, design: draft.template, currency: draft.currency, taxRate: draft.taxPercent, dueDays: invoiceDueDays },
+  sourceRefs: { tableId, rowIds: selectedRows.map((row) => row.id) }
+  })
+  });
+  const data = await response.json();
+  if (!response.ok || !data?.invoice?.id) throw new Error(data?.error || 'Invoice could not be saved');
+  const saved = data.invoice;
+  return { ...draft, id: saved.id, invoiceNumber: saved.invoice_number, status: saved.status, pdfFileId: saved.pdf_file_id || null };
   };
 
   const handleGenerateInvoice = async () => {
@@ -2529,8 +2567,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   ? (aiResult?.response || "Invoice draft generated.")
   : "Nexus Brain couldn't enrich the invoice right now, so a draft was created from the selected tasks."
   );
-  setInvoiceDraft(finalizedDraft);
-  showNotification(hasAiItems ? 'Invoice draft is ready' : 'Invoice draft is ready (local fallback)', 'success');
+  const persistedDraft = await persistGeneratedInvoice(finalizedDraft, selectedRows);
+  setInvoiceDraft(persistedDraft);
+  await handleDownloadInvoicePdf(persistedDraft, false);
+  showNotification(hasAiItems ? 'Invoice saved and ready' : 'Invoice saved (local fallback)', 'success');
   } catch (err) {
   console.error("Invoice Generation Error:", err);
   const fallbackDraft = buildLocalInvoiceDraft(selectedRows);
@@ -2545,8 +2585,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   };
   const fallbackWithMarkdown = { ...decoratedFallback, markdown: buildInvoiceText(decoratedFallback) };
   setInvoiceSummary("Nexus Brain couldn't connect, so a draft was prepared from the selected tasks.");
-  setInvoiceDraft(fallbackWithMarkdown);
-  showNotification('Invoice draft is ready (local fallback)', 'success');
+  try {
+  const persistedFallback = await persistGeneratedInvoice(fallbackWithMarkdown, selectedRows);
+  setInvoiceDraft(persistedFallback);
+  await handleDownloadInvoicePdf(persistedFallback, false);
+  showNotification('Invoice saved (local fallback)', 'success');
+  } catch (persistError) {
+  console.error('Invoice persistence failed:', persistError);
+  setInvoiceDraft(null);
+  showNotification('Invoice was not generated because it could not be saved', 'error');
+  }
   } finally {
   setIsInvoiceGenerating(false);
   }

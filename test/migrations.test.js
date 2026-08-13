@@ -52,3 +52,8 @@ test("template portal preset migration is included in production deploys", () =>
   assert.match(migration, /primary_job_role/);
   assert.match(migration, /permitted_portals/);
 });
+
+test("invoice registry migration is included in production deploys", () => {
+  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  assert.match(buildScript, /030_invoice_registry\.sql/);
+});
