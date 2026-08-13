@@ -1,5 +1,8 @@
 import crypto, { randomUUID } from "node:crypto";
 import { pool } from "./server";
+import publicAppUrlResolver from "../../../../server/config/publicAppUrl";
+
+const { resolvePublicAppUrl } = publicAppUrlResolver;
 
 export function hashAccountToken(token) {
   return crypto.createHash("sha256").update(String(token)).digest("hex");
@@ -29,6 +32,5 @@ export async function replaceAccountToken({ table, userId, pendingProfile }) {
 }
 
 export function publicAppUrl(req) {
-  const requestOrigin = new URL(req.url).origin;
-  return String(process.env.APP_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || requestOrigin).replace(/\/$/, "");
+  return resolvePublicAppUrl({ requestUrl: req?.url });
 }
