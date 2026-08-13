@@ -48,5 +48,10 @@ test("private download route issues short-lived signed URLs after authorization"
 test("upload route maps file validation failures to a professional 400 response", () => {
   const route = fs.readFileSync(path.join(__dirname, "../src/app/api/upload/route.js"), "utf8");
   assert.match(route, /error\?\.name === "FileValidationError"/);
+  assert.match(route, /fileSecurity\.isMimeAllowed/);
   assert.match(route, /status: 400/);
+
+  const legacyRoute = fs.readFileSync(path.join(__dirname, "../server/routes/uploads.js"), "utf8");
+  assert.match(legacyRoute, /isMimeAllowed\(String\(file\.mimetype/);
+  assert.match(legacyRoute, /status\(400\)\.json\(\{ error: "Unsupported file type or file too large" \}\)/);
 });

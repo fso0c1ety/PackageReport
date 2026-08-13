@@ -71,7 +71,8 @@ async function ensureBucketExists(supabase, bucket, isPublic = false) {
 
 function isAllowedUpload(file) {
   return file.size <= maxUploadBytes &&
-    allowedMimePrefixes.some((prefix) => file.type === prefix || file.type.startsWith(prefix));
+    allowedMimePrefixes.length > 0 &&
+    fileSecurity.isMimeAllowed(String(file.type || "").toLowerCase());
 }
 
 async function validateUploadScope(formData, userId) {
