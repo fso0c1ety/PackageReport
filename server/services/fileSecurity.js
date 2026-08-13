@@ -4,6 +4,7 @@ const path = require("path");
 const MIME_EXTENSIONS = {
   "image/jpeg": [".jpg", ".jpeg"],
   "image/png": [".png"],
+  "image/webp": [".webp"],
   "application/pdf": [".pdf"],
   "application/msword": [".doc"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
@@ -13,9 +14,23 @@ const MIME_EXTENSIONS = {
   "application/vnd.ms-word.document.macroEnabled.12": [".docm"],
 };
 
-function allowedMimeTypes() {
-  return new Set((process.env.ALLOWED_UPLOAD_MIME_TYPES || Object.keys(MIME_EXTENSIONS).join(","))
-    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean));
+class FileValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "FileValidationError";
+    this.statusCode = 400;
+  }
+}
+
+function configuredMimeTypes() {
+  return (process.env.ALLOWED_UPLOAD_MIME_TYPES || Object.keys(MIME_EXTENSIONS).join(","))
+    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+}
+
+function isMimeAllowed(mime) {
+  return configuredMimeTypes().some((configured) => configured === mime ||
+    (configured.endsWith("/*") && mime.startsWith(configured.slice(0, -1))) ||
+    (configured.endsWith("/") && mime.startsWith(configured)));
 }
 
 function sanitizeFilename(name) {
@@ -31,6 +46,7 @@ function signatureMatches(buffer, mime) {
   if (mime === "application/pdf") return buffer.subarray(0, 5).toString() === "%PDF-";
   if (mime === "image/png") return buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
   if (mime === "image/jpeg") return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[buffer.length - 2] === 0xff && buffer[buffer.length - 1] === 0xd9;
+  if (mime === "image/webp") return buffer.subarray(0, 4).toString() === "RIFF" && buffer.subarray(8, 12).toString() === "WEBP";
   if (mime.includes("openxmlformats") || mime.includes("macroEnabled")) return buffer[0] === 0x50 && buffer[1] === 0x4b;
   if (mime === "application/msword" || mime === "application/vnd.ms-excel") {
     return buffer.subarray(0, 8).equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1]));
@@ -39,14 +55,15 @@ function signatureMatches(buffer, mime) {
 }
 
 function validateFile({ buffer, originalName, mimeType, size }) {
-  const mime = String(mimeType || "").toLowerCase();
+  const suppliedMime = String(mimeType || "").toLowerCase();
+  const mime = suppliedMime === "image/jpg" ? "image/jpeg" : suppliedMime;
   const extension = path.extname(String(originalName || "")).toLowerCase();
   const maxBytes = Number(process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024);
-  if (!buffer || size <= 0) throw new Error("Empty file");
-  if (size > maxBytes) throw new Error("File exceeds maximum upload size");
-  if (!allowedMimeTypes().has(mime)) throw new Error("Unsupported MIME type");
-  if (!(MIME_EXTENSIONS[mime] || []).includes(extension)) throw new Error("File extension does not match MIME type");
-  if (!signatureMatches(buffer, mime)) throw new Error("File signature does not match MIME type");
+  if (!buffer || size <= 0) throw new FileValidationError("Empty file");
+  if (size > maxBytes) throw new FileValidationError("File exceeds maximum upload size");
+  if (!MIME_EXTENSIONS[mime] || !isMimeAllowed(mime)) throw new FileValidationError("Unsupported MIME type");
+  if (!MIME_EXTENSIONS[mime].includes(extension)) throw new FileValidationError("File extension does not match MIME type");
+  if (!signatureMatches(buffer, mime)) throw new FileValidationError("File signature does not match MIME type");
   return { safeName: sanitizeFilename(originalName), checksum: crypto.createHash("sha256").update(buffer).digest("hex"), mime };
 }
 
@@ -71,4 +88,4 @@ async function runVirusScanHook({ buffer, metadata }) {
   return { status: "clean" };
 }
 
-module.exports = { createStorageKey, runVirusScanHook, sanitizeFilename, signatureMatches, validateFile };
+module.exports = { createStorageKey, FileValidationError, isMimeAllowed, runVirusScanHook, sanitizeFilename, signatureMatches, validateFile };

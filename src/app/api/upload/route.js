@@ -137,6 +137,13 @@ async function persistLocalUpload(file, fileBuffer, userId, scope, security) {
   };
 }
 
+function uploadErrorResponse(error) {
+  if (error?.name === "FileValidationError" || error?.statusCode === 400) {
+    return NextResponse.json({ error: error.message || "Invalid file" }, { status: 400 });
+  }
+  return null;
+}
+
 export async function POST(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -170,6 +177,8 @@ export async function POST(req) {
       const local = await persistLocalUpload(file, fileBuffer, user.id, scope, security);
       return NextResponse.json(local);
     } catch (localErr) {
+      const validationResponse = uploadErrorResponse(localErr);
+      if (validationResponse) return validationResponse;
       return NextResponse.json(
         {
           error:
@@ -284,6 +293,8 @@ export async function POST(req) {
       bucket: targetBucket,
     });
   } catch (err) {
+    const validationResponse = uploadErrorResponse(err);
+    if (validationResponse) return validationResponse;
     console.error("[UPLOAD][POST] Error:", err);
     return NextResponse.json(
       { error: "Internal server error", details: err?.message || String(err) },
