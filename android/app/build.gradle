@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+def packageMetadata = new JsonSlurper().parseText(file('../../package.json').text)
+def canonicalVersionName = packageMetadata.version as String
+def configuredVersionCode = System.getenv('SMART_MANAGE_ANDROID_VERSION_CODE')
+def canonicalVersionCode = configuredVersionCode ? configuredVersionCode.toInteger() : (packageMetadata.smartManage.androidVersionCode as Integer)
+
 android {
     namespace = "com.smartmanage.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +14,10 @@ android {
         applicationId "com.smartmanage.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Semver comes from package.json. versionCode is a separately monotonic
+        // Play Store integer and may be overridden by the release pipeline.
+        versionCode canonicalVersionCode
+        versionName canonicalVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

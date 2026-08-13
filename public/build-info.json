@@ -1,15 +1,15 @@
 {
-  "version": "0.1.0",
+  "version": "1.0.0",
   "buildCommit": "",
-  "buildDate": "2026-08-10T15:26:37.338Z",
-  "minimumVersion": "0.1.0",
-  "forceUpdate": false,
+  "buildDate": "2026-08-13T11:12:03.765Z",
+  "minimumVersion": "1.0.0",
+  "updateType": "OPTIONAL",
   "message": "A new SMART MANAGE update is available. Tap update to install the latest build.",
   "releaseNotesUrl": "https://package-report.vercel.app",
   "downloads": {
-    "desktop": "https://package-report.vercel.app",
-    "android": "https://package-report.vercel.app",
-    "ios": "https://package-report.vercel.app",
+    "desktop": "https://github.com/fso0c1ety/PackageReport/releases/latest/download/Smart.Manage.zip",
+    "android": null,
+    "ios": null,
     "web": "https://package-report.vercel.app"
   }
 }

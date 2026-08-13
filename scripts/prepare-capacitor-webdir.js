@@ -50,16 +50,16 @@ function writeBuildInfo() {
       process.env.COMMIT_SHA ||
       '',
     buildDate: new Date().toISOString(),
-    minimumVersion: process.env.NEXT_PUBLIC_MINIMUM_APP_VERSION || packageJson.version || '0.1.0',
-    forceUpdate: /^true$/i.test(process.env.NEXT_PUBLIC_FORCE_APP_UPDATE || ''),
+    minimumVersion: process.env.SMART_MANAGE_MINIMUM_VERSION || packageJson.version || '1.0.0',
+    updateType: process.env.SMART_MANAGE_UPDATE_TYPE || 'OPTIONAL',
     message:
       process.env.NEXT_PUBLIC_UPDATE_MESSAGE ||
       'A new SMART MANAGE update is available. Tap update to install the latest build.',
     releaseNotesUrl: process.env.NEXT_PUBLIC_RELEASE_NOTES_URL || fallbackHostedUrl,
     downloads: {
-      desktop: process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL || process.env.NEXT_PUBLIC_APP_UPDATE_URL || fallbackHostedUrl,
-      android: process.env.NEXT_PUBLIC_ANDROID_DOWNLOAD_URL || process.env.NEXT_PUBLIC_APP_UPDATE_URL || fallbackHostedUrl,
-      ios: process.env.NEXT_PUBLIC_IOS_DOWNLOAD_URL || process.env.NEXT_PUBLIC_APP_UPDATE_URL || fallbackHostedUrl,
+      desktop: 'https://github.com/fso0c1ety/PackageReport/releases/latest/download/Smart.Manage.zip',
+      android: process.env.SMART_MANAGE_ANDROID_STORE_URL || null,
+      ios: process.env.SMART_MANAGE_IOS_STORE_URL || null,
       web: process.env.NEXT_PUBLIC_WEB_UPDATE_URL || fallbackHostedUrl,
     },
   };

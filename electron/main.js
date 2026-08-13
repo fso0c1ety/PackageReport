@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, protocol, net, Tray, Menu, nativeImage, ipcMain, safeStorage } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
 
@@ -9,6 +10,53 @@ let tray = null;
 let isQuitting = false;
 let closeToTrayNoticeShown = false;
 const SPLASH_MINIMUM_MS = 10000;
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+let updateCheckTimer = null;
+let desktopUpdateState = { state: "idle", version: app.getVersion() };
+
+function publishUpdateState(patch) {
+  desktopUpdateState = { ...desktopUpdateState, ...patch };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("smart-manage-updater:state", desktopUpdateState);
+  }
+}
+
+function configureDesktopUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.setFeedURL({ provider: "github", owner: "fso0c1ety", repo: "PackageReport" });
+
+  autoUpdater.on("checking-for-update", () => publishUpdateState({ state: "checking" }));
+  autoUpdater.on("update-not-available", () => publishUpdateState({ state: "idle", version: app.getVersion() }));
+  autoUpdater.on("update-available", (info) => publishUpdateState({ state: "available", version: info.version }));
+  autoUpdater.on("download-progress", (info) => publishUpdateState({ state: "downloading", percent: info.percent, version: info.version || desktopUpdateState.version }));
+  autoUpdater.on("update-downloaded", (info) => publishUpdateState({ state: "ready", percent: 100, version: info.version }));
+  autoUpdater.on("error", (error) => {
+    console.warn("[electron-updater] Update operation failed:", error.message);
+    publishUpdateState({ state: "error", message: "The update could not be completed." });
+  });
+
+  ipcMain.handle("smart-manage-updater:check", async () => {
+    if (!app.isPackaged) return publishUpdateState({ state: "idle", version: app.getVersion() });
+    await autoUpdater.checkForUpdates();
+  });
+  ipcMain.handle("smart-manage-updater:download", async () => {
+    if (!app.isPackaged || desktopUpdateState.state !== "available") return;
+    await autoUpdater.downloadUpdate();
+  });
+  ipcMain.handle("smart-manage-updater:install", () => {
+    if (!app.isPackaged || desktopUpdateState.state !== "ready") return;
+    isQuitting = true;
+    autoUpdater.quitAndInstall(false, true);
+  });
+  ipcMain.handle("smart-manage-updater:state", () => desktopUpdateState);
+
+  if (app.isPackaged) {
+    setTimeout(() => autoUpdater.checkForUpdates().catch(() => undefined), 15000);
+    updateCheckTimer = setInterval(() => autoUpdater.checkForUpdates().catch(() => undefined), UPDATE_CHECK_INTERVAL_MS);
+  }
+}
 
 function secureAuthFile() {
   return path.join(app.getPath("userData"), "secure-auth.bin");
@@ -369,6 +417,7 @@ app.whenReady().then(() => {
   app.setName("Smart Manage");
   app.setAppUserModelId("com.packagereport.desktop");
   registerSecureAuthStorage();
+  configureDesktopUpdater();
 
   const { session } = require("electron");
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -498,6 +547,7 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  if (updateCheckTimer) clearInterval(updateCheckTimer);
 });
 
 app.on("window-all-closed", () => {
