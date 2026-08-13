@@ -128,6 +128,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import BackupTableIcon from '@mui/icons-material/BackupTable';
 import { supabase } from "../lib/supabase";
+import { downloadStoredInvoicePdf } from "./invoicePdfDownload";
 
 type TableRealtimeListener = () => void;
 type TableRealtimeStatusListener = (status: string) => void;
@@ -2243,6 +2244,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const handleDownloadInvoicePdf = async (draft: any, download = true) => {
   if (!draft) return;
   try {
+  if (download && draft?.id && draft?.pdfFileId) {
+  await downloadStoredInvoicePdf(String(draft.id), String(draft.invoiceNumber || 'invoice'));
+  showNotification('Invoice PDF downloaded', 'success');
+  return draft;
+  }
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const margin = 40;
@@ -2413,13 +2419,18 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   draft = nextDraft;
   }
   if (download) {
+  if (draft?.id && draft?.pdfFileId) {
+  await downloadStoredInvoicePdf(String(draft.id), String(draft.invoiceNumber || safeName));
+  } else {
   doc.save(`${safeName}.pdf`);
+  }
   showNotification('Invoice PDF downloaded', 'success');
   }
   return draft;
   } catch (err) {
   console.error('Invoice PDF export failed:', err);
-  showNotification('Failed to download invoice PDF', 'error');
+  if (download) showNotification('Failed to download invoice PDF', 'error');
+  return null;
   }
   };
 
@@ -2569,8 +2580,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   );
   const persistedDraft = await persistGeneratedInvoice(finalizedDraft, selectedRows);
   setInvoiceDraft(persistedDraft);
-  await handleDownloadInvoicePdf(persistedDraft, false);
+  const storedDraft = await handleDownloadInvoicePdf(persistedDraft, false);
+  if (storedDraft?.pdfFileId) {
+  setInvoiceDraft(storedDraft);
   showNotification(hasAiItems ? 'Invoice saved and ready' : 'Invoice saved (local fallback)', 'success');
+  } else {
+  showNotification('Invoice saved, but its PDF could not be stored', 'error');
+  }
   } catch (err) {
   console.error("Invoice Generation Error:", err);
   const fallbackDraft = buildLocalInvoiceDraft(selectedRows);
@@ -2588,8 +2604,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   try {
   const persistedFallback = await persistGeneratedInvoice(fallbackWithMarkdown, selectedRows);
   setInvoiceDraft(persistedFallback);
-  await handleDownloadInvoicePdf(persistedFallback, false);
+  const storedFallback = await handleDownloadInvoicePdf(persistedFallback, false);
+  if (storedFallback?.pdfFileId) {
+  setInvoiceDraft(storedFallback);
   showNotification('Invoice saved (local fallback)', 'success');
+  } else {
+  showNotification('Invoice saved, but its PDF could not be stored', 'error');
+  }
   } catch (persistError) {
   console.error('Invoice persistence failed:', persistError);
   setInvoiceDraft(null);
