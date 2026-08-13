@@ -36,6 +36,8 @@ test("invoice generation persists before attaching its secure PDF", () => {
   assert.match(board, /pdfFileId: uploaded\.id/);
   assert.match(board, /downloadStoredInvoicePdf/);
   assert.match(board, /Invoice saved, but its PDF could not be stored/);
+  assert.match(board, /Invoice PDF downloaded; secure history copy is not available yet/);
+  assert.match(board, /else if \(storageError\)/);
 });
 
 test("invoice history downloads the stored PDF through an authenticated request", () => {

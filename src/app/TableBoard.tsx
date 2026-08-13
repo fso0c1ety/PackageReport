@@ -2402,7 +2402,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const rawName = String(draft?.invoiceNumber || `invoice-${Date.now()}`);
   const safeName = rawName.replace(/[^a-z0-9-_]/gi, '_');
+  let storageError: unknown = null;
   if (draft?.id && !draft?.pdfFileId && workspaceIdForImport) {
+  try {
   const blob = doc.output('blob');
   const formData = new FormData();
   formData.append('file', new File([blob], `${safeName}.pdf`, { type: 'application/pdf' }));
@@ -2417,6 +2419,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const nextDraft = { ...draft, pdfFileId: uploaded.id };
   setInvoiceDraft(nextDraft);
   draft = nextDraft;
+  } catch (error) {
+  storageError = error;
+  console.error('Invoice PDF storage failed:', error);
+  }
   }
   if (download) {
   if (draft?.id && draft?.pdfFileId) {
@@ -2424,7 +2430,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   } else {
   doc.save(`${safeName}.pdf`);
   }
-  showNotification('Invoice PDF downloaded', 'success');
+  showNotification(storageError ? 'Invoice PDF downloaded; secure history copy is not available yet' : 'Invoice PDF downloaded', storageError ? 'warning' : 'success');
+  } else if (storageError) {
+  throw storageError;
   }
   return draft;
   } catch (err) {
