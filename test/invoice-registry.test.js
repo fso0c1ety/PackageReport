@@ -23,7 +23,9 @@ test("invoice APIs enforce workspace and client isolation", () => {
   assert.match(list, /i\.client_id/);
   assert.match(detail, /invoiceVisibleTo/);
   assert.match(pdf, /invoiceVisibleTo/);
-  assert.match(pdf, /createSignedUrl\([^,]+,60/);
+  assert.match(pdf, /SUPABASE_SECRET_KEY/);
+  assert.match(pdf, /\.storage\.from\(file\.storage_bucket\)\.download\(file\.object_path\)/);
+  assert.match(pdf, /data\.subarray\(0,5\)\.toString\(\)!=="%PDF-"/);
 });
 
 test("invoice generation persists before attaching its secure PDF", () => {
@@ -32,6 +34,20 @@ test("invoice generation persists before attaching its secure PDF", () => {
   assert.match(board, /handleDownloadInvoicePdf\(persistedDraft, false\)/);
   assert.match(board, /Invoice was not generated because it could not be saved/);
   assert.match(board, /pdfFileId: uploaded\.id/);
+  assert.match(board, /downloadStoredInvoicePdf/);
+  assert.match(board, /Invoice saved, but its PDF could not be stored/);
+  assert.match(board, /Invoice PDF downloaded; secure history copy is not available yet/);
+  assert.match(board, /else if \(storageError\)/);
+});
+
+test("invoice history downloads the stored PDF through an authenticated request", () => {
+  const history = read("src", "app", "(dashboard)", "invoices", "page.tsx");
+  const download = read("src", "app", "invoicePdfDownload.ts");
+  assert.match(history, /downloadStoredInvoicePdf/);
+  assert.doesNotMatch(history, /component="a" href=\{getApiUrl\(`\/invoices/);
+  assert.match(download, /authenticatedFetch/);
+  assert.match(download, /signature !== "%PDF-"/);
+  assert.match(download, /anchor\.download = invoicePdfFilename/);
 });
 
 test("production deploy includes the invoice registry migration", () => {

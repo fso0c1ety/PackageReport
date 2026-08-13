@@ -6,6 +6,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch, getApiUrl, navigateToAppRoute } from "./apiUrl";
+import brand from "../../config/brand.json";
 
 const DISMISSED_STORAGE_KEY = "subscriptionBannerDismissed";
 
@@ -126,7 +127,9 @@ export default function SubscriptionBanner() {
       </Typography>
       <Button
         size="small"
-        onClick={() => isDemo ? window.location.assign("mailto:info@aximostudio.com?subject=Smart%20Manage%20Demo") : navigateToAppRoute("/pricing", router)}
+        component={isDemo ? "a" : "button"}
+        href={isDemo ? `${brand.supportMailto}?subject=Smart%20Manage%20Demo` : undefined}
+        onClick={isDemo ? undefined : () => navigateToAppRoute("/pricing", router)}
         sx={{
           color: "#fff",
           p: 0,

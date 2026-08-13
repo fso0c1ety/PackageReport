@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "../_lib/mailer";
+import brand from "../../../../config/brand.json";
 
 export const runtime = "nodejs";
 const attempts = new Map();
@@ -18,6 +19,6 @@ export async function POST(req) {
   const subject = String(body.subject || "Smart Manage website enquiry").trim().slice(0, 160);
   const message = String(body.message || "").trim().slice(0, 5000);
   if (!name || !message || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Valid name, email and message are required" }, { status: 400 });
-  await sendEmail({ to: process.env.CONTACT_EMAIL_TO || "a.gjendzz@gmail.com", subject: `[Website] ${subject}`, text: `Name: ${name}\nEmail: ${email}\nCompany: ${company || "—"}\n\n${message}` });
+  await sendEmail({ to: brand.supportEmail, subject: `[Website] ${subject}`, text: `Name: ${name}\nEmail: ${email}\nCompany: ${company || "—"}\n\n${message}` });
   return NextResponse.json({ success: true });
 }

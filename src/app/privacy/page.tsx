@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Box, Container, Typography, Stack, useTheme, Divider } from '@mui/material';
+import brand from '../../../config/brand.json';
 
 export default function PrivacyPage() {
   const theme = useTheme();
@@ -52,7 +53,7 @@ export default function PrivacyPage() {
         <Divider sx={{ my: 8 }} />
         
         <Typography variant="body2" sx={{ color: theme.palette.text.secondary, textAlign: 'center' }}>
-          For any privacy-related concerns, please contact us at privacy@smart-manage.app
+          For any privacy-related concerns, please contact us at <a href={brand.supportMailto}>{brand.supportEmail}</a>
         </Typography>
       </Container>
     </Box>

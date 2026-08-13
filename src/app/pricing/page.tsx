@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useRouter, useSearchParams } from 'next/navigation';
+import brand from '../../../config/brand.json';
 import { authenticatedFetch, getApiUrl } from '../apiUrl';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -152,7 +153,7 @@ function PricingContent() {
 
   const choosePlan = async (plan: string) => {
     if (plan === 'enterprise') {
-      window.location.href = 'mailto:a.gjendzz@gmail.com?subject=Smart%20Manage%20Enterprise%20Plan';
+      window.location.href = `${brand.supportMailto}?subject=Smart%20Manage%20Enterprise%20Plan`;
       return;
     }
     if (!localStorage.getItem('token')) {
