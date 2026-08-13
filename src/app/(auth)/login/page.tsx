@@ -1,49 +1,22 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import { Box, Button, Container, Stack, Typography } from '@mui/material';
-import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import { useEffect, useState } from 'react';
+import { Box, Container, Stack, Typography } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import PublicHeader from '../../PublicHeader';
 
 const LoginForm = dynamic(() => import('../LoginForm').then((mod) => mod.LoginForm), {
   ssr: false,
   loading: () => <Box sx={{ p: 3 }}>Loading...</Box>,
 });
 
-const navItems = [
-  ['Home', '/'],
-  ['Services', '/#services'],
-  ['About Us', '/#about'],
-  ['Pricing', '/pricing'],
-  ['Contact', '/#contact'],
-];
-
 export default function LoginPage() {
+  const [signup, setSignup] = useState(false);
+  useEffect(() => setSignup(new URLSearchParams(window.location.search).get('mode') === 'signup'), []);
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f6f7fb', color: '#11152d' }}>
-      <Box component="header" sx={{ position: 'relative', zIndex: 10, bgcolor: 'rgba(255,255,255,.88)', backdropFilter: 'blur(18px)', borderBottom: '1px solid rgba(17,21,45,.08)' }}>
-        <Container maxWidth="xl">
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ minHeight: 76, gap: 2 }}>
-            <Stack component={Link} href="/" direction="row" alignItems="center" spacing={1.2} sx={{ textDecoration: 'none', color: 'inherit' }}>
-              <Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 38, height: 38, borderRadius: 2.5 }} />
-              <Typography sx={{ fontWeight: 900, letterSpacing: '-.035em', fontSize: '1.08rem' }}>Smart Manage</Typography>
-            </Stack>
-
-            <Stack component="nav" direction="row" spacing={{ sm: 1, lg: 2.5 }} sx={{ display: { xs: 'none', md: 'flex' } }}>
-              {navItems.map(([label, href]) => (
-                <Button key={label} component={Link} href={href} sx={{ color: '#596078', textTransform: 'none', fontWeight: 700, px: 1, '&:hover': { color: '#5b5cf0', bgcolor: 'transparent' } }}>
-                  {label}
-                </Button>
-              ))}
-            </Stack>
-
-            <Button component={Link} href="/" startIcon={<ArrowBackRoundedIcon />} sx={{ borderRadius: 999, px: 2, color: '#11152d', border: '1px solid rgba(17,21,45,.12)', textTransform: 'none', fontWeight: 800, bgcolor: '#fff' }}>
-              Back home
-            </Button>
-          </Stack>
-        </Container>
-      </Box>
+      <PublicHeader active={signup ? 'signup' : 'signin'} />
 
       <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 } }}>
         <Box sx={{ minHeight: { md: 'calc(100vh - 124px)' }, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,.82fr) minmax(480px,1.18fr)' }, gap: { xs: 3, lg: 4 }, alignItems: 'stretch' }}>

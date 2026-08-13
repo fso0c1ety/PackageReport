@@ -4,25 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import {
-  AppBar,
   Box,
   Button,
   Chip,
   Container,
-  Drawer,
-  IconButton,
-  Divider,
   Stack,
   Snackbar,
   Alert,
   CircularProgress,
-  Toolbar,
   Typography,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
-import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
 import { motion } from "framer-motion";
 import { navigateToAppRoute, redirectToAppRoute, isElectronRuntime } from "./apiUrl";
 import { MapVisual } from "./LandingVisuals";
@@ -42,6 +34,7 @@ import { WORKSPACE_TEMPLATES } from "../workspaceTemplates";
 import { marketingScreenshots } from "./marketingScreenshots";
 import emailjs from "@emailjs/browser";
 import PortalShowcase from "./PortalShowcase";
+import PublicHeader from "./PublicHeader";
 
 function trackMarketingEvent(name: string, detail: Record<string, string> = {}) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("smartmanage:analytics", { detail: { name, ...detail } }));
@@ -51,7 +44,6 @@ export default function LandingPage() {
   const router = useRouter();
   const [showWebLanding, setShowWebLanding] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [productPreview, setProductPreview] = useState("Dashboard");
   const [industryPreview, setIndustryPreview] = useState("Logistics");
   const [contactValues, setContactValues] = useState({ name: "", email: "", company: "", subject: "", message: "" });
@@ -107,19 +99,6 @@ export default function LandingPage() {
     },
   ];
 
-  const navButtonSx = {
-    color: LIGHT.textSecondary,
-    textTransform: "none",
-    fontSize: "0.96rem",
-    fontWeight: 600,
-    px: 1,
-    minWidth: "auto",
-    "&:hover": {
-      backgroundColor: "transparent",
-      color: LIGHT.text,
-    },
-  };
-
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -143,7 +122,6 @@ export default function LandingPage() {
   };
 
   const scrollToSection = (sectionId: string) => {
-    setMobileMenuOpen(false);
     const section = document.getElementById(sectionId);
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -215,151 +193,7 @@ export default function LandingPage() {
         flexDirection: "column",
       }}
     >
-      {/* Navigation Bar */}
-      <AppBar
-        position="sticky"
-        color="transparent"
-        elevation={0}
-        sx={{
-          top: 0,
-          zIndex: 30,
-          background: "rgba(251,251,255,.86)",
-          backdropFilter: "blur(18px)",
-          borderBottom: "1px solid rgba(15,23,42,.07)",
-          boxShadow: "none",
-        }}
-      >
-        <Container maxWidth="xl">
-          <Toolbar
-            disableGutters
-            sx={{
-              minHeight: 78,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 2,
-            }}
-          >
-            <Stack
-              direction="row"
-              spacing={1.25}
-              sx={{ alignItems: "center", cursor: "pointer", minWidth: 0 }}
-              onClick={() => navigateToAppRoute("/", router)}
-            >
-              <Box
-                component="img"
-                src="/icon.png"
-                alt="Smart Manage logo"
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "12px",
-                  objectFit: "cover",
-                }}
-              />
-              <Typography
-                sx={{
-                  fontSize: "1.18rem",
-                  fontWeight: 900,
-                  letterSpacing: "-0.04em",
-                  color: LIGHT.text,
-                }}
-              >
-                Smart Manage
-              </Typography>
-            </Stack>
-
-            <Stack
-              direction="row"
-              spacing={2.5}
-              sx={{
-                display: { xs: "none", md: "flex" },
-                alignItems: "center",
-              }}
-            >
-              <Button onClick={() => scrollToSection("product")} sx={navButtonSx}>Product</Button>
-              <Button onClick={() => scrollToSection("solutions")} sx={navButtonSx}>Solutions</Button>
-              <Button onClick={() => scrollToSection("templates")} sx={navButtonSx}>Templates</Button>
-              <Button onClick={() => navigateToAppRoute("/pricing", router)} sx={navButtonSx}>Pricing</Button>
-            </Stack>
-
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-              {authenticated && <Button onClick={() => navigateToAppRoute("/home", router)} sx={{ ...navButtonSx, color: LIGHT.primary }}>Open Smart Manage</Button>}
-              <Button onClick={() => scrollToSection("request-demo")} variant="outlined" sx={{ display: { xs: "none", md: "inline-flex" }, borderRadius: 999, px: 2, textTransform: "none", fontWeight: 800, borderColor: LIGHT.primary, color: LIGHT.primary }}>Request Demo</Button>
-              <Button
-                onClick={() => navigateToAppRoute("/login", router)}
-                sx={{
-                  display: { xs: "none", sm: "inline-flex" },
-                  color: LIGHT.text,
-                  borderRadius: 999,
-                  px: 2,
-                  py: 0.8,
-                  textTransform: "none",
-                  fontWeight: 700,
-                  backgroundColor: "transparent",
-                  "&:hover": { backgroundColor: "rgba(99,102,241,.06)" },
-                }}
-              >
-                Sign In
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => navigateToAppRoute("/login?mode=signup", router)}
-                sx={{
-                  display: { xs: "none", md: "inline-flex" },
-                  borderRadius: 999,
-                  px: 2.2,
-                  py: 0.9,
-                  fontWeight: 700,
-                  textTransform: "none",
-                  background: LIGHT.primary,
-                  boxShadow: "none",
-                  "&:hover": { background: LIGHT.primaryDark, boxShadow: "none" },
-                }}
-              >
-                Start Free
-              </Button>
-              <IconButton
-                aria-label="Open navigation"
-                onClick={() => setMobileMenuOpen(true)}
-                sx={{ display: { xs: "inline-flex", md: "none" }, width: 44, height: 44, border: `1px solid ${LIGHT.border}`, color: LIGHT.text }}
-              >
-                <MenuRoundedIcon />
-              </IconButton>
-            </Stack>
-          </Toolbar>
-        </Container>
-      </AppBar>
-
-      <Drawer
-        anchor="right"
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        PaperProps={{ sx: { width: "min(88vw, 390px)", bgcolor: "#12152f", color: "#fff", p: 3, borderRadius: "28px 0 0 28px" } }}
-      >
-        <Stack sx={{ height: "100%" }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Stack direction="row" spacing={1.2} alignItems="center">
-              <Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 40, height: 40, borderRadius: 2.5 }} />
-              <Typography sx={{ fontWeight: 900, letterSpacing: "-.04em", fontSize: "1.15rem" }}>Smart Manage</Typography>
-            </Stack>
-            <IconButton aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} sx={{ color: "#fff", bgcolor: "rgba(255,255,255,.08)" }}><CloseRoundedIcon /></IconButton>
-          </Stack>
-          <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,.1)" }} />
-          <Stack spacing={.6}>
-            {[['Home','top'],['Product','product'],['Solutions','solutions'],['Templates','templates'],['Request Demo','request-demo'],['Contact','contact']].map(([label,id], index) => (
-              <Button key={id} onClick={() => scrollToSection(id)} endIcon={<ArrowOutwardRoundedIcon />} sx={{ justifyContent: "space-between", color: "#fff", textTransform: "none", fontSize: "1.3rem", fontWeight: 800, py: 1.5, px: 1, borderBottom: "1px solid rgba(255,255,255,.08)", borderRadius: 0 }}>
-                <Stack direction="row" spacing={1.4}><Typography sx={{ color: "rgba(255,255,255,.35)", fontWeight: 700 }}>0{index + 1}</Typography><span>{label}</span></Stack>
-              </Button>
-            ))}
-            <Button onClick={() => navigateToAppRoute('/pricing', router)} endIcon={<ArrowOutwardRoundedIcon />} sx={{ justifyContent: "space-between", color: "#fff", textTransform: "none", fontSize: "1.3rem", fontWeight: 800, py: 1.5, px: 1, borderBottom: "1px solid rgba(255,255,255,.08)", borderRadius: 0 }}>Pricing</Button>
-          </Stack>
-          <Stack spacing={1.2} sx={{ mt: "auto" }}>
-            <Button onClick={() => navigateToAppRoute('/login', router)} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,.22)", borderRadius: 999, py: 1.35, textTransform: "none", fontWeight: 800 }}>Login</Button>
-            <Button onClick={() => navigateToAppRoute('/login?mode=signup', router)} sx={{ color: "#11152d", bgcolor: "#9ff3d9", borderRadius: 999, py: 1.4, textTransform: "none", fontWeight: 900, '&:hover': { bgcolor: '#86e8ca' } }}>Start free trial</Button>
-          </Stack>
-        </Stack>
-      </Drawer>
+      <PublicHeader active="landing" authenticated={authenticated} onSectionNavigate={scrollToSection} />
 
       {/* Main Content */}
       <Box sx={{ flex: 1, pt: { xs: 4, md: 3 }, pb: { xs: 5, md: 8 }, overflowX: "clip" }}>
