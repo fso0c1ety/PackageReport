@@ -7,6 +7,13 @@ const CORS_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_SMART_MANAGE_BUILD_ID:
+      process.env.NEXT_PUBLIC_SMART_MANAGE_BUILD_ID ||
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      process.env.COMMIT_SHA ||
+      "development",
+  },
   trailingSlash: true,
   serverExternalPackages: ["bullmq", "ioredis"],
   outputFileTracingRoot: process.cwd(),

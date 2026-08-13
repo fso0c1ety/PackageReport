@@ -48,6 +48,7 @@ export const viewport = {
 
 import { NotificationProvider } from "./NotificationContext";
 import ThemeRegistry from "./ThemeRegistry";
+import SmartManageUpdate from "./SmartManageUpdate";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeRegistry>
           <NotificationProvider>
             {children}
+            <SmartManageUpdate />
           </NotificationProvider>
         </ThemeRegistry>
       </body>
