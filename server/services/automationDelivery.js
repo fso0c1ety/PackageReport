@@ -4,6 +4,7 @@ const { sendEmail } = require("../mailer");
 const { sendPushNotification } = require("../firebase");
 const { parseJsonArray } = require("../utils/parseJsonArray");
 const { escapeHtml, formatCellValue } = require("../utils/formatCellValue");
+const { activityLogTimestampForDatabase } = require("../utils/activityLogTimestamp.cjs");
 
 function buildAutomationEmail(table, columns, colIds, values) {
   let htmlRows = "";
@@ -92,11 +93,12 @@ async function deliverAutomation({ automation, table, rowId, values }) {
   const notificationBody = "Check task for details.";
   const { html, textSummary } = buildAutomationEmail(table, columns, colIds, values);
 
+  const activityTimestamp = await activityLogTimestampForDatabase(db);
   const logRes = await db.query(
     `INSERT INTO activity_logs (recipients, subject, html, timestamp, table_id, task_id, status)
      VALUES ($1, $2, $3, $4, $5, $6, 'pending')
      RETURNING id`,
-    [JSON.stringify(recipients), subject, html, new Date().toISOString(), table.id, rowId]
+    [JSON.stringify(recipients), subject, html, activityTimestamp, table.id, rowId]
   );
   const logId = logRes.rows[0].id;
 
