@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const crypto = require('crypto');
 
 // The Brevo API Key
@@ -39,24 +38,25 @@ async function sendEmailNow({ to, subject, text, html }) {
         payload.textContent = "Message from Smart Manage";
     }
 
-    // Create a timeout promise to prevent hanging
-    const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Brevo API request timed out after 30 seconds')), 30000)
-    );
+    if (typeof globalThis.fetch !== 'function') {
+        throw new Error('The server runtime does not provide the Fetch API');
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
-        const fetchPromise = fetch(BREVO_API_URL, {
+        const response = await globalThis.fetch(BREVO_API_URL, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'api-key': BREVO_API_KEY
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+            cache: 'no-store'
         });
-
-        // Race the API call against the timeout
-        const response = await Promise.race([fetchPromise, timeoutPromise]);
 
         // Brevo returns 201 Created for a successful send
         if (!response.ok) {
@@ -71,7 +71,12 @@ async function sendEmailNow({ to, subject, text, html }) {
 
     } catch (err) {
         console.error('[MAILER] Exception during email send:', err);
+        if (err && err.name === 'AbortError') {
+            throw new Error('Brevo API request timed out after 30 seconds');
+        }
         throw err;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
