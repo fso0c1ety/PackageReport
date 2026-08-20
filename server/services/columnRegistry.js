@@ -5,6 +5,7 @@ const COLUMN_TYPES = Object.freeze([
   "Image", "Rating", "Color", "Checkbox", "QR", "Barcode", "Relation", "Lookup",
   "Rollup", "AutoNumber", "CreatedBy", "LastUpdatedBy",
 ]);
+const addressFields = require("../../src/shared/internationalAddress.cjs");
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -23,7 +24,11 @@ function normalizeCellValue(type, value, settings = {}) {
       if (isObject(value)) return { countryCode: String(value.countryCode || ""), number: String(value.number || ""), formatted: String(value.formatted || `${value.countryCode || ""} ${value.number || ""}`).trim() };
       return { countryCode: "", number: String(value).replace(/[^0-9]/g, ""), formatted: String(value).trim() };
     case "Location":
-      return isObject(value) ? { label: String(value.label || value.address || ""), address: String(value.address || ""), city: String(value.city || ""), region: String(value.region || ""), countryCode: String(value.countryCode || ""), countryName: String(value.countryName || ""), latitude: value.latitude == null ? null : Number(value.latitude), longitude: value.longitude == null ? null : Number(value.longitude) } : { label: String(value), address: String(value), city: "", region: "", countryCode: "", countryName: "", latitude: null, longitude: null };
+      if (isObject(value)) {
+        const normalized = addressFields.normalizeInternationalAddress(value);
+        return { ...normalized, city: String(value.city || ""), region: String(value.region || ""), countryCode: String(value.countryCode || ""), countryName: String(value.countryName || ""), latitude: value.latitude == null ? null : Number(value.latitude), longitude: value.longitude == null ? null : Number(value.longitude) };
+      }
+      return { label: String(value), address: String(value), city: "", region: "", countryCode: "", countryName: "", latitude: null, longitude: null };
     case "Files":
       return { files: Array.isArray(value?.files) ? value.files : Array.isArray(value) ? value : [] };
     case "MultiSelect":
@@ -54,6 +59,7 @@ function validateCellValue(type, value, settings = {}) {
   if (type === "Progress" && (value < 0 || value > 100)) return { valid: false, error: "Progress must be between 0 and 100" };
   if (type === "Rating" && (value < 0 || value > (settings.maxRating || 5))) return { valid: false, error: `Rating must be between 0 and ${settings.maxRating || 5}` };
   if (type === "Email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) return { valid: false, error: "Invalid email address" };
+  if (type === "Location") return addressFields.validateInternationalAddress(value);
   if (type === "Website") { try { const url = new URL(String(value)); if (!["http:", "https:"].includes(url.protocol)) throw new Error(); } catch { return { valid: false, error: "Invalid website URL" }; } }
   if (type === "DateRange" && value.start && value.end && new Date(value.start) > new Date(value.end)) return { valid: false, error: "Start date must be before end date" };
   return { valid: true, error: null };

@@ -9,7 +9,8 @@ type Point=[number,number];
 type Props={pickup?:Point|null;delivery?:Point|null;pickupAddress?:string;deliveryAddress?:string;focus?:"pickup"|"delivery"|null;onLocation?:(point:Point)=>void};
 
 function geocodeCandidates(address:string):string[]{
-  const cleaned=address.replace(/\s+/g," ").replace(/\s*-\s*/g,", ").trim();
+  const original=address.trim();
+  const cleaned=original.replace(/\s+/g," ").trim();
   const spanishStreet=cleaned
     .replace(/^(\d+)\s+St\.?\s*([^,]+)/i,"Calle $2 $1")
     .replace(/\bI\.?\s*A\.?\b/gi,"")
@@ -32,7 +33,9 @@ function geocodeCandidates(address:string):string[]{
     .replace(/,?\s*No\s+\d+\s*[A-Z]?\b/gi,"")
     .replace(/\s+,/g,",")
     .trim();
-  return [...new Set([spanishStreet,turkishStreet,turkishStreetWithoutBuilding,cleaned].filter(Boolean))];
+  // Always ask the geocoder with the complete human-readable address first.
+  // Locale-specific fallbacks are query-only and never replace the stored value.
+  return [...new Set([original,spanishStreet,turkishStreet,turkishStreetWithoutBuilding,cleaned].filter(Boolean))];
 }
 
 async function geocode(address?:string):Promise<Point|null>{

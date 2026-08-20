@@ -13,8 +13,20 @@ import { syncTripAssignment } from "../../../_lib/logistics";
 import automationBuilder from "../../../../../../server/services/automationBuilderEngine.cjs";
 import { isSafePublicHttpsUrl } from "../../../_lib/security";
 import { recordAccessQueryContext, requireBoardPermission, requireRowPermission, rowMatchesRecordAccess } from "../../../_lib/authorization";
+import addressFields from "@/shared/internationalAddress.cjs";
 
 export const runtime = "nodejs";
+
+function validateAndNormalizeAddresses(columns, values) {
+  const normalized = { ...(values || {}) };
+  for (const column of columns || []) {
+    if (!addressFields.isAddressColumn(column) || !Object.prototype.hasOwnProperty.call(normalized, column.id)) continue;
+    const validation = addressFields.validateInternationalAddress(normalized[column.id]);
+    if (!validation.valid) return { error: validation.error };
+    normalized[column.id] = addressFields.normalizeInternationalAddress(normalized[column.id]);
+  }
+  return { values: normalized };
+}
 
 function toArray(value) {
   if (Array.isArray(value)) {
@@ -594,7 +606,9 @@ export async function POST(req, { params }) {
     const values = body?.values && typeof body.values === "object" ? body.values : {};
 
     const tableForAssignment = (await pool.query("SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
-    const assignedValues = await syncTripAssignment({ table: tableForAssignment, values, previousValues: {}, actorId: user.id, rowId: newTaskId });
+    const addressResult = validateAndNormalizeAddresses(tableForAssignment?.columns, values);
+    if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
+    const assignedValues = await syncTripAssignment({ table: tableForAssignment, values: addressResult.values, previousValues: {}, actorId: user.id, rowId: newTaskId });
     const insertRes = await pool.query(
       `
         INSERT INTO rows (id, table_id, values, created_by, created_at)
@@ -648,7 +662,9 @@ export async function PUT(req, { params }) {
     }
 
     const oldValues = row.values || {};
-    const newValues = values || {};
+    const addressResult = validateAndNormalizeAddresses(table.columns, values || {});
+    if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
+    const newValues = addressResult.values;
     const timestamp = new Date().toISOString();
     const oldActivity = toArray(oldValues.activity);
     const newActivity = [];
