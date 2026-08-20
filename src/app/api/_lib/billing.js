@@ -143,8 +143,7 @@ export async function getScopedBillingStatus(userId, scope = {}) {
 }
 
 export async function requireWritableSubscription(userId, scope = {}) {
-  const ownerId = await resolveBillingOwner(userId, scope);
-  const billing = await getBillingStatus(ownerId);
+  const billing = await getScopedBillingStatus(userId, scope);
 
   if (billing.writable) return null;
 

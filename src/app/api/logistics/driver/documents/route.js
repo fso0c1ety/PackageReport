@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { logisticsAccess } from "../../../_lib/logistics";
+import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
+import { sendTableNotification } from "../../../_lib/notificationHelper";
+import automationEngine from "../../../../../../server/services/automationEngine";
 
 export const runtime = "nodejs";
 
@@ -56,6 +59,7 @@ export async function GET(req) {
   const rows = (await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY created_at DESC", [table.id])).rows;
   const records = rows.filter((row) => driverMatches(row, table.columns || [], user)).map((row) => ({
     id: row.id,
+    tableId: table.id,
     date: valueByName(row, table.columns, ["Date"]),
     trip: relationLabel(valueByName(row, table.columns, ["Trip", "Load"])),
     receipt: fileValue(valueByName(row, table.columns, ["Receipt", "File", "Document", "Attachments"])),
@@ -74,7 +78,7 @@ export async function GET(req) {
       status: valueByName(row, table.columns, ["Status"]),
     }),
   }));
-  return NextResponse.json({ records });
+  return NextResponse.json({ records, tableId: table.id });
 }
 
 export async function POST(req) {
@@ -96,17 +100,23 @@ export async function POST(req) {
   const storedFile = { id: file.id || randomUUID(), url: file.url, name: file.name || "Document", originalName: file.originalName || file.name || "Document", type: file.type || "application/octet-stream", size: Number(file.size) || 0, uploadedAt: new Date().toISOString(), uploadedBy: String(user.id), category };
   let targetTable = tripTable;
   let targetRowId = trip.id;
+  let oldValues = trip.values || {};
+  let persistedValues = trip.values || {};
+  let eventType = "row_updated";
 
   if (category === "trip") {
     const values = { ...trip.values, _deliveryDocuments: [storedFile, ...(trip.values?._deliveryDocuments || [])] };
     const documentColumn = columnByName(tripTable.columns, ["Documents", "Document", "Files", "Attachments", "Receipt"]);
     if (documentColumn) values[documentColumn.id] = [storedFile, ...(Array.isArray(values[documentColumn.id]) ? values[documentColumn.id] : [])];
+    persistedValues = values;
     await pool.query("UPDATE rows SET values=$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(values), trip.id, tripTable.id]);
   } else {
     const tableNames = category === "fuel" ? ["fuel"] : ["expenses", "costs"];
     targetTable = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, tableNames])).rows[0];
     if (!targetTable) return NextResponse.json({ error: `${category} board was not found` }, { status: 404 });
     targetRowId = randomUUID();
+    eventType = "row_created";
+    oldValues = {};
     const values = { _workspaceId: workspaceId, _tripId: trip.id, _assignedDriverUserId: String(user.id), _driverUploadCategory: category };
     const tripLabelColumn = columnByName(tripTable.columns, ["Trip Number", "Load ID", "Name"]);
     const tripLabel = trip.values?.[tripLabelColumn?.id] || trip.id.slice(0, 8).toUpperCase();
@@ -127,10 +137,14 @@ export async function POST(req) {
       setValue(values, targetTable.columns, ["Amount", "Total"], Number(body.amount) || 0);
       setValue(values, targetTable.columns, ["Status"], "Pending");
     }
+    persistedValues = values;
     await pool.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3::jsonb,$4,NOW(),NOW())", [targetRowId, targetTable.id, JSON.stringify(values), String(user.id)]);
   }
 
   const title = category === "fuel" ? "New fuel receipt" : category === "expense" ? "New driver expense" : "New trip document";
-  await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'driver_document',$4::jsonb,FALSE,NOW())", [randomUUID(), String(access.owner_id), String(user.id), JSON.stringify({ title: `${user.name || user.email || "Driver"}: ${title}`, body: `${storedFile.name} was uploaded.`, workspaceId, tripId, tableId: targetTable.id, rowId: targetRowId, taskId: targetRowId, fileName: storedFile.name })]).catch(() => undefined);
-  return NextResponse.json({ success: true, file: storedFile, tableId: targetTable.id, rowId: targetRowId });
+  const eventId = randomUUID();
+  const realtimeBroadcasted = await broadcastTableInvalidation(targetTable.id, eventType === "row_created" ? "INSERT" : "UPDATE");
+  await sendTableNotification({ table: targetTable, senderId: String(user.id), type: "driver_document", title: `${user.name || user.email || "Driver"}: ${title}`, body: `${storedFile.name} was uploaded.`, taskId: targetRowId, extraData: { tripId, fileName: storedFile.name, dedupeKey: `driver-document:${eventId}` } }).catch(() => undefined);
+  await automationEngine.runForRowChange({ table: targetTable, rowId: targetRowId, oldValues, newValues: persistedValues, actorId: String(user.id), eventType, eventId }).catch(() => undefined);
+  return NextResponse.json({ success: true, file: storedFile, tableId: targetTable.id, rowId: targetRowId, realtimeBroadcasted });
 }

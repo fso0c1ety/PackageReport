@@ -36,6 +36,14 @@ test("status trigger and conditions create a deterministic execution plan", () =
   assert.equal(plan.actions[0].sequence, 1);
 });
 
+test("status and formula triggers accept normalized production column type casing", () => {
+  const status = { trigger: { type: "status_changed", columnId: "status" }, actions: [{ type: "send_notification" }] };
+  const formula = { trigger: { type: "formula_changed", columnId: "total" }, actions: [{ type: "send_notification" }] };
+  assert.equal(engine.buildExecutionPlan(status, { type: "row_updated", columnType: "status", oldValues: { status: "Open" }, newValues: { status: "Done" } }).matched, true);
+  assert.equal(engine.buildExecutionPlan(status, { type: "row_updated", columnType: "DROPDOWN", oldValues: { status: "Open" }, newValues: { status: "Done" } }).matched, true);
+  assert.equal(engine.buildExecutionPlan(formula, { type: "row_updated", columnType: "formula", oldValues: { total: 1 }, newValues: { total: 2 } }).matched, true);
+});
+
 test("creating a row does not fire status or field change triggers", () => {
   const statusPlan = engine.buildExecutionPlan(
     { trigger: { type: "status_changed", columnId: "status" }, actions: [{ type: "send_email" }] },

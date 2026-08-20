@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
+import { requireBoardPermission, requireRowPermission } from "../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,17 @@ export async function GET(req) {
     );
 
     const categoryFor = (type) => type === "security" || type === "login" ? "security" : type === "comment" || type === "chat" ? "comments" : type === "deadline" || type === "calendar" ? "deadlines" : type === "billing" ? "billing" : "assignments";
-    const visibleRows = result.rows.filter((notification) => categories[categoryFor(notification.type)] !== false);
+    const categoryRows = result.rows.filter((notification) => categories[categoryFor(notification.type)] !== false);
+    const visibleRows = [];
+    for (const notification of categoryRows) {
+      const data = notification.data || {};
+      if (data.taskId && data.tableId) {
+        if (!(await requireRowPermission(pool, user.id, data.taskId, "viewer", data.tableId))) continue;
+      } else if (data.tableId) {
+        if (!(await requireBoardPermission(pool, user.id, data.tableId, "viewer"))) continue;
+      }
+      visibleRows.push(notification);
+    }
     const notifications = await Promise.all(
       visibleRows.map(async (notification) => {
         const data = notification.data || {};
