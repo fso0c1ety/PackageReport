@@ -4,6 +4,7 @@ import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { requireWritableSubscription } from "../../_lib/billing";
 import automationBuilder from "../../../../../server/services/automationBuilderEngine.cjs";
 import { isSafePublicHttpsUrl } from "../../_lib/security";
+import { requireBoardPermission } from "../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -136,14 +137,7 @@ async function ensureAutomationSchema() {
 }
 
 async function authorizeTable(tableId, userId, write = false) {
-  const result = await pool.query(`SELECT t.shared_users,w.owner_id FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1`, [tableId]);
-  const table = result.rows[0];
-  if (!table) return false;
-  if (String(table.owner_id) === String(userId)) return true;
-  const member = (Array.isArray(table.shared_users) ? table.shared_users : []).find((entry) => String(typeof entry === "string" ? entry : entry?.userId) === String(userId));
-  if (!member) return false;
-  const permission = typeof member === "object" ? member.permission || member.role : "editor";
-  return !write || !["viewer", "guest", "read"].includes(String(permission).toLowerCase());
+  return Boolean(await requireBoardPermission(pool, userId, tableId, write ? "editor" : "viewer"));
 }
 
 async function getAutomationIdType() {

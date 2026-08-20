@@ -179,7 +179,7 @@ async function maybeSendTaskNotifications({ table, user, taskId, oldValues, merg
   }
 }
 
-async function runAutomations({ table, taskId, oldValues, newValues, currentUserId, eventType = "row_updated" }) {
+async function runAutomations({ table, taskId, oldValues, newValues, currentUserId, eventType = "row_updated", eventId = uuidv4() }) {
   const autoResult = await pool.query(
     `
       SELECT * FROM automations
@@ -272,7 +272,7 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 </div>`;
 
     const runId = uuidv4();
-    const idempotencyKey = `${automation.id}:${taskId}:${eventType}:${JSON.stringify(newValues)}`.slice(0, 1000);
+    const idempotencyKey = `${automation.id}:${eventId}`.slice(0, 1000);
     const runInsert = await pool.query(
       `INSERT INTO automation_runs(id,automation_id,table_id,row_id,idempotency_key,trigger_type,input,actions,status,started_at)
        VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,'running',NOW())
@@ -437,8 +437,9 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
           for (const matchedUser of matchedUsers) {
             await pool.query(
               `
-                INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at, dedupe_key)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
+                ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
               `,
               [
                 uuidv4(),
@@ -455,6 +456,7 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
                   logId,
                 },
                 false,
+                `automation:${runId}:${matchedUser.id}`,
               ]
             );
 
@@ -666,6 +668,7 @@ export async function PUT(req, { params }) {
     if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
     const newValues = addressResult.values;
     const timestamp = new Date().toISOString();
+    const eventId = uuidv4();
     const oldActivity = toArray(oldValues.activity);
     const newActivity = [];
     const columns = Array.isArray(table.columns) ? table.columns : [];
@@ -719,6 +722,18 @@ export async function PUT(req, { params }) {
       [JSON.stringify(mergedValues), id, tableId]
     );
 
+    if (newActivity.length > 0) {
+      await sendTableNotification({
+        table,
+        senderId: user.id,
+        type: "record_update",
+        title: `${table.name} updated`,
+        body: `${getTaskName(table, mergedValues)} was updated.`,
+        taskId: id,
+        extraData: { taskName: getTaskName(table, mergedValues), dedupeKey: `row-update:${eventId}` },
+      });
+    }
+
     try {
       await runAutomations({
         table,
@@ -726,6 +741,7 @@ export async function PUT(req, { params }) {
         oldValues,
         newValues: mergedValues,
         currentUserId: user.id,
+        eventId,
       });
     } catch (automationErr) {
       console.error("[TABLE TASKS][PUT] Automation processing failed after task save:", automationErr);

@@ -75,6 +75,7 @@ function isEmpty(value) { return value == null || value === "" || (Array.isArray
 
 function matchesTrigger(trigger, event) {
   const type = trigger.type;
+  const columnType = String(event.columnType || "").trim().toLowerCase();
   if (type === "row_created") return event.type === "row_created";
   if (type === "form_submitted") return event.type === "form_submitted";
   if (type === "relation_added") return event.type === "relation_added";
@@ -86,8 +87,8 @@ function matchesTrigger(trigger, event) {
   if (!trigger.columnId) return false;
   const changed = !valuesEqual(event.oldValues?.[trigger.columnId], event.newValues?.[trigger.columnId]);
   if (!changed) return false;
-  if (type === "status_changed") return event.columnType === "Status" || event.columnType === "Dropdown";
-  if (type === "formula_changed") return event.columnType === "Formula";
+  if (type === "status_changed") return columnType === "status" || columnType === "dropdown";
+  if (type === "formula_changed") return columnType === "formula";
   return type === "field_changed";
 }
 

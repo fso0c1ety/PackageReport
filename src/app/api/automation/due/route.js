@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { sendEmail } from "../../_lib/mailer";
 import automationBuilder from "../../../../../server/services/automationBuilderEngine.cjs";
+import { requireBoardPermission } from "../../_lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -74,13 +75,22 @@ export async function GET(req) {
       JOIN rows r ON r.table_id = t.id
       WHERE a.enabled = TRUE
         AND COALESCE(a.definition->'trigger'->>'type',a.trigger_type) IN ('date_arrives', 'date_approaching', 'reminder')
-        AND (w.owner_id = $1 OR COALESCE(t.shared_users, '[]'::jsonb) @> $2::jsonb)
+        AND (
+          w.owner_id::text=$1::text
+          OR EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id::text=$1::text)
+          OR EXISTS (SELECT 1 FROM board_member_access bma WHERE bma.table_id=t.id AND bma.user_id::text=$1::text)
+          OR EXISTS (
+            SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) member
+            WHERE COALESCE(member->>'userId',member#>>'{}')=$1::text
+          )
+        )
         AND (a.task_ids IS NULL OR jsonb_array_length(a.task_ids) = 0 OR a.task_ids @> jsonb_build_array(r.id::text))
-    `, [String(user.id), JSON.stringify([{ userId: String(user.id) }])]);
+    `, [String(user.id)]);
 
     const now = new Date();
     const triggered = [];
     for (const item of result.rows) {
+      if (!(await requireBoardPermission(pool, user.id, item.table_id, "editor"))) continue;
       const definition = item.definition && Object.keys(item.definition).length ? automationBuilder.normalizeAutomationDefinition(item.definition) : null;
       const config = definition?.trigger?.config || (item.action_config && typeof item.action_config === "object" ? item.action_config : {});
       const rawValue = item.values?.[item.effective_trigger_col];
