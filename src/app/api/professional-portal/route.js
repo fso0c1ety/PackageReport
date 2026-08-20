@@ -7,6 +7,9 @@ import { resolvePortalConfig } from "../../../portal-engine/registry";
 import { portalWriteAction, portalWriteActionOptions } from "../../../portal-engine/writeActions";
 import { portalRecordCapability, validPortalCapability } from "../_lib/portalCapability";
 import { portalRecordDisplay, presentPortalValue, relationTargetId } from "../../../portal-engine/presentation.mjs";
+import { broadcastTableInvalidation } from "../_lib/tableRealtime";
+import { sendTableNotification } from "../_lib/notificationHelper";
+import automationEngine from "../../../../server/services/automationEngine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,7 +155,7 @@ export async function GET(req) {
       for (const sourceColumn of columns) fields[sourceColumn.name] = await presentPortalValue({ fieldName:sourceColumn.name, column:sourceColumn, rawValue:row.values?.[sourceColumn.id], resolveRelation });
       records.push({ id: row.id, writeToken: portalRecordCapability(String(user.id),workspaceId,portalType,entity,String(row.id)), updatedAt: row.updated_at, fields });
     }
-    entities.push({ entity, name: table.name, records });
+    entities.push({ entity, name: table.name, tableId: table.id, records });
   }
   const timeline = [];
   if (portalType === "parent") {
@@ -232,6 +235,9 @@ export async function POST(req) {
     const recordId = String(body.recordId || "");
     const subjectId = String(body.subjectId || "");
     let row = null;
+    let oldValues = {};
+    let persistedValues = {};
+    let eventType = "row_updated";
     if (["update", "append", "message", "sleep_start", "sleep_end"].includes(definition.mode)) {
       row = (await client.query("SELECT id,table_id,values,created_by,created_at,updated_at FROM rows WHERE id=$1 AND table_id=$2 FOR UPDATE", [recordId, table.id])).rows[0];
       const actualScope = String(row?.values?.[definition.scopeField] || "");
@@ -240,17 +246,20 @@ export async function POST(req) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: row ? "Record scope is forbidden" : "Record not found" }, { status: 404 });
       }
+      oldValues = row.values || {};
     }
 
     const accepted = sanitizeWriteValues(definition, body.values);
     let resultId = recordId;
     if (definition.mode === "update") {
       const patch = columnPatch(table, accepted);
+      persistedValues = { ...oldValues, ...patch };
       await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(patch), recordId, table.id]);
     } else if (["append", "message"].includes(definition.mode)) {
       const event = { ...accepted, actorId: String(user.id), createdAt: new Date().toISOString(), role: portalType };
       const current = Array.isArray(row.values?.[definition.targetField || "_portalMessages"]) ? row.values[definition.targetField || "_portalMessages"] : [];
       const patch = { [definition.targetField || "_portalMessages"]: [event, ...current].slice(0, 100) };
+      persistedValues = { ...oldValues, ...patch };
       await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(patch), recordId, table.id]);
     } else if (["sleep_start", "sleep_end"].includes(definition.mode)) {
       const now = new Date();
@@ -275,7 +284,9 @@ export async function POST(req) {
           return NextResponse.json({ error: "No sleep is currently in progress" }, { status: 409 });
         }
       }
-      await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify({ [definition.targetField]: events.slice(0, 100) }), recordId, table.id]);
+      const patch = { [definition.targetField]: events.slice(0, 100) };
+      persistedValues = { ...oldValues, ...patch };
+      await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(patch), recordId, table.id]);
     } else if (definition.mode === "create") {
       const subjectNames = access.config.entityScopes[definition.subjectEntity] || [definition.subjectEntity];
       const subjectTable = (await client.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, subjectNames.map(normalize)])).rows[0];
@@ -286,23 +297,39 @@ export async function POST(req) {
         return NextResponse.json({ error: "Related record not found or forbidden" }, { status: 404 });
       }
       resultId = randomUUID();
+      eventType = "row_created";
       const relationColumn = column(table, definition.relationField);
       const valuesToInsert = { ...columnPatch(table, accepted), [definition.scopeField]: expectedScope };
       if (portalType === "teacher" && definition.entity === "Documents") valuesToInsert._linkedParentUserId = subject.values?._linkedParentUserId || null;
       if (portalType === "doctor" && definition.entity === "Lab Requests") valuesToInsert._linkedPatientUserId = subject.values?._linkedPatientUserId || subject.values?._linkedUserId || null;
       if (relationColumn) valuesToInsert[relationColumn.id] = [{ id: subjectId, rowId: subjectId }];
       if (portalType === "client") valuesToInsert.clientCompanyId = expectedScope;
+      persistedValues = valuesToInsert;
       await client.query("INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3::jsonb,$4,NOW(),NOW())", [resultId, table.id, JSON.stringify(valuesToInsert), String(user.id)]);
     }
 
     const safeSubject = `${portalType}:${action}`;
     await client.query("INSERT INTO activity_logs(id,recipients,subject,html,timestamp,table_id,task_id,status) VALUES($1,'[]'::jsonb,$2,$3,$4,$5,$6,'sent')", [randomUUID(), safeSubject, definition.sensitive ? null : `${user.name || user.email || portalType} performed ${action}`, Date.now(), table.id, resultId]);
-    if (definition.notifyManager || definition.notifyExternal) {
-      const ownerId = String(board.workspace_owner_id || "");
-      if (ownerId && ownerId !== String(user.id)) await client.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'portal_write',$4::jsonb,FALSE,NOW())", [randomUUID(), ownerId, String(user.id), JSON.stringify({ title: `${portalType} portal update`, body: action.replaceAll(":", " "), workspaceId, tableId: table.id, taskId: resultId, portalType })]);
-    }
     await client.query("COMMIT");
-    return NextResponse.json({ success: true, action, recordId: resultId });
+    const eventId = randomUUID();
+    const realtimeBroadcasted = await broadcastTableInvalidation(table.id, eventType === "row_created" ? "INSERT" : "UPDATE");
+    if (definition.notifyManager || definition.notifyExternal) {
+      await sendTableNotification({
+        table,
+        senderId: String(user.id),
+        type: "portal_write",
+        title: `${portalType} portal update`,
+        body: action.replaceAll(":", " "),
+        taskId: resultId,
+        extraData: { portalType, action, dedupeKey: `portal-write:${eventId}` },
+      }).catch((notificationError) => console.error("[professional-portal-write] notification failed after save", notificationError instanceof Error ? notificationError.message : "failed"));
+    }
+    try {
+      await automationEngine.runForRowChange({ table, rowId: resultId, oldValues, newValues: persistedValues, actorId: String(user.id), eventType, eventId });
+    } catch (automationError) {
+      console.error("[professional-portal-write] automation failed after save", automationError instanceof Error ? automationError.message : "failed");
+    }
+    return NextResponse.json({ success: true, action, recordId: resultId, realtimeBroadcasted });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     console.error("[professional-portal-write]", error instanceof Error ? error.message : "failed");

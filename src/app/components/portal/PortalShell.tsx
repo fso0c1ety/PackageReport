@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch, getApiUrl } from "../../apiUrl";
 import type { PortalConfig, PortalMembershipContext } from "../../../portal-engine/types";
 import { portalWriteActionOptions } from "../../../portal-engine/writeActions";
+import { supabase } from "../../../lib/supabase";
 
 type Props = { membership: PortalMembershipContext & { workspaceName?: string }; config?: PortalConfig | null };
 
@@ -50,6 +51,52 @@ export default function PortalShell({ membership, config }: Props) {
       .then(async (response) => { const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error || "Unable to load portal data"); return body; })
       .then(setData).catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load portal data"));
   }, [config, membership.workspaceId, reload]);
+  const realtimeTableIds = useMemo(() => Array.from(new Set((data?.entities || []).map((entity:any) => String(entity.tableId || "")).filter(Boolean))).sort(), [data?.entities]);
+  const realtimeTableKey = realtimeTableIds.join(",");
+  useEffect(() => {
+    const tableIds = realtimeTableKey.split(",").filter(Boolean);
+    if (!tableIds.length) return;
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+    const refresh = () => {
+      if (cancelled) return;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => setReload((value) => value + 1), 120);
+    };
+    const connect = async () => {
+      for (const tableId of tableIds) {
+        const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/realtime-topic`), { suppressNativeErrorAlert: true });
+        if (!response.ok || cancelled) continue;
+        const { topic } = await response.json();
+        if (!topic || cancelled) continue;
+        const channel = supabase.channel(`portal:${topic}`, { config: { broadcast: { ack: true, self: false } } })
+          .on("broadcast", { event: `row-change:${topic}` }, (message) => {
+            const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
+            if (eventTopic === topic) {
+              (window as any).__smartManagePortalRealtimeReceived = ((window as any).__smartManagePortalRealtimeReceived || 0) + 1;
+              refresh();
+            }
+          });
+        channels.push(channel);
+        channel.subscribe((status) => {
+          (window as any).__smartManagePortalRealtimeStatus = { ...((window as any).__smartManagePortalRealtimeStatus || {}), [tableId]: status };
+          if (status === "SUBSCRIBED") refresh();
+        });
+      }
+    };
+    const recover = () => { if (!document.hidden) refresh(); };
+    void connect();
+    window.addEventListener("online", recover);
+    document.addEventListener("visibilitychange", recover);
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      window.removeEventListener("online", recover);
+      document.removeEventListener("visibilitychange", recover);
+      channels.forEach((channel) => { void supabase.removeChannel(channel); });
+    };
+  }, [realtimeTableKey]);
   const actionTargets = useMemo(() => {
     if (!activeAction || !data?.entities) return [];
     const entityName = activeAction.mode === "create" ? activeAction.subjectEntity : activeAction.entity;

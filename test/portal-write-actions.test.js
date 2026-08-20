@@ -25,7 +25,10 @@ test("write endpoint enforces exact membership, record scope, fields, transactio
   assert.match(source, /COMMIT/);
   assert.match(source, /ROLLBACK/);
   assert.match(source, /INSERT INTO activity_logs/);
-  assert.match(source, /INSERT INTO notifications/);
+  assert.match(source, /sendTableNotification/);
+  assert.match(source, /broadcastTableInvalidation/);
+  assert.match(source, /automationEngine\.runForRowChange/);
+  assert.match(source, /realtimeBroadcasted/);
   assert.doesNotMatch(source, /values\s*=\s*body\.values/);
 });
 
@@ -55,4 +58,28 @@ test("parent timeline is derived only from scoped shareable operational records"
   assert.match(source, /sleep\?\.shareable/);
   assert.match(source, /note\?\.shareable/);
   assert.match(source, /timeline\.sort/);
+});
+
+test("professional and driver portal mutations use the shared realtime and automation paths", () => {
+  const professional = readFileSync(join(process.cwd(), "src", "app", "api", "professional-portal", "route.js"), "utf8");
+  const driverTrips = readFileSync(join(process.cwd(), "src", "app", "api", "logistics", "driver", "trips", "route.js"), "utf8");
+  const driverDocuments = readFileSync(join(process.cwd(), "src", "app", "api", "logistics", "driver", "documents", "route.js"), "utf8");
+  for (const source of [professional, driverTrips, driverDocuments]) {
+    assert.match(source, /broadcastTableInvalidation/);
+    assert.match(source, /automationEngine\.runForRowChange/);
+    assert.match(source, /realtimeBroadcasted/);
+  }
+  assert.match(professional, /tableId: table\.id/);
+});
+
+test("professional and driver portal clients subscribe to authorized board invalidations", () => {
+  const shell = readFileSync(join(process.cwd(), "src", "app", "components", "portal", "PortalShell.tsx"), "utf8");
+  const driver = readFileSync(join(process.cwd(), "src", "app", "(dashboard)", "driver-trips", "page.tsx"), "utf8");
+  for (const source of [shell, driver]) {
+    assert.match(source, /\/realtime-topic/);
+    assert.match(source, /row-change:/);
+    assert.match(source, /__smartManagePortalRealtimeReceived/);
+    assert.match(source, /window\.addEventListener\("online"/);
+    assert.match(source, /removeChannel/);
+  }
 });

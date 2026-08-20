@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { DRIVER_STATUSES, logisticsAccess } from "../../../_lib/logistics";
+import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
+import { sendTableNotification } from "../../../_lib/notificationHelper";
+import automationEngine from "../../../../../../server/services/automationEngine";
 
 export const runtime = "nodejs";
 
@@ -97,7 +100,8 @@ export async function PATCH(req) {
     if (!row) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
     const liveLocation = { latitude, longitude, updatedAt: new Date().toISOString(), userId: String(user.id) };
     await pool.query("UPDATE rows SET values=jsonb_set(values,'{_driverLiveLocation}',$1::jsonb,true),updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(liveLocation), tripId, ctx.table.id]);
-    return NextResponse.json({ success: true, location: liveLocation });
+    const realtimeBroadcasted = await broadcastTableInvalidation(ctx.table.id, "UPDATE");
+    return NextResponse.json({ success: true, location: liveLocation, realtimeBroadcasted });
   }
   const newStatus = String(body?.status || "");
   if (!DRIVER_STATUSES.includes(newStatus)) return NextResponse.json({ error: "Status is not allowed" }, { status: 400 });
@@ -113,6 +117,9 @@ export async function PATCH(req) {
   await pool.query("UPDATE rows SET values=$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(values), tripId, ctx.table.id]);
   await pool.query("INSERT INTO trip_status_history(id,workspace_id,trip_id,user_id,previous_status,new_status,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)", [randomUUID(), workspaceId, tripId, String(user.id), previousStatus, newStatus, JSON.stringify({ receiverName: body.receiverName || null })]);
   const serialized = serializeTrip({ ...row, values }, ctx.table.columns || [], ctx.table.id);
-  await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'trip_status',$4::jsonb,FALSE,NOW())", [randomUUID(), String(ctx.access.owner_id), String(user.id), JSON.stringify({ title: `${user.name || user.email || "Driver"} changed ${serialized.tripNumber} to ${newStatus}`, body: `Status changed from ${previousStatus || "Unknown"} to ${newStatus}.`, tripId, taskId: tripId, tableId: ctx.table.id, workspaceId })]).catch(() => undefined);
-  return NextResponse.json({ success: true, trip: serialized });
+  const eventId = randomUUID();
+  const realtimeBroadcasted = await broadcastTableInvalidation(ctx.table.id, "UPDATE");
+  await sendTableNotification({ table: ctx.table, senderId: String(user.id), type: "trip_status", title: `${user.name || user.email || "Driver"} changed ${serialized.tripNumber} to ${newStatus}`, body: `Status changed from ${previousStatus || "Unknown"} to ${newStatus}.`, taskId: tripId, extraData: { tripId, dedupeKey: `driver-status:${eventId}` } }).catch(() => undefined);
+  await automationEngine.runForRowChange({ table: ctx.table, rowId: tripId, oldValues: row.values || {}, newValues: values, actorId: String(user.id), eventType: "row_updated", eventId }).catch(() => undefined);
+  return NextResponse.json({ success: true, trip: serialized, realtimeBroadcasted });
 }
