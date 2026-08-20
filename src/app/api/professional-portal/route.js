@@ -6,6 +6,7 @@ import { listUserMemberships, selectPortalMembership } from "../_lib/universalRo
 import { resolvePortalConfig } from "../../../portal-engine/registry";
 import { portalWriteAction, portalWriteActionOptions } from "../../../portal-engine/writeActions";
 import { portalRecordCapability, validPortalCapability } from "../_lib/portalCapability";
+import { portalRecordDisplay, presentPortalValue, relationTargetId } from "../../../portal-engine/presentation.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,15 +19,7 @@ const values = (entry) => Array.isArray(entry) ? entry : entry == null ? [] : [e
 const ids = (entry) => values(entry).map((item) => String(typeof item === "object" ? item?.rowId || item?.id || item?.userId || "" : item)).filter(Boolean);
 const hasUser = (entry, user) => values(entry).some((item) => String(typeof item === "object" ? item?.userId || item?.id || "" : item) === String(user.id)
   || normalize(typeof item === "object" ? item?.email : item) === normalize(user.email));
-const safeValue = (value) => {
-  if (value == null || ["string", "number", "boolean"].includes(typeof value)) return value;
-  if (Array.isArray(value)) return value.slice(0, 10).map(safeValue);
-  if (typeof value === "object") {
-    const allowed = ["id", "label", "name", "url", "type", "size", "address", "latitude", "longitude", "start", "end", "currency", "amount"];
-    return Object.fromEntries(allowed.filter((key) => value[key] != null).map((key) => [key, safeValue(value[key])]));
-  }
-  return String(value);
-};
+const presentedText = (entry) => entry?.display || (entry?.kind === "number" ? String(entry.number) : entry?.kind === "currency" ? String(entry.amount) : "");
 
 export async function GET(req) {
   const user = getAuthenticatedUser(req);
@@ -45,6 +38,7 @@ export async function GET(req) {
   const requestedEntities = Object.keys(config.entityScopes);
   const relationshipTables = (await pool.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1", [workspaceId])).rows;
   const byName = new Map(relationshipTables.map((table) => [normalize(table.name), table]));
+  const byId = new Map(relationshipTables.map((table) => [String(table.id), table]));
   const rowCache = new Map();
   const rowsFor = async (name) => {
     const table = byName.get(normalize(name));
@@ -140,7 +134,25 @@ export async function GET(req) {
     const visible = new Set((config.visibleFields[entity] || []).map(normalize));
     const hidden = new Set((config.hiddenFields[entity] || []).map(normalize));
     const columns = (table.columns || []).filter((column) => visible.has(normalize(column.name)) && !hidden.has(normalize(column.name)));
-    entities.push({ entity, name: table.name, records: rows.map((row) => ({ id: row.id, writeToken: portalRecordCapability(String(user.id),workspaceId,portalType,entity,String(row.id)), updatedAt: row.updated_at, fields: Object.fromEntries(columns.map((column) => [column.name, safeValue(row.values?.[column.id])])) })) });
+    const resolveRelation = async (entry, sourceColumn) => {
+      if (entry && typeof entry === "object") {
+        const direct = entry.name || entry.fullName || entry.email;
+        if (direct && !entry.rowId && !entry.recordId && !entry.tableId) return String(direct);
+      }
+      const targetTable = byId.get(String(entry?.tableId || ""))
+        || byName.get(normalize(entry?.tableName || sourceColumn?.settings?.relationBoard || sourceColumn?.name));
+      const targetId = relationTargetId(entry);
+      if (!targetTable || !targetId) return entry?.label || entry?.name || "";
+      const relatedRow = (await rowsFor(targetTable.name)).find((candidate) => String(candidate.id) === String(targetId));
+      return portalRecordDisplay(relatedRow, targetTable) || entry?.label || entry?.name || "";
+    };
+    const records = [];
+    for (const row of rows) {
+      const fields = {};
+      for (const sourceColumn of columns) fields[sourceColumn.name] = await presentPortalValue({ fieldName:sourceColumn.name, column:sourceColumn, rawValue:row.values?.[sourceColumn.id], resolveRelation });
+      records.push({ id: row.id, writeToken: portalRecordCapability(String(user.id),workspaceId,portalType,entity,String(row.id)), updatedAt: row.updated_at, fields });
+    }
+    entities.push({ entity, name: table.name, records });
   }
   const timeline = [];
   if (portalType === "parent") {
@@ -156,8 +168,9 @@ export async function GET(req) {
     }
     for (const entity of entities) for (const record of entity.records || []) {
       if (!["Attendance", "Meals", "Activities", "Documents"].includes(entity.entity)) continue;
-      const dateValue = record.fields?.["Date / Time"] || record.fields?.Date || record.fields?.["Upload Date"] || record.updatedAt;
-      timeline.push({ id: `${entity.entity}:${record.id}`, at: dateValue, type: entity.entity === "Documents" ? "Photo / Document" : entity.entity, description: String(record.fields?.Title || record.fields?.Description || record.fields?.["Present / Absent"] || record.fields?.["Document Type"] || `${entity.entity} update`).slice(0, 180), attachment: record.fields?.File || record.fields?.Attachments || null });
+      const dateValue = record.fields?.["Date / Time"] || record.fields?.Date || record.fields?.["Upload Date"];
+      const description = record.fields?.Title || record.fields?.Description || record.fields?.["Present / Absent"] || record.fields?.["Document Type"];
+      timeline.push({ id: `${entity.entity}:${record.id}`, at: dateValue?.timestamp || record.updatedAt, type: entity.entity === "Documents" ? "Photo / Document" : entity.entity, description: (presentedText(description) || `${entity.entity} update`).slice(0, 180), attachment: record.fields?.File || record.fields?.Attachments || null });
     }
     for (const child of await rowsFor("Children")) if (context.childIds.has(String(child.id))) {
       for (const sleep of Array.isArray(child.values?._sleepEvents) ? child.values._sleepEvents : []) if (sleep?.shareable) {

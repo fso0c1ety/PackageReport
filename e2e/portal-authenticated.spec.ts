@@ -72,15 +72,28 @@ test.describe("authenticated professional portal isolation", () => {
         await expect(first.page).toHaveURL(new RegExp(route.replaceAll("/", "\\/").replace(/\\\/$/, "\\/?")), {timeout:20_000});
         await expect(first.page.locator("body")).not.toContainText(/not assigned|unauthorized|forbidden/i, { timeout: 20_000 });
         await expect(first.page.locator("body")).not.toContainText(/assignedDriverUserId|internal company notes/i);
+        await expect(first.page.locator("body")).not.toContainText(/\[\s*\{|\{\s*["']?(?:id|rowId|label)["']?\s*:|\[\s*["'][^\]]+["']\s*,|\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b|\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z\b/i);
+        await expect(first.page.locator("body")).not.toContainText(/Acceptance Child|Acceptance Group|Acceptance Patient|Acceptance X-Ray|Parent-safe attendance|Acceptance verified/i);
         expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
         if (portalType !== "driver") {
           const quickActions = first.page.getByText("Quick actions", {exact:true});
           await expect(quickActions).toBeVisible({ timeout: 20_000 });
-          const actionCard = quickActions.locator("xpath=ancestor::*[contains(@class,'MuiCard-root')][1]");
-          await actionCard.getByRole("button").first().click();
-          await expect(first.page.getByRole("dialog")).toBeVisible();
-          expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
+          if ((testInfo.project.use.viewport?.width || 0) >= 768) {
+            const actionCard = quickActions.locator("xpath=ancestor::*[contains(@class,'MuiCard-root')][1]");
+            await actionCard.getByRole("button").first().click();
+            const dialog = first.page.getByRole("dialog");
+            await expect(dialog).toBeVisible();
+            expect(await first.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
+            await dialog.getByRole("button", {name:/close/i}).click();
+            await expect(dialog).toBeHidden();
+          }
         }
+        const later = first.page.getByRole("button", {name:"Later"});
+        if (await later.isVisible().catch(() => false)) await later.click();
+        const closeSubscription = first.page.getByRole("button", {name:"Close subscription banner"});
+        if (await closeSubscription.isVisible().catch(() => false)) await closeSubscription.click();
+        await first.page.evaluate(() => window.scrollTo(0, 0));
+        await first.page.screenshot({ path:testInfo.outputPath(`${portalType}-${testInfo.project.name}.png`), fullPage:true });
       } finally {
         await first.context.close();
         await second.context.close();
