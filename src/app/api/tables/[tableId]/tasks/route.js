@@ -14,6 +14,7 @@ import automationBuilder from "../../../../../../server/services/automationBuild
 import { isSafePublicHttpsUrl } from "../../../_lib/security";
 import { recordAccessQueryContext, requireBoardPermission, requireRowPermission, rowMatchesRecordAccess } from "../../../_lib/authorization";
 import addressFields from "@/shared/internationalAddress.cjs";
+import activityLogTimestamp from "../../../../../../server/utils/activityLogTimestamp.cjs";
 
 export const runtime = "nodejs";
 
@@ -281,18 +282,7 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
     );
     if (runInsert.rows.length === 0) continue;
 
-    const timestampTypeResult = await pool.query(`
-      SELECT data_type
-      FROM information_schema.columns
-      WHERE table_schema = current_schema()
-        AND table_name = 'activity_logs'
-        AND column_name = 'timestamp'
-      LIMIT 1
-    `);
-    const timestampType = timestampTypeResult.rows[0]?.data_type;
-    const activityTimestamp = ["smallint", "integer", "bigint", "numeric"].includes(timestampType)
-      ? Date.now()
-      : new Date().toISOString();
+    const activityTimestamp = await activityLogTimestamp.activityLogTimestampForDatabase(pool);
 
     const logRes = await pool.query(
       `
