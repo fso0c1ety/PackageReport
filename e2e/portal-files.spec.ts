@@ -90,7 +90,7 @@ test.describe("portal file authorization", () => {
   });
 
   test("general protected upload accepts real supported files and preserves tenant isolation", async ({browser,baseURL}) => {
-    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const manager=await login(browser,baseURL!,"portal-manager-v2@smartmanage-demo.com");
     const clientA=await login(browser,baseURL!,"client-a@smartmanage-demo.com");
     const clientB=await login(browser,baseURL!,"client-b@smartmanage-demo.com");
     try {

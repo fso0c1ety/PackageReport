@@ -36,7 +36,7 @@ export default function PortalShowcase() {
         <Box component="img" key={portal.id} loading="lazy" src={portal.image} alt={`Real ${portal.title} interface in Smart Manage`} sx={{ display:"block", width:"100%", maxHeight:{xs:560,md:620}, objectFit:"contain", objectPosition:"top left", borderRadius:3, border:"1px solid #E2E8F0", bgcolor:"#fff", boxShadow:"0 18px 50px rgba(15,23,42,.10)" }} />
       </Box>
       <Box>
-        <Chip label="Acceptance verified" color="success" size="small" />
+        <Chip label="Production ready" color="success" size="small" />
         <Typography fontSize={{xs:26,md:30}} fontWeight={900} mt={2}>{portal.title}</Typography>
         <Typography sx={{ color:"#64748b", lineHeight:1.8, mt:1 }}>{portal.description}</Typography>
         <Stack gap={1.1} mt={2.5}>{portal.features.map((feature)=><Stack key={feature} direction="row" gap={1} alignItems="center"><Box aria-hidden sx={{width:8,height:8,borderRadius:"50%",bgcolor:"#6366f1",flex:"0 0 auto"}}/><Typography fontWeight={750} color="#334155">{feature}</Typography></Stack>)}</Stack>

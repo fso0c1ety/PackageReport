@@ -2,11 +2,11 @@ import { expect, test, type APIRequestContext, type Browser, type BrowserContext
 
 const password = process.env.SMART_MANAGE_PORTAL_TEST_PASSWORD;
 const cases = [
-  { portalType:"teacher", a:"teacher-a@smartmanage-demo.com", b:"teacher-b@smartmanage-demo.com", action:"observation:create", entity:"Children", values:{text:"Acceptance observation",shareable:"true"} },
-  { portalType:"parent", a:"parent-a@smartmanage-demo.com", b:"parent-b@smartmanage-demo.com", action:"message:create", entity:"Children", values:{message:"Acceptance parent message"} },
-  { portalType:"doctor", a:"doctor-a@smartmanage-demo.com", b:"doctor-b@smartmanage-demo.com", action:"clinical_note:create", entity:"Treatments", values:{text:"Acceptance clinical note"} },
-  { portalType:"patient", a:"patient-a@smartmanage-demo.com", b:"patient-b@smartmanage-demo.com", action:"message:create", entity:"Appointments", values:{message:"Acceptance patient message"} },
-  { portalType:"client", a:"client-a@smartmanage-demo.com", b:"client-b@smartmanage-demo.com", action:"message:create", entity:"Loads", values:{message:"Acceptance client message"} },
+  { portalType:"teacher", a:"teacher-a@smartmanage-demo.com", b:"teacher-b@smartmanage-demo.com", action:"observation:create", entity:"Children", values:{text:"Participated confidently in the group activity",shareable:"true"} },
+  { portalType:"parent", a:"parent-a@smartmanage-demo.com", b:"parent-b@smartmanage-demo.com", action:"message:create", entity:"Children", values:{message:"Thank you for today's update"} },
+  { portalType:"doctor", a:"doctor-a@smartmanage-demo.com", b:"doctor-b@smartmanage-demo.com", action:"clinical_note:create", entity:"Treatments", values:{text:"Review healing progress at the next appointment"} },
+  { portalType:"patient", a:"patient-a@smartmanage-demo.com", b:"patient-b@smartmanage-demo.com", action:"message:create", entity:"Appointments", values:{message:"Please confirm the preparation instructions"} },
+  { portalType:"client", a:"client-a@smartmanage-demo.com", b:"client-b@smartmanage-demo.com", action:"message:create", entity:"Loads", values:{message:"Please confirm the delivery window"} },
 ] as const;
 
 async function login(browser: Browser, email: string, baseURL: string) {
@@ -39,7 +39,7 @@ test.describe("professional portal write isolation", () => {
   test("driver status, document and expense writes sync while driver B remains forbidden", async ({browser,baseURL}) => {
     const a = await login(browser,"driver-a@smartmanage-demo.com",baseURL!);
     const b = await login(browser,"driver-b@smartmanage-demo.com",baseURL!);
-    const manager = await login(browser,"portal-manager@smartmanage-demo.com",baseURL!);
+    const manager = await login(browser,"portal-manager-v2@smartmanage-demo.com",baseURL!);
     try {
       const portalResponse = await a.request.get(`${baseURL}/api/portal-context/?portalType=driver`);
       expect(portalResponse.status()).toBe(200);
@@ -89,7 +89,7 @@ test.describe("professional portal write isolation", () => {
       const updated = after.payload.entities.find((item:any) => item.entity === entry.entity)?.records?.find((item:any) => item.id === record.id);
       expect(new Date(updated.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(record.updatedAt).getTime());
 
-      const manager = await login(browser,"portal-manager@smartmanage-demo.com",baseURL!);
+      const manager = await login(browser,"portal-manager-v2@smartmanage-demo.com",baseURL!);
       try {
         const tablesResponse = await manager.request.get(`${baseURL}/api/workspaces/${before.workspaceId}/tables`);
         expect(tablesResponse.status()).toBe(200);

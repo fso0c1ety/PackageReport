@@ -55,7 +55,7 @@ test.describe("final professional portal READY acceptance",()=>{
     const teacherB=await login(browser,baseURL!,"teacher-b@smartmanage-demo.com");
     const parent=await login(browser,baseURL!,"parent-a@smartmanage-demo.com");
     const parentB=await login(browser,baseURL!,"parent-b@smartmanage-demo.com");
-    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const manager=await login(browser,baseURL!,"portal-manager-v2@smartmanage-demo.com");
     try {
       const initial=await portal(teacher,baseURL!,"teacher");
       const parentInitial=await portal(parent,baseURL!,"parent");
@@ -82,11 +82,11 @@ test.describe("final professional portal READY acceptance",()=>{
       expect(closedSleep?.endedAt).toBeTruthy();
       expect(closedSleep?.durationMinutes).toBeGreaterThanOrEqual(0);
 
-      const attendance=await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"attendance:create",subject:child,values:{Date:new Date().toISOString(),"Present / Absent":"Present",Notes:"Parent-safe attendance"}});
+      const attendance=await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"attendance:create",subject:child,values:{Date:new Date().toISOString(),"Present / Absent":"Present",Notes:"Arrived happy and ready for class"}});
       expect(attendance.status()).toBe(200);
       const meal=await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"meal:create",subject:group,values:{Date:new Date().toISOString(),Breakfast:"Fruit",Lunch:"Pasta",Snack:"Yogurt",Allergens:"None"}});
       expect(meal.status()).toBe(200);
-      const activity=await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"activity:create",subject:group,values:{Title:"Acceptance art activity",Type:"Creative",Description:"Parent-safe activity", "Date / Time":new Date().toISOString(),Visibility:"Parent"}});
+      const activity=await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"activity:create",subject:group,values:{Title:"Watercolour garden",Type:"Creative",Description:"Children explored colour mixing and painted flowers", "Date / Time":new Date().toISOString(),Visibility:"Parent"}});
       expect(activity.status()).toBe(200);
       const activityId=(await activity.json()).recordId;
 
@@ -122,12 +122,12 @@ test.describe("final professional portal READY acceptance",()=>{
     const doctorB=await login(browser,baseURL!,"doctor-b@smartmanage-demo.com");
     const patient=await login(browser,baseURL!,"patient-a@smartmanage-demo.com");
     const patientB=await login(browser,baseURL!,"patient-b@smartmanage-demo.com");
-    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const manager=await login(browser,baseURL!,"portal-manager-v2@smartmanage-demo.com");
     try {
       const initial=await portal(doctor,baseURL!,"doctor");
       const patientRecord=entity(initial.payload,"Patients").records[0];
       expect(patientRecord).toBeTruthy();
-      const labResponse=await write(doctor.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"doctor",action:"lab_request:create",subject:patientRecord,values:{"Test / Request Type":"Acceptance X-Ray",Priority:"High","Requested Date":new Date().toISOString(),Status:"Requested","Share With Patient":true,Notes:"Sensitive clinical note"}});
+      const labResponse=await write(doctor.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"doctor",action:"lab_request:create",subject:patientRecord,values:{"Test / Request Type":"Panoramic dental X-ray",Priority:"High","Requested Date":new Date().toISOString(),Status:"Requested","Share With Patient":true,Notes:"Review before treatment planning"}});
       expect(labResponse.status(),await labResponse.text()).toBe(200);
       const labId=(await labResponse.json()).recordId;
       const doctorAfter=await portal(doctor,baseURL!,"doctor");
@@ -155,7 +155,7 @@ test.describe("final professional portal READY acceptance",()=>{
   test("patient shared document permissions and protected metadata",async({browser,baseURL})=>{
     const patient=await login(browser,baseURL!,"patient-a@smartmanage-demo.com");
     const patientB=await login(browser,baseURL!,"patient-b@smartmanage-demo.com");
-    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const manager=await login(browser,baseURL!,"portal-manager-v2@smartmanage-demo.com");
     try {
       const initial=await portal(patient,baseURL!,"patient");
       const document=entity(initial.payload,"Documents").records[0];
@@ -178,7 +178,7 @@ test.describe("final professional portal READY acceptance",()=>{
   test("client real document workflow and cross-company upload rejection",async({browser,baseURL})=>{
     const client=await login(browser,baseURL!,"client-a@smartmanage-demo.com");
     const clientB=await login(browser,baseURL!,"client-b@smartmanage-demo.com");
-    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const manager=await login(browser,baseURL!,"portal-manager-v2@smartmanage-demo.com");
     try {
       const initial=await portal(client,baseURL!,"client");
       const load=entity(initial.payload,"Loads").records[0];
@@ -211,7 +211,7 @@ test.describe("final professional portal READY acceptance",()=>{
   test("driver READY regression covers lifecycle, files, expense, fuel and incident",async({browser,baseURL})=>{
     const driver=await login(browser,baseURL!,"driver-a@smartmanage-demo.com");
     const driverB=await login(browser,baseURL!,"driver-b@smartmanage-demo.com");
-    const manager=await login(browser,baseURL!,"portal-manager@smartmanage-demo.com");
+    const manager=await login(browser,baseURL!,"portal-manager-v2@smartmanage-demo.com");
     try {
       const membership=await driver.request.get(`${baseURL}/api/portal-context/?portalType=driver`);
       const workspaceId=(await membership.json()).active.workspaceId;
