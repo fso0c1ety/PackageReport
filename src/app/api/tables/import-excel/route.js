@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { requireWritableSubscription } from "../../_lib/billing";
+import addressFields from "@/shared/internationalAddress.cjs";
 
 export const runtime = "nodejs";
 
@@ -243,11 +244,16 @@ export async function POST(req) {
 
       columns.forEach((column, columnIndex) => {
         const rawValue = row?.[columnIndex];
-        const normalizedValue = rawValue == null
+        let normalizedValue = rawValue == null
           ? ""
           : column.type === "Numbers" && /^-?\d+(?:[.,]\d+)?$/.test(String(rawValue).trim())
             ? Number(String(rawValue).trim().replace(",", "."))
-            : String(rawValue).trim();
+            : addressFields.isAddressColumn(column) ? String(rawValue) : String(rawValue).trim();
+        if (addressFields.isAddressColumn(column)) {
+          const validation = addressFields.validateInternationalAddress(normalizedValue);
+          if (!validation.valid) throw new Error(`Invalid address in row ${rowIndex + 1}: ${validation.error}`);
+          normalizedValue = addressFields.normalizeInternationalAddress(normalizedValue);
+        }
         values[column.id] = normalizedValue;
         if (normalizedValue !== "") {
           hasData = true;

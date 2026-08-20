@@ -5734,7 +5734,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const tags = Array.isArray(value) ? value : text.split(',').map(tag => tag.trim()).filter(Boolean);
   return <Box onClick={activate} sx={{ ...commonSx, gap: .5 }}>{tags.length ? tags.slice(0, 3).map((tag: string) => <Chip key={tag} label={tag} size="small" sx={{ height: 22, bgcolor: alpha('#ff642e', .15), color: '#ff8a5c' }} />) : <Typography color="text.secondary" fontSize={12}>Add tags</Typography>}</Box>;
   }
-  if (effectiveType === "Location") return <Box onClick={activate} sx={{ ...commonSx, gap: .6 }}><LocationOnIcon sx={{ fontSize: 16, color: '#e2445c' }} /><Typography noWrap fontSize={13}>{text || 'Add location'}</Typography></Box>;
+  if (effectiveType === "Location") return <Box onClick={activate} sx={{ ...commonSx, gap: .6, alignItems: 'flex-start', whiteSpace: 'normal', overflow: 'visible' }}><LocationOnIcon sx={{ fontSize: 16, color: '#e2445c', mt: .2, flexShrink: 0 }} /><Typography fontSize={13} sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'normal', lineHeight: 1.35 }}>{text || 'Add location'}</Typography></Box>;
   if (effectiveType === "CreatedDate" || effectiveType === "UpdatedDate") {
   const rawDate = value || (row as any).created_at;
   const formattedDate = rawDate && dayjs(rawDate).isValid() ? dayjs(rawDate).format('MMM D, YYYY HH:mm') : '';
