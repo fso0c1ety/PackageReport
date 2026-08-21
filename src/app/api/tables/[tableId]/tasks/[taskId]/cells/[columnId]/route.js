@@ -3,6 +3,7 @@ import { getAuthenticatedUser, pool } from "../../../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../../../_lib/billing";
 import { requireRowPermission } from "../../../../../../_lib/authorization";
 import { broadcastTableInvalidation } from "../../../../../../_lib/tableRealtime";
+import { runAutomationWithPlanQuota } from "../../../../../../_lib/automationQuota";
 import addressFields from "@/shared/internationalAddress.cjs";
 import automationEngine from "../../../../../../../../../server/services/automationEngine";
 import { randomUUID } from "node:crypto";
@@ -39,7 +40,7 @@ export async function PATCH(req, { params }) {
   const newValues = result.rows[0].values && typeof result.rows[0].values === "object" ? result.rows[0].values : { ...oldValues, ...patch };
   const eventId = randomUUID();
   try {
-    await automationEngine.runForRowChange({
+    await runAutomationWithPlanQuota({
       table: access.board,
       rowId: taskId,
       oldValues,
@@ -47,6 +48,8 @@ export async function PATCH(req, { params }) {
       actorId: String(user.id),
       eventType: "row_updated",
       eventId,
+      context: "cell_update",
+      runAutomation: automationEngine.runForRowChange,
     });
   } catch (automationError) {
     console.error("[cell-update] automation failed after save", automationError instanceof Error ? automationError.message : "failed");

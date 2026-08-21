@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { ensureFleetDriverAccess, getAuthenticatedUser, pool } from "../_lib/server";
 import { requireWritableSubscription } from "../_lib/billing";
+import { assertDashboardCreationAllowed, assertWorkspaceCreationAllowed } from "../_lib/entitlements";
 import { getWorkspaceTemplateManifest } from "../../../workspaceTemplates";
 import { ensureLogisticsSchema, LOGISTICS_TEMPLATE_KEYS } from "../_lib/logistics";
 
@@ -71,6 +72,8 @@ export async function POST(req) {
 
   const billingError = await requireWritableSubscription(user.id);
   if (billingError) return billingError;
+  const workspaceLimitError = await assertWorkspaceCreationAllowed(user.id);
+  if (workspaceLimitError) return workspaceLimitError;
 
   try {
     const body = await req.json();
@@ -150,6 +153,13 @@ export async function POST(req) {
       }
       const relationState = await client.query("SELECT to_regclass('public.board_views') AS views, to_regclass('public.dashboards') AS dashboards, to_regclass('public.dashboard_widgets') AS widgets, to_regclass('public.workspace_modules') AS modules, to_regclass('public.automations') AS automations");
       const available = relationState.rows[0] || {};
+      if (available.dashboards && Array.isArray(template.dashboards) && template.dashboards.length > 0) {
+        const dashboardLimitError = await assertDashboardCreationAllowed(user.id, template.dashboards.length);
+        if (dashboardLimitError) {
+          await client.query("ROLLBACK");
+          return NextResponse.json(dashboardLimitError.body, { status: dashboardLimitError.status });
+        }
+      }
       if (available.views) for (const view of template.views) {
         const target = createdBoards.find((board) => board.name === view.boardName);
         if (target) await client.query("INSERT INTO board_views(id,table_id,owner_id,name,type,visibility,config,is_default) VALUES($1,$2,$3,$4,$5,'workspace',$6,$7)", [uuidv4(), target.id, user.id, view.name, view.type, JSON.stringify({ templateId: template.id, ...(view.config || {}) }), Boolean(view.isDefault)]);

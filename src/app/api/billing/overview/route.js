@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { getBillingStatus } from "../../_lib/billing";
+import { getBillingUsageSummary } from "../../_lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,7 @@ export async function GET(req) {
 
   try {
     const billing = await getBillingStatus(user.id);
+    const usage = await getBillingUsageSummary(user.id);
     const subscription = await pool.query(
       "SELECT stripe_customer_id FROM subscriptions WHERE user_id=$1 LIMIT 1",
       [user.id]
@@ -27,7 +29,7 @@ export async function GET(req) {
     const customerId = subscription.rows[0]?.stripe_customer_id;
     const stripeKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
     if (!customerId || !/^(sk_test_|sk_live_)/.test(stripeKey)) {
-      return NextResponse.json({ billing, paymentMethod: null, invoices: [], contact: { email: user.email || "" } });
+      return NextResponse.json({ billing, usage, paymentMethod: null, invoices: [], contact: { email: user.email || "" } });
     }
 
     const customer = await stripeGet(`customers/${encodeURIComponent(customerId)}?expand[]=invoice_settings.default_payment_method`, stripeKey);
@@ -35,6 +37,7 @@ export async function GET(req) {
     const method = customer?.invoice_settings?.default_payment_method;
     return NextResponse.json({
       billing,
+      usage,
       paymentMethod: method?.card ? {
         brand: method.card.brand,
         last4: method.card.last4,

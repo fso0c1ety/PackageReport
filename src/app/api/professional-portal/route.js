@@ -9,6 +9,7 @@ import { portalRecordCapability, validPortalCapability } from "../_lib/portalCap
 import { portalRecordDisplay, presentPortalValue, relationTargetId } from "../../../portal-engine/presentation.mjs";
 import { broadcastTableInvalidation } from "../_lib/tableRealtime";
 import { sendTableNotification } from "../_lib/notificationHelper";
+import { runAutomationWithPlanQuota } from "../_lib/automationQuota";
 import automationEngine from "../../../../server/services/automationEngine";
 
 export const runtime = "nodejs";
@@ -325,7 +326,7 @@ export async function POST(req) {
       }).catch((notificationError) => console.error("[professional-portal-write] notification failed after save", notificationError instanceof Error ? notificationError.message : "failed"));
     }
     try {
-      await automationEngine.runForRowChange({ table, rowId: resultId, oldValues, newValues: persistedValues, actorId: String(user.id), eventType, eventId });
+      await runAutomationWithPlanQuota({ table, rowId: resultId, oldValues, newValues: persistedValues, actorId: String(user.id), eventType, eventId, context: "professional_portal_write", runAutomation: automationEngine.runForRowChange });
     } catch (automationError) {
       console.error("[professional-portal-write] automation failed after save", automationError instanceof Error ? automationError.message : "failed");
     }

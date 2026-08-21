@@ -17,6 +17,7 @@ import {
   Alert
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useRouter, useSearchParams } from 'next/navigation';
 import brand from '../../../config/brand.json';
 import { authenticatedFetch, getApiUrl } from '../apiUrl';
@@ -47,11 +48,13 @@ const plans: Plan[] = [
     price: 0,
     type: 'free',
     plan: 'trial',
-    description: 'Full access for 7 days. Then view-only for 30 days before deletion.',
+    description: 'Great for testing Smart Manage quickly.',
     features: [
-      'Up to 5 Team Members',
-      'Full product trial',
-      '30-day recovery window',
+      '2 seats',
+      '1 workspace',
+      '3 boards',
+      '250 MB storage',
+      '7-day full trial',
     ],
     buttonText: 'Start for Free',
     buttonVariant: 'outlined',
@@ -60,11 +63,15 @@ const plans: Plan[] = [
     name: 'Basic',
     price: 40,
     plan: 'basic',
-    description: 'For teams with 1-5 seats.',
+    description: 'For growing teams that need reliable operations.',
     features: [
       'Up to 5 seats',
-      'Equivalent to €8 per seat at 5 seats',
-      'Unlimited boards and views',
+      '3 workspaces',
+      '15 boards',
+      '100 Nexus Brain credits/month',
+      '100 automation actions/month',
+      '5 GB storage',
+      '1 portal',
     ],
     buttonText: 'Get Started',
     buttonVariant: 'contained',
@@ -74,11 +81,15 @@ const plans: Plan[] = [
     subheader: 'Most Popular',
     price: 75,
     plan: 'standard',
-    description: 'For teams with 6-10 seats.',
+    description: 'Best value for multi-team collaboration.',
     features: [
       'Up to 10 seats',
-      'Equivalent to €7.50 per seat at 10 seats',
-      'Automations and reporting',
+      '10 workspaces',
+      '50 boards',
+      '500 Nexus Brain credits/month',
+      '1,000 automation actions/month',
+      '25 GB storage',
+      '3 portals',
     ],
     buttonText: 'Choose Standard',
     buttonVariant: 'contained',
@@ -88,8 +99,17 @@ const plans: Plan[] = [
     name: 'Pro',
     price: 180,
     plan: 'pro',
-    description: 'For teams with 11-20 seats.',
-    features: ['Up to 20 seats', 'Equivalent to €9 per seat at 20 seats', 'Advanced collaboration and permissions'],
+    description: 'Advanced scale, control and analytics.',
+    features: [
+      'Up to 20 seats',
+      '25 workspaces',
+      'Unlimited boards',
+      '2,000 Nexus Brain credits/month',
+      '10,000 automation actions/month',
+      '100 GB storage',
+      'Advanced permissions',
+      'Up to 10 portals',
+    ],
     buttonText: 'Choose Pro',
     buttonVariant: 'outlined',
   },
@@ -97,8 +117,8 @@ const plans: Plan[] = [
     name: 'Enterprise',
     custom: true,
     plan: 'enterprise',
-    description: 'Custom pricing for organizations with more than 20 seats.',
-    features: ['21+ seats', 'Custom onboarding', 'Dedicated commercial support'],
+    description: 'Custom limits, security and onboarding.',
+    features: ['Custom seats', 'Custom workspaces', 'Custom AI/automation capacity', 'Enterprise security', 'Dedicated support'],
     buttonText: 'Contact Sales',
     buttonVariant: 'outlined',
   },
@@ -136,6 +156,20 @@ function PricingContent() {
   const searchParams = useSearchParams();
   const [checkoutMessage, setCheckoutMessage] = useState('');
   const [billing, setBilling] = useState<BillingCycle>('monthly');
+
+  const goBack = () => {
+    const from = searchParams.get('from');
+    const authenticated = Boolean(localStorage.getItem('token'));
+    if (authenticated && from === 'billing') {
+      router.push('/settings/?tab=billing');
+      return;
+    }
+    if (authenticated) {
+      router.push('/home/');
+      return;
+    }
+    router.push('/');
+  };
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
@@ -186,6 +220,9 @@ function PricingContent() {
     }}>
       <Container maxWidth="lg">
         {checkoutMessage && <Alert severity={checkoutMessage.startsWith('Payment confirmed') ? 'success' : 'error'} sx={{ mb: 3 }}>{checkoutMessage}</Alert>}
+        <Button onClick={goBack} startIcon={<ArrowBackRoundedIcon />} sx={{ textTransform: 'none', fontWeight: 800, mb: 2 }}>
+          Back
+        </Button>
         {/* Header */}
         <Box textAlign="center" mb={10}>
           <Typography
@@ -317,6 +354,9 @@ function PricingContent() {
                         </Stack>
                       ))}
                     </Stack>
+                    <Typography variant="body2" sx={{ mt: 2.2, color: theme.palette.text.secondary, fontWeight: 700 }}>
+                      See all features in plan details.
+                    </Typography>
                   </CardContent>
                   <CardActions sx={{ p: 4, pt: 0 }}>
                     <Button
