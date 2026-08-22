@@ -4,6 +4,7 @@ import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { logisticsAccess } from "../../../_lib/logistics";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
+import { runAutomationWithPlanQuota } from "../../../_lib/automationQuota";
 import automationEngine from "../../../../../../server/services/automationEngine";
 
 export const runtime = "nodejs";
@@ -145,6 +146,6 @@ export async function POST(req) {
   const eventId = randomUUID();
   const realtimeBroadcasted = await broadcastTableInvalidation(targetTable.id, eventType === "row_created" ? "INSERT" : "UPDATE");
   await sendTableNotification({ table: targetTable, senderId: String(user.id), type: "driver_document", title: `${user.name || user.email || "Driver"}: ${title}`, body: `${storedFile.name} was uploaded.`, taskId: targetRowId, extraData: { tripId, fileName: storedFile.name, dedupeKey: `driver-document:${eventId}` } }).catch(() => undefined);
-  await automationEngine.runForRowChange({ table: targetTable, rowId: targetRowId, oldValues, newValues: persistedValues, actorId: String(user.id), eventType, eventId }).catch(() => undefined);
+  await runAutomationWithPlanQuota({ table: targetTable, rowId: targetRowId, oldValues, newValues: persistedValues, actorId: String(user.id), eventType, eventId, context: "driver_document_upload", runAutomation: automationEngine.runForRowChange }).catch(() => undefined);
   return NextResponse.json({ success: true, file: storedFile, tableId: targetTable.id, rowId: targetRowId, realtimeBroadcasted });
 }

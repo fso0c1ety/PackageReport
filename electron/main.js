@@ -6,10 +6,11 @@ const path = require("path");
 let mainWindow = null;
 let mainWindowReady = false;
 let splashWindow = null;
+let splashShownAt = 0;
 let tray = null;
 let isQuitting = false;
 let closeToTrayNoticeShown = false;
-const SPLASH_MINIMUM_MS = 10000;
+const SPLASH_MINIMUM_MS = 1800;
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 let updateCheckTimer = null;
 let desktopUpdateState = { state: "idle", version: app.getVersion() };
@@ -33,7 +34,13 @@ function configureDesktopUpdater() {
   autoUpdater.on("download-progress", (info) => publishUpdateState({ state: "downloading", percent: info.percent, version: info.version || desktopUpdateState.version }));
   autoUpdater.on("update-downloaded", (info) => publishUpdateState({ state: "ready", percent: 100, version: info.version }));
   autoUpdater.on("error", (error) => {
-    console.warn("[electron-updater] Update operation failed:", error.message);
+    const message = String(error?.message || "");
+    const harmlessNoUpdate = /No published versions|latest version|No update available|Cannot find channel/i.test(message);
+    if (harmlessNoUpdate) {
+      publishUpdateState({ state: "idle", version: app.getVersion() });
+      return;
+    }
+    console.warn("[electron-updater] Update operation failed:", message);
     publishUpdateState({ state: "error", message: "The update could not be completed." });
   });
 
@@ -127,20 +134,33 @@ function resolveSplashVideoPath() {
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
-function getSplashVideoSource() {
-  const videoPath = resolveSplashVideoPath();
-  if (!videoPath) {
+function getSplashLogoSource() {
+  const iconPath = resolveWindowIcon();
+  if (!iconPath) return "";
+  try {
+    const extension = path.extname(iconPath).toLowerCase();
+    const mime = extension === ".png" ? "image/png" : "image/x-icon";
+    const iconBuffer = fs.readFileSync(iconPath);
+    return `data:${mime};base64,${iconBuffer.toString("base64")}`;
+  } catch (error) {
+    console.warn("[electron] Failed to read splash logo:", error.message);
     return "";
   }
+}
 
-  try {
-    const videoBuffer = fs.readFileSync(videoPath);
-    return `data:video/mp4;base64,${videoBuffer.toString("base64")}`;
-  } catch (error) {
-    console.warn("[electron] Failed to inline splash video, falling back to file URL:", error);
-    const { pathToFileURL } = require("url");
-    return pathToFileURL(videoPath).toString();
+function revealMainWindowWhenReady() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindowReady) return;
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    const remaining = Math.max(0, SPLASH_MINIMUM_MS - (Date.now() - splashShownAt));
+    setTimeout(() => {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+      }
+    }, remaining);
+    return;
   }
+  mainWindow.show();
+  mainWindow.focus();
 }
 
 function createSplashWindow() {
@@ -167,12 +187,13 @@ function createSplashWindow() {
     },
   });
 
-  const videoSrc = getSplashVideoSource();
+  splashShownAt = Date.now();
+  const logoSrc = getSplashLogoSource();
   const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:; media-src 'self' data: file:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:; img-src 'self' data: file:;" />
     <title>Smart Manage</title>
     <style>
       html, body {
@@ -181,127 +202,85 @@ function createSplashWindow() {
         height: 100%;
         overflow: hidden;
         background: #050816;
-        font-family: Arial, sans-serif;
+        font-family: "Segoe UI", "Inter", Arial, sans-serif;
       }
       .wrap {
-        position: relative;
         width: 100%;
         height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: radial-gradient(circle at center, rgba(99,102,241,0.18), rgba(5,8,22,1) 72%);
-      }
-      video {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        background: #050816;
-        opacity: 0;
-        transition: opacity 220ms ease;
-      }
-      video.ready {
-        opacity: 1;
-      }
-      .fallback {
-        position: absolute;
-        inset: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        color: white;
-        gap: 12px;
-        letter-spacing: 0.04em;
-        background: radial-gradient(circle at center, rgba(99,102,241,0.18), rgba(5,8,22,0.96) 72%);
-        transition: opacity 220ms ease;
+        gap: 14px;
+        background:
+          radial-gradient(circle at 50% 42%, rgba(99,102,241,0.22), rgba(5,8,22,1) 68%),
+          linear-gradient(180deg, #080b1e 0%, #050816 100%);
       }
-      .fallback.hidden {
-        opacity: 0;
-        pointer-events: none;
+      .logo-wrap {
+        width: 92px;
+        height: 92px;
+        border-radius: 24px;
+        display: grid;
+        place-items: center;
+        background: rgba(129, 140, 248, 0.08);
+        border: 1px solid rgba(129, 140, 248, 0.28);
+        box-shadow: 0 0 30px rgba(99, 102, 241, 0.24);
+        animation: logoPulse 2.1s ease-in-out infinite;
+      }
+      .logo {
+        width: 64px;
+        height: 64px;
+        object-fit: contain;
+      }
+      .title {
+        margin-top: 6px;
+        color: #f8fafc;
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+      }
+      .subtitle {
+        color: rgba(226, 232, 240, 0.88);
+        font-size: 16px;
+        font-weight: 500;
       }
       .spinner {
-        width: 44px;
-        height: 44px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
-        border: 4px solid rgba(255,255,255,0.15);
+        border: 3px solid rgba(148, 163, 184, 0.26);
         border-top-color: #818cf8;
-        animation: spin 1s linear infinite;
+        animation: spin .92s linear infinite;
+      }
+      .tagline {
+        color: rgba(148, 163, 184, 0.72);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      @keyframes logoPulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 28px rgba(99, 102, 241, 0.22); }
+        50% { transform: scale(1.015); box-shadow: 0 0 38px rgba(99, 102, 241, 0.32); }
       }
       @keyframes spin { to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
     <div class="wrap">
-      ${videoSrc ? `<video autoplay muted loop playsinline preload="auto"><source src="${videoSrc}" type="video/mp4" /></video>` : ""}
-      <div class="fallback" id="fallback">
-        <div class="spinner"></div>
-        <div>SMART MANAGE is loading...</div>
-      </div>
+      <div class="logo-wrap">${logoSrc ? `<img class="logo" src="${logoSrc}" alt="Smart Manage" />` : ""}</div>
+      <div class="title">Smart Manage</div>
+      <div class="subtitle">Preparing your workspace...</div>
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="tagline">One workspace. Zero chaos.</div>
     </div>
-    <script>
-      const video = document.querySelector('video');
-      const fallback = document.getElementById('fallback');
-
-      const showFallback = () => {
-        if (fallback) fallback.classList.remove('hidden');
-      };
-
-      const hideFallback = () => {
-        if (fallback) fallback.classList.add('hidden');
-      };
-
-      if (!video) {
-        showFallback();
-      }
-
-      if (video) {
-        const revealVideo = () => {
-          video.classList.add('ready');
-          hideFallback();
-        };
-
-        video.muted = true;
-        video.defaultMuted = true;
-        video.playsInline = true;
-
-        video.addEventListener('loadeddata', revealVideo);
-        video.addEventListener('canplay', revealVideo);
-        video.addEventListener('playing', revealVideo);
-        video.addEventListener('stalled', showFallback);
-        video.addEventListener('suspend', showFallback);
-        video.addEventListener('error', showFallback);
-
-        Promise.resolve(video.play())
-          .then(revealVideo)
-          .catch(showFallback);
-
-        setTimeout(() => {
-          if (video.readyState < 2) {
-            showFallback();
-          }
-        }, 1800);
-      }
-    </script>
   </body>
 </html>`;
 
   splash.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
 
-  setTimeout(() => {
-    if (!splash.isDestroyed()) {
-      splash.close();
-    }
-  }, SPLASH_MINIMUM_MS);
-
   splash.on("closed", () => {
     splashWindow = null;
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindowReady) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    revealMainWindowWhenReady();
   });
 
   return splash;
@@ -375,16 +354,32 @@ function createMainWindow() {
 
   win.once("ready-to-show", () => {
     mainWindowReady = true;
-    if (!splashWindow || splashWindow.isDestroyed()) {
-      win.show();
-    }
+    revealMainWindowWhenReady();
   });
 
-  win.loadURL("app://localhost/index.html");
+  win.loadURL("app://localhost/home.html");
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const target = new URL(url);
+      if (["https:", "http:", "mailto:"].includes(target.protocol)) {
+        shell.openExternal(url);
+      }
+    } catch {}
     return { action: "deny" };
+  });
+
+  win.webContents.on("will-navigate", (event, url) => {
+    try {
+      const target = new URL(url);
+      if (target.protocol === "app:" && target.host === "localhost") return;
+      event.preventDefault();
+      if (["https:", "http:", "mailto:"].includes(target.protocol)) {
+        shell.openExternal(url);
+      }
+    } catch {
+      event.preventDefault();
+    }
   });
 
   createTray(win);

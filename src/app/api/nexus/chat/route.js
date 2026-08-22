@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import aiContext from "../../../../../server/services/aiContextEngine.cjs";
+import { assertNexusCreditsAvailable, estimateNexusCredits, recordNexusCredits, resolveBillingOwnerId } from "../../_lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -70,10 +71,14 @@ export async function POST(req) {
     input = body?.input || "";
     const workspaceId = String(body?.workspaceId || "");
     const capability = aiContext.normalizeCapability(body?.capability);
+    const creditsToConsume = estimateNexusCredits({ input, messages: body?.messages });
     if (!workspaceId) return NextResponse.json({ error: "Workspace context is required" }, { status: 400 });
     const access = await pool.query("SELECT * FROM workspaces WHERE id=$1 AND (owner_id=$2 OR EXISTS(SELECT 1 FROM tables t WHERE t.workspace_id=$1 AND COALESCE(t.shared_users,'[]'::jsonb) @> $3::jsonb))", [workspaceId, String(user.id), JSON.stringify([{ userId: String(user.id) }])]);
     if (!access.rows[0]) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (access.rows[0].ai_enabled === false) return NextResponse.json({ error: "AI is disabled for this workspace" }, { status: 403 });
+    const ownerId = await resolveBillingOwnerId(user.id, { workspaceId });
+    const creditLimitError = await assertNexusCreditsAvailable(ownerId, creditsToConsume);
+    if (creditLimitError) return creditLimitError;
     const tablesResult = await pool.query("SELECT id,name,columns,doc_content FROM tables WHERE workspace_id=$1 AND (EXISTS(SELECT 1 FROM workspaces w WHERE w.id=$1 AND w.owner_id=$2) OR COALESCE(shared_users,'[]'::jsonb) @> $3::jsonb)", [workspaceId, String(user.id), JSON.stringify([{ userId: String(user.id) }])]);
     const tableIds = tablesResult.rows.map((table) => String(table.id));
     const rowsResult = tableIds.length ? await pool.query("SELECT id,table_id,values FROM rows WHERE table_id::text=ANY($1::text[]) ORDER BY created_at DESC LIMIT 100", [tableIds]) : { rows: [] };
@@ -117,6 +122,13 @@ export async function POST(req) {
       if (response.ok) {
         const data = await response.json();
         await pool.query("INSERT INTO ai_action_logs(id,user_id,workspace_id,capability,input_summary,status,metadata) VALUES($1,$2,$3,$4,$5,'success',$6::jsonb)", [randomUUID(), String(user.id), workspaceId, capability, input.slice(0,500), JSON.stringify({ boardCount: context.boards.length, rowCount: context.rows.length })]);
+        await recordNexusCredits(ownerId, {
+          actorId: String(user.id),
+          workspaceId,
+          operation: capability || "chat",
+          credits: creditsToConsume,
+          metadata: { boardCount: context.boards.length, rowCount: context.rows.length },
+        });
         return NextResponse.json(data);
       }
 

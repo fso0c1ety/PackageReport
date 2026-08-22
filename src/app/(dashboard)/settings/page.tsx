@@ -386,6 +386,18 @@ export default function SettingsPage() {
     }
   };
 
+  const usageSnapshot = billingOverview?.usage;
+  const usageItems = usageSnapshot?.usage ? [
+    { key: "seats", label: "Seats", used: Number(usageSnapshot.usage.seats || 0), limit: usageSnapshot.limits?.seats },
+    { key: "workspaces", label: "Workspaces", used: Number(usageSnapshot.usage.workspaces || 0), limit: usageSnapshot.limits?.workspaces },
+    { key: "boards", label: "Boards", used: Number(usageSnapshot.usage.boards || 0), limit: usageSnapshot.limits?.boards },
+    { key: "dashboards", label: "Dashboards", used: Number(usageSnapshot.usage.dashboards || 0), limit: usageSnapshot.limits?.dashboards },
+    { key: "storageBytes", label: "Storage", used: Number(usageSnapshot.usage.storageBytes || 0), limit: usageSnapshot.limits?.storageBytes, formatter: (value: number) => `${(value / (1024 * 1024 * 1024)).toFixed(value >= 1024 * 1024 * 1024 ? 1 : 2)} GB` },
+    { key: "nexusCredits", label: "Nexus Brain", used: Number(usageSnapshot.usage.nexusCredits || 0), limit: usageSnapshot.limits?.nexusCreditsMonthly },
+    { key: "automationActions", label: "Automations", used: Number(usageSnapshot.usage.automationActions || 0), limit: usageSnapshot.limits?.automationActionsMonthly },
+    { key: "activePortals", label: "Active portals", used: Number(usageSnapshot.usage.activePortals || 0), limit: usageSnapshot.limits?.activePortals },
+  ] : [];
+
   const fetchWorkspaces = async () => {
     try {
       const res = await authenticatedFetch(getApiUrl('workspaces'));
@@ -1558,9 +1570,45 @@ export default function SettingsPage() {
                         )} days remaining
                       </Typography>
                     )}
+                    <Button
+                      size="small"
+                      sx={{ mt: 1, textTransform: "none", fontWeight: 800 }}
+                      onClick={() => navigateToAppRoute("/pricing?from=billing", router)}
+                    >
+                      Open pricing page
+                    </Button>
                   </Box>
                 </Stack>
               </Paper>
+
+              {!!usageItems.length && (
+                <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
+                  <Typography variant="h6" fontWeight={800} sx={{ mb: 0.5 }}>Billing & Usage</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                    Current usage for your active plan{usageSnapshot?.period?.end ? ` · resets ${new Date(usageSnapshot.period.end).toLocaleDateString()}` : ""}
+                  </Typography>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
+                    {usageItems.map((item: any) => {
+                      const limited = item.limit != null;
+                      const ratio = limited ? Math.min(100, Math.round((item.used / Math.max(1, Number(item.limit))) * 100)) : 0;
+                      const nearLimit = limited && ratio >= 80;
+                      const atLimit = limited && item.used >= Number(item.limit);
+                      const formatValue = item.formatter || ((value: number) => new Intl.NumberFormat().format(value));
+                      return (
+                        <Box key={item.key} sx={{ p: 2, border: "1px solid", borderColor: atLimit ? "error.main" : nearLimit ? "warning.main" : "divider", borderRadius: 2 }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                            <Typography fontWeight={800}>{item.label}</Typography>
+                            <Typography variant="body2" color={atLimit ? "error.main" : nearLimit ? "warning.main" : "text.secondary"}>
+                              {formatValue(item.used)} / {limited ? formatValue(Number(item.limit)) : "Unlimited"}
+                            </Typography>
+                          </Stack>
+                          {limited ? <LinearProgress variant="determinate" value={ratio} color={atLimit ? "error" : nearLimit ? "warning" : "primary"} sx={{ height: 8, borderRadius: 999 }} /> : <Typography variant="body2" color="text.secondary">Unlimited on current plan</Typography>}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Paper>
+              )}
 
               <Box
                 sx={{

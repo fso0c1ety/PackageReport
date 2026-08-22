@@ -29,7 +29,7 @@ async function finishRun(runId, status, errorMessage = null) {
   );
 }
 
-async function runForRowChange({ table, rowId, oldValues, newValues, eventId, eventType = "row_updated", depth = 0, actorId = null }) {
+async function runForRowChange({ table, rowId, oldValues, newValues, eventId, eventType = "row_updated", depth = 0, actorId = null, maxActions = null }) {
   const result = await database().query(
     `
       SELECT *
@@ -46,7 +46,21 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId, ev
     [table.id, rowId]
   );
 
+  const summary = {
+    totalCandidates: result.rows.length,
+    succeededRuns: 0,
+    skippedRuns: 0,
+    failedRuns: 0,
+    consumedActions: 0,
+    stoppedByQuota: false,
+  };
+
   for (const automation of result.rows) {
+    if (maxActions != null && summary.consumedActions >= Number(maxActions)) {
+      summary.stoppedByQuota = true;
+      break;
+    }
+
     const rate = executionRateLimit(`table:${table.id}`);
     if (!rate.allowed) {
       logger.warn("automation_rate_limited", { automationId: automation.id, tableId: table.id });
@@ -67,6 +81,11 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId, ev
     const effectiveAutomation = matchingRule
       ? { ...automation, action_type: matchingRule.actionType || matchingRule.type || automation.action_type }
       : automation;
+    const plannedActions = definition ? Math.max(1, Array.isArray(plan?.actions) ? plan.actions.length : 1) : 1;
+    if (maxActions != null && summary.consumedActions + plannedActions > Number(maxActions)) {
+      summary.stoppedByQuota = true;
+      break;
+    }
 
     const idempotencyKey = eventId
       ? `${automation.id}:${eventId}`
@@ -89,6 +108,7 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId, ev
 
       if (delivery.skipped) {
         await finishRun(run.id, "skipped", delivery.reason || "skipped");
+        summary.skippedRuns += 1;
         logger.warn("automation_run_skipped", {
           automationId: automation.id,
           tableId: table.id,
@@ -100,10 +120,13 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId, ev
 
       await finishRun(run.id, "success");
       await database().query("UPDATE automations SET last_run_at=NOW(),run_count=COALESCE(run_count,0)+1 WHERE id=$1", [automation.id]);
+      summary.succeededRuns += 1;
+      summary.consumedActions += plannedActions;
       logger.info("automation_run_success", { automationId: automation.id, tableId: table.id, rowId });
     } catch (err) {
       await finishRun(run.id, "failed", err.message);
       await database().query("UPDATE automations SET last_run_at=NOW(),run_count=COALESCE(run_count,0)+1,failure_count=COALESCE(failure_count,0)+1 WHERE id=$1", [automation.id]);
+      summary.failedRuns += 1;
       logger.error("automation_run_failed", {
         automationId: automation.id,
         tableId: table.id,
@@ -112,6 +135,17 @@ async function runForRowChange({ table, rowId, oldValues, newValues, eventId, ev
       });
     }
   }
+
+  if (summary.stoppedByQuota) {
+    logger.warn("automation_plan_quota_reached", {
+      tableId: table.id,
+      rowId,
+      consumedActions: summary.consumedActions,
+      maxActions,
+    });
+  }
+
+  return summary;
 }
 
 module.exports = {

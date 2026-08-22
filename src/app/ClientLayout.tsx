@@ -15,6 +15,7 @@ import { authenticatedFetch, ensureNativeHistoryRouting, getApiUrl, redirectToAp
 import SubscriptionBanner from "./SubscriptionBanner";
 import CommandPalette from "./CommandPalette";
 import MobileBottomNavigation from "./MobileBottomNavigation";
+import ContextualBack from "./ContextualBack";
 
 function ClientLayoutContent({ children }: { children: React.ReactNode }) { // extracted content component to useTheme
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -73,6 +74,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
           }}
         >
           <PageTransition>
+            <ContextualBack />
             {children}
           </PageTransition>
         </Box>
