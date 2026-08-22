@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld('smartManageSecureStorage', {
   clearRefreshToken: () => ipcRenderer.invoke('secure-auth:clear'),
 });
 
+contextBridge.exposeInMainWorld('smartManageRuntime', {
+  platform: 'electron',
+  isElectron: true,
+});
+
 contextBridge.exposeInMainWorld('smartManageUpdater', {
   version: process.versions.electron,
   check: () => ipcRenderer.invoke('smart-manage-updater:check'),

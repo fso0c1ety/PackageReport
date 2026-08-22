@@ -2,6 +2,7 @@ export {};
 
 declare global {
   interface Window {
+    smartManageRuntime?: { platform: string; isElectron: boolean };
     smartManageUpdater?: {
       check: () => Promise<void>;
       download: () => Promise<void>;
