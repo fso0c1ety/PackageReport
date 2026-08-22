@@ -1,12 +1,9 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { pool } from "./server";
+import internalOwner from "../../../../server/services/internalOwnerEntitlement.js";
 
-export const INTERNAL_UNLIMITED_EMAILS = [
-  "a.gjendzz@gmail.com",
-  "valitv7@gmail.com",
-  "bleonahalili8@gmail.com",
-];
+export const INTERNAL_OWNER_EMAILS = internalOwner.INTERNAL_OWNER_EMAILS;
 
 const TRIAL_EXTENSION_BY_EMAIL = {
   "ags@ags-logistics.org": "2026-08-05T23:59:59.999+02:00",
@@ -81,7 +78,8 @@ export async function getBillingStatus(userId) {
     const counts = demoScope.rows[0] || {};
     demoOnlyOwner = Number(counts.total) > 0 && Number(counts.total) === Number(counts.demo_count);
   } catch {}
-  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(accountEmail) || demoOnlyOwner;
+  const internalOwnerAccount = internalOwner.isInternalOwnerEmail(accountEmail);
+  const unlimited = internalOwnerAccount || demoOnlyOwner;
 
   if (unlimited) {
     await pool.query(
@@ -99,6 +97,8 @@ export async function getBillingStatus(userId) {
     status: unlimited ? "active" : value?.status,
     writable,
     unlimited,
+    internal_owner: internalOwnerAccount,
+    entitlement: internalOwnerAccount ? "internal_owner" : demoOnlyOwner ? "demo_owner" : "subscription",
     seat_limit: unlimited ? null : value?.seat_limit,
     seats_used: seats.rows[0]?.count || 1,
   };

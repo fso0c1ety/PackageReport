@@ -464,7 +464,7 @@ export default function Sidebar({
                   border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
                 }}
               >
-                <Image src={appLogo} alt="App Logo" fill style={{ objectFit: "contain" }} priority />
+                <Image src={appLogo} alt="Smart Manage logo" fill style={{ objectFit: "contain" }} priority />
               </Box>
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography sx={{ fontWeight: 900, fontSize: { xs: "1.2rem", md: "1.06rem" }, lineHeight: 1.05, letterSpacing: "-0.04em" }}>
