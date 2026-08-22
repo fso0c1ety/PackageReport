@@ -58,7 +58,6 @@ import HistoryIcon from "@mui/icons-material/History";
 import LinkIcon from "@mui/icons-material/Link";
 import KeyIcon from "@mui/icons-material/Key";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -878,14 +877,6 @@ export default function SettingsPage() {
 
   return (
     <Box sx={{ maxWidth: 1000, mx: "auto", p: { xs: 1, sm: 2, md: 4 }, overflowX: "hidden" }}>
-      <Button
-        variant="outlined"
-        startIcon={<ArrowBackRoundedIcon />}
-        onClick={() => navigateToAppRoute("/home", router)}
-        sx={{ mb: 2, textTransform: "none", fontWeight: 800, borderRadius: 2 }}
-      >
-        Back to Home
-      </Button>
       <Typography variant="h4" fontWeight={800} sx={{ mb: 4, letterSpacing: '-0.5px' }}>
         Account Settings
       </Typography>
