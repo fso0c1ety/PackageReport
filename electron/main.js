@@ -14,6 +14,8 @@ const SPLASH_MINIMUM_MS = 1800;
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 let updateCheckTimer = null;
 let desktopUpdateState = { state: "idle", version: app.getVersion() };
+let updaterCheckPromise = null;
+let updaterDownloadPromise = null;
 
 function publishUpdateState(patch) {
   desktopUpdateState = { ...desktopUpdateState, ...patch };
@@ -46,11 +48,18 @@ function configureDesktopUpdater() {
 
   ipcMain.handle("smart-manage-updater:check", async () => {
     if (!app.isPackaged) return publishUpdateState({ state: "idle", version: app.getVersion() });
-    await autoUpdater.checkForUpdates();
+    if (updaterCheckPromise) return updaterCheckPromise;
+    updaterCheckPromise = autoUpdater.checkForUpdates().finally(() => { updaterCheckPromise = null; });
+    return updaterCheckPromise;
   });
   ipcMain.handle("smart-manage-updater:download", async () => {
     if (!app.isPackaged || desktopUpdateState.state !== "available") return;
-    await autoUpdater.downloadUpdate();
+    if (updaterDownloadPromise) return updaterDownloadPromise;
+    updaterDownloadPromise = Promise.race([
+      autoUpdater.downloadUpdate(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Update download timed out.")), 10 * 60 * 1000)),
+    ]).finally(() => { updaterDownloadPromise = null; });
+    return updaterDownloadPromise;
   });
   ipcMain.handle("smart-manage-updater:install", () => {
     if (!app.isPackaged || desktopUpdateState.state !== "ready") return;
@@ -123,19 +132,14 @@ function resolveWindowIcon() {
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
-function resolveSplashVideoPath() {
-  const candidates = [
-    path.join(process.resourcesPath, "assets", "Smart Manage.mp4"),
-    path.join(app.getAppPath(), "Smart Manage.mp4"),
-    path.join(__dirname, "..", "Smart Manage.mp4"),
-    path.join(process.cwd(), "Smart Manage.mp4"),
-  ];
-
-  return candidates.find((candidate) => fs.existsSync(candidate));
-}
-
 function getSplashLogoSource() {
-  const iconPath = resolveWindowIcon();
+  const candidates = [
+    path.join(app.getAppPath(), "out", "logo.png"),
+    path.join(app.getAppPath(), "out", "icon.png"),
+    path.join(__dirname, "..", "public", "logo.png"),
+    resolveWindowIcon(),
+  ].filter(Boolean);
+  const iconPath = candidates.find((candidate) => fs.existsSync(candidate));
   if (!iconPath) return "";
   try {
     const extension = path.extname(iconPath).toLowerCase();

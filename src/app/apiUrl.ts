@@ -11,7 +11,7 @@ export function isElectronRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
-  return /electron/i.test(navigator.userAgent);
+  return Boolean(window.smartManageRuntime?.isElectron) || /electron/i.test(navigator.userAgent);
 }
 
 export function isNativeStaticRuntime() {
