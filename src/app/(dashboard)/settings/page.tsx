@@ -58,6 +58,7 @@ import HistoryIcon from "@mui/icons-material/History";
 import LinkIcon from "@mui/icons-material/Link";
 import KeyIcon from "@mui/icons-material/Key";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "../../apiUrl";
 import { useThemeContext } from "../../ThemeContext";
@@ -877,6 +878,14 @@ export default function SettingsPage() {
 
   return (
     <Box sx={{ maxWidth: 1000, mx: "auto", p: { xs: 1, sm: 2, md: 4 }, overflowX: "hidden" }}>
+      <Button
+        variant="outlined"
+        startIcon={<ArrowBackRoundedIcon />}
+        onClick={() => navigateToAppRoute("/home", router)}
+        sx={{ mb: 2, textTransform: "none", fontWeight: 800, borderRadius: 2 }}
+      >
+        Back to Home
+      </Button>
       <Typography variant="h4" fontWeight={800} sx={{ mb: 4, letterSpacing: '-0.5px' }}>
         Account Settings
       </Typography>
@@ -1540,11 +1549,11 @@ export default function SettingsPage() {
                 <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={2}>
                   <Box>
                     <Typography variant="overline" color="text.secondary">Current plan</Typography>
-                    <Typography variant="h5" fontWeight={800} sx={{ textTransform: "capitalize" }}>
-                      {billingStatus?.plan === "trial" ? "Free Trial" : billingStatus?.plan || "Free Trial"}
+                    <Typography variant="h5" fontWeight={800} sx={{ textTransform: "none" }}>
+                      {billingStatus?.internal_owner ? "Smart Manage Owner" : billingStatus?.plan === "trial" ? "Free Trial" : billingStatus?.plan || "Free Trial"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {billingStatus?.seats_used || 1} of {billingStatus?.seat_limit || 5} seats used
+                      {billingStatus?.internal_owner ? "Internal · Unlimited access" : `${billingStatus?.seats_used || 1} of ${billingStatus?.seat_limit || 5} seats used`}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: { xs: "left", sm: "right" } }}>
@@ -1570,13 +1579,13 @@ export default function SettingsPage() {
                         )} days remaining
                       </Typography>
                     )}
-                    <Button
+                    {!billingStatus?.internal_owner && <Button
                       size="small"
                       sx={{ mt: 1, textTransform: "none", fontWeight: 800 }}
                       onClick={() => navigateToAppRoute("/pricing?from=billing", router)}
                     >
                       Open pricing page
-                    </Button>
+                    </Button>}
                   </Box>
                 </Stack>
               </Paper>
@@ -1610,7 +1619,7 @@ export default function SettingsPage() {
                 </Paper>
               )}
 
-              <Box
+              {!billingStatus?.internal_owner && <Box
                 sx={{
                   display: "inline-flex",
                   gap: 0.5,
@@ -1643,9 +1652,9 @@ export default function SettingsPage() {
                     </Button>
                   );
                 })}
-              </Box>
+              </Box>}
 
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
+              {!billingStatus?.internal_owner && <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
                 {[
                   { id: "basic", name: "Basic", monthlyPrice: 40, seats: "1-5 seats" },
                   { id: "standard", name: "Standard", monthlyPrice: 75, seats: "6-10 seats" },
@@ -1682,7 +1691,7 @@ export default function SettingsPage() {
                     </Card>
                   );
                 })}
-              </Box>
+              </Box>}
               </>}
             </>
           )}

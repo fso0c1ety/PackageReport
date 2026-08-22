@@ -84,6 +84,7 @@ function monthPeriod(date = new Date()) {
 }
 
 function normalizePlan(billing) {
+  if (billing?.internal_owner || billing?.entitlement === "internal_owner") return "enterprise";
   const raw = String(billing?.plan || "").toLowerCase();
   if (raw === "basic" || raw === "standard" || raw === "pro" || raw === "enterprise") return raw;
   if (raw === "demo") return "demo";

@@ -1,11 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const db = require("../db");
-
-const INTERNAL_UNLIMITED_EMAILS = [
-  "a.gjendzz@gmail.com",
-  "valitv7@gmail.com",
-  "bleonahalili8@gmail.com",
-];
+const { INTERNAL_OWNER_EMAILS, isInternalOwnerEmail } = require("./internalOwnerEntitlement");
 
 const PLANS = {
   trial: { seatLimit: 1, amountCents: 0 },
@@ -59,7 +54,8 @@ async function getStatus(userId) {
     const counts = demoScope.rows[0] || {};
     demoOnlyOwner = Number(counts.total) > 0 && Number(counts.total) === Number(counts.demo_count);
   } catch {}
-  const unlimited = INTERNAL_UNLIMITED_EMAILS.includes(userResult.rows[0]?.email || "") || demoOnlyOwner;
+  const internalOwner = isInternalOwnerEmail(userResult.rows[0]?.email);
+  const unlimited = internalOwner || demoOnlyOwner;
   const seats = await db.query(
     `SELECT COUNT(DISTINCT member_id)::int AS count FROM (
        SELECT $1::text AS member_id
@@ -85,6 +81,8 @@ async function getStatus(userId) {
     status: unlimited ? "active" : subscription.status,
     writable: unlimited || isWritable(subscription),
     unlimited,
+    internal_owner: internalOwner,
+    entitlement: internalOwner ? "internal_owner" : demoOnlyOwner ? "demo_owner" : "subscription",
     seat_limit: unlimited ? null : subscription.seat_limit,
     seats_used: seats.rows[0]?.count || 1,
   };
@@ -151,14 +149,14 @@ async function processTrialLifecycle() {
      WHERE t.workspace_id=w.id AND s.user_id=w.owner_id
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=w.owner_id AND LOWER(u.email)=ANY($1::text[]))
        AND s.status='trialing' AND s.trial_ends_at<=NOW() AND t.billing_archived_at IS NULL`,
-    [INTERNAL_UNLIMITED_EMAILS]
+    [INTERNAL_OWNER_EMAILS]
   );
   await db.query(
     `UPDATE subscriptions SET status='expired', archived_at=COALESCE(archived_at,NOW()),
      purge_at=COALESCE(purge_at,NOW()+INTERVAL '30 days'), updated_at=NOW()
      WHERE status='trialing' AND trial_ends_at<=NOW()
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=subscriptions.user_id AND LOWER(u.email)=ANY($1::text[]))`,
-    [INTERNAL_UNLIMITED_EMAILS]
+    [INTERNAL_OWNER_EMAILS]
   );
   await db.query(
     `UPDATE tables t SET billing_archived_at=NOW(), billing_purge_at=NOW()+INTERVAL '30 days'
@@ -167,14 +165,14 @@ async function processTrialLifecycle() {
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=w.owner_id AND LOWER(u.email)=ANY($1::text[]))
        AND s.status IN ('past_due','canceled') AND s.current_period_end<=NOW()
        AND t.billing_archived_at IS NULL`,
-    [INTERNAL_UNLIMITED_EMAILS]
+    [INTERNAL_OWNER_EMAILS]
   );
   await db.query(
     `UPDATE subscriptions SET status='expired', archived_at=COALESCE(archived_at,NOW()),
      purge_at=COALESCE(purge_at,NOW()+INTERVAL '30 days'), updated_at=NOW()
      WHERE status IN ('past_due','canceled') AND current_period_end<=NOW()
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=subscriptions.user_id AND LOWER(u.email)=ANY($1::text[]))`,
-    [INTERNAL_UNLIMITED_EMAILS]
+    [INTERNAL_OWNER_EMAILS]
   );
   const purged = await db.query(
     `DELETE FROM tables t USING workspaces w, subscriptions s
@@ -182,7 +180,7 @@ async function processTrialLifecycle() {
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=w.owner_id AND LOWER(u.email)=ANY($1::text[]))
        AND s.status='expired' AND s.purge_at<=NOW()
      RETURNING t.id`,
-    [INTERNAL_UNLIMITED_EMAILS]
+    [INTERNAL_OWNER_EMAILS]
   );
   return purged.rowCount;
 }
