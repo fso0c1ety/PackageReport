@@ -4,6 +4,7 @@ import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { DRIVER_STATUSES, logisticsAccess } from "../../../_lib/logistics";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
+import { runAutomationWithPlanQuota } from "../../../_lib/automationQuota";
 import automationEngine from "../../../../../../server/services/automationEngine";
 
 export const runtime = "nodejs";
@@ -120,6 +121,6 @@ export async function PATCH(req) {
   const eventId = randomUUID();
   const realtimeBroadcasted = await broadcastTableInvalidation(ctx.table.id, "UPDATE");
   await sendTableNotification({ table: ctx.table, senderId: String(user.id), type: "trip_status", title: `${user.name || user.email || "Driver"} changed ${serialized.tripNumber} to ${newStatus}`, body: `Status changed from ${previousStatus || "Unknown"} to ${newStatus}.`, taskId: tripId, extraData: { tripId, dedupeKey: `driver-status:${eventId}` } }).catch(() => undefined);
-  await automationEngine.runForRowChange({ table: ctx.table, rowId: tripId, oldValues: row.values || {}, newValues: values, actorId: String(user.id), eventType: "row_updated", eventId }).catch(() => undefined);
+  await runAutomationWithPlanQuota({ table: ctx.table, rowId: tripId, oldValues: row.values || {}, newValues: values, actorId: String(user.id), eventType: "row_updated", eventId, context: "driver_trip_status", runAutomation: automationEngine.runForRowChange }).catch(() => undefined);
   return NextResponse.json({ success: true, trip: serialized, realtimeBroadcasted });
 }
