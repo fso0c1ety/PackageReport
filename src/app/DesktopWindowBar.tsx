@@ -46,7 +46,7 @@ export default function DesktopWindowBar() {
           letterSpacing: 0.3,
         }}
       >
-        Smar Manage
+        Smart Manage
       </Typography>
     </Box>
   );

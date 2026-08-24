@@ -282,7 +282,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                     if (initialFetchDone.current) {
                         sortedData.forEach((n: Notification) => {
                             if (!n.read && !prevNotifsRef.current.has(n.id)) {
-                                let title = 'Smar Manage';
+                                let title = 'Smart Manage';
                                 let body = 'New notification received.';
                                 
                                 if (n.type === 'invite') {

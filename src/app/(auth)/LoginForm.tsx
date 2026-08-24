@@ -179,7 +179,7 @@ export function LoginForm() {
             <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1.5 }}>
               <Stack spacing={1}>
                 <Stack direction="row" spacing={1.2} alignItems="center">
-                  <Box component="img" src="/icon.png" alt="Smart Manage" sx={{ width: 32, height: 32, borderRadius: 1.2, objectFit: 'contain' }} />
+                  <Box component="img" src="/logo.png" alt="Smart Manage" sx={{ width: 32, height: 32, borderRadius: 1.2, objectFit: 'contain' }} />
                   <Typography fontWeight={800} fontSize="1rem">Smart Manage</Typography>
                 </Stack>
                 <Typography
