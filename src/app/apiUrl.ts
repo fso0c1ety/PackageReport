@@ -55,7 +55,11 @@ export function getAppRoute(path: string) {
   const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
 
   if (isNativeStaticRuntime() && normalizedPath !== '/' && !normalizedPath.endsWith('.html')) {
-    return `${normalizedPath}.html${suffix}`;
+    // Static Electron/Capacitor exports use `route.html`. A trailing slash
+    // must be removed before appending the extension, otherwise navigation
+    // targets the nonexistent `/route/.html` and the renderer goes blank.
+    const nativePath = normalizedPath.replace(/\/+$/, '') || '/';
+    return `${nativePath}.html${suffix}`;
   }
 
   return `${normalizedPath}${suffix}`;
