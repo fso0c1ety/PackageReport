@@ -1280,6 +1280,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const tableRealtimeChannelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
   const pendingTaskCreationsRef = React.useRef<Map<string, Promise<Row>>>(new Map());
   const cellSaveVersionsRef = React.useRef<Record<string, number>>({});
+  // Keep rapid edits for one cell ordered all the way through the API. The
+  // optimistic value is rendered immediately, while requests for different
+  // cells/rows remain independent.
+  const cellSaveQueuesRef = React.useRef<Map<string, Promise<void>>>(new Map());
+  const pendingCellValuesRef = React.useRef<Map<string, { version: number; value: any }>>(new Map());
 
   const setReviewTaskSynced = React.useCallback((updater: React.SetStateAction<Row | null>) => {
   setReviewTask((prev) => {
@@ -3357,7 +3362,17 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!response.ok) return;
   const data = await response.json();
   if (!Array.isArray(data)) return;
-  const nextRows = data.map(normalizeRealtimeRow);
+  const nextRows = data.map(normalizeRealtimeRow).map((row: Row) => {
+  // A realtime refetch can race an optimistic edit. Keep the newest local
+  // value visible until its ordered mutation has been acknowledged.
+  const values = { ...(row.values ?? {}) };
+  pendingCellValuesRef.current.forEach((pending, key) => {
+  const separator = key.indexOf(":");
+  if (separator < 0 || key.slice(0, separator) !== row.id) return;
+  values[key.slice(separator + 1)] = pending.value;
+  });
+  return { ...row, values };
+  });
   setRows((current) => {
   const currentRows = current.filter((row) => row.id !== 'placeholder');
   const unchanged = currentRows.length === nextRows.length && currentRows.every((row, index) => (
@@ -4238,6 +4253,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const saveKey = `${rowId}:${colId}`;
   const saveVersion = (cellSaveVersionsRef.current[saveKey] ?? 0) + 1;
   cellSaveVersionsRef.current[saveKey] = saveVersion;
+  pendingCellValuesRef.current.set(saveKey, { version: saveVersion, value: newValue });
   rowsStore.getState().upsertRow(updatedRow);
   rowsRef.current = sourceRows.map((row) => row.id === rowId ? updatedRow : row);
   if (reviewTaskRef.current?.id === rowId) {
@@ -4284,6 +4300,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   // Persist to backend for real rows
   if (updatedRow) {
+  const persistCell = async () => {
   try {
   const pendingCreation = pendingTaskCreationsRef.current.get(rowId);
   if (pendingCreation) {
@@ -4327,6 +4344,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setReviewTaskSynced(mergedRow);
   }
   }
+  if (cellSaveVersionsRef.current[saveKey] === saveVersion) {
+  pendingCellValuesRef.current.delete(saveKey);
+  }
   broadcastTableChange('row-change', { eventType: 'UPDATE' });
   // Log backend debug logs if present
   const debugLogsHeader = response.headers.get("X-Debug-Logs");
@@ -4350,7 +4370,24 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const revertedRow = rowsRef.current.find((row) => row.id === rowId);
   if (revertedRow) broadcastTableChange('row-change', { eventType: 'UPDATE', row: revertedRow });
   }
+  if (cellSaveVersionsRef.current[saveKey] === saveVersion) {
+  pendingCellValuesRef.current.delete(saveKey);
   showNotification("Failed to save task change. Please try again.", "error");
+  }
+  }
+  };
+  // Serialize writes for one cell so an older request can never arrive after
+  // a newer request and leave the persisted value stale. Other cells remain
+  // fully concurrent, preserving responsive multi-row editing.
+  const previousSave = cellSaveQueuesRef.current.get(saveKey) ?? Promise.resolve();
+  const queuedSave = previousSave.catch(() => undefined).then(persistCell);
+  cellSaveQueuesRef.current.set(saveKey, queuedSave);
+  try {
+  await queuedSave;
+  } finally {
+  if (cellSaveQueuesRef.current.get(saveKey) === queuedSave) {
+  cellSaveQueuesRef.current.delete(saveKey);
+  }
   }
   }
   };
