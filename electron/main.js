@@ -11,8 +11,10 @@ let tray = null;
 let isQuitting = false;
 let closeToTrayNoticeShown = false;
 const SPLASH_MINIMUM_MS = 1800;
-const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 let updateCheckTimer = null;
+let startupUpdateCheckTimer = null;
+let updaterConfigured = false;
 let desktopUpdateState = { state: "idle", version: app.getVersion() };
 let updaterCheckPromise = null;
 let updaterDownloadPromise = null;
@@ -25,6 +27,8 @@ function publishUpdateState(patch) {
 }
 
 function configureDesktopUpdater() {
+  if (updaterConfigured) return;
+  updaterConfigured = true;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
@@ -46,10 +50,17 @@ function configureDesktopUpdater() {
     publishUpdateState({ state: "error", message: "The update could not be completed." });
   });
 
+  const checkForUpdates = async () => {
+    // Re-apply the provider before every check so manual and background checks
+    // always create a fresh provider request instead of reusing startup state.
+    autoUpdater.setFeedURL({ provider: "github", owner: "fso0c1ety", repo: "PackageReport" });
+    return autoUpdater.checkForUpdates();
+  };
+
   ipcMain.handle("smart-manage-updater:check", async () => {
     if (!app.isPackaged) return publishUpdateState({ state: "idle", version: app.getVersion() });
     if (updaterCheckPromise) return updaterCheckPromise;
-    updaterCheckPromise = autoUpdater.checkForUpdates().finally(() => { updaterCheckPromise = null; });
+    updaterCheckPromise = checkForUpdates().finally(() => { updaterCheckPromise = null; });
     return updaterCheckPromise;
   });
   ipcMain.handle("smart-manage-updater:download", async () => {
@@ -68,9 +79,17 @@ function configureDesktopUpdater() {
   });
   ipcMain.handle("smart-manage-updater:state", () => desktopUpdateState);
 
-  if (app.isPackaged) {
-    setTimeout(() => autoUpdater.checkForUpdates().catch(() => undefined), 15000);
-    updateCheckTimer = setInterval(() => autoUpdater.checkForUpdates().catch(() => undefined), UPDATE_CHECK_INTERVAL_MS);
+  if (app.isPackaged && !updateCheckTimer) {
+    startupUpdateCheckTimer = setTimeout(() => {
+      startupUpdateCheckTimer = null;
+      if (!updaterCheckPromise) {
+        updaterCheckPromise = checkForUpdates().catch(() => undefined).finally(() => { updaterCheckPromise = null; });
+      }
+    }, 15000);
+    updateCheckTimer = setInterval(() => {
+      if (updaterCheckPromise || updaterDownloadPromise) return;
+      updaterCheckPromise = checkForUpdates().catch(() => undefined).finally(() => { updaterCheckPromise = null; });
+    }, UPDATE_CHECK_INTERVAL_MS);
   }
 }
 
@@ -557,7 +576,10 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  if (startupUpdateCheckTimer) clearTimeout(startupUpdateCheckTimer);
   if (updateCheckTimer) clearInterval(updateCheckTimer);
+  startupUpdateCheckTimer = null;
+  updateCheckTimer = null;
 });
 
 app.on("window-all-closed", () => {
