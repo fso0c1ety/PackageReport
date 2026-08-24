@@ -18,7 +18,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getApiUrl, redirectToAppRoute, isNativeStaticRuntime, publicFetch } from '../apiUrl';
+import { getApiUrl, navigateToAppRoute, redirectToAppRoute, isNativeStaticRuntime, publicFetch } from '../apiUrl';
 import { setNativeRefreshToken } from '../authStorage';
 
 export function LoginForm() {
@@ -369,7 +369,7 @@ export function LoginForm() {
             {isLogin && !twoFactorChallengeId && (
               <Button
                 type="button"
-                onClick={() => router.push('/forgot-password/')}
+                onClick={() => navigateToAppRoute('/forgot-password/', router)}
                 sx={{
                   alignSelf: 'flex-end',
                   p: 0,
