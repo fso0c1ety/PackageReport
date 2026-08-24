@@ -19,6 +19,10 @@ const roles = {
   doctorA:["dental","dentist","member","doctor"],doctorB:["dental","dentist","member","doctor"],patientA:["dental","patient","guest","patient"],patientB:["dental","patient","guest","patient"],
   clientA:["freight","client","guest","client"],clientB:["freight","client","guest","client"],
 };
+export const supportedPortalTestRoles = Object.freeze(["driver", "teacher", "parent", "doctor", "patient", "client"]);
+export const portalTestAccounts = Object.freeze(Object.fromEntries(
+  Object.entries(accounts).filter(([key]) => /^(driverA|teacherA|parentA|doctorA|patientA|clientA)$/.test(key)).map(([key, [email, name]]) => [key.replace(/A$/, "").toLowerCase(), { email, name }]),
+));
 const scopeFor = (portal) => portal === "driver" ? {scope:"assigned_to_me",field:"_assignedDriverUserId"} : portal === "teacher" ? {scope:"assigned_to_me",field:"_classTeacherUserId"} : portal === "doctor" ? {scope:"assigned_to_me",field:"_assignedDoctorUserId"} : portal === "client" ? {scope:"my_company",field:"clientCompanyId"} : {scope:"custom",rule:{field:portal === "parent" ? "_linkedParentUserId" : "_linkedPatientUserId",value:"$current_user"}};
 const landing = (portal) => portal === "driver" ? "/driver-trips" : `/portal/${portal}`;
 const col = (table,name) => (table.columns || []).find((item) => String(item.name).toLowerCase() === name.toLowerCase());
