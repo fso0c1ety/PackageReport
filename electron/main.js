@@ -336,14 +336,7 @@ function createMainWindow() {
     backgroundColor: "#F8FAFC",
     autoHideMenuBar: true,
     titleBarStyle: process.platform === "win32" ? "hidden" : "default",
-    titleBarOverlay:
-      process.platform === "win32"
-        ? {
-            color: "#F8FAFC",
-            symbolColor: "#0F172A",
-            height: 48,
-          }
-        : false,
+    titleBarOverlay: false,
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       contextIsolation: true,
@@ -355,6 +348,8 @@ function createMainWindow() {
   });
 
   mainWindowReady = false;
+  win.on("maximize", sendWindowState);
+  win.on("unmaximize", sendWindowState);
 
   win.once("ready-to-show", () => {
     mainWindowReady = true;
@@ -412,11 +407,27 @@ function createMainWindow() {
   return win;
 }
 
+function sendWindowState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("smart-manage-window:state", {
+      isMaximized: mainWindow.isMaximized(),
+    });
+  }
+}
+
 app.whenReady().then(() => {
   app.setName("Smart Manage");
   app.setAppUserModelId("com.packagereport.desktop");
   registerSecureAuthStorage();
   configureDesktopUpdater();
+  ipcMain.handle("smart-manage-window:minimize", () => mainWindow?.minimize());
+  ipcMain.handle("smart-manage-window:maximize", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.handle("smart-manage-window:close", () => mainWindow?.close());
+  ipcMain.handle("smart-manage-window:state", () => ({ isMaximized: Boolean(mainWindow?.isMaximized()) }));
 
   const { session } = require("electron");
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
