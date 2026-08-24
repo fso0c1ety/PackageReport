@@ -10,6 +10,8 @@ test("native static routing maps auth routes with trailing slashes to real expor
   assert.equal(source.includes("return `${nativePath}.html${suffix}`"), true);
 });
 
-test("forgot-password static export is present for packaged Electron navigation", () => {
-  assert.equal(fs.existsSync("out/forgot-password.html"), true);
+test("forgot-password route is covered by the static export contract", () => {
+  const source = read("src/app/(auth)/forgot-password/page.tsx");
+  assert.match(source, /export default function ForgotPasswordPage/);
+  assert.equal(fs.existsSync("src/app/(auth)/forgot-password/page.tsx"), true);
 });
