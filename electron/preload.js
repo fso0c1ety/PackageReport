@@ -11,6 +11,18 @@ contextBridge.exposeInMainWorld('smartManageRuntime', {
   isElectron: true,
 });
 
+contextBridge.exposeInMainWorld('smartManageWindow', {
+  minimize: () => ipcRenderer.invoke('smart-manage-window:minimize'),
+  maximize: () => ipcRenderer.invoke('smart-manage-window:maximize'),
+  close: () => ipcRenderer.invoke('smart-manage-window:close'),
+  getState: () => ipcRenderer.invoke('smart-manage-window:state'),
+  onState: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('smart-manage-window:state', listener);
+    return () => ipcRenderer.removeListener('smart-manage-window:state', listener);
+  },
+});
+
 contextBridge.exposeInMainWorld('smartManageUpdater', {
   version: process.versions.electron,
   check: () => ipcRenderer.invoke('smart-manage-updater:check'),
