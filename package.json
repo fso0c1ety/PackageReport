@@ -1,6 +1,6 @@
 {
   "name": "client",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Smart Manage universal work management platform",
   "author": "Aximo Studio",
   "private": true,
@@ -118,6 +118,7 @@
     "asar": true,
     "win": {
       "icon": "electron/icon.ico",
+      "artifactName": "Smart-Manage-Setup-${version}.${ext}",
       "target": [
         {
           "target": "nsis",
