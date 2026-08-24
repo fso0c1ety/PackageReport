@@ -10,6 +10,15 @@ test("native static routing maps auth routes with trailing slashes to real expor
   assert.equal(source.includes("return `${nativePath}.html${suffix}`"), true);
 });
 
+test("auth navigation uses the shared native route resolver", () => {
+  const login = read("src/app/(auth)/LoginForm.tsx");
+  const forgot = read("src/app/(auth)/forgot-password/page.tsx");
+  const reset = read("src/app/(auth)/reset-password/page.tsx");
+  assert.match(login, /navigateToAppRoute\('\/forgot-password\/', router\)/);
+  assert.match(forgot, /navigateToAppRoute\("\/login\/", router\)/);
+  assert.match(reset, /navigateToAppRoute\("\/login\/", router\)/);
+});
+
 test("forgot-password route is covered by the static export contract", () => {
   const source = read("src/app/(auth)/forgot-password/page.tsx");
   assert.match(source, /export default function ForgotPasswordPage/);

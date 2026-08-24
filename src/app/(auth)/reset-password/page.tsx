@@ -3,7 +3,7 @@
 import { FormEvent, Suspense, useState } from "react";
 import { Alert, Box, Button, CircularProgress, Paper, TextField, Typography } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getApiUrl, publicFetch } from "../../apiUrl";
+import { getApiUrl, navigateToAppRoute, publicFetch } from "../../apiUrl";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -55,7 +55,7 @@ function ResetPasswordForm() {
         <Button type="submit" variant="contained" size="large" disabled={loading || !token || Boolean(message)}>
           {loading ? <CircularProgress size={22} /> : "Reset password"}
         </Button>
-        <Button onClick={() => router.push("/login/")} sx={{ textTransform: "none" }}>
+        <Button onClick={() => navigateToAppRoute("/login/", router)} sx={{ textTransform: "none" }}>
           {message ? "Continue to sign in" : "Back to sign in"}
         </Button>
       </Box>

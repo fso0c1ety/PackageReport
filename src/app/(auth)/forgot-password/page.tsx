@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { Alert, Box, Button, CircularProgress, Paper, TextField, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
-import { getApiUrl, publicFetch } from "../../apiUrl";
+import { getApiUrl, navigateToAppRoute, publicFetch } from "../../apiUrl";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
         <Button type="submit" variant="contained" size="large" disabled={loading}>
           {loading ? <CircularProgress size={22} /> : "Send reset link"}
         </Button>
-        <Button onClick={() => router.push("/login/")} sx={{ textTransform: "none" }}>Back to sign in</Button>
+        <Button onClick={() => navigateToAppRoute("/login/", router)} sx={{ textTransform: "none" }}>Back to sign in</Button>
       </Box>
     </Paper>
   );
