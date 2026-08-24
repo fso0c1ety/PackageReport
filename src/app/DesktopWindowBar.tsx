@@ -15,8 +15,7 @@ export default function DesktopWindowBar() {
 
   useEffect(() => {
     if (!windowApi) return;
-    let active = true;
-    void windowApi.getState().then((state) => { if (active) setIsMaximized(state.isMaximized); });
+    void windowApi.getState().then((state) => setIsMaximized(state.isMaximized));
     return windowApi.onState((state) => setIsMaximized(state.isMaximized));
   }, [windowApi]);
 
