@@ -32,5 +32,7 @@ test("notification persistence broadcasts only after a successful insert", () =>
   const automation = read("src", "app", "api", "automation", "[tableId]", "[id]", "route.js");
   assert.match(helper, /RETURNING id/);
   assert.match(helper, /broadcastNotificationCreated\(recipientId, inserted\.rows\[0\]\.id\)/);
+  assert.match(helper, /Promise\.allSettled\(realtimeBroadcasts\)/);
   assert.match(automation, /broadcastNotificationCreated\(recipient\.id, notificationId\)/);
+  assert.match(automation, /Promise\.allSettled\(realtimeBroadcasts\)/);
 });

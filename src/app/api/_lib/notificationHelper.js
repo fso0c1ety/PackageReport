@@ -103,6 +103,7 @@ export async function sendTableNotification({
 
   const tokenSet = new Set();
   const insertedRecipientIds = new Set();
+  const realtimeBroadcasts = [];
   for (const recipientId of recipients) {
     const dedupeKey = extraData?.dedupeKey ? `${String(extraData.dedupeKey)}:${recipientId}` : null;
     const inserted = await pool.query(
@@ -114,9 +115,15 @@ export async function sendTableNotification({
     );
     if (inserted.rows.length > 0) {
       insertedRecipientIds.add(String(recipientId));
-      void broadcastNotificationCreated(recipientId, inserted.rows[0].id);
+      realtimeBroadcasts.push(broadcastNotificationCreated(recipientId, inserted.rows[0].id));
     }
   }
+
+  // Keep the serverless invocation alive until the realtime handoff has been
+  // attempted. Fire-and-forget broadcasts can be dropped when the runtime is
+  // frozen immediately after the database write, forcing clients to wait for
+  // fallback polling.
+  await Promise.allSettled(realtimeBroadcasts);
 
   for (const matchedUser of userRes.rows) {
     if (!insertedRecipientIds.has(String(matchedUser.id)) || matchedUser.push_notifications === false) continue;
