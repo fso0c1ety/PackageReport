@@ -5,6 +5,7 @@ const { sendPushNotification } = require("../firebase");
 const { parseJsonArray } = require("../utils/parseJsonArray");
 const { escapeHtml, formatCellValue } = require("../utils/formatCellValue");
 const { activityLogTimestampForDatabase } = require("../utils/activityLogTimestamp.cjs");
+const { broadcastNotificationCreated } = require("../notificationRealtime");
 
 function buildAutomationEmail(table, columns, colIds, values) {
   let htmlRows = "";
@@ -118,11 +119,12 @@ async function deliverAutomation({ automation, table, rowId, values }) {
 
         const fcmTokens = new Set();
         for (const user of userRes.rows) {
+          const notificationId = uuidv4();
           await db.query(
             `INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
             [
-              uuidv4(),
+              notificationId,
               user.id,
               null,
               "automation",
@@ -139,6 +141,7 @@ async function deliverAutomation({ automation, table, rowId, values }) {
               false,
             ]
           );
+          void broadcastNotificationCreated(user.id, notificationId);
 
           if (user.fcm_token) fcmTokens.add(user.fcm_token);
           if (Array.isArray(user.fcm_tokens)) {

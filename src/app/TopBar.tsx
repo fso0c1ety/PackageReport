@@ -28,6 +28,7 @@ import { useThemeContext } from "./ThemeContext";
 import { useCallContext } from "./CallContext";
 import UserProfileDialog from "./UserProfileDialog";
 import { clearNativeRefreshToken, getNativeRefreshToken } from "./authStorage";
+import { supabase } from "../lib/supabase";
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -252,6 +253,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const prevNotifsRef = React.useRef<Set<string>>(new Set());
   const initialFetchDone = React.useRef<boolean>(false);
   const isFetchingNotificationsRef = React.useRef(false);
+  const notificationsChannelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -334,15 +336,43 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     };
 
     fetchNotifications();
-    // Push delivery handles realtime alerts; this fallback keeps the bell fresh
-    // without flooding the Network panel or the API while the user is idle.
+    let cancelled = false;
+    const setupRealtime = async () => {
+      try {
+        const response = await authenticatedFetch(getApiUrl("notifications/realtime-topic"), { suppressNativeErrorAlert: true });
+        if (!response.ok || cancelled) return;
+        const { topic } = await response.json();
+        if (!topic || cancelled) return;
+        const channel = supabase
+          .channel(`notification:${topic}`, { config: { broadcast: { ack: true, self: false } } })
+          .on("broadcast", { event: `notification:${topic}` }, (message) => {
+            const payload = message?.payload || {};
+            if (payload.topic !== topic || !payload.notificationId || cancelled) return;
+            void fetchNotifications();
+          });
+        notificationsChannelRef.current = channel;
+        channel.subscribe((status) => {
+          if (status === "SUBSCRIBED") void fetchNotifications();
+        });
+      } catch {
+        // Polling remains the safe reconciliation fallback when Realtime is unavailable.
+      }
+    };
+    void setupRealtime();
+
+    // Realtime is the primary path; this fallback only reconciles missed events.
     const interval = setInterval(fetchNotifications, isElectronRuntime() ? 10000 : 30000);
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
+      if (notificationsChannelRef.current) {
+        void supabase.removeChannel(notificationsChannelRef.current);
+        notificationsChannelRef.current = null;
+      }
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
