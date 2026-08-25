@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { ensureUserNotificationColumns, pool } from "./server";
 import { sendPushNotification } from "./firebaseAdmin";
 import { requireBoardPermission, requireRowPermission } from "./authorization";
+import { broadcastNotificationCreated } from "./notificationRealtime";
 
 function toArray(value) {
   if (Array.isArray(value)) {
@@ -111,7 +112,10 @@ export async function sendTableNotification({
        RETURNING id`,
       [randomUUID(), recipientId, senderId, type, notificationData, false, dedupeKey]
     );
-    if (inserted.rows.length > 0) insertedRecipientIds.add(String(recipientId));
+    if (inserted.rows.length > 0) {
+      insertedRecipientIds.add(String(recipientId));
+      void broadcastNotificationCreated(recipientId, inserted.rows[0].id);
+    }
   }
 
   for (const matchedUser of userRes.rows) {

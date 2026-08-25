@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { sendEmail } from "../../../_lib/mailer";
 import { isSafePublicHttpsUrl } from "../../../_lib/security";
 import { requireBoardPermission } from "../../../_lib/authorization";
+import { broadcastNotificationCreated } from "../../../_lib/notificationRealtime";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,11 @@ async function executeRetryActions({ actions, automation, table, rowId, values, 
       if (["send_notification", "send_both"].includes(action.type)) {
         const recipients = Array.isArray(config.recipients) ? config.recipients.map((email) => String(email).toLowerCase()) : [];
         const users = await pool.query("SELECT id FROM users WHERE LOWER(email)=ANY($1)", [recipients]);
-        for (const recipient of users.rows) await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'automation',$4::jsonb,FALSE,NOW())", [randomUUID(), recipient.id, actorId, JSON.stringify({ title: automation.name || "Automation", body: config.body || "An automation was triggered.", tableId: table.id, taskId: rowId })]);
+        for (const recipient of users.rows) {
+          const notificationId = randomUUID();
+          await pool.query("INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,$3,'automation',$4::jsonb,FALSE,NOW())", [notificationId, recipient.id, actorId, JSON.stringify({ title: automation.name || "Automation", body: config.body || "An automation was triggered.", tableId: table.id, taskId: rowId })]);
+          void broadcastNotificationCreated(recipient.id, notificationId);
+        }
       }
     } else if (["update_field", "assign_user"].includes(action.type)) {
       if (!columnId) throw new Error("Target column is required");
