@@ -21,9 +21,9 @@ export default function LoginPage() {
     <Box sx={{ minHeight: '100vh', bgcolor: '#f6f7fb', color: '#11152d' }}>
       {!electronRuntime && <PublicHeader active={signup ? 'signup' : 'signin'} />}
 
-      <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 } }}>
-        <Box sx={{ minHeight: { md: electronRuntime ? 'calc(100vh - 48px)' : 'calc(100vh - 124px)' }, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,.82fr) minmax(480px,1.18fr)' }, gap: { xs: 3, lg: 4 }, alignItems: 'stretch' }}>
-          <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: { xs: 5, md: 7 }, p: { xs: 3, sm: 5, md: 6 }, minHeight: { xs: 340, lg: 610 }, color: '#fff', background: 'linear-gradient(135deg,#15173b 0%,#3f3fc9 55%,#7258ef 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 30px 80px rgba(55,52,170,.25)' }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 }, boxSizing: 'border-box', minHeight: electronRuntime ? '100%' : undefined }}>
+        <Box sx={{ minHeight: { md: electronRuntime ? '100%' : 'calc(100vh - 124px)' }, boxSizing: 'border-box', display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,.82fr) minmax(480px,1.18fr)' }, gap: { xs: 3, lg: 4 }, alignItems: 'stretch' }}>
+          <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: { xs: 5, md: 7 }, p: { xs: 3, sm: 5, md: 6 }, minHeight: { xs: 340, lg: electronRuntime ? 0 : 610 }, color: '#fff', background: 'linear-gradient(135deg,#15173b 0%,#3f3fc9 55%,#7258ef 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 30px 80px rgba(55,52,170,.25)' }}>
             <Box sx={{ position: 'absolute', width: 420, height: 420, borderRadius: '50%', right: -150, top: -130, bgcolor: 'rgba(255,255,255,.10)', border: '1px solid rgba(255,255,255,.16)' }} />
             <Box sx={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', left: -100, bottom: -120, bgcolor: '#88f0d2', opacity: .22, filter: 'blur(4px)' }} />
 
