@@ -36,7 +36,6 @@ dayjs.extend(relativeTime);
 import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { getFallbackVirtualRows } from './tableVirtualization';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import {
@@ -5042,50 +5041,20 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   count: filteredRowIds.length,
   getScrollElement: getRowScrollElement,
   estimateSize: estimateRowSize,
-  // Rows use a fixed CSS height. A larger buffer gives Electron's wheel events
-  // enough runway without mounting the entire board during a fast jump.
-  overscan: isMobile ? 24 : 20,
+  // Keep a healthy buffer so fast scrolls never expose blank space while rows
+  // are being measured in responsive/mobile layouts.
+  overscan: isMobile ? 18 : 12,
   scrollMargin: BOARD_HEADER_HEIGHT,
   getItemKey: getVirtualRowKey,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
-  const currentScrollTop = tableContainerRef.current?.scrollTop ?? 0;
-  const currentViewportHeight = tableContainerRef.current?.clientHeight ?? ROW_HEIGHT_ESTIMATE;
-  // During a large wheel jump TanStack may briefly return a stale, non-empty
-  // range from the previous frame. Treat invalid/out-of-viewport ranges the
-  // same as an empty range and derive a deterministic range for this frame.
-  const validVirtualRows = virtualRows.filter((virtualRow) => (
-    Number.isInteger(virtualRow.index)
-    && virtualRow.index >= 0
-    && virtualRow.index < filteredRowIds.length
-    && Number.isFinite(virtualRow.start)
-    && Number.isFinite(virtualRow.size)
-    && virtualRow.size > 0
-  ));
-  const viewportFirstIndex = Math.max(0, Math.floor(currentScrollTop / ROW_HEIGHT_ESTIMATE) - 1);
-  const viewportLastIndex = Math.min(
-    filteredRowIds.length - 1,
-    Math.ceil((currentScrollTop + Math.max(ROW_HEIGHT_ESTIMATE, currentViewportHeight)) / ROW_HEIGHT_ESTIMATE) + 1,
-  );
-  const hasCurrentViewport = validVirtualRows.some((virtualRow) => (
-    virtualRow.index >= viewportFirstIndex && virtualRow.index <= viewportLastIndex
-  ));
-  const safeVirtualRows = hasCurrentViewport
-    ? validVirtualRows
-    : getFallbackVirtualRows({
-      count: filteredRowIds.length,
-      scrollTop: currentScrollTop,
-      viewportHeight: currentViewportHeight,
-      rowHeight: ROW_HEIGHT_ESTIMATE,
-      overscan: isMobile ? 24 : 20,
-    });
-  const virtualVisibleRowEntries = safeVirtualRows.map((virtualRow) => ({
+  // Do not memoize this projection by the virtual-items array reference.
+  // TanStack can reuse that array while updating its range during a fast
+  // scroll; projecting on every board render prevents stale/blank ranges.
+  const virtualVisibleRowEntries = virtualRows.map((virtualRow) => ({
   rowId: filteredRowIds[virtualRow.index],
   rowIndex: virtualRow.index,
-  // Fixed-height rows must use the same deterministic offset as the spacer.
-  // This prevents stale measurement data from pushing a row outside the
-  // viewport while the user is scrolling quickly.
-  start: virtualRow.index * ROW_HEIGHT_ESTIMATE,
+  start: virtualRow.start,
   }));
   // Keep virtualization active during row drag. Rendering every task at drag
   // start caused a large synchronous mount and visible stutter.
@@ -9818,6 +9787,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   data-index={rowIndex}
   ref={(node: HTMLElement | null) => {
   provided.innerRef(node);
+  if (node && !snapshot.isDragging) {
+  rowVirtualizer.measureElement(node);
+  }
   }}
   {...provided.draggableProps}
   style={snapshot.isDragging ? {
