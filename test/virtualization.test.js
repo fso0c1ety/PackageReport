@@ -42,3 +42,28 @@ test('10,000 board rows render only the viewport plus overscan', () => {
   assert.ok(visibleRows[0].index > 4_900);
   assert.ok(visibleRows.at(-1).index < 5_100);
 });
+
+test('TableBoard uses deterministic fixed-height offsets during fast scroll', () => {
+  const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
+  assert.match(board, /validVirtualRows = virtualRows\.filter/);
+  assert.match(board, /hasCurrentViewport/);
+  assert.match(board, /start: virtualRow\.index \* ROW_HEIGHT_ESTIMATE/);
+  assert.doesNotMatch(board, /rowVirtualizer\.measureElement\(node\)/);
+});
+
+test('fallback keeps the current viewport covered after a large scroll jump', () => {
+  const count = 450;
+  const rowHeight = 36;
+  const scrollTop = 449 * rowHeight;
+  const viewportHeight = 500;
+  const overscan = 20;
+  const first = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const last = Math.min(count - 1, Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan);
+  const range = Array.from({ length: last - first + 1 }, (_, offset) => ({
+    index: first + offset,
+    start: (first + offset) * rowHeight,
+  }));
+  assert.ok(range.length <= 40);
+  assert.equal(range.at(-1).index, 449);
+  assert.equal(range.at(-1).start, 449 * 36);
+});
