@@ -117,7 +117,8 @@ async function deliverAutomation({ automation, table, rowId, values }) {
           [recipients]
         );
 
-        const fcmTokens = new Set();
+      const fcmTokens = new Set();
+      const realtimeBroadcasts = [];
         for (const user of userRes.rows) {
           const notificationId = uuidv4();
           await db.query(
@@ -141,7 +142,7 @@ async function deliverAutomation({ automation, table, rowId, values }) {
               false,
             ]
           );
-          void broadcastNotificationCreated(user.id, notificationId);
+          realtimeBroadcasts.push(broadcastNotificationCreated(user.id, notificationId));
 
           if (user.fcm_token) fcmTokens.add(user.fcm_token);
           if (Array.isArray(user.fcm_tokens)) {
@@ -149,9 +150,11 @@ async function deliverAutomation({ automation, table, rowId, values }) {
               if (token) fcmTokens.add(token);
             });
           }
-        }
+      }
 
-        const tokensArray = Array.from(fcmTokens);
+      await Promise.allSettled(realtimeBroadcasts);
+
+      const tokensArray = Array.from(fcmTokens);
         if (tokensArray.length > 0) {
           await sendPushNotification(tokensArray, notificationTitle, `${subject}\n${notificationBody}`, {
             type: "automation",
