@@ -10432,14 +10432,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
               component="div"
               sx={{
                 display: 'block',
-                position: 'sticky',
-                bottom: 0,
-                zIndex: 110,
+                position: 'relative',
+                zIndex: 2,
                 width: gridContentWidth,
-                minWidth: '100%'
+                minWidth: '100%',
+                // Keep the footer in normal flow so it cannot paint over
+                // the last virtualized row while the table is scrolled.
+                boxSizing: 'border-box'
               }}
             >
-              <TableRow component="div" sx={{ display: 'grid', gridTemplateColumns: bodyGridTemplateColumns, width: gridContentWidth, minWidth: '100%', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }}>
+              <TableRow component="div" sx={{ display: 'grid', gridTemplateColumns: bodyGridTemplateColumns, width: gridContentWidth, minWidth: '100%', minHeight: ROW_HEIGHT_ESTIMATE, boxSizing: 'border-box', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }}>
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
                 {displayedBodyColumns.map((col, index) => {
                   const summary = columnFooterSummaries.get(col.id);
@@ -10467,10 +10469,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                         borderRight: `1px solid ${theme.palette.divider}`,
                         textAlign: summary?.kind === 'number' ? 'right' : 'center',
                         backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff',
-                        position: 'sticky',
-                        bottom: 0,
-                        left: col.fixed ? 48 : 'auto',
-                        zIndex: col.fixed ? 4 : 3
+                        position: 'relative',
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        boxSizing: 'border-box'
                       }}
                     >
                       {content}
@@ -10487,6 +10489,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                     gridTemplateColumns: bodyGridTemplateColumns,
                     width: gridContentWidth,
                     minWidth: '100%',
+                    minHeight: ROW_HEIGHT_ESTIMATE,
+                    boxSizing: 'border-box',
                     backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff'
                   }}
                 >
@@ -10497,6 +10501,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                       p: '4px 8px',
                       borderTop: `1px solid ${theme.palette.divider}`,
                       borderBottom: 'none',
+                      minHeight: ROW_HEIGHT_ESTIMATE,
+                      boxSizing: 'border-box',
                       backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff'
                     }}
                   >
