@@ -28,3 +28,12 @@ test('table viewport is bounded independently from virtual content size', () => 
   assert.match(source, /height: rowVirtualizer\.getTotalSize\(\)/);
   assert.match(source, /overflowX: 'auto'/);
 });
+
+test('table content width cannot shrink inside the flex viewport', () => {
+  const tableStart = source.indexOf('<Table', source.indexOf('<TableContainer') + 1);
+  const table = source.slice(tableStart, source.indexOf('<Box\n  role="rowgroup"', tableStart));
+  assert.match(table, /width: gridContentWidth/);
+  assert.match(table, /minWidth: gridContentWidth/);
+  assert.match(table, /flex: '0 0 auto'/);
+  assert.match(table, /flexShrink: 0/);
+});
