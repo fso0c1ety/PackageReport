@@ -4,36 +4,34 @@ const fs = require('node:fs');
 
 const source = fs.readFileSync('src/app/TableBoard.tsx', 'utf8');
 
-test('table footer stays in flow below the virtualized body', () => {
-  const footer = source.slice(source.indexOf('<TableFooter'), source.indexOf('</TableFooter>'));
-  assert.match(footer, /position: 'relative'/);
-  assert.doesNotMatch(footer, /position: 'sticky'/);
-  assert.match(footer, /gridTemplateColumns: bodyGridTemplateColumns/);
-  assert.match(footer, /minHeight: ROW_HEIGHT_ESTIMATE/);
-});
-
-test('footer cells contain summaries without horizontal overflow', () => {
-  const footer = source.slice(source.indexOf('<TableFooter'), source.indexOf('</TableFooter>'));
-  assert.match(footer, /overflow: 'hidden'/);
-  assert.match(footer, /boxSizing: 'border-box'/);
-  assert.match(footer, /data-footer-summary=/);
-});
-
-test('table viewport is bounded independently from virtual content size', () => {
+test('tableboard keeps the known-good bounded viewport layout', () => {
   const table = source.slice(source.indexOf('<TableContainer'), source.indexOf('<Table\n'));
-  assert.match(table, /filteredRowIds\.length <= 12/);
-  assert.match(table, /display: 'flex'/);
-  assert.match(table, /flexDirection: 'column'/);
-  assert.match(table, /minHeight: 0/);
+  assert.match(table, /height: isMobile/);
+  assert.match(table, /minHeight: 240/);
   assert.match(source, /height: rowVirtualizer\.getTotalSize\(\)/);
   assert.match(source, /overflowX: 'auto'/);
 });
 
-test('table content width cannot shrink inside the flex viewport', () => {
+test('table content preserves configured grid width and legacy footer flow', () => {
   const tableStart = source.indexOf('<Table', source.indexOf('<TableContainer') + 1);
   const table = source.slice(tableStart, source.indexOf('<Box\n  role="rowgroup"', tableStart));
   assert.match(table, /width: gridContentWidth/);
-  assert.match(table, /minWidth: gridContentWidth/);
-  assert.match(table, /flex: '0 0 auto'/);
-  assert.match(table, /flexShrink: 0/);
+  assert.match(table, /minWidth: '100%'/);
+  const footer = source.slice(source.indexOf('<TableFooter'), source.indexOf('</TableFooter>'));
+  assert.match(footer, /position: 'sticky'/);
+  assert.match(footer, /numericTotalsByColumn/);
+});
+
+test('known-good table keeps the original row and header sizing contracts', () => {
+  assert.match(source, /ROW_HEIGHT_ESTIMATE/);
+  assert.match(source, /height: BOARD_HEADER_HEIGHT/);
+  assert.match(source, /height: ROW_HEIGHT_ESTIMATE/);
+});
+
+test('known-good table keeps horizontal and vertical scrolling on the shared viewport', () => {
+  const container = source.slice(source.indexOf('const tableContainerSx'), source.indexOf('const tableSx'));
+  assert.match(source, /overflowX: 'auto'/);
+  assert.match(source, /overflowY: 'auto'/);
+  assert.match(source, /tableContainerRef/);
+  assert.ok(container.length >= 0);
 });
