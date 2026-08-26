@@ -4719,8 +4719,24 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const safeSheetName = (boardTitle || 'Workspace Table').replace(/[\\/*?:[\]]/g, ' ').slice(0, 31) || 'Table';
   const worksheet = workbook.addWorksheet(safeSheetName);
+  const metadataWorksheet = workbook.addWorksheet('_smart_manage_meta', { state: 'veryHidden' });
   const exportRows = rows.filter((row) => !row.archived && row.id !== 'placeholder' && (!onlyRowIds || onlyRowIds.has(row.id)));
   const totalColumns = Math.max(1, sortedColumns.length);
+
+  metadataWorksheet.getCell('A1').value = JSON.stringify({
+  marker: 'SMART_MANAGE_EXPORT',
+  version: 1,
+  boardName: boardTitle || 'Workspace Table',
+  headerRow: 5,
+  dataStartRow: 6,
+  columns: sortedColumns.map((column) => ({
+  name: column.name,
+  type: column.type,
+  order: column.order,
+  width: column.width,
+  options: column.options || [],
+  })),
+  });
 
   worksheet.addRow([boardTitle || 'Workspace Table', '', 'This spreadsheet was created using Smart Manage']);
   worksheet.addRow(['Manage your workspace data, assignments, statuses and timelines in one export.']);
@@ -4732,7 +4748,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (value == null || value === '') return '';
   if (column.type === 'Date') {
   const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.toDate() : String(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD') : String(value);
   }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') return value;

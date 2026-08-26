@@ -154,6 +154,25 @@ export async function POST(req) {
     const worksheet = workbook.worksheets[0];
     const firstSheetName = worksheet?.name;
 
+    let smartManageMetadata = null;
+    const metadataWorksheet = workbook.getWorksheet('_smart_manage_meta');
+    if (metadataWorksheet) {
+      const markerValue = metadataWorksheet.getCell('A1').value;
+      const rawMetadata = typeof markerValue === "object" && markerValue && "text" in markerValue
+        ? markerValue.text
+        : markerValue;
+      if (typeof rawMetadata === "string") {
+        try {
+          const parsedMetadata = JSON.parse(rawMetadata);
+          if (parsedMetadata?.marker === "SMART_MANAGE_EXPORT" && parsedMetadata?.version === 1) {
+            smartManageMetadata = parsedMetadata;
+          }
+        } catch {
+          // Treat malformed metadata as a generic workbook; never fail import.
+        }
+      }
+    }
+
     if (!firstSheetName) {
       return NextResponse.json({ error: "Workbook is empty" }, { status: 400 });
     }
@@ -173,7 +192,9 @@ export async function POST(req) {
         && normalized.includes("STATUSI I DERGESES")
         && normalized.includes("DATA");
     });
-    const headerRowIndex = mondayHeaderRowIndex >= 0
+    const headerRowIndex = smartManageMetadata?.headerRow
+      ? Math.max(0, Number(smartManageMetadata.headerRow) - 1)
+      : mondayHeaderRowIndex >= 0
       ? mondayHeaderRowIndex
       : rawRows.findIndex((row) =>
         Array.isArray(row) && row.some((cell) => String(cell ?? "").trim() !== "")
@@ -184,7 +205,7 @@ export async function POST(req) {
     }
 
     const headerRow = Array.isArray(rawRows[headerRowIndex]) ? rawRows[headerRowIndex] : [];
-    const declaredTypeRow = mondayHeaderRowIndex >= 0 && Array.isArray(rawRows[headerRowIndex - 1])
+    const declaredTypeRow = !smartManageMetadata && mondayHeaderRowIndex >= 0 && Array.isArray(rawRows[headerRowIndex - 1])
       ? rawRows[headerRowIndex - 1]
       : [];
     const headers = headerRow.map((value, index) => normalizeHeader(value, index));
@@ -202,8 +223,9 @@ export async function POST(req) {
     });
 
     const columns = headers.map((header, columnIndex) => {
+      const declaredColumn = smartManageMetadata?.columns?.[columnIndex];
       const inferred = inferColumnType(dataRows.map((row) => row?.[columnIndex]));
-      const declaredType = getDeclaredColumnType(declaredTypeRow[columnIndex]);
+      const declaredType = declaredColumn?.type || getDeclaredColumnType(declaredTypeRow[columnIndex]);
       const type = declaredType || inferred.type;
       const uniqueOptions = (type === "Status" || type === "Dropdown" || type === "Country")
         ? Array.from(new Set(
@@ -217,11 +239,12 @@ export async function POST(req) {
         : undefined;
       return {
         id: randomUUID(),
-        name: header,
+        name: declaredColumn?.name || header,
         type,
-        order: columnIndex,
+        order: declaredColumn?.order ?? columnIndex,
+        ...(declaredColumn?.width ? { width: declaredColumn.width } : {}),
         ...(uniqueOptions
-          ? { options: uniqueOptions }
+          ? { options: declaredColumn?.options?.length ? declaredColumn.options : uniqueOptions }
           : inferred.options
           ? { options: inferred.options }
           : {}),
@@ -229,7 +252,7 @@ export async function POST(req) {
     });
 
     const tableId = randomUUID();
-    const tableName = requestedTableName || firstSheetName || "Imported Table";
+    const tableName = smartManageMetadata?.boardName || requestedTableName || firstSheetName || "Imported Table";
 
     await pool.query(
       "INSERT INTO tables (id, name, workspace_id, columns, created_at, shared_users) VALUES ($1, $2, $3, $4, $5, $6)",
