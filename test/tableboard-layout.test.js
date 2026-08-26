@@ -18,3 +18,13 @@ test('footer cells contain summaries without horizontal overflow', () => {
   assert.match(footer, /boxSizing: 'border-box'/);
   assert.match(footer, /data-footer-summary=/);
 });
+
+test('table viewport is bounded independently from virtual content size', () => {
+  const table = source.slice(source.indexOf('<TableContainer'), source.indexOf('<Table\n'));
+  assert.match(table, /filteredRowIds\.length <= 12/);
+  assert.match(table, /display: 'flex'/);
+  assert.match(table, /flexDirection: 'column'/);
+  assert.match(table, /minHeight: 0/);
+  assert.match(source, /height: rowVirtualizer\.getTotalSize\(\)/);
+  assert.match(source, /overflowX: 'auto'/);
+});
