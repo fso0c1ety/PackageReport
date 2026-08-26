@@ -20,6 +20,8 @@ test("notification realtime uses an authenticated user-scoped topic and ID-only 
 test("TopBar applies realtime inserts immediately and cleans up the channel", () => {
   const topBar = read("src", "app", "TopBar.tsx");
   assert.match(topBar, /notifications\/realtime-topic/);
+  assert.match(topBar, /\.channel\(topic,/);
+  assert.doesNotMatch(topBar, /\.channel\(`notification:\$\{topic\}`/);
   assert.match(topBar, /\.on\("broadcast"/);
   assert.match(topBar, /void fetchNotifications\(\)/);
   assert.match(topBar, /supabase\.removeChannel/);
