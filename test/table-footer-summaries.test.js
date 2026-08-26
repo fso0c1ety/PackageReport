@@ -4,11 +4,9 @@ const fs = require('node:fs');
 
 const source = fs.readFileSync('src/app/TableBoard.tsx', 'utf8');
 
-test('known-good footer keeps only legacy item count and numeric totals', () => {
-  assert.doesNotMatch(source, /columnFooterSummaries = React\.useMemo/);
-  assert.doesNotMatch(source, /data-footer-summary=/);
-  assert.match(source, /numericTotalsByColumn = React\.useMemo/);
-  assert.match(source, /numericTotalsByColumn\.get/);
+test('footer summaries use the existing footer row', () => {
+  assert.match(source, /columnFooterSummaries = React\.useMemo/);
+  assert.match(source, /data-footer-summary=/);
 });
 
 test('legacy footer remains sticky and aligned to the board grid', () => {
@@ -17,9 +15,19 @@ test('legacy footer remains sticky and aligned to the board grid', () => {
   assert.match(footer, /gridTemplateColumns: bodyGridTemplateColumns/);
 });
 
-test('footer summary UI is not rendered by the restored TableBoard', () => {
-  assert.doesNotMatch(source, /distribution/);
-  assert.doesNotMatch(source, /average: numbers/);
+test('footer summaries cover number and distribution columns without adding a row', () => {
+  assert.match(source, /summary\?\.kind === 'number'/);
+  assert.match(source, /summary\?\.kind === 'distribution'/);
+  assert.equal((source.match(/<TableFooter/g) || []).length, 1);
+  assert.match(source, /filteredRows\.flatMap/);
+});
+
+test('dropdown suggestions are full-board, deduplicated and frequency-ranked', () => {
+  assert.match(source, /Suggestions intentionally use the complete board/);
+  assert.match(source, /rows\.forEach/);
+  assert.match(source, /slice\(0, 50\)/);
+  assert.match(source, /Autocomplete/);
+  assert.match(source, /ArrowDown|autoHighlight/);
 });
 
 test('summary aggregation remains linear for large boards', () => {

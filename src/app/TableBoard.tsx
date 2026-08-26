@@ -5095,19 +5095,56 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
   }, [isInvoiceDialogOpen, rows, columns]);
 
-  const numericTotalsByColumn = React.useMemo(() => {
-  const totals = new Map<string, number>();
+  // Footer summaries are calculated from the visible (filter-aware) rows while
+  // preserving the existing footer row and grid.  The values are deliberately
+  // presentation-only; permissions continue to be enforced by the board API.
+  const columnFooterSummaries = React.useMemo(() => {
+  const summaries = new Map<string, { kind: string; count: number; sum?: number; average?: number; min?: number; max?: number; distribution?: Array<{ label: string; count: number; color: string }> }>();
+  const labels = (value: any): string[] => (Array.isArray(value) ? value : [value]).flatMap((entry) => {
+  if (entry == null || entry === '') return [];
+  if (typeof entry === 'object') return [String(entry.name || entry.label || entry.value || entry.email || '')].filter(Boolean);
+  return [String(entry).trim()].filter(Boolean);
+  });
   sortedColumns.forEach((column) => {
-  if (column.type !== "Number" && column.type !== "Numbers") return;
-  let total = 0;
-  filteredRows.forEach((row) => {
-  const numericValue = Number.parseFloat(row.values[column.id]);
-  if (!Number.isNaN(numericValue)) total += numericValue;
+  const values = filteredRows.flatMap((row) => labels(row.values?.[column.id]));
+  if (column.type === 'Number' || column.type === 'Numbers' || column.type === 'Money') {
+  const numbers = values.map((value) => Number.parseFloat(value.replace(/,/g, ''))).filter(Number.isFinite);
+  const sum = numbers.reduce((total, value) => total + value, 0);
+  summaries.set(column.id, { kind: 'number', count: numbers.length, sum, average: numbers.length ? sum / numbers.length : 0, min: numbers.length ? Math.min(...numbers) : undefined, max: numbers.length ? Math.max(...numbers) : undefined });
+  } else if (column.type === 'Status' || column.type === 'Priority' || column.type === 'Dropdown' || column.type === 'Country') {
+  const counts = new Map<string, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  const distribution = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([label, count]) => ({ label, count, color: column.options?.find((option) => option.value.toLocaleLowerCase() === label.toLocaleLowerCase())?.color || stringToColor(label) }));
+  summaries.set(column.id, { kind: 'distribution', count: values.length, distribution });
+  } else {
+  summaries.set(column.id, { kind: 'empty', count: 0 });
+  }
   });
-  totals.set(column.id, total);
-  });
-  return totals;
+  return summaries;
   }, [filteredRows, sortedColumns]);
+
+  // Suggestions intentionally use the complete board, not the current filter.
+  // Dedupe is case/whitespace insensitive and frequency-ranked for quick entry.
+  const dropdownOptionsByColumnId = React.useMemo(() => {
+  const index = new Map<string, ColumnOption[]>();
+  sortedColumns.filter((column) => column.type === 'Dropdown' || column.id === 'priority').forEach((column) => {
+  const byNormalized = new Map<string, { option: ColumnOption; count: number }>();
+  (optionsByColumnId.get(column.id) || EMPTY_COLUMN_OPTIONS).forEach((option) => byNormalized.set(option.value.trim().toLocaleLowerCase().replace(/\s+/g, ' '), { option, count: 0 }));
+  rows.forEach((row) => {
+  const entries = Array.isArray(row.values?.[column.id]) ? row.values[column.id] : [row.values?.[column.id]];
+  entries.forEach((entry: any) => {
+  const value = String(typeof entry === 'object' ? (entry?.label || entry?.value || entry?.name || '') : (entry ?? '')).trim();
+  if (!value) return;
+  const key = value.toLocaleLowerCase().replace(/\s+/g, ' ');
+  const current = byNormalized.get(key);
+  if (current) current.count += 1;
+  else byNormalized.set(key, { option: { value, color: stringToColor(value) }, count: 1 });
+  });
+  });
+  index.set(column.id, [...byNormalized.values()].sort((a, b) => b.count - a.count || a.option.value.localeCompare(b.option.value)).map((entry) => entry.option).slice(0, 50));
+  });
+  return index;
+  }, [optionsByColumnId, rows, sortedColumns]);
 
   useEffect(() => {
   if (!invoiceCompanyName && boardTitle) {
@@ -6870,6 +6907,29 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   }
   }}
+  />
+  );
+  }
+  if (effectiveCol.type === 'Dropdown') {
+  const suggestions = dropdownOptionsByColumnId.get(col.id) || optionsByColumnId.get(col.id) || EMPTY_COLUMN_OPTIONS;
+  return (
+  <Autocomplete
+  freeSolo
+  options={suggestions}
+  value={String(editValue ?? value ?? '')}
+  getOptionLabel={(option) => typeof option === 'string' ? option : option.value}
+  onChange={(_, nextValue) => {
+  const selected = typeof nextValue === 'string' ? nextValue : (nextValue?.value || '');
+  setEditingCell(null);
+  handleCellSave(row.id, col.id, col.type, selected);
+  }}
+  onInputChange={(_, nextValue, reason) => { if (reason === 'input') setEditValue(nextValue); }}
+  onClose={(_, reason) => { if (reason === 'blur' || reason === 'escape') setEditingCell(null); }}
+  openOnFocus
+  autoHighlight
+  renderOption={(props, option) => <Box component="li" {...props} key={option.value}><Box component="span" sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: option.color || stringToColor(option.value), mr: 1 }} />{option.value}</Box>}
+  renderInput={(params) => <TextField {...params} autoFocus size="small" placeholder="Select or type" />}
+  sx={{ width: '100%', minWidth: 0 }}
   />
   );
   }
@@ -10372,12 +10432,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
               <TableRow component="div" sx={{ display: 'grid', gridTemplateColumns: bodyGridTemplateColumns, width: gridContentWidth, minWidth: '100%', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }}>
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
                 {displayedBodyColumns.map((col, index) => {
-                  let content = null;
-                  if (col.type === "Number") {
-                    const sum = numericTotalsByColumn.get(col.id) || 0;
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>{sum.toLocaleString()} sum</Typography>;
-                  } else if (index === 0) {
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
+                  const summary = columnFooterSummaries.get(col.id);
+                  let content: React.ReactNode = index === 0
+                    ? <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>
+                    : null;
+                  if (summary?.kind === 'number') {
+                    content = <Tooltip title={`Sum ${summary.sum?.toLocaleString(undefined, { maximumFractionDigits: 2 })} · Avg ${summary.average?.toLocaleString(undefined, { maximumFractionDigits: 2 })} · Min ${summary.min ?? '—'} · Max ${summary.max ?? '—'}`}><Typography data-footer-summary="number" variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>{summary.sum?.toLocaleString(undefined, { maximumFractionDigits: 2 })} sum</Typography></Tooltip>;
+                  } else if (summary?.kind === 'distribution' && summary.distribution?.length) {
+                    content = <Box data-footer-summary="distribution" sx={{ display: 'flex', gap: '2px', width: '100%', height: 9, borderRadius: 5, overflow: 'hidden' }}>
+                      {summary.distribution.map((segment) => <Tooltip key={segment.label} title={`${segment.label}: ${segment.count} (${Math.round((segment.count / Math.max(summary.count, 1)) * 100)}%)`}><Box component="span" aria-label={`${segment.label}: ${segment.count}`} sx={{ flex: segment.count, minWidth: 4, bgcolor: segment.color, cursor: 'help' }} /></Tooltip>)}
+                    </Box>;
                   }
                   
                   return (
