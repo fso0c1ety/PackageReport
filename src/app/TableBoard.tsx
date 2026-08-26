@@ -4852,19 +4852,19 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return widths;
   }, [getResponsiveColumnWidth, sortedColumns]);
   const gridTemplateColumns = React.useMemo(
-  () => `96px ${sortedColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `140px ${sortedColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, sortedColumns],
   );
   const bodyGridTemplateColumns = React.useMemo(
-  () => `96px ${displayedBodyColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `140px ${displayedBodyColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, displayedBodyColumns],
   );
   const headerGridTemplateColumns = React.useMemo(
-  () => `96px ${displayedHeaderColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
+  () => `140px ${displayedHeaderColumns.map((column) => `${columnWidthById.get(column.id) || 160}px`).join(' ')} 60px`,
   [columnWidthById, displayedHeaderColumns],
   );
   const gridContentWidth = React.useMemo(
-  () => 156 + sortedColumns.reduce((total, column) => total + (columnWidthById.get(column.id) || 160), 0),
+  () => 200 + sortedColumns.reduce((total, column) => total + (columnWidthById.get(column.id) || 160), 0),
   [columnWidthById, sortedColumns],
   );
 
@@ -9512,8 +9512,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   component="div"
   padding="checkbox"
   sx={{
-  minWidth: 96,
-  width: 96,
+  minWidth: 140,
+  width: 140,
   position: 'sticky',
   left: 0,
   zIndex: 10,
@@ -9829,8 +9829,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Row Drag Handle, Menu, and Message Icon */}
 
   <TableCell component="div" sx={{
-  width: 96,
-  minWidth: 96,
+  width: 140,
+  minWidth: 140,
   p: 0,
   borderBottom: 'none',
   borderRight: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
