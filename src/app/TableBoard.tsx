@@ -9542,7 +9542,12 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   display: 'block',
   position: 'relative',
   width: gridContentWidth,
-  minWidth: '100%',
+  // TableContainer is a flex column. Keep the board's computed content width
+  // authoritative instead of allowing the table flex item to shrink to the
+  // viewport (which compresses every column in restored/narrow windows).
+  minWidth: gridContentWidth,
+  flex: '0 0 auto',
+  flexShrink: 0,
   '& .MuiTableCell-root': {
   height: ROW_HEIGHT_ESTIMATE,
   minHeight: ROW_HEIGHT_ESTIMATE,
