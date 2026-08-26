@@ -9509,10 +9509,22 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   overflowY: 'auto',
   // Cap the grid at one header + 20 visible rows + footer. On shorter
   // screens the viewport limit wins and the remaining rows scroll inside.
-  height: isMobile
+  // Keep a real viewport for larger boards, but let short boards size to their
+  // content so the footer/scrollbar stays attached to the table.  The old
+  // always-fixed height made a nine-row board look collapsed at the top of a
+  // large empty panel after the footer was moved into normal flow.
+  height: filteredRowIds.length <= 12
+  ? 'auto'
+  : (isMobile
+    ? (mobileTableHeight ? `${mobileTableHeight}px` : 'calc(100dvh - 300px - env(safe-area-inset-bottom))')
+    : 'min(calc(100vh - 270px), 938px)'),
+  maxHeight: isMobile
   ? (mobileTableHeight ? `${mobileTableHeight}px` : 'calc(100dvh - 300px - env(safe-area-inset-bottom))')
   : 'min(calc(100vh - 270px), 938px)',
-  minHeight: 240,
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  minHeight: 0,
   position: 'relative',
   overflowAnchor: 'none',
   overscrollBehavior: 'contain',
