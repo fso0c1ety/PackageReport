@@ -4997,6 +4997,31 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return searchIndex;
   }, [optionsByColumnId]);
 
+  // Suggestions are derived from the complete board dataset (not the DOM or
+  // the current filter), then ranked by frequency for quick data entry.
+  const dropdownOptionsByColumnId = React.useMemo(() => {
+  const index = new Map<string, ColumnOption[]>();
+  sortedColumns.filter((column) => column.type === 'Dropdown' || column.id === 'priority').forEach((column) => {
+  const schema = optionsByColumnId.get(column.id) || EMPTY_COLUMN_OPTIONS;
+  const byNormalized = new Map<string, { option: ColumnOption; count: number }>();
+  schema.forEach((option) => byNormalized.set(option.value.trim().toLocaleLowerCase().replace(/\s+/g, ' '), { option, count: 0 }));
+  rows.forEach((row) => {
+  const rawValues = Array.isArray(row.values?.[column.id]) ? row.values[column.id] : [row.values?.[column.id]];
+  rawValues.forEach((rawValue: any) => {
+  const label = typeof rawValue === 'object' ? rawValue?.label || rawValue?.value || rawValue?.name : rawValue;
+  const value = String(label ?? '').trim();
+  if (!value) return;
+  const key = value.toLocaleLowerCase().replace(/\s+/g, ' ');
+  const current = byNormalized.get(key);
+  if (current) current.count += 1;
+  else byNormalized.set(key, { option: { value, color: stringToColor(value) }, count: 1 });
+  });
+  });
+  index.set(column.id, [...byNormalized.values()].sort((a, b) => b.count - a.count || a.option.value.localeCompare(b.option.value)).map((entry) => entry.option).slice(0, 50));
+  });
+  return index;
+  }, [optionsByColumnId, rows, sortedColumns]);
+
   const tableMemberById = React.useMemo(
   () => new Map(tableMembers.map((member) => [member.id, member])),
   [tableMembers],
@@ -5126,18 +5151,36 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
   }, [isInvoiceDialogOpen, rows, columns]);
 
-  const numericTotalsByColumn = React.useMemo(() => {
-  const totals = new Map<string, number>();
+  const columnFooterSummaries = React.useMemo(() => {
+  const summaries = new Map<string, { kind: string; count: number; empty: number; unique: number; sum?: number; average?: number; min?: number; max?: number; earliest?: string; latest?: string; distribution?: Array<{ label: string; count: number; color: string }> }>();
+  const valueLabels = (value: any): string[] => {
+  const values = Array.isArray(value) ? value : [value];
+  return values.flatMap((entry) => {
+  if (entry == null || entry === '') return [];
+  if (typeof entry === 'object') return [String(entry.name || entry.label || entry.value || entry.email || '')].filter(Boolean);
+  return [String(entry).trim()].filter(Boolean);
+  });
+  };
   sortedColumns.forEach((column) => {
-  if (column.type !== "Number" && column.type !== "Numbers") return;
-  let total = 0;
-  filteredRows.forEach((row) => {
-  const numericValue = Number.parseFloat(row.values[column.id]);
-  if (!Number.isNaN(numericValue)) total += numericValue;
+  const values = filteredRows.flatMap((row) => valueLabels(row.values?.[column.id]));
+  const empty = filteredRows.length - values.length;
+  if (column.type === 'Number' || column.type === 'Numbers' || column.type === 'Money') {
+  const numbers = values.map((value) => Number.parseFloat(value.replace(/,/g, ''))).filter(Number.isFinite);
+  const sum = numbers.reduce((total, value) => total + value, 0);
+  summaries.set(column.id, { kind: 'number', count: numbers.length, empty, unique: new Set(numbers).size, sum, average: numbers.length ? sum / numbers.length : 0, min: numbers.length ? Math.min(...numbers) : undefined, max: numbers.length ? Math.max(...numbers) : undefined });
+  } else if (column.type === 'Date' || column.type === 'CreatedDate' || column.type === 'UpdatedDate') {
+  const dates = values.map((value) => dayjs(value)).filter((date) => date.isValid()).sort((a, b) => a.valueOf() - b.valueOf());
+  summaries.set(column.id, { kind: 'date', count: dates.length, empty, unique: dates.length, earliest: dates[0]?.format('DD MMM YYYY'), latest: dates[dates.length - 1]?.format('DD MMM YYYY') });
+  } else if (column.type === 'Status' || column.type === 'Priority' || column.type === 'Dropdown' || column.type === 'Country') {
+  const counts = new Map<string, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  const distribution = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count, color: column.options?.find((option) => option.value.toLowerCase() === label.toLowerCase())?.color || stringToColor(label) }));
+  summaries.set(column.id, { kind: 'distribution', count: values.length, empty, unique: counts.size, distribution });
+  } else {
+  summaries.set(column.id, { kind: 'text', count: values.length, empty, unique: new Set(values.map((value) => value.toLocaleLowerCase())).size });
+  }
   });
-  totals.set(column.id, total);
-  });
-  return totals;
+  return summaries;
   }, [filteredRows, sortedColumns]);
 
   useEffect(() => {
@@ -5853,13 +5896,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const effectiveCol = col.id === "priority" ? { ...col, type: "Dropdown" } : col;
   const value = row.values ? row.values[col.id] : "";
   if (effectiveCol.type === "Dropdown" && col.id !== "priority") {
-  const options = optionsByColumnId.get(effectiveCol.id) || EMPTY_COLUMN_OPTIONS;
-  const normalizedOptionSearch = deferredOptionPopoverSearch.trim().toLowerCase();
+  const options = dropdownOptionsByColumnId.get(effectiveCol.id) || optionsByColumnId.get(effectiveCol.id) || EMPTY_COLUMN_OPTIONS;
+  const normalizedOptionSearch = deferredOptionPopoverSearch.trim().toLocaleLowerCase().replace(/\s+/g, ' ');
   const filteredOptions = normalizedOptionSearch
-  ? (searchableOptionsByColumnId.get(effectiveCol.id) || [])
-      .filter((entry) => entry.searchValue.includes(normalizedOptionSearch))
-      .map((entry) => entry.option)
-  : options;
+  ? options.filter((option) => option.value.toLocaleLowerCase().replace(/\s+/g, ' ').includes(normalizedOptionSearch))
+  : options.slice(0, 50);
   const persistDropdownOptions = async (nextOptions: ColumnOption[]) => {
   const nextColumns = columns.map((candidate) =>
   candidate.id === col.id ? { ...candidate, options: nextOptions } : candidate
@@ -5877,13 +5918,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const createAndSelectDropdownOption = async () => {
   const selectedValue = optionPopoverSearch.trim();
   if (!selectedValue) return;
-  const existingOption = options.find((opt) => opt.value.toLowerCase() === selectedValue.toLowerCase());
+  const schemaOptions = optionsByColumnId.get(effectiveCol.id) || EMPTY_COLUMN_OPTIONS;
+  const existingOption = schemaOptions.find((opt) => opt.value.toLowerCase() === selectedValue.toLowerCase());
   if (existingOption) {
   handleDropdownOptionSelect(existingOption.value);
   return;
   }
   try {
-  const nextOptions = [...options, { value: selectedValue, color: '#e0e4ef' }];
+  const nextOptions = [...schemaOptions, { value: selectedValue, color: '#e0e4ef' }];
   await persistDropdownOptions(nextOptions);
   handleCellSave(row.id, col.id, col.type, [...selectedDropdownValues, selectedValue]);
   setOptionPopoverSearch("");
@@ -10400,13 +10442,18 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
               <TableRow component="div" sx={{ display: 'grid', gridTemplateColumns: bodyGridTemplateColumns, width: gridContentWidth, minWidth: '100%', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }}>
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
                 {displayedBodyColumns.map((col, index) => {
-                  let content = null;
-                  if (col.type === "Number") {
-                    const sum = numericTotalsByColumn.get(col.id) || 0;
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>{sum.toLocaleString()} sum</Typography>;
-                  } else if (index === 0) {
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
-                  }
+                  const summary = columnFooterSummaries.get(col.id);
+                  let content: React.ReactNode = index === 0
+                    ? <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>
+                    : null;
+                  if (summary?.kind === 'number') content = <Typography data-footer-summary="number" variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>{summary.sum?.toLocaleString(undefined, { maximumFractionDigits: 2 })} sum</Typography>;
+                  if (summary?.kind === 'date') content = <Typography data-footer-summary="date" variant="caption" sx={{ color: theme.palette.text.secondary }}>{summary.earliest || '—'}{summary.latest && summary.latest !== summary.earliest ? ` → ${summary.latest}` : ''}</Typography>;
+                  if (summary?.kind === 'text') content = <Typography data-footer-summary="text" variant="caption" sx={{ color: theme.palette.text.secondary }}>{summary.count} count · {summary.unique} unique</Typography>;
+                  if (summary?.kind === 'distribution' && summary.distribution?.length) content = (
+                    <Box data-footer-summary="distribution" sx={{ display: 'flex', gap: '2px', width: '100%', height: 9, borderRadius: 5, overflow: 'hidden' }}>
+                      {summary.distribution.map((segment) => <Tooltip key={segment.label} title={`${segment.label}: ${segment.count} (${Math.round((segment.count / Math.max(summary.count, 1)) * 100)}%)`}><Box component="span" aria-label={`${segment.label}: ${segment.count}`} sx={{ flex: segment.count, minWidth: 4, bgcolor: segment.color, cursor: 'help' }} /></Tooltip>)}
+                    </Box>
+                  );
                   
                   return (
                     <TableCell
@@ -10418,7 +10465,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                         borderTop: `1px solid ${theme.palette.divider}`,
                         borderBottom: 'none',
                         borderRight: `1px solid ${theme.palette.divider}`,
-                        textAlign: col.type === "Number" ? 'right' : 'center',
+                        textAlign: summary?.kind === 'number' ? 'right' : 'center',
                         backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff',
                         position: 'sticky',
                         bottom: 0,
