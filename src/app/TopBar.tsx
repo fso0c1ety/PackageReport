@@ -343,15 +343,28 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         if (!response.ok || cancelled) return;
         const { topic } = await response.json();
         if (!topic || cancelled) return;
+        // The server publishes on the user-scoped topic itself. The channel
+        // name must be identical on both sides; the event name carries the
+        // notification namespace and is validated below.
         const channel = supabase
-          .channel(`notification:${topic}`, { config: { broadcast: { ack: true, self: false } } })
+          .channel(topic, { config: { broadcast: { ack: true, self: false } } })
           .on("broadcast", { event: `notification:${topic}` }, (message) => {
             const payload = message?.payload || {};
             if (payload.topic !== topic || !payload.notificationId || cancelled) return;
+            if (typeof window !== 'undefined') {
+              (window as any).__smartManageNotificationRealtime = {
+                receivedAt: Date.now(),
+                notificationId: String(payload.notificationId),
+                topic,
+              };
+            }
             void fetchNotifications();
           });
         notificationsChannelRef.current = channel;
         channel.subscribe((status) => {
+          if (typeof window !== 'undefined') {
+            (window as any).__smartManageNotificationRealtimeStatus = status;
+          }
           if (status === "SUBSCRIBED") void fetchNotifications();
         });
       } catch {
