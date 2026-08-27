@@ -19,7 +19,8 @@ test('table content preserves configured grid width and legacy footer flow', () 
   assert.match(table, /minWidth: '100%'/);
   const footer = source.slice(source.indexOf('<TableFooter'), source.indexOf('</TableFooter>'));
   assert.match(footer, /position: 'sticky'/);
-  assert.match(footer, /columnFooterSummaries/);
+  assert.match(footer, /numericTotalsByColumn/);
+  assert.match(footer, /filteredRows\.length/);
 });
 
 test('known-good table keeps the original row and header sizing contracts', () => {

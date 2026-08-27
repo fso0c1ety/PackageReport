@@ -6,7 +6,9 @@ const { join } = require('node:path');
 
 const source = readFileSync(join(__dirname, '..', 'src', 'app', 'tableVirtualization.ts'), 'utf8');
 
-test('fallback range keeps a measured viewport populated during an empty virtual range', () => {
+test('recovery candidate does not force the fallback strategy into TableBoard', () => {
+  const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
+  assert.doesNotMatch(board, /getFallbackVirtualRows/);
   assert.match(source, /getFallbackVirtualRows/);
   const count = 450;
   const rowHeight = 36;
