@@ -6,7 +6,9 @@ const { join } = require('node:path');
 
 const source = readFileSync(join(__dirname, '..', 'src', 'app', 'tableVirtualization.ts'), 'utf8');
 
-test('fallback range keeps a measured viewport populated during an empty virtual range', () => {
+test('recovery candidate does not force the fallback strategy into TableBoard', () => {
+  const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
+  assert.doesNotMatch(board, /getFallbackVirtualRows/);
   assert.match(source, /getFallbackVirtualRows/);
   const count = 450;
   const rowHeight = 36;
@@ -43,12 +45,13 @@ test('10,000 board rows render only the viewport plus overscan', () => {
   assert.ok(visibleRows.at(-1).index < 5_100);
 });
 
-test('TableBoard uses deterministic fixed-height offsets during fast scroll', () => {
+test('TableBoard v1.0.6 keeps measured row offsets and legacy overscan', () => {
   const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
-  assert.match(board, /validVirtualRows = virtualRows\.filter/);
-  assert.match(board, /hasCurrentViewport/);
-  assert.match(board, /start: virtualRow\.index \* ROW_HEIGHT_ESTIMATE/);
-  assert.doesNotMatch(board, /rowVirtualizer\.measureElement\(node\)/);
+  assert.doesNotMatch(board, /validVirtualRows = virtualRows\.filter/);
+  assert.doesNotMatch(board, /hasCurrentViewport/);
+  assert.match(board, /start: virtualRow\.start/);
+  assert.match(board, /overscan: isMobile \? 18 : 12/);
+  assert.match(board, /rowVirtualizer\.measureElement\(node\)/);
 });
 
 test('fallback keeps the current viewport covered after a large scroll jump', () => {
