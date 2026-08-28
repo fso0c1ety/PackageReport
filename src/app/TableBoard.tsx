@@ -36,6 +36,7 @@ dayjs.extend(relativeTime);
 import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { getFallbackVirtualRows } from './tableVirtualization';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import {
@@ -5051,7 +5052,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Do not memoize this projection by the virtual-items array reference.
   // TanStack can reuse that array while updating its range during a fast
   // scroll; projecting on every board render prevents stale/blank ranges.
-  const virtualVisibleRowEntries = virtualRows.map((virtualRow) => ({
+  const safeVirtualRows = virtualRows.length > 0
+    ? virtualRows
+    : getFallbackVirtualRows({
+      count: filteredRowIds.length,
+      scrollTop: tableContainerRef.current?.scrollTop ?? 0,
+      viewportHeight: tableContainerRef.current?.clientHeight ?? ROW_HEIGHT_ESTIMATE,
+      rowHeight: ROW_HEIGHT_ESTIMATE,
+      overscan: isMobile ? 18 : 12,
+    });
+  const virtualVisibleRowEntries = safeVirtualRows.map((virtualRow) => ({
   rowId: filteredRowIds[virtualRow.index],
   rowIndex: virtualRow.index,
   start: virtualRow.start,

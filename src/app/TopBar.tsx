@@ -253,6 +253,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const prevNotifsRef = React.useRef<Set<string>>(new Set());
   const initialFetchDone = React.useRef<boolean>(false);
   const isFetchingNotificationsRef = React.useRef(false);
+  const notificationRefreshPendingRef = React.useRef(false);
   const notificationsChannelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
@@ -261,6 +262,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             return;
         }
         if (isFetchingNotificationsRef.current) {
+            notificationRefreshPendingRef.current = true;
             return;
         }
 
@@ -326,6 +328,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             console.error("Failed to fetch notifications", error);
         } finally {
             isFetchingNotificationsRef.current = false;
+            if (notificationRefreshPendingRef.current) {
+                notificationRefreshPendingRef.current = false;
+                void fetchNotifications();
+            }
         }
     };
 

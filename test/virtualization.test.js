@@ -6,9 +6,9 @@ const { join } = require('node:path');
 
 const source = readFileSync(join(__dirname, '..', 'src', 'app', 'tableVirtualization.ts'), 'utf8');
 
-test('recovery candidate does not force the fallback strategy into TableBoard', () => {
+test('recovery candidate keeps a deterministic fallback during empty virtual ranges', () => {
   const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
-  assert.doesNotMatch(board, /getFallbackVirtualRows/);
+  assert.match(board, /getFallbackVirtualRows/);
   assert.match(source, /getFallbackVirtualRows/);
   const count = 450;
   const rowHeight = 36;

@@ -27,6 +27,8 @@ test("TopBar applies realtime inserts immediately and cleans up the channel", ()
   assert.match(topBar, /supabase\.removeChannel/);
   assert.match(topBar, /areNotificationsEqual\(prev, sortedData\)/);
   assert.match(topBar, /setUnreadCount/);
+  assert.match(topBar, /notificationRefreshPendingRef/);
+  assert.match(topBar, /notificationRefreshPendingRef\.current = true/);
 });
 
 test("notification persistence broadcasts only after a successful insert", () => {
