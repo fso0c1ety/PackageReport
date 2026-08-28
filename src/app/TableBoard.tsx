@@ -5128,7 +5128,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [filteredRows, sortedColumns]);
 
   const footerSummariesByColumn = React.useMemo(() => {
-  const summaries = new Map<string, string>();
+  const summaries = new Map<string, { kind: 'status' | 'dropdown' | 'date'; values: Array<{ value: string; count: number; color?: string }>; dateRange?: string }>();
   const valuesFor = (value: unknown) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry || '').trim()).filter(Boolean);
     if (typeof value === 'string') {
@@ -5143,12 +5143,30 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     return value === null || value === undefined ? [] : [String(value).trim()].filter(Boolean);
   };
   displayedBodyColumns.forEach((column) => {
+    if (column.type === 'Date') {
+      const dates = filteredRows.flatMap((row) => valuesFor(row.values[column.id]))
+        .map((value) => dayjs(value))
+        .filter((value) => value.isValid())
+        .sort((a, b) => a.valueOf() - b.valueOf());
+      if (dates.length > 0) {
+        const first = dates[0].format('DD.MM.YYYY');
+        const last = dates[dates.length - 1].format('DD.MM.YYYY');
+        summaries.set(column.id, { kind: 'date', values: [], dateRange: first === last ? first : `${first} - ${last}` });
+      }
+      return;
+    }
     if (column.type !== 'Status' && column.type !== 'Dropdown') return;
     const counts = new Map<string, number>();
     filteredRows.forEach((row) => valuesFor(row.values[column.id]).forEach((value) => {
       counts.set(value, (counts.get(value) || 0) + 1);
     }));
-    summaries.set(column.id, Array.from(counts.entries()).map(([value, count]) => `${value} ${count}`).join(' | '));
+    if (column.type === 'Status') {
+      const ordered = (column.options || []).map((option) => ({ value: option.value, count: counts.get(option.value) || 0, color: option.color })).filter((entry) => entry.count > 0);
+      summaries.set(column.id, { kind: 'status', values: ordered });
+    } else {
+      const ordered = Array.from(counts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+      summaries.set(column.id, { kind: 'dropdown', values: ordered });
+    }
   });
   return summaries;
   }, [displayedBodyColumns, filteredRows]);
@@ -10418,12 +10436,28 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
                 {displayedBodyColumns.map((col, index) => {
                   let content = null;
-                  if (col.type === "Number") {
+                  if (col.type === "Number" || col.type === "Numbers") {
                     const sum = numericTotalsByColumn.get(col.id) || 0;
                     content = <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, overflow: 'hidden', textOverflow: 'ellipsis' }}>Total: {sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>;
                   } else if (col.type === "Status" || col.type === "Dropdown") {
-                    const summary = footerSummariesByColumn.get(col.id) || '';
-                    content = summary ? <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</Typography> : null;
+                    const summary = footerSummariesByColumn.get(col.id);
+                    if (summary?.kind === 'status') {
+                      content = <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: .5, whiteSpace: 'nowrap', overflow: 'hidden' }} aria-label="Status distribution">
+                        {summary.values.map((entry) => <Box key={entry.value} component="span" title={entry.value} sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: entry.color || theme.palette.primary.main, flex: '0 0 auto' }} />)}
+                      </Box>;
+                    } else if (summary?.kind === 'dropdown' && summary.values.length > 0) {
+                      content = <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: .5, whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0 }} aria-label="Dropdown distribution">
+                        {summary.values.map((entry, entryIndex) => (
+                          <React.Fragment key={entry.value}>
+                            {entryIndex > 0 && <Typography component="span" variant="caption" sx={{ color: theme.palette.text.disabled }}> | </Typography>}
+                            <Typography component="span" variant="caption" title={entry.value} sx={{ maxWidth: '14ch', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: theme.palette.text.secondary }}>{entry.value} +{entry.count}</Typography>
+                          </React.Fragment>
+                        ))}
+                      </Box>;
+                    }
+                  } else if (col.type === "Date") {
+                    const summary = footerSummariesByColumn.get(col.id);
+                    content = summary?.kind === 'date' ? <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{summary.dateRange}</Typography> : null;
                   } else if (index === 0) {
                     content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
                   }

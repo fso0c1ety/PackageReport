@@ -36,3 +36,13 @@ test('summary aggregation remains linear for large boards', () => {
   assert.equal(rows.reduce((total, value) => total + value, 0), 50005000);
   assert.equal(rows.length, 10000);
 });
+
+test('footer summary rules cover dates, status colors, dropdown counts and empty fields', () => {
+  assert.match(source, /DD\.MM\.YYYY/);
+  assert.match(source, /entry\.color \|\| theme\.palette\.primary\.main/);
+  assert.match(source, /b\.count - a\.count/);
+  assert.match(source, /maxWidth: '14ch'/);
+  assert.match(source, /column\.type === 'Date'/);
+  assert.match(source, /summary\.dateRange/);
+  assert.match(source, /filteredRows\.flatMap/);
+});
