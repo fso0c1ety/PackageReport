@@ -5069,6 +5069,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Keep virtualization active during row drag. Rendering every task at drag
   // start caused a large synchronous mount and visible stutter.
   const visibleRowEntries = virtualVisibleRowEntries;
+  // During a large scroll jump TanStack can briefly reset its measured size
+  // before the next frame. Keep the scroll surface non-zero in that window so
+  // the fallback range remains visible instead of being clipped by a zero
+  // height virtual container.
+  const virtualContentHeight = Math.max(
+  rowVirtualizer.getTotalSize(),
+  filteredRowIds.length * ROW_HEIGHT_ESTIMATE,
+  );
 
   const invoiceTaskOptions = React.useMemo(() => {
   if (!isInvoiceDialogOpen || !invoiceClientName) return [];
@@ -9748,6 +9756,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   sx={{
   position: 'relative',
   height: rowVirtualizer.getTotalSize(),
+  minHeight: virtualContentHeight,
   width: gridContentWidth,
   minWidth: '100%',
   }}
