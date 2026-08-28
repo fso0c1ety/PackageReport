@@ -29,6 +29,11 @@ test("TopBar applies realtime inserts immediately and cleans up the channel", ()
   assert.match(topBar, /setUnreadCount/);
   assert.match(topBar, /notificationRefreshPendingRef/);
   assert.match(topBar, /notificationRefreshPendingRef\.current = true/);
+  assert.match(topBar, /NOTIFICATION_REALTIME_EVENT/);
+  assert.match(topBar, /NOTIFICATION_FETCH_START/);
+  assert.match(topBar, /NOTIFICATION_FETCH_END/);
+  assert.match(topBar, /NOTIFICATION_UI_STATE_UPDATED/);
+  assert.match(topBar, /smart-manage-debug/);
 });
 
 test("notification persistence broadcasts only after a successful insert", () => {

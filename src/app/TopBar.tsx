@@ -256,6 +256,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const notificationRefreshPendingRef = React.useRef(false);
   const notificationsChannelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  const logNotificationDiagnostic = React.useCallback((event: string) => {
+    if (typeof window === 'undefined') return;
+    const enabled = process.env.NODE_ENV !== 'production'
+      || window.localStorage.getItem('smart-manage-debug') === '1';
+    if (enabled) console.info(`[${event}]`, Date.now());
+  }, []);
+
   useEffect(() => {
     const fetchNotifications = async () => {
         if (typeof document !== 'undefined' && document.hidden && !isElectronRuntime()) {
@@ -263,11 +270,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         }
         if (isFetchingNotificationsRef.current) {
             notificationRefreshPendingRef.current = true;
+            logNotificationDiagnostic('NOTIFICATION_PENDING_REFRESH');
             return;
         }
 
         try {
             isFetchingNotificationsRef.current = true;
+            logNotificationDiagnostic('NOTIFICATION_FETCH_START');
             const res = await authenticatedFetch(getApiUrl('notifications'), {
                 suppressNativeErrorAlert: true,
             });   
@@ -280,6 +289,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
                 setNotifications(prev => areNotificationsEqual(prev, sortedData) ? prev : sortedData);
                 setUnreadCount(prev => (prev === nextUnreadCount ? prev : nextUnreadCount));
+                logNotificationDiagnostic('NOTIFICATION_UI_STATE_UPDATED');
 
                 // For Electron .exe builds: Simulate OS Push Notifications since FCM web push fails natively
                 if (isElectronRuntime() && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -327,6 +337,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         } catch (error) {
             console.error("Failed to fetch notifications", error);
         } finally {
+            logNotificationDiagnostic('NOTIFICATION_FETCH_END');
             isFetchingNotificationsRef.current = false;
             if (notificationRefreshPendingRef.current) {
                 notificationRefreshPendingRef.current = false;
@@ -357,6 +368,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           .on("broadcast", { event: `notification:${topic}` }, (message) => {
             const payload = message?.payload || {};
             if (payload.topic !== topic || !payload.notificationId || cancelled) return;
+            logNotificationDiagnostic('NOTIFICATION_REALTIME_EVENT');
             if (typeof window !== 'undefined') {
               (window as any).__smartManageNotificationRealtime = {
                 receivedAt: Date.now(),
