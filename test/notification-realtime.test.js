@@ -45,3 +45,10 @@ test("notification persistence broadcasts only after a successful insert", () =>
   assert.match(automation, /broadcastNotificationCreated\(recipient\.id, notificationId\)/);
   assert.match(automation, /Promise\.allSettled\(realtimeBroadcasts\)/);
 });
+
+test("notification reads authorize items concurrently for realtime refresh latency", () => {
+  const route = read("src", "app", "api", "notifications", "route.js");
+  assert.match(route, /Promise\.all\(categoryRows\.map\(async/);
+  assert.match(route, /requireRowPermission\(pool, user\.id/);
+  assert.match(route, /requireBoardPermission\(pool, user\.id/);
+});

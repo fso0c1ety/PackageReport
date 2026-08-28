@@ -36,16 +36,24 @@ export async function GET(req) {
 
     const categoryFor = (type) => type === "security" || type === "login" ? "security" : type === "comment" || type === "chat" ? "comments" : type === "deadline" || type === "calendar" ? "deadlines" : type === "billing" ? "billing" : "assignments";
     const categoryRows = result.rows.filter((notification) => categories[categoryFor(notification.type)] !== false);
-    const visibleRows = [];
-    for (const notification of categoryRows) {
+    // Permission checks are independent per notification. Running them in
+    // parallel avoids a serial N+1 waterfall that can delay realtime-driven
+    // refreshes when the user has many notifications, while preserving the
+    // same row/board authorization check for every item.
+    const visibleRows = (await Promise.all(categoryRows.map(async (notification) => {
       const data = notification.data || {};
       if (data.taskId && data.tableId) {
-        if (!(await requireRowPermission(pool, user.id, data.taskId, "viewer", data.tableId))) continue;
-      } else if (data.tableId) {
-        if (!(await requireBoardPermission(pool, user.id, data.tableId, "viewer"))) continue;
+        return await requireRowPermission(pool, user.id, data.taskId, "viewer", data.tableId)
+          ? notification
+          : null;
       }
-      visibleRows.push(notification);
-    }
+      if (data.tableId) {
+        return await requireBoardPermission(pool, user.id, data.tableId, "viewer")
+          ? notification
+          : null;
+      }
+      return notification;
+    }))).filter(Boolean);
     const notifications = await Promise.all(
       visibleRows.map(async (notification) => {
         const data = notification.data || {};
