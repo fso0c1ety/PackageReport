@@ -5127,6 +5127,32 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return totals;
   }, [filteredRows, sortedColumns]);
 
+  const footerSummariesByColumn = React.useMemo(() => {
+  const summaries = new Map<string, string>();
+  const valuesFor = (value: unknown) => {
+    if (Array.isArray(value)) return value.map((entry) => String(entry || '').trim()).filter(Boolean);
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.map((entry) => String(entry || '').trim()).filter(Boolean);
+      } catch { /* plain scalar */ }
+      return [trimmed];
+    }
+    return value === null || value === undefined ? [] : [String(value).trim()].filter(Boolean);
+  };
+  displayedBodyColumns.forEach((column) => {
+    if (column.type !== 'Status' && column.type !== 'Dropdown') return;
+    const counts = new Map<string, number>();
+    filteredRows.forEach((row) => valuesFor(row.values[column.id]).forEach((value) => {
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }));
+    summaries.set(column.id, Array.from(counts.entries()).map(([value, count]) => `${value} ${count}`).join(' | '));
+  });
+  return summaries;
+  }, [displayedBodyColumns, filteredRows]);
+
   useEffect(() => {
   if (!invoiceCompanyName && boardTitle) {
   setInvoiceCompanyName(boardTitle);
@@ -10394,7 +10420,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                   let content = null;
                   if (col.type === "Number") {
                     const sum = numericTotalsByColumn.get(col.id) || 0;
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>{sum.toLocaleString()} sum</Typography>;
+                    content = <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, overflow: 'hidden', textOverflow: 'ellipsis' }}>Total: {sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>;
+                  } else if (col.type === "Status" || col.type === "Dropdown") {
+                    const summary = footerSummariesByColumn.get(col.id) || '';
+                    content = summary ? <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</Typography> : null;
                   } else if (index === 0) {
                     content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
                   }

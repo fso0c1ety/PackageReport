@@ -4,10 +4,11 @@ const fs = require('node:fs');
 
 const source = fs.readFileSync('src/app/TableBoard.tsx', 'utf8');
 
-test('recovery candidate keeps only the legacy footer row', () => {
-  assert.doesNotMatch(source, /columnFooterSummaries/);
+test('footer summaries stay inside the existing footer row', () => {
   assert.doesNotMatch(source, /data-footer-summary=/);
   assert.match(source, /numericTotalsByColumn/);
+  assert.match(source, /footerSummariesByColumn/);
+  assert.equal((source.match(/<TableFooter/g) || []).length, 1);
 });
 
 test('legacy footer remains sticky and aligned to the board grid', () => {
@@ -16,11 +17,12 @@ test('legacy footer remains sticky and aligned to the board grid', () => {
   assert.match(footer, /gridTemplateColumns: bodyGridTemplateColumns/);
 });
 
-test('footer has no summary/distribution feature rows', () => {
-  assert.doesNotMatch(source, /summary\?\.kind === 'number'/);
-  assert.doesNotMatch(source, /summary\?\.kind === 'distribution'/);
-  assert.equal((source.match(/<TableFooter/g) || []).length, 1);
-  assert.match(source, /numericTotalsByColumn\.get/);
+test('footer supports number, status and dropdown summaries without changing dimensions', () => {
+  assert.match(source, /col\.type === "Number"/);
+  assert.match(source, /col\.type === "Status" \|\| col\.type === "Dropdown"/);
+  assert.match(source, /filteredRows\.forEach/);
+  assert.match(source, /gridTemplateColumns: bodyGridTemplateColumns/);
+  assert.match(source, /p: '4px 8px'/);
 });
 
 test('dropdown editor keeps the known-good option popover', () => {
