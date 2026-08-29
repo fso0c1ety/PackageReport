@@ -5692,7 +5692,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (effectiveType === "Dropdown") {
-  const dropdownDisplay = Array.isArray(value) ? value.join(', ') : String(value || '');
+  const dropdownValues = Array.isArray(value) ? value.map((entry) => String(entry || '').trim()).filter(Boolean) : (String(value || '').trim() ? [String(value).trim()] : []);
+  const visibleDropdownValues = dropdownValues.slice(0, isMobile ? 2 : 3);
+  const hiddenDropdownCount = dropdownValues.length - visibleDropdownValues.length;
   return (
   <Box onClick={activate} sx={{
   bgcolor: 'transparent',
@@ -5715,7 +5717,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
   }}>
-  <Typography variant="body2" sx={{ fontWeight: 400, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>{dropdownDisplay}</Typography>
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: .5, minWidth: 0, overflow: 'hidden', flex: 1 }}>
+  {visibleDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={canEdit ? (event) => { event.stopPropagation(); void stableHandleCellSave(row.id, col.id, col.type, dropdownValues.filter((candidate) => candidate !== entry)); } : undefined} sx={{ maxWidth: '100%', minWidth: 0, height: 24, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { px: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
+  {hiddenDropdownCount > 0 && <Chip label={`+${hiddenDropdownCount}`} size="small" sx={{ height: 24, flexShrink: 0, bgcolor: alpha(theme.palette.text.primary, 0.1), color: theme.palette.text.secondary }} />}
+  </Box>
   <Box component="span" sx={{ color: theme.palette.text.secondary, fontSize: 11, flexShrink: 0 }}>▼</Box>
   </Box>
   );
@@ -6074,35 +6079,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {!isLabelEditing ? (
   // --- Simple Selection Mode ---
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-  {valueStr && (
-  <Box sx={{ display: 'flex', mb: 0.25 }}>
-  <Box
-  sx={{
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 0.5,
-  px: 1,
-  py: 0.25,
-  borderRadius: 1,
-  bgcolor: alpha(theme.palette.primary.main, 0.18),
-  border: `1px solid ${alpha(theme.palette.primary.main, 0.35)}`,
-  maxWidth: '100%'
-  }}
-  >
-  <Typography sx={{ fontSize: '0.82rem', color: theme.palette.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-  {valueStr}
-  </Typography>
-  <IconButton
-  size="small"
-  onClick={(e) => {
-  e.stopPropagation();
-  handleDropdownOptionSelect("");
-  }}
-  sx={{ p: 0.25, color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: 'transparent' } }}
-  >
-  <CloseIcon sx={{ fontSize: 14 }} />
-  </IconButton>
-  </Box>
+  {selectedDropdownValues.length > 0 && (
+  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.75 }}>
+  {selectedDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={() => handleDropdownOptionSelect(entry)} sx={{ maxWidth: '100%', borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
   </Box>
   )}
   <LocalDropdownSearch
