@@ -174,6 +174,7 @@ function getMondayColumnType(header) {
   const normalized = normalizeMondayHeader(header);
 
   if (normalized === 'DATA' || normalized === 'DATE') return 'Date';
+  if (normalized === 'COUNTRY' || normalized === 'SHTETI' || normalized === 'SHTETI EKSPORTUES') return 'Country';
   if (
     normalized === 'STATUSI I DERGESES'
     || normalized === 'LLOJI I DERGESES'

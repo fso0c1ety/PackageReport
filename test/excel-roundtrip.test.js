@@ -92,3 +92,14 @@ test("production Express importer uses the dedicated Smart Manage legacy parser"
   assert.match(legacyImporter, /dateOnlyFromExcelDate/);
   assert.doesNotMatch(legacyImporter, /getHexFromExcelColor\(cell\.fill/);
 });
+
+test("legacy Smart Manage logistics columns restore native semantic types", () => {
+  assert.match(legacyImporter, /normalized === 'COUNTRY'/);
+  assert.match(legacyImporter, /normalized === 'SHTETI EKSPORTUES'/);
+  assert.match(legacyImporter, /normalized === 'LLOJI I DERGESES'/);
+  assert.match(legacyImporter, /normalized === 'IMPORTUESI'/);
+  assert.match(legacyImporter, /normalized === 'EKSPORTUESI'/);
+  assert.match(legacyImporter, /normalized === 'TRANSPORTUESI'/);
+  assert.match(legacyImporter, /PARCIALE/);
+  assert.match(legacyImporter, /metadataResult \|\| mondayResult/);
+});
