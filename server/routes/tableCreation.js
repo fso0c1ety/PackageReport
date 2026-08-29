@@ -153,10 +153,27 @@ const normalizeMondayHeader = (value) =>
     .toLocaleUpperCase('sq-AL')
     .replace(/\s+/g, ' ');
 
+function excelSerialDateOnly(value) {
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial < 1) return null;
+  const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function dateOnlyFromExcelDate(value) {
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return excelSerialDateOnly(value);
+}
+
 function getMondayColumnType(header) {
   const normalized = normalizeMondayHeader(header);
 
-  if (normalized === 'DATA') return 'Date';
+  if (normalized === 'DATA' || normalized === 'DATE') return 'Date';
   if (
     normalized === 'STATUSI I DERGESES'
     || normalized === 'LLOJI I DERGESES'
@@ -233,18 +250,22 @@ function getMondayStatusOptions(header) {
 }
 
 function analyzeMondayExport(rawRows) {
+  const isSmartManageExport = rawRows.slice(0, 5).some((row) =>
+    Array.isArray(row)
+    && row.some((cell) => String(cell || '').toLowerCase().includes('this spreadsheet was created using smart manage'))
+  );
   const isMondayExport = rawRows.slice(0, 5).some((row) =>
     Array.isArray(row)
     && row.some((cell) => String(cell || '').toLowerCase().includes('created using monday.com'))
   );
-  if (!isMondayExport) return null;
+  if (!isSmartManageExport && !isMondayExport) return null;
 
   const headerRowIndex = rawRows.findIndex((row) => {
     if (!Array.isArray(row)) return false;
     const headers = row.map(normalizeMondayHeader);
-    return headers.includes('NAME')
-      && headers.includes('STATUSI I DERGESES')
-      && headers.includes('DATA');
+    return (headers.includes('NAME') || headers.includes('TASK'))
+      && (headers.includes('STATUS') || headers.includes('STATUSI I DERGESES'))
+      && (headers.includes('DATA') || headers.includes('DATE'));
   });
   if (headerRowIndex < 0) return null;
 
@@ -280,9 +301,9 @@ function analyzeMondayExport(rawRows) {
     // These rows must not become tasks or selectable Status labels.
     if (
       index > headerRowIndex
-      && firstCell === 'NAME'
-      && normalizedCells.includes('STATUSI I DERGESES')
-      && normalizedCells.includes('DATA')
+      && (firstCell === 'NAME' || firstCell === 'TASK')
+      && (normalizedCells.includes('STATUS') || normalizedCells.includes('STATUSI I DERGESES'))
+      && (normalizedCells.includes('DATA') || normalizedCells.includes('DATE'))
     ) {
       skipRowIndices.push(index);
     }
@@ -297,6 +318,8 @@ function analyzeMondayExport(rawRows) {
       options: getMondayStatusOptions(name),
     })),
     skipRowIndices,
+    smartManage: isSmartManageExport,
+    groupName: String(rawRows[Math.max(0, headerRowIndex - 1)]?.[0] || '').trim() || null,
   };
 }
 
@@ -322,6 +345,20 @@ router.post('/tables/import-excel', async (req, res) => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(req.file.buffer);
       const worksheet = workbook.getWorksheet(1) || workbook.worksheets[0];
+      let smartManageMetadata = null;
+      for (const metadataName of ['_smart_manage_meta', '__SMART_MANAGE__']) {
+        const metadataSheet = workbook.getWorksheet(metadataName);
+        const marker = metadataSheet?.getCell('A1')?.value;
+        const rawMarker = marker && typeof marker === 'object' && 'text' in marker ? marker.text : marker;
+        if (typeof rawMarker !== 'string') continue;
+        try {
+          const parsed = JSON.parse(rawMarker);
+          if (parsed?.marker === 'SMART_MANAGE_EXPORT' && parsed?.version === 1) {
+            smartManageMetadata = parsed;
+            break;
+          }
+        } catch { /* generic/legacy workbook */ }
+      }
       
       // Convert to raw array for AI analysis
       const raw = [];
@@ -336,9 +373,17 @@ router.post('/tables/import-excel', async (req, res) => {
       logger.info('excel_import_analysis_started', { workspaceId, filename: req.file.originalname });
       let aiResult;
       const mondayResult = analyzeMondayExport(raw);
+      const metadataResult = smartManageMetadata ? {
+        headerRowIndex: Math.max(0, Number(smartManageMetadata.headerRow || 5) - 1),
+        dataStartRowIndex: Math.max(0, Number(smartManageMetadata.dataStartRow || 6) - 1),
+        columns: Array.isArray(smartManageMetadata.columns) ? smartManageMetadata.columns : [],
+        skipRowIndices: [],
+        smartManage: true,
+        groupName: smartManageMetadata.groups?.[0]?.name || null,
+      } : null;
       try {
-        aiResult = mondayResult || await analyzeExcelWithNexusBrain(raw);
-        if (mondayResult) {
+        aiResult = metadataResult || mondayResult || await analyzeExcelWithNexusBrain(raw);
+        if (metadataResult || mondayResult) {
           logger.info('excel_import_monday_detected', { workspaceId, filename: req.file.originalname });
         }
       } catch (aiErr) {
@@ -405,8 +450,8 @@ router.post('/tables/import-excel', async (req, res) => {
             if (val) {
               // Extract color if not already found for this value
               if (!optionsMap.has(val)) {
-                let hexColor = getHexFromExcelColor(cell.fill?.fgColor);
-                // If no color in file, use AI suggestion or default
+                let hexColor = null;
+                // Smart Manage semantics, not spreadsheet styling, are authoritative.
                 if (!hexColor && aiCol.options) {
                   const aiOpt = aiCol.options.find(o => o.value.toLowerCase() === val.toLowerCase());
                   hexColor = aiOpt ? aiOpt.color : '#4f8ef7';
@@ -431,6 +476,15 @@ router.post('/tables/import-excel', async (req, res) => {
         'INSERT INTO tables (id, name, workspace_id, columns, created_at, invite_code) VALUES ($1, $2, $3, $4, $5, $6)',
         [tableId, tableName || worksheet.name, workspaceId, JSON.stringify(dbColumns), new Date().toISOString(), inviteCode]
       );
+
+      const importedGroupName = aiResult.smartManage && aiResult.groupName ? aiResult.groupName : null;
+      const importedGroupId = importedGroupName ? uuidv4() : null;
+      if (importedGroupId) {
+        await db.query(
+          'INSERT INTO board_groups (id, table_id, name, position) VALUES ($1, $2, $3, $4)',
+          [importedGroupId, tableId, importedGroupName, 0]
+        );
+      }
 
       // Insert Row Data
       let rowCount = 0;
@@ -463,10 +517,10 @@ router.post('/tables/import-excel', async (req, res) => {
             val = val.text;
           }
           
-          if (val instanceof Date) {
-            values[col.id] = val.toISOString();
+          if (col.type === 'Date') {
+            values[col.id] = dateOnlyFromExcelDate(val) || (val == null ? null : String(val).trim());
           } else if (val !== null && val !== undefined) {
-            values[col.id] = String(val).trim();
+            values[col.id] = String(val);
           } else {
             values[col.id] = null;
           }
@@ -476,8 +530,8 @@ router.post('/tables/import-excel', async (req, res) => {
         if (hasData) {
           values.order = rowCount;
           await db.query(
-            'INSERT INTO rows (id, table_id, values) VALUES ($1, $2, $3)',
-            [uuidv4(), tableId, JSON.stringify(values)]
+            'INSERT INTO rows (id, table_id, group_id, values) VALUES ($1, $2, $3, $4)',
+            [uuidv4(), tableId, importedGroupId, JSON.stringify(values)]
           );
           rowCount++;
         }

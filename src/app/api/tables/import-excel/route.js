@@ -65,12 +65,16 @@ function normalizeMondayValue(value) {
 
 function getDeclaredColumnType(value) {
   const typeMap = {
+    TASK: "Text",
+    NAME: "Text",
+    "NR.P": "Numbers",
     TEXT: "Text",
     NUMBERS: "Numbers",
     NUMBER: "Numbers",
     STATUS: "Status",
     "STATUSI I DERGESES": "Status",
     DATE: "Date",
+    DATA: "Date",
     DROPDOWN: "Dropdown",
     COUNTRY: "Country",
     EMAIL: "Email",
@@ -109,6 +113,13 @@ function normalizeExcelCellValue(value) {
     return value.richText.map((part) => part?.text || "").join("");
   }
   return String(value);
+}
+
+function excelSerialToIsoDate(value) {
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial < 1) return null;
+  const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
 export async function POST(req) {
@@ -185,17 +196,25 @@ export async function POST(req) {
       rawRows.push(values);
     });
 
+    const hasSmartManageSignature = rawRows.some((row) => row.some((cell) =>
+      String(cell ?? "").includes("This spreadsheet was created using Smart Manage")
+    ));
+    const smartManageExport = Boolean(smartManageMetadata || hasSmartManageSignature);
+
     const mondayHeaderRowIndex = rawRows.findIndex((row) => {
       if (!Array.isArray(row)) return false;
       const normalized = row.map(normalizeMondayValue);
-      return normalized.includes("NAME")
-        && normalized.includes("STATUSI I DERGESES")
-        && normalized.includes("DATA");
+      const hasTask = normalized.includes("NAME") || normalized.includes("TASK");
+      const hasStatus = normalized.includes("STATUS") || normalized.includes("STATUSI I DERGESES");
+      const hasDate = normalized.includes("DATE") || normalized.includes("DATA");
+      return hasTask && hasStatus && hasDate;
     });
     const headerRowIndex = smartManageMetadata?.headerRow
       ? Math.max(0, Number(smartManageMetadata.headerRow) - 1)
       : mondayHeaderRowIndex >= 0
       ? mondayHeaderRowIndex
+      : smartManageExport
+      ? rawRows.findIndex((row) => Array.isArray(row) && row.length >= 2 && row.some((cell) => String(cell ?? "").trim() !== ""))
       : rawRows.findIndex((row) =>
         Array.isArray(row) && row.some((cell) => String(cell ?? "").trim() !== "")
       );
@@ -215,9 +234,9 @@ export async function POST(req) {
       const normalized = row.map(normalizeMondayValue);
       if (firstCell === "TEST MOS SHKRUJ" || firstCell === "NEW GROUP") return false;
       if (
-        firstCell === "NAME"
-        && normalized.includes("STATUSI I DERGESES")
-        && normalized.includes("DATA")
+        (firstCell === "NAME" || firstCell === "TASK")
+        && (normalized.includes("STATUS") || normalized.includes("STATUSI I DERGESES"))
+        && (normalized.includes("DATE") || normalized.includes("DATA"))
       ) return false;
       return true;
     });
@@ -269,9 +288,11 @@ export async function POST(req) {
         const rawValue = row?.[columnIndex];
         let normalizedValue = rawValue == null
           ? ""
+          : column.type === "Date" && typeof rawValue === "number"
+            ? (excelSerialToIsoDate(rawValue) || String(rawValue).trim())
           : column.type === "Numbers" && /^-?\d+(?:[.,]\d+)?$/.test(String(rawValue).trim())
             ? Number(String(rawValue).trim().replace(",", "."))
-            : addressFields.isAddressColumn(column) ? String(rawValue) : String(rawValue).trim();
+            : addressFields.isAddressColumn(column) ? String(rawValue) : String(rawValue);
         if (addressFields.isAddressColumn(column)) {
           const validation = addressFields.validateInternationalAddress(normalizedValue);
           if (!validation.valid) throw new Error(`Invalid address in row ${rowIndex + 1}: ${validation.error}`);

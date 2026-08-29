@@ -7,6 +7,7 @@ const ExcelJS = require("exceljs");
 const root = path.join(__dirname, "..");
 const exporter = fs.readFileSync(path.join(root, "src/app/TableBoard.tsx"), "utf8");
 const importer = fs.readFileSync(path.join(root, "src/app/api/tables/import-excel/route.js"), "utf8");
+const legacyImporter = fs.readFileSync(path.join(root, "server/routes/tableCreation.js"), "utf8");
 
 test("Smart Manage exports carry hidden schema metadata and date-only values", async () => {
   assert.match(exporter, /SMART_MANAGE_EXPORT/);
@@ -68,4 +69,26 @@ test("Smart Manage import selects metadata schema and never treats helper metada
   assert.match(importer, /smartManageMetadata\?\.headerRow/);
   assert.match(importer, /smartManageMetadata\?\.columns/);
   assert.match(importer, /smartManageMetadata\?\.boardName/);
+});
+
+test("legacy Smart Manage export headers detect Task/Data and convert Excel date serials", () => {
+  assert.match(importer, /This spreadsheet was created using Smart Manage/);
+  assert.match(importer, /hasSmartManageSignature/);
+  assert.match(importer, /normalized\.includes\("TASK"\)/);
+  assert.match(importer, /normalized\.includes\("STATUSI I DERGESES"\)/);
+  assert.match(importer, /normalized\.includes\("DATA"\)/);
+  assert.match(importer, /excelSerialToIsoDate/);
+  assert.match(importer, /column\.type === "Date" && typeof rawValue === "number"/);
+  assert.match(importer, /TASK: "Text"/);
+  assert.match(importer, /DATA: "Date"/);
+});
+
+test("production Express importer uses the dedicated Smart Manage legacy parser", () => {
+  assert.match(legacyImporter, /this spreadsheet was created using smart manage/);
+  assert.match(legacyImporter, /headers\.includes\('TASK'\)/);
+  assert.match(legacyImporter, /headers\.includes\('DATA'\)/);
+  assert.match(legacyImporter, /smartManageMetadata/);
+  assert.match(legacyImporter, /board_groups/);
+  assert.match(legacyImporter, /dateOnlyFromExcelDate/);
+  assert.doesNotMatch(legacyImporter, /getHexFromExcelColor\(cell\.fill/);
 });
