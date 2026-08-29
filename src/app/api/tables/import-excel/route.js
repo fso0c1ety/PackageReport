@@ -9,6 +9,12 @@ export const runtime = "nodejs";
 
 const STATUS_COLORS = ["#1976d2", "#fdab3d", "#00c875", "#9c27b0", "#ef5350", "#26a69a"];
 
+function importDiagnostic(event, payload = {}) {
+  if (process.env.LOG_LEVEL === "debug" || process.env.SMART_MANAGE_IMPORT_DEBUG === "true") {
+    console.info(`[${event}]`, payload);
+  }
+}
+
 function inferColumnType(values) {
   const samples = values
     .map((value) => String(value ?? "").trim())
@@ -101,6 +107,37 @@ function getDeclaredColumnType(value) {
   return typeMap[normalizeMondayValue(value)] || null;
 }
 
+// Smart Manage exports carry canonical types in hidden metadata. Legacy
+// exports may only expose localized headers, so resolve those headers only
+// after the workbook has been positively identified as a Smart Manage export.
+function getSmartManageLegacyType(value) {
+  const key = normalizeMondayValue(value);
+  return {
+    "STATUSI I DERGESES": "Status",
+    "LLOJI I DERGESES": "Status",
+    IMPORTUESI: "Dropdown",
+    EKSPORTUESI: "Dropdown",
+    TRANSPORTUESI: "Dropdown",
+    COUNTRY: "Country",
+    DATA: "Date",
+  }[key] || null;
+}
+
+function canonicalColumnType(value) {
+  const declared = getDeclaredColumnType(value);
+  if (declared) return declared;
+  const normalized = normalizeMondayValue(value);
+  return {
+    STATUS: "Status",
+    DROPDOWN: "Dropdown",
+    COUNTRY: "Country",
+    DATE: "Date",
+    NUMBERS: "Numbers",
+    NUMBER: "Numbers",
+    TEXT: "Text",
+  }[normalized] || null;
+}
+
 function normalizeExcelCellValue(value) {
   if (value == null) return "";
   if (value instanceof Date) return value.toISOString();
@@ -137,6 +174,8 @@ export async function POST(req) {
     if (!file || typeof file === "string") {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
+
+    importDiagnostic("IMPORT_UPLOAD", { filename: file.name || "unknown" });
 
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
@@ -244,7 +283,9 @@ export async function POST(req) {
     const columns = headers.map((header, columnIndex) => {
       const declaredColumn = smartManageMetadata?.columns?.[columnIndex];
       const inferred = inferColumnType(dataRows.map((row) => row?.[columnIndex]));
-      const declaredType = declaredColumn?.type || getDeclaredColumnType(declaredTypeRow[columnIndex]);
+      const declaredType = canonicalColumnType(declaredColumn?.type)
+        || getSmartManageLegacyType(header)
+        || getDeclaredColumnType(declaredTypeRow[columnIndex]);
       const type = declaredType || inferred.type;
       const uniqueOptions = (type === "Status" || type === "Dropdown" || type === "Country")
         ? Array.from(new Set(
@@ -270,6 +311,12 @@ export async function POST(req) {
       };
     });
 
+    columns.forEach((column) => importDiagnostic("IMPORT_PARSED_COLUMN", {
+      name: column.name,
+      detectedType: column.type,
+      options: column.options || [],
+    }));
+
     const tableId = randomUUID();
     const tableName = smartManageMetadata?.boardName || requestedTableName || firstSheetName || "Imported Table";
 
@@ -277,6 +324,18 @@ export async function POST(req) {
       "INSERT INTO tables (id, name, workspace_id, columns, created_at, shared_users) VALUES ($1, $2, $3, $4, $5, $6)",
       [tableId, tableName, workspaceId, JSON.stringify(columns), Date.now(), JSON.stringify([])]
     );
+
+    columns.forEach((column) => importDiagnostic("IMPORT_CREATE_COLUMN", {
+      name: column.name,
+      type: column.type,
+      options: column.options || [],
+    }));
+
+    columns.forEach((column) => importDiagnostic("IMPORT_SAVED_COLUMN", {
+      name: column.name,
+      type: column.type,
+      options: column.options || [],
+    }));
 
     let rowCount = 0;
     for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex += 1) {

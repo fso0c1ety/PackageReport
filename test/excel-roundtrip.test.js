@@ -103,3 +103,16 @@ test("legacy Smart Manage logistics columns restore native semantic types", () =
   assert.match(legacyImporter, /PARCIALE/);
   assert.match(legacyImporter, /metadataResult \|\| mondayResult/);
 });
+
+test("Next.js UI import preserves Smart Manage legacy semantic types", () => {
+  assert.match(importer, /getSmartManageLegacyType/);
+  assert.match(importer, /"LLOJI I DERGESES": "Status"/);
+  assert.match(importer, /IMPORTUESI: "Dropdown"/);
+  assert.match(importer, /EKSPORTUESI: "Dropdown"/);
+  assert.match(importer, /TRANSPORTUESI: "Dropdown"/);
+  assert.match(importer, /COUNTRY: "Country"/);
+  assert.match(importer, /DATA: "Date"/);
+  assert.match(importer, /canonicalColumnType/);
+  assert.match(importer, /IMPORT_PARSED_COLUMN/);
+  assert.match(importer, /IMPORT_SAVED_COLUMN/);
+});
