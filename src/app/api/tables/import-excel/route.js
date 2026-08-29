@@ -9,6 +9,20 @@ export const runtime = "nodejs";
 
 const STATUS_COLORS = ["#1976d2", "#fdab3d", "#00c875", "#9c27b0", "#ef5350", "#26a69a"];
 
+function excelFillColor(fill) {
+  if (!fill || fill.type !== "pattern") return null;
+  const color = fill.fgColor || fill.bgColor;
+  if (!color) return null;
+  if (typeof color.argb === "string" && /^[0-9a-f]{6,8}$/i.test(color.argb)) {
+    return `#${color.argb.slice(-6)}`.toLowerCase();
+  }
+  if (typeof color.rgb === "string" && /^[0-9a-f]{6,8}$/i.test(color.rgb)) {
+    return `#${color.rgb.slice(-6)}`.toLowerCase();
+  }
+  const themeColors = ["#ffffff", "#000000", "#e7e6e6", "#44546a", "#4472c4", "#ed7d31", "#a5a5a5", "#ffc000", "#5b9bd5", "#70ad47"];
+  return Number.isInteger(color.theme) ? (themeColors[color.theme] || null) : null;
+}
+
 function importDiagnostic(event, payload = {}) {
   if (process.env.LOG_LEVEL === "debug" || process.env.SMART_MANAGE_IMPORT_DEBUG === "true") {
     console.info(`[${event}]`, payload);
@@ -292,10 +306,21 @@ export async function POST(req) {
           dataRows
             .map((row) => String(row?.[columnIndex] ?? "").trim())
             .filter(Boolean)
-        )).map((value, index) => ({
-          value,
-          color: STATUS_COLORS[index % STATUS_COLORS.length],
-        }))
+        )).map((value, index) => {
+          let color = STATUS_COLORS[index % STATUS_COLORS.length];
+          if (type === "Status" && smartManageExport && !declaredColumn?.options?.length) {
+            const counts = new Map();
+            worksheet.eachRow((row, rowNumber) => {
+              if (rowNumber <= headerRowIndex + 1) return;
+              const label = String(row.getCell(columnIndex + 1).value ?? "").trim();
+              if (label.toLocaleLowerCase() !== value.toLocaleLowerCase()) return;
+              const fillColor = excelFillColor(row.getCell(columnIndex + 1).fill);
+              if (fillColor) counts.set(fillColor, (counts.get(fillColor) || 0) + 1);
+            });
+            color = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || color;
+          }
+          return { value, color };
+        })
         : undefined;
       return {
         id: randomUUID(),

@@ -116,3 +116,12 @@ test("Next.js UI import preserves Smart Manage legacy semantic types", () => {
   assert.match(importer, /IMPORT_PARSED_COLUMN/);
   assert.match(importer, /IMPORT_SAVED_COLUMN/);
 });
+
+test("legacy Smart Manage status colors use metadata first and Excel fills only as fallback", () => {
+  assert.match(importer, /excelFillColor/);
+  assert.match(importer, /type === "Status" && smartManageExport/);
+  assert.match(importer, /declaredColumn\?\.options\?\.length/);
+  assert.match(importer, /toLocaleLowerCase\(\) !== value\.toLocaleLowerCase\(\)/);
+  assert.match(importer, /counts\.set\(fillColor/);
+  assert.match(importer, /STATUS_COLORS\[index % STATUS_COLORS\.length\]/);
+});
