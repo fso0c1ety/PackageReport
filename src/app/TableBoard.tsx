@@ -10442,17 +10442,30 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                   } else if (col.type === "Status" || col.type === "Dropdown") {
                     const summary = footerSummariesByColumn.get(col.id);
                     if (summary?.kind === 'status') {
-                      content = <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: .5, whiteSpace: 'nowrap', overflow: 'hidden' }} aria-label="Status distribution">
-                        {summary.values.map((entry) => <Box key={entry.value} component="span" title={entry.value} sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: entry.color || theme.palette.primary.main, flex: '0 0 auto' }} />)}
+                      const total = summary.values.reduce((sum, entry) => sum + entry.count, 0);
+                      content = <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', height: 10, borderRadius: 1, overflow: 'hidden', minWidth: 0 }} aria-label="Status distribution">
+                        {summary.values.map((entry) => {
+                          const percent = total ? Math.round((entry.count / total) * 100) : 0;
+                          return <Tooltip key={entry.value} title={`${entry.value} ${entry.count}/${total} ${percent}%`} arrow>
+                            <Box component="span" sx={{ height: '100%', flex: `${entry.count} 1 0`, minWidth: 2, bgcolor: entry.color || theme.palette.primary.main, cursor: 'default' }} />
+                          </Tooltip>;
+                        })}
                       </Box>;
                     } else if (summary?.kind === 'dropdown' && summary.values.length > 0) {
-                      content = <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: .5, whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0 }} aria-label="Dropdown distribution">
-                        {summary.values.map((entry, entryIndex) => (
-                          <React.Fragment key={entry.value}>
-                            {entryIndex > 0 && <Typography component="span" variant="caption" sx={{ color: theme.palette.text.disabled }}> | </Typography>}
-                            <Typography component="span" variant="caption" title={entry.value} sx={{ maxWidth: '14ch', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: theme.palette.text.secondary }}>{entry.value} +{entry.count}</Typography>
-                          </React.Fragment>
+                      const visibleValues = summary.values.slice(0, 3);
+                      const hiddenValues = summary.values.slice(visibleValues.length);
+                      const hiddenCount = hiddenValues.length;
+                      content = <Box sx={{ display: 'flex', alignItems: 'center', gap: .5, width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0 }} aria-label="Dropdown distribution">
+                        {visibleValues.map((entry) => (
+                          <Tooltip key={entry.value} title={`${entry.value} ${entry.count}`} arrow>
+                            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', maxWidth: '10ch', minWidth: 0, px: .75, py: .125, borderRadius: 1, bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.07), color: theme.palette.text.secondary, fontSize: '0.68rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>
+                              {entry.value}
+                            </Box>
+                          </Tooltip>
                         ))}
+                        {hiddenCount > 0 && <Tooltip title={hiddenValues.map((entry) => `${entry.value} ${entry.count}`).join(' | ')} arrow>
+                          <Box component="span" sx={{ flex: '0 0 auto', px: .75, py: .125, borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.grey[800], color: theme.palette.common.white, fontSize: '0.68rem', fontWeight: 700 }}>+{hiddenCount}</Box>
+                        </Tooltip>}
                       </Box>;
                     }
                   } else if (col.type === "Date") {

@@ -41,8 +41,20 @@ test('footer summary rules cover dates, status colors, dropdown counts and empty
   assert.match(source, /DD\.MM\.YYYY/);
   assert.match(source, /entry\.color \|\| theme\.palette\.primary\.main/);
   assert.match(source, /b\.count - a\.count/);
-  assert.match(source, /maxWidth: '14ch'/);
+  assert.match(source, /flex: `\$\{entry\.count\} 1 0`/);
+  assert.match(source, /aria-label="Status distribution"/);
+  assert.match(source, /hiddenCount/);
+  assert.match(source, /slice\(0, 3\)/);
+  assert.match(source, /Tooltip key=\{entry\.value\}/);
   assert.match(source, /column\.type === 'Date'/);
   assert.match(source, /summary\.dateRange/);
   assert.match(source, /filteredRows\.flatMap/);
+});
+
+test('status uses a single proportional bar and dropdown overflow counts hidden values', () => {
+  assert.match(source, /height: 10/);
+  assert.match(source, /borderRadius: 1/);
+  assert.match(source, /\$\{entry\.value\} \$\{entry\.count\}\/\$\{total\}/);
+  assert.match(source, /\+\{hiddenCount\}/);
+  assert.doesNotMatch(source, /entryIndex > 0 && <Typography/);
 });
