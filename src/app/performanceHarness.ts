@@ -20,8 +20,7 @@ declare global {
 const isEnabled = () => {
   if (typeof window === "undefined") return false;
   if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") return true;
-  const host = window.location.hostname;
-  return host.endsWith(".vercel.app") && host !== "package-report.vercel.app";
+  return process.env.NEXT_PUBLIC_SM_PERF === "1";
 };
 
 let nextId = 1;
