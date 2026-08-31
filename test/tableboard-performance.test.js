@@ -17,3 +17,12 @@ test('status click does not perform a network request before opening', () => {
   assert.doesNotMatch(statusBranch, /authenticatedFetch|getApiUrl/);
   assert.match(statusBranch, /onClick=\{activate\}/);
 });
+
+test('opening a cell picker does not invalidate every virtual row', () => {
+  assert.match(source, /rowStyleSignature: string/);
+  assert.match(source, /previous\.rowStyleSignature === next\.rowStyleSignature/);
+  assert.match(source, /const rowStyleSignature = React\.useMemo/);
+  assert.match(source, /rowStyleSignature=\{rowStyleSignature\}/);
+  assert.match(source, /&& !previous\.isInteractive\n\s*&& !next\.isInteractive/);
+  assert.doesNotMatch(source, /previous\.displayRenderer === next\.displayRenderer/);
+});

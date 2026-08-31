@@ -667,6 +667,7 @@ type VirtualRowBoundaryProps = {
   isInteractive: boolean;
   isSelected: boolean;
   dragDisabled: boolean;
+  rowStyleSignature: string;
   render: (row: Row) => React.ReactNode;
 };
 
@@ -684,9 +685,9 @@ const MemoizedVirtualRowBoundary = React.memo(
     && previous.gridContentWidth === next.gridContentWidth
     && previous.columnsRef === next.columnsRef
     && previous.membersRef === next.membersRef
-    && previous.displayRenderer === next.displayRenderer
     && previous.dragDisabled === next.dragDisabled
     && previous.isSelected === next.isSelected
+    && previous.rowStyleSignature === next.rowStyleSignature
     && !previous.isInteractive
     && !next.isInteractive
   ),
@@ -4971,6 +4972,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   firstStatusColumn?.options?.forEach((option) => colors.set(option.value, option.color));
   return colors;
   }, [firstStatusColumn]);
+  // Row rendering is memoized independently from transient cell-editor state.
+  // Include only the visual inputs that can change a row's background so
+  // opening a picker does not invalidate every visible row via a new closure.
+  const rowStyleSignature = React.useMemo(
+    () => `${theme.palette.mode}|${Array.from(firstStatusColorByValue.entries()).map(([value, color]) => `${value}:${color}`).join('|')}`,
+    [firstStatusColorByValue, theme.palette.mode],
+  );
   const optionByColumnAndValue = React.useMemo(() => {
   const optionIndex = new Map<string, Map<string, ColumnOption>>();
   sortedColumns.forEach((column) => {
@@ -9803,9 +9811,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   editingCell?.rowId === rowId
   || chatPopoverKey?.startsWith(`${rowId}-`) === true
   }
-  isSelected={selectedRowIds.has(rowId)}
-  dragDisabled={userPermission === 'read' || hasActiveFilters}
-  render={(row) => {
+   isSelected={selectedRowIds.has(rowId)}
+   dragDisabled={userPermission === 'read' || hasActiveFilters}
+   rowStyleSignature={rowStyleSignature}
+   render={(row) => {
   let rowBg = theme.palette.background.default;
   let rowHoverBg = theme.palette.action.hover;
   if (firstStatusColumn) {
