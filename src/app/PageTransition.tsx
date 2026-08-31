@@ -14,7 +14,9 @@ export default function PageTransition({ children }: { children: React.ReactNode
   // When path changes, start animation
   useEffect(() => {
     setIsAnimating(true);
-    const timer = setTimeout(() => setIsAnimating(false), 1200); // Match animation duration
+    // Keep navigation feedback lightweight so the transition never blocks the
+    // next screen for a full second on every route change.
+    const timer = setTimeout(() => setIsAnimating(false), 180);
     return () => clearTimeout(timer);
   }, [pathname]);
 
@@ -28,7 +30,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
             initial={{ opacity: 1 }} // Start fully visible
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.15 }}
             style={{
               position: 'fixed',
               top: 0,
@@ -82,7 +84,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
         key={pathname}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.8, duration: 0.4 }} // Fade in as overlay fades out
+        transition={{ duration: 0.15 }}
         style={{ width: "100%", height: "100%" }}
       >
         {children}
