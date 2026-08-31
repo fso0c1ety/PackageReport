@@ -9982,7 +9982,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   />
   {/* Message Icon for Chat */}
   <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
+  <Badge
+  badgeContent={Array.isArray(row.values?.message) && row.values.message.length > 99 ? '99+' : (Array.isArray(row.values?.message) ? row.values.message.length : 0)}
+  invisible={!Array.isArray(row.values?.message) || row.values.message.length === 0}
+  sx={{ '& .MuiBadge-badge': { minWidth: 15, height: 15, px: 0.35, top: -3, right: -6, border: `2px solid ${theme.palette.background.paper}`, borderRadius: 8, fontSize: 9, lineHeight: 1, fontWeight: 800, bgcolor: theme.palette.primary.main, color: theme.palette.primary.contrastText } }}
+  >
   <ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />
+  </Badge>
   </IconButton>
   {chatPopoverKey === `${row.id}-message` && chatAnchor && (
   <Popover
