@@ -3181,6 +3181,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const [fileComment, setFileComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
+  // Compute popover placement once at interaction time instead of forcing a
+  // synchronous layout read for every rendered status/dropdown cell.
+  const [statusPopoverUpward, setStatusPopoverUpward] = useState(false);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -5635,6 +5638,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   || event.currentTarget;
   if (effectiveType === "Status" || effectiveType === "Dropdown" || effectiveType === "People") {
   setStatusAnchor(cellAnchor);
+  if (typeof window !== 'undefined') {
+  setStatusPopoverUpward(cellAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340));
+  }
   }
   stableHandleCellClick(row.id, col.id, value, col.type, cellAnchor);
   };
@@ -5991,11 +5997,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
   const valueStr = selectedDropdownValues.join(', ');
-  const dropdownShouldOpenUpward = Boolean(
-  statusAnchor
-  && typeof window !== 'undefined'
-  && statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340)
-  );
+  const dropdownShouldOpenUpward = statusPopoverUpward;
 
   return (
   <>
@@ -6004,6 +6006,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   e.stopPropagation();
   if (userPermission !== 'read') {
   setStatusAnchor(e.currentTarget);
+  if (typeof window !== 'undefined') setStatusPopoverUpward(e.currentTarget.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340));
   setEditingCell({ rowId: row.id, colId: col.id });
   }
   }}
@@ -6365,11 +6368,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
   const currentOption = options.find(o => o.value === value) || { value: value || '-', color: '#e0e4ef' };
-  const statusShouldOpenUpward = Boolean(
-  statusAnchor
-  && typeof window !== 'undefined'
-  && statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340)
-  );
+  const statusShouldOpenUpward = statusPopoverUpward;
 
   return (
   <>
