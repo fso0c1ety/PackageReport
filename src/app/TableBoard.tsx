@@ -37,6 +37,7 @@ import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getFallbackVirtualRows } from './tableVirtualization';
+import { perfHarness, markVisible } from './performanceHarness';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import {
@@ -3184,6 +3185,17 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
   const [statusPopoverUpward, setStatusPopoverUpward] = useState(false);
 
+  React.useEffect(() => {
+    perfHarness.increment("tableBoardRenders");
+    if (statusAnchor) perfHarness.increment("pickerRenders");
+    perfHarness.mark("render");
+    perfHarness.mark("mounted");
+    perfHarness.mark("effect");
+  });
+  React.useLayoutEffect(() => {
+    perfHarness.mark("layoutEffect");
+  });
+
   // Open pickers immediately; refine their direction after the first paint so
   // layout measurement never blocks the click-to-visible path.
   React.useEffect(() => {
@@ -5643,6 +5655,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   );
 
   const renderDisplayCell = React.useCallback((row: Row, col: Column) => {
+  perfHarness.increment("cellRenders");
   const value = row.values?.[col.id];
   const effectiveType = col.id === "priority" || col.type === "Priority" ? "Status" : col.type;
   const canEdit = userPermission !== 'read';
@@ -5653,7 +5666,15 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
    if (effectiveType === "Status" || effectiveType === "Dropdown" || effectiveType === "People") {
    setStatusAnchor(cellAnchor);
    }
+  const targetKind = effectiveType === "Status" ? "Status" : effectiveType === "Dropdown" ? "Dropdown" : effectiveType === "People" ? "Person" : effectiveType === "Date" ? "Date" : "cell";
+  const current = perfHarness.latest();
+  const id = current && !current.visible && current.phases.click === undefined
+    ? current.id
+    : perfHarness.start(targetKind);
+  perfHarness.mark("click", id);
+  perfHarness.mark("stateUpdate", id);
   stableHandleCellClick(row.id, col.id, value, col.type, cellAnchor);
+  markVisible(id);
   };
   const commonSx = {
   width: '100%',
@@ -10387,6 +10408,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   data-board-cell-anchor="true"
   data-row-id={row.id}
   data-column-id={col.id}
+  onPointerDown={() => perfHarness.start(col.type === "Status" ? "Status" : col.type === "Dropdown" ? "Dropdown" : col.type === "People" ? "Person" : col.type === "Date" ? "Date" : "cell")}
   sx={{
   width: '100%',
   maxWidth: '100%',
