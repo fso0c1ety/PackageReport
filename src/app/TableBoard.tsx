@@ -3182,9 +3182,15 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const [fileComment, setFileComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
-  // Compute popover placement once at interaction time instead of forcing a
-  // synchronous layout read for every rendered status/dropdown cell.
   const [statusPopoverUpward, setStatusPopoverUpward] = useState(false);
+
+  // Open pickers immediately; refine their direction after the first paint so
+  // layout measurement never blocks the click-to-visible path.
+  React.useEffect(() => {
+    if (!statusAnchor || typeof window === 'undefined') return;
+    const nextUpward = statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340);
+    setStatusPopoverUpward((current) => current === nextUpward ? current : nextUpward);
+  }, [statusAnchor, isMobile]);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -5644,12 +5650,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!canEdit) return;
   const cellAnchor = event.currentTarget.closest<HTMLElement>('[data-board-cell-anchor="true"]')
   || event.currentTarget;
-  if (effectiveType === "Status" || effectiveType === "Dropdown" || effectiveType === "People") {
-  setStatusAnchor(cellAnchor);
-  if (typeof window !== 'undefined') {
-  setStatusPopoverUpward(cellAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340));
-  }
-  }
+   if (effectiveType === "Status" || effectiveType === "Dropdown" || effectiveType === "People") {
+   setStatusAnchor(cellAnchor);
+   }
   stableHandleCellClick(row.id, col.id, value, col.type, cellAnchor);
   };
   const commonSx = {
@@ -6012,10 +6015,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <Box
   onClick={(e) => {
   e.stopPropagation();
-  if (userPermission !== 'read') {
-  setStatusAnchor(e.currentTarget);
-  if (typeof window !== 'undefined') setStatusPopoverUpward(e.currentTarget.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340));
-  setEditingCell({ rowId: row.id, colId: col.id });
+   if (userPermission !== 'read') {
+   setStatusAnchor(e.currentTarget);
+   setEditingCell({ rowId: row.id, colId: col.id });
   }
   }}
   sx={{

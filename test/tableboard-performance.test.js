@@ -5,9 +5,10 @@ const test = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
 
-test('status/dropdown placement is measured at click time', () => {
+test('status/dropdown placement is refined after the picker opens', () => {
   assert.match(source, /const \[statusPopoverUpward, setStatusPopoverUpward\] = useState\(false\)/);
-  assert.match(source, /setStatusPopoverUpward\(cellAnchor\.getBoundingClientRect\(\)\.bottom/);
+  assert.match(source, /statusAnchor\.getBoundingClientRect\(\)\.bottom/);
+  assert.match(source, /React\.useEffect\(\(\) => \{/);
   assert.match(source, /const dropdownShouldOpenUpward = statusPopoverUpward/);
   assert.match(source, /const statusShouldOpenUpward = statusPopoverUpward/);
 });
@@ -25,4 +26,6 @@ test('opening a cell picker does not invalidate every virtual row', () => {
   assert.match(source, /rowStyleSignature=\{rowStyleSignature\}/);
   assert.match(source, /&& !previous\.isInteractive\n\s*&& !next\.isInteractive/);
   assert.doesNotMatch(source, /previous\.displayRenderer === next\.displayRenderer/);
+  assert.match(source, /Open pickers immediately; refine their direction after the first paint/);
+  assert.doesNotMatch(source, /setStatusPopoverUpward\(e\.currentTarget\.getBoundingClientRect/);
 });
