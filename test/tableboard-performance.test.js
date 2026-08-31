@@ -28,4 +28,5 @@ test('opening a cell picker does not invalidate every virtual row', () => {
   assert.doesNotMatch(source, /previous\.displayRenderer === next\.displayRenderer/);
   assert.match(source, /Open pickers immediately; refine their direction after the first paint/);
   assert.doesNotMatch(source, /setStatusPopoverUpward\(e\.currentTarget\.getBoundingClientRect/);
+  assert.ok((source.match(/transitionDuration=\{0\}/g) || []).length >= 4);
 });

@@ -93,6 +93,7 @@ export default function TaskRowMenu({
         <MoreVertIcon fontSize="small" />
       </IconButton>
       <Menu
+        transitionDuration={0}
         anchorEl={anchorEl}
         open={!!anchorEl}
         onClose={handleClose}

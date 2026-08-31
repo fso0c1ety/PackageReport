@@ -6063,6 +6063,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Dropdown Picker Popover */}
   {isEditing && userPermission !== 'read' && (
   <Popover
+  transitionDuration={0}
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6425,6 +6426,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Status Picker Popover */}
   {isEditing && userPermission !== 'read' && (
   <Popover
+  transitionDuration={0}
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6764,6 +6766,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   {isEditing && userPermission !== 'read' && (
   <Popover
+  transitionDuration={0}
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -10006,6 +10009,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   </IconButton>
   {chatPopoverKey === `${row.id}-message` && chatAnchor && (
   <Popover
+  transitionDuration={0}
   open={!!chatAnchor}
   anchorEl={chatAnchor}
   onClose={handleCloseChat}
