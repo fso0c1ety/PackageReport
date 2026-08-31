@@ -9,6 +9,26 @@ export const runtime = "nodejs";
 
 const STATUS_COLORS = ["#1976d2", "#fdab3d", "#00c875", "#9c27b0", "#ef5350", "#26a69a"];
 
+function excelFillColor(fill) {
+  if (!fill || fill.type !== "pattern") return null;
+  const color = fill.fgColor || fill.bgColor;
+  if (!color) return null;
+  if (typeof color.argb === "string" && /^[0-9a-f]{6,8}$/i.test(color.argb)) {
+    return `#${color.argb.slice(-6)}`.toLowerCase();
+  }
+  if (typeof color.rgb === "string" && /^[0-9a-f]{6,8}$/i.test(color.rgb)) {
+    return `#${color.rgb.slice(-6)}`.toLowerCase();
+  }
+  const themeColors = ["#ffffff", "#000000", "#e7e6e6", "#44546a", "#4472c4", "#ed7d31", "#a5a5a5", "#ffc000", "#5b9bd5", "#70ad47"];
+  return Number.isInteger(color.theme) ? (themeColors[color.theme] || null) : null;
+}
+
+function importDiagnostic(event, payload = {}) {
+  if (process.env.LOG_LEVEL === "debug" || process.env.SMART_MANAGE_IMPORT_DEBUG === "true") {
+    console.info(`[${event}]`, payload);
+  }
+}
+
 function inferColumnType(values) {
   const samples = values
     .map((value) => String(value ?? "").trim())
@@ -65,12 +85,16 @@ function normalizeMondayValue(value) {
 
 function getDeclaredColumnType(value) {
   const typeMap = {
+    TASK: "Text",
+    NAME: "Text",
+    "NR.P": "Numbers",
     TEXT: "Text",
     NUMBERS: "Numbers",
     NUMBER: "Numbers",
     STATUS: "Status",
     "STATUSI I DERGESES": "Status",
     DATE: "Date",
+    DATA: "Date",
     DROPDOWN: "Dropdown",
     COUNTRY: "Country",
     EMAIL: "Email",
@@ -97,6 +121,37 @@ function getDeclaredColumnType(value) {
   return typeMap[normalizeMondayValue(value)] || null;
 }
 
+// Smart Manage exports carry canonical types in hidden metadata. Legacy
+// exports may only expose localized headers, so resolve those headers only
+// after the workbook has been positively identified as a Smart Manage export.
+function getSmartManageLegacyType(value) {
+  const key = normalizeMondayValue(value);
+  return {
+    "STATUSI I DERGESES": "Status",
+    "LLOJI I DERGESES": "Status",
+    IMPORTUESI: "Dropdown",
+    EKSPORTUESI: "Dropdown",
+    TRANSPORTUESI: "Dropdown",
+    COUNTRY: "Country",
+    DATA: "Date",
+  }[key] || null;
+}
+
+function canonicalColumnType(value) {
+  const declared = getDeclaredColumnType(value);
+  if (declared) return declared;
+  const normalized = normalizeMondayValue(value);
+  return {
+    STATUS: "Status",
+    DROPDOWN: "Dropdown",
+    COUNTRY: "Country",
+    DATE: "Date",
+    NUMBERS: "Numbers",
+    NUMBER: "Numbers",
+    TEXT: "Text",
+  }[normalized] || null;
+}
+
 function normalizeExcelCellValue(value) {
   if (value == null) return "";
   if (value instanceof Date) return value.toISOString();
@@ -109,6 +164,13 @@ function normalizeExcelCellValue(value) {
     return value.richText.map((part) => part?.text || "").join("");
   }
   return String(value);
+}
+
+function excelSerialToIsoDate(value) {
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial < 1) return null;
+  const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
 export async function POST(req) {
@@ -126,6 +188,8 @@ export async function POST(req) {
     if (!file || typeof file === "string") {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
+
+    importDiagnostic("IMPORT_UPLOAD", { filename: file.name || "unknown" });
 
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
@@ -185,17 +249,25 @@ export async function POST(req) {
       rawRows.push(values);
     });
 
+    const hasSmartManageSignature = rawRows.some((row) => row.some((cell) =>
+      String(cell ?? "").includes("This spreadsheet was created using Smart Manage")
+    ));
+    const smartManageExport = Boolean(smartManageMetadata || hasSmartManageSignature);
+
     const mondayHeaderRowIndex = rawRows.findIndex((row) => {
       if (!Array.isArray(row)) return false;
       const normalized = row.map(normalizeMondayValue);
-      return normalized.includes("NAME")
-        && normalized.includes("STATUSI I DERGESES")
-        && normalized.includes("DATA");
+      const hasTask = normalized.includes("NAME") || normalized.includes("TASK");
+      const hasStatus = normalized.includes("STATUS") || normalized.includes("STATUSI I DERGESES");
+      const hasDate = normalized.includes("DATE") || normalized.includes("DATA");
+      return hasTask && hasStatus && hasDate;
     });
     const headerRowIndex = smartManageMetadata?.headerRow
       ? Math.max(0, Number(smartManageMetadata.headerRow) - 1)
       : mondayHeaderRowIndex >= 0
       ? mondayHeaderRowIndex
+      : smartManageExport
+      ? rawRows.findIndex((row) => Array.isArray(row) && row.length >= 2 && row.some((cell) => String(cell ?? "").trim() !== ""))
       : rawRows.findIndex((row) =>
         Array.isArray(row) && row.some((cell) => String(cell ?? "").trim() !== "")
       );
@@ -215,9 +287,9 @@ export async function POST(req) {
       const normalized = row.map(normalizeMondayValue);
       if (firstCell === "TEST MOS SHKRUJ" || firstCell === "NEW GROUP") return false;
       if (
-        firstCell === "NAME"
-        && normalized.includes("STATUSI I DERGESES")
-        && normalized.includes("DATA")
+        (firstCell === "NAME" || firstCell === "TASK")
+        && (normalized.includes("STATUS") || normalized.includes("STATUSI I DERGESES"))
+        && (normalized.includes("DATE") || normalized.includes("DATA"))
       ) return false;
       return true;
     });
@@ -225,17 +297,30 @@ export async function POST(req) {
     const columns = headers.map((header, columnIndex) => {
       const declaredColumn = smartManageMetadata?.columns?.[columnIndex];
       const inferred = inferColumnType(dataRows.map((row) => row?.[columnIndex]));
-      const declaredType = declaredColumn?.type || getDeclaredColumnType(declaredTypeRow[columnIndex]);
+      const declaredType = canonicalColumnType(declaredColumn?.type)
+        || getSmartManageLegacyType(header)
+        || getDeclaredColumnType(declaredTypeRow[columnIndex]);
       const type = declaredType || inferred.type;
       const uniqueOptions = (type === "Status" || type === "Dropdown" || type === "Country")
         ? Array.from(new Set(
           dataRows
             .map((row) => String(row?.[columnIndex] ?? "").trim())
             .filter(Boolean)
-        )).map((value, index) => ({
-          value,
-          color: STATUS_COLORS[index % STATUS_COLORS.length],
-        }))
+        )).map((value, index) => {
+          let color = STATUS_COLORS[index % STATUS_COLORS.length];
+          if (type === "Status" && smartManageExport && !declaredColumn?.options?.length) {
+            const counts = new Map();
+            worksheet.eachRow((row, rowNumber) => {
+              if (rowNumber <= headerRowIndex + 1) return;
+              const label = String(row.getCell(columnIndex + 1).value ?? "").trim();
+              if (label.toLocaleLowerCase() !== value.toLocaleLowerCase()) return;
+              const fillColor = excelFillColor(row.getCell(columnIndex + 1).fill);
+              if (fillColor) counts.set(fillColor, (counts.get(fillColor) || 0) + 1);
+            });
+            color = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || color;
+          }
+          return { value, color };
+        })
         : undefined;
       return {
         id: randomUUID(),
@@ -251,6 +336,12 @@ export async function POST(req) {
       };
     });
 
+    columns.forEach((column) => importDiagnostic("IMPORT_PARSED_COLUMN", {
+      name: column.name,
+      detectedType: column.type,
+      options: column.options || [],
+    }));
+
     const tableId = randomUUID();
     const tableName = smartManageMetadata?.boardName || requestedTableName || firstSheetName || "Imported Table";
 
@@ -258,6 +349,18 @@ export async function POST(req) {
       "INSERT INTO tables (id, name, workspace_id, columns, created_at, shared_users) VALUES ($1, $2, $3, $4, $5, $6)",
       [tableId, tableName, workspaceId, JSON.stringify(columns), Date.now(), JSON.stringify([])]
     );
+
+    columns.forEach((column) => importDiagnostic("IMPORT_CREATE_COLUMN", {
+      name: column.name,
+      type: column.type,
+      options: column.options || [],
+    }));
+
+    columns.forEach((column) => importDiagnostic("IMPORT_SAVED_COLUMN", {
+      name: column.name,
+      type: column.type,
+      options: column.options || [],
+    }));
 
     let rowCount = 0;
     for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex += 1) {
@@ -269,9 +372,11 @@ export async function POST(req) {
         const rawValue = row?.[columnIndex];
         let normalizedValue = rawValue == null
           ? ""
+          : column.type === "Date" && typeof rawValue === "number"
+            ? (excelSerialToIsoDate(rawValue) || String(rawValue).trim())
           : column.type === "Numbers" && /^-?\d+(?:[.,]\d+)?$/.test(String(rawValue).trim())
             ? Number(String(rawValue).trim().replace(",", "."))
-            : addressFields.isAddressColumn(column) ? String(rawValue) : String(rawValue).trim();
+            : addressFields.isAddressColumn(column) ? String(rawValue) : String(rawValue);
         if (addressFields.isAddressColumn(column)) {
           const validation = addressFields.validateInternationalAddress(normalizedValue);
           if (!validation.valid) throw new Error(`Invalid address in row ${rowIndex + 1}: ${validation.error}`);

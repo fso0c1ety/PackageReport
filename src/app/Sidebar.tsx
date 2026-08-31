@@ -284,6 +284,7 @@ export default function Sidebar({
   const [driverPortal, setDriverPortal] = useState(false);
   const [portalContext, setPortalContext] = useState<any>(null);
   const dedicatedPortal = portalContext?.portalType && portalContext.portalType !== "standard";
+  const normalWorkspaceSidebar = !dedicatedPortal && !driverPortal;
   useEffect(() => {
     if (!currentWorkspaceId) { setWorkspaceModules([]); return; }
     const loadModules = () => authenticatedFetch(getApiUrl(`workspaces/${currentWorkspaceId}/modules`), { suppressNativeErrorAlert: true })
@@ -429,7 +430,8 @@ export default function Sidebar({
   const drawerContent = (
     <Box
       sx={{
-        height: "100%",
+        height: normalWorkspaceSidebar ? "auto" : "100%",
+        minHeight: normalWorkspaceSidebar ? "100%" : undefined,
         display: "flex",
         flexDirection: "column",
         bgcolor: theme.palette.mode === "dark" ? "#0f1118" : "#f5f7fb",
@@ -437,7 +439,7 @@ export default function Sidebar({
         paddingTop: { xs: "env(safe-area-inset-top)", md: 0 },
       }}
     >
-      <Box sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: normalWorkspaceSidebar ? "auto" : "100%", minHeight: normalWorkspaceSidebar ? "100%" : undefined }}>
         <Box sx={{ p: { xs: 2.1, md: 1.35 }, pb: { xs: 1.4, md: 0.9 } }}>
           <Box
             sx={{
@@ -498,7 +500,7 @@ export default function Sidebar({
           </Box>
         </Box>
 
-        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", px: 2.1, pb: 2 }}>
+        <Box sx={{ flex: normalWorkspaceSidebar ? "none" : 1, minHeight: normalWorkspaceSidebar ? "auto" : 0, overflowY: normalWorkspaceSidebar ? "visible" : "auto", overscrollBehavior: "contain", px: 2.1, pb: 2 }}>
           <InlineHeader label={portalContext?.portalConfig?.name || (driverPortal ? "Driver Portal" : dedicatedPortal ? `${String(portalContext.portalType).replaceAll("_", " ")} Portal` : "Navigation")} />
           <Box sx={{ display: "grid", gap: 0.75 }}>
             {dedicatedPortal ? <>
@@ -1020,7 +1022,8 @@ export default function Sidebar({
             height: "auto",
             bottom: "calc(68px + env(safe-area-inset-bottom))",
             maxHeight: "calc(100dvh - 68px - env(safe-area-inset-bottom))",
-            overflow: "hidden",
+            overflow: normalWorkspaceSidebar ? "auto" : "hidden",
+            ...(normalWorkspaceSidebar ? { bottom: 0, top: 0, height: "100dvh", maxHeight: "100dvh" } : {}),
             bgcolor: theme.palette.background.default,
             borderRight: `1px solid ${theme.palette.divider}`,
           },

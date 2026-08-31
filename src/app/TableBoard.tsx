@@ -36,6 +36,7 @@ dayjs.extend(relativeTime);
 import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { getFallbackVirtualRows } from './tableVirtualization';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import {
@@ -5051,7 +5052,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Do not memoize this projection by the virtual-items array reference.
   // TanStack can reuse that array while updating its range during a fast
   // scroll; projecting on every board render prevents stale/blank ranges.
-  const virtualVisibleRowEntries = virtualRows.map((virtualRow) => ({
+  const safeVirtualRows = virtualRows.length > 0
+    ? virtualRows
+    : getFallbackVirtualRows({
+      count: filteredRowIds.length,
+      scrollTop: tableContainerRef.current?.scrollTop ?? 0,
+      viewportHeight: tableContainerRef.current?.clientHeight ?? ROW_HEIGHT_ESTIMATE,
+      rowHeight: ROW_HEIGHT_ESTIMATE,
+      overscan: isMobile ? 18 : 12,
+    });
+  const virtualVisibleRowEntries = safeVirtualRows.map((virtualRow) => ({
   rowId: filteredRowIds[virtualRow.index],
   rowIndex: virtualRow.index,
   start: virtualRow.start,
@@ -5059,6 +5069,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Keep virtualization active during row drag. Rendering every task at drag
   // start caused a large synchronous mount and visible stutter.
   const visibleRowEntries = virtualVisibleRowEntries;
+  // During a large scroll jump TanStack can briefly reset its measured size
+  // before the next frame. Keep the scroll surface non-zero in that window so
+  // the fallback range remains visible instead of being clipped by a zero
+  // height virtual container.
+  const virtualContentHeight = Math.max(
+  rowVirtualizer.getTotalSize(),
+  filteredRowIds.length * ROW_HEIGHT_ESTIMATE,
+  );
 
   const invoiceTaskOptions = React.useMemo(() => {
   if (!isInvoiceDialogOpen || !invoiceClientName) return [];
@@ -5108,6 +5126,50 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   return totals;
   }, [filteredRows, sortedColumns]);
+
+  const footerSummariesByColumn = React.useMemo(() => {
+  const summaries = new Map<string, { kind: 'status' | 'dropdown' | 'date'; values: Array<{ value: string; count: number; color?: string }>; dateRange?: string }>();
+  const valuesFor = (value: unknown) => {
+    if (Array.isArray(value)) return value.map((entry) => String(entry || '').trim()).filter(Boolean);
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.map((entry) => String(entry || '').trim()).filter(Boolean);
+      } catch { /* plain scalar */ }
+      return [trimmed];
+    }
+    return value === null || value === undefined ? [] : [String(value).trim()].filter(Boolean);
+  };
+  displayedBodyColumns.forEach((column) => {
+    if (column.type === 'Date') {
+      const dates = filteredRows.flatMap((row) => valuesFor(row.values[column.id]))
+        .map((value) => dayjs(value))
+        .filter((value) => value.isValid())
+        .sort((a, b) => a.valueOf() - b.valueOf());
+      if (dates.length > 0) {
+        const first = dates[0].format('DD.MM.YYYY');
+        const last = dates[dates.length - 1].format('DD.MM.YYYY');
+        summaries.set(column.id, { kind: 'date', values: [], dateRange: first === last ? first : `${first} - ${last}` });
+      }
+      return;
+    }
+    if (column.type !== 'Status' && column.type !== 'Dropdown') return;
+    const counts = new Map<string, number>();
+    filteredRows.forEach((row) => valuesFor(row.values[column.id]).forEach((value) => {
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }));
+    if (column.type === 'Status') {
+      const ordered = (column.options || []).map((option) => ({ value: option.value, count: counts.get(option.value) || 0, color: option.color })).filter((entry) => entry.count > 0);
+      summaries.set(column.id, { kind: 'status', values: ordered });
+    } else {
+      const ordered = Array.from(counts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+      summaries.set(column.id, { kind: 'dropdown', values: ordered });
+    }
+  });
+  return summaries;
+  }, [displayedBodyColumns, filteredRows]);
 
   useEffect(() => {
   if (!invoiceCompanyName && boardTitle) {
@@ -5630,7 +5692,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (effectiveType === "Dropdown") {
-  const dropdownDisplay = Array.isArray(value) ? value.join(', ') : String(value || '');
+  const dropdownValues = Array.isArray(value) ? value.map((entry) => String(entry || '').trim()).filter(Boolean) : (String(value || '').trim() ? [String(value).trim()] : []);
+  const visibleDropdownValues = dropdownValues.slice(0, isMobile ? 2 : 3);
+  const hiddenDropdownCount = dropdownValues.length - visibleDropdownValues.length;
   return (
   <Box onClick={activate} sx={{
   bgcolor: 'transparent',
@@ -5653,7 +5717,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
   }}>
-  <Typography variant="body2" sx={{ fontWeight: 400, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', minWidth: 0, flex: 1 }}>{dropdownDisplay}</Typography>
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: .5, minWidth: 0, overflow: 'hidden', flex: 1 }}>
+  {visibleDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={canEdit ? (event) => { event.stopPropagation(); void stableHandleCellSave(row.id, col.id, col.type, dropdownValues.filter((candidate) => candidate !== entry)); } : undefined} sx={{ maxWidth: '100%', minWidth: 0, height: 24, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { px: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
+  {hiddenDropdownCount > 0 && <Chip label={`+${hiddenDropdownCount}`} size="small" sx={{ height: 24, flexShrink: 0, bgcolor: alpha(theme.palette.text.primary, 0.1), color: theme.palette.text.secondary }} />}
+  </Box>
   <Box component="span" sx={{ color: theme.palette.text.secondary, fontSize: 11, flexShrink: 0 }}>▼</Box>
   </Box>
   );
@@ -6012,35 +6079,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {!isLabelEditing ? (
   // --- Simple Selection Mode ---
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-  {valueStr && (
-  <Box sx={{ display: 'flex', mb: 0.25 }}>
-  <Box
-  sx={{
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 0.5,
-  px: 1,
-  py: 0.25,
-  borderRadius: 1,
-  bgcolor: alpha(theme.palette.primary.main, 0.18),
-  border: `1px solid ${alpha(theme.palette.primary.main, 0.35)}`,
-  maxWidth: '100%'
-  }}
-  >
-  <Typography sx={{ fontSize: '0.82rem', color: theme.palette.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-  {valueStr}
-  </Typography>
-  <IconButton
-  size="small"
-  onClick={(e) => {
-  e.stopPropagation();
-  handleDropdownOptionSelect("");
-  }}
-  sx={{ p: 0.25, color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: 'transparent' } }}
-  >
-  <CloseIcon sx={{ fontSize: 14 }} />
-  </IconButton>
-  </Box>
+  {selectedDropdownValues.length > 0 && (
+  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.75 }}>
+  {selectedDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={() => handleDropdownOptionSelect(entry)} sx={{ maxWidth: '100%', borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
   </Box>
   )}
   <LocalDropdownSearch
@@ -9738,6 +9779,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   sx={{
   position: 'relative',
   height: rowVirtualizer.getTotalSize(),
+  minHeight: virtualContentHeight,
   width: gridContentWidth,
   minWidth: '100%',
   }}
@@ -9940,7 +9982,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   />
   {/* Message Icon for Chat */}
   <IconButton size="small" sx={{ color: '#4f51c0', '&:hover': { color: '#6c6ed6' } }} onClick={e => handleOpenChat(e, row.id, row.values.message || [], 'message')}>
+  <Badge
+  badgeContent={Array.isArray(row.values?.message) && row.values.message.length > 99 ? '99+' : (Array.isArray(row.values?.message) ? row.values.message.length : 0)}
+  invisible={!Array.isArray(row.values?.message) || row.values.message.length === 0}
+  sx={{ '& .MuiBadge-badge': { minWidth: 15, height: 15, px: 0.35, top: -3, right: -6, border: `2px solid ${theme.palette.background.paper}`, borderRadius: 8, fontSize: 9, lineHeight: 1, fontWeight: 800, bgcolor: theme.palette.primary.main, color: theme.palette.primary.contrastText } }}
+  >
   <ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />
+  </Badge>
   </IconButton>
   {chatPopoverKey === `${row.id}-message` && chatAnchor && (
   <Popover
@@ -10373,9 +10421,41 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                 <TableCell component="div" sx={{ borderTop: `1px solid ${theme.palette.divider}`, borderBottom: 'none', backgroundColor: theme.palette.mode === 'dark' ? '#181b34' : '#fff' }} />
                 {displayedBodyColumns.map((col, index) => {
                   let content = null;
-                  if (col.type === "Number") {
+                  if (col.type === "Number" || col.type === "Numbers") {
                     const sum = numericTotalsByColumn.get(col.id) || 0;
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>{sum.toLocaleString()} sum</Typography>;
+                    content = <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, overflow: 'hidden', textOverflow: 'ellipsis' }}>Total: {sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>;
+                  } else if (col.type === "Status" || col.type === "Dropdown") {
+                    const summary = footerSummariesByColumn.get(col.id);
+                    if (summary?.kind === 'status') {
+                      const total = summary.values.reduce((sum, entry) => sum + entry.count, 0);
+                      content = <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', height: 10, borderRadius: 1, overflow: 'hidden', minWidth: 0 }} aria-label="Status distribution">
+                        {summary.values.map((entry) => {
+                          const percent = total ? Math.round((entry.count / total) * 100) : 0;
+                          return <Tooltip key={entry.value} title={`${entry.value} ${entry.count}/${total} ${percent}%`} arrow>
+                            <Box component="span" sx={{ height: '100%', flex: `${entry.count} 1 0`, minWidth: 2, bgcolor: entry.color || theme.palette.primary.main, cursor: 'default' }} />
+                          </Tooltip>;
+                        })}
+                      </Box>;
+                    } else if (summary?.kind === 'dropdown' && summary.values.length > 0) {
+                      const visibleValues = summary.values.slice(0, 3);
+                      const hiddenValues = summary.values.slice(visibleValues.length);
+                      const hiddenCount = hiddenValues.length;
+                      content = <Box sx={{ display: 'flex', alignItems: 'center', gap: .5, width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0 }} aria-label="Dropdown distribution">
+                        {visibleValues.map((entry) => (
+                          <Tooltip key={entry.value} title={`${entry.value} ${entry.count}`} arrow>
+                            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', maxWidth: '10ch', minWidth: 0, px: .75, py: .125, borderRadius: 1, bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.07), color: theme.palette.text.secondary, fontSize: '0.68rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>
+                              {entry.value}
+                            </Box>
+                          </Tooltip>
+                        ))}
+                        {hiddenCount > 0 && <Tooltip title={hiddenValues.map((entry) => `${entry.value} ${entry.count}`).join(' | ')} arrow>
+                          <Box component="span" sx={{ flex: '0 0 auto', px: .75, py: .125, borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.grey[800], color: theme.palette.common.white, fontSize: '0.68rem', fontWeight: 700 }}>+{hiddenCount}</Box>
+                        </Tooltip>}
+                      </Box>;
+                    }
+                  } else if (col.type === "Date") {
+                    const summary = footerSummariesByColumn.get(col.id);
+                    content = summary?.kind === 'date' ? <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{summary.dateRange}</Typography> : null;
                   } else if (index === 0) {
                     content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
                   }

@@ -6,9 +6,9 @@ const { join } = require('node:path');
 
 const source = readFileSync(join(__dirname, '..', 'src', 'app', 'tableVirtualization.ts'), 'utf8');
 
-test('recovery candidate does not force the fallback strategy into TableBoard', () => {
+test('recovery candidate keeps a deterministic fallback during empty virtual ranges', () => {
   const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
-  assert.doesNotMatch(board, /getFallbackVirtualRows/);
+  assert.match(board, /getFallbackVirtualRows/);
   assert.match(source, /getFallbackVirtualRows/);
   const count = 450;
   const rowHeight = 36;
@@ -69,4 +69,19 @@ test('fallback keeps the current viewport covered after a large scroll jump', ()
   assert.ok(range.length <= 40);
   assert.equal(range.at(-1).index, 449);
   assert.equal(range.at(-1).start, 449 * 36);
+});
+
+test('large scroll jumps keep a non-zero virtual content surface', () => {
+  const board = readFileSync(join(__dirname, '..', 'src', 'app', 'TableBoard.tsx'), 'utf8');
+  assert.match(board, /const virtualContentHeight = Math\.max\(/);
+  assert.match(board, /rowVirtualizer\.getTotalSize\(\),/);
+  assert.match(board, /filteredRowIds\.length \* ROW_HEIGHT_ESTIMATE/);
+  assert.match(board, /minHeight: virtualContentHeight/);
+  const count = 450;
+  const rowHeight = 36;
+  for (const scrollTop of [0, 36, 9_000, 16_000]) {
+    const first = Math.max(0, Math.floor(scrollTop / rowHeight) - 20);
+    const last = Math.min(count - 1, Math.ceil((scrollTop + 500) / rowHeight) + 20);
+    assert.ok(last >= first, `expected rows for scrollTop=${scrollTop}`);
+  }
 });

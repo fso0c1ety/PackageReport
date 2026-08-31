@@ -7,6 +7,7 @@ const ExcelJS = require("exceljs");
 const root = path.join(__dirname, "..");
 const exporter = fs.readFileSync(path.join(root, "src/app/TableBoard.tsx"), "utf8");
 const importer = fs.readFileSync(path.join(root, "src/app/api/tables/import-excel/route.js"), "utf8");
+const legacyImporter = fs.readFileSync(path.join(root, "server/routes/tableCreation.js"), "utf8");
 
 test("Smart Manage exports carry hidden schema metadata and date-only values", async () => {
   assert.match(exporter, /SMART_MANAGE_EXPORT/);
@@ -68,4 +69,59 @@ test("Smart Manage import selects metadata schema and never treats helper metada
   assert.match(importer, /smartManageMetadata\?\.headerRow/);
   assert.match(importer, /smartManageMetadata\?\.columns/);
   assert.match(importer, /smartManageMetadata\?\.boardName/);
+});
+
+test("legacy Smart Manage export headers detect Task/Data and convert Excel date serials", () => {
+  assert.match(importer, /This spreadsheet was created using Smart Manage/);
+  assert.match(importer, /hasSmartManageSignature/);
+  assert.match(importer, /normalized\.includes\("TASK"\)/);
+  assert.match(importer, /normalized\.includes\("STATUSI I DERGESES"\)/);
+  assert.match(importer, /normalized\.includes\("DATA"\)/);
+  assert.match(importer, /excelSerialToIsoDate/);
+  assert.match(importer, /column\.type === "Date" && typeof rawValue === "number"/);
+  assert.match(importer, /TASK: "Text"/);
+  assert.match(importer, /DATA: "Date"/);
+});
+
+test("production Express importer uses the dedicated Smart Manage legacy parser", () => {
+  assert.match(legacyImporter, /this spreadsheet was created using smart manage/);
+  assert.match(legacyImporter, /headers\.includes\('TASK'\)/);
+  assert.match(legacyImporter, /headers\.includes\('DATA'\)/);
+  assert.match(legacyImporter, /smartManageMetadata/);
+  assert.match(legacyImporter, /board_groups/);
+  assert.match(legacyImporter, /dateOnlyFromExcelDate/);
+  assert.doesNotMatch(legacyImporter, /getHexFromExcelColor\(cell\.fill/);
+});
+
+test("legacy Smart Manage logistics columns restore native semantic types", () => {
+  assert.match(legacyImporter, /normalized === 'COUNTRY'/);
+  assert.match(legacyImporter, /normalized === 'SHTETI EKSPORTUES'/);
+  assert.match(legacyImporter, /normalized === 'LLOJI I DERGESES'/);
+  assert.match(legacyImporter, /normalized === 'IMPORTUESI'/);
+  assert.match(legacyImporter, /normalized === 'EKSPORTUESI'/);
+  assert.match(legacyImporter, /normalized === 'TRANSPORTUESI'/);
+  assert.match(legacyImporter, /PARCIALE/);
+  assert.match(legacyImporter, /metadataResult \|\| mondayResult/);
+});
+
+test("Next.js UI import preserves Smart Manage legacy semantic types", () => {
+  assert.match(importer, /getSmartManageLegacyType/);
+  assert.match(importer, /"LLOJI I DERGESES": "Status"/);
+  assert.match(importer, /IMPORTUESI: "Dropdown"/);
+  assert.match(importer, /EKSPORTUESI: "Dropdown"/);
+  assert.match(importer, /TRANSPORTUESI: "Dropdown"/);
+  assert.match(importer, /COUNTRY: "Country"/);
+  assert.match(importer, /DATA: "Date"/);
+  assert.match(importer, /canonicalColumnType/);
+  assert.match(importer, /IMPORT_PARSED_COLUMN/);
+  assert.match(importer, /IMPORT_SAVED_COLUMN/);
+});
+
+test("legacy Smart Manage status colors use metadata first and Excel fills only as fallback", () => {
+  assert.match(importer, /excelFillColor/);
+  assert.match(importer, /type === "Status" && smartManageExport/);
+  assert.match(importer, /declaredColumn\?\.options\?\.length/);
+  assert.match(importer, /toLocaleLowerCase\(\) !== value\.toLocaleLowerCase\(\)/);
+  assert.match(importer, /counts\.set\(fillColor/);
+  assert.match(importer, /STATUS_COLORS\[index % STATUS_COLORS\.length\]/);
 });
