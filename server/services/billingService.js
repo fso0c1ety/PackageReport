@@ -43,19 +43,8 @@ function isWritable(subscription) {
 async function getStatus(userId) {
   const subscription = await ensureSubscription(userId);
   const userResult = await db.query("SELECT LOWER(email) AS email FROM users WHERE id = $1", [userId]);
-  let demoOnlyOwner = false;
-  try {
-    const demoScope = await db.query(
-      `SELECT COUNT(*)::int AS total,
-              COUNT(*) FILTER (WHERE COALESCE(is_demo, false))::int AS demo_count
-       FROM workspaces WHERE owner_id = $1`,
-      [userId]
-    );
-    const counts = demoScope.rows[0] || {};
-    demoOnlyOwner = Number(counts.total) > 0 && Number(counts.total) === Number(counts.demo_count);
-  } catch {}
   const internalOwner = isInternalOwnerEmail(userResult.rows[0]?.email);
-  const unlimited = internalOwner || demoOnlyOwner;
+  const unlimited = internalOwner;
   const seats = await db.query(
     `SELECT COUNT(DISTINCT member_id)::int AS count FROM (
        SELECT $1::text AS member_id
@@ -82,7 +71,7 @@ async function getStatus(userId) {
     writable: unlimited || isWritable(subscription),
     unlimited,
     internal_owner: internalOwner,
-    entitlement: internalOwner ? "internal_owner" : demoOnlyOwner ? "demo_owner" : "subscription",
+    entitlement: internalOwner ? "internal_owner" : "subscription",
     seat_limit: unlimited ? null : subscription.seat_limit,
     seats_used: seats.rows[0]?.count || 1,
   };

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { requireWritableSubscription } from "../../_lib/billing";
+import { upsertTableMembership } from "../../_lib/tableMembership";
+import inviteCodes from "../../../../../server/services/tableInviteCode.js";
 
 export const runtime = "nodejs";
 
@@ -12,14 +14,17 @@ export async function POST(req) {
 
   try {
     const { inviteCode } = await req.json();
+    const normalizedCode = inviteCodes.normalizeInviteCode(inviteCode);
 
-    if (!inviteCode) {
-      return NextResponse.json({ error: "Invite code is required" }, { status: 400 });
+    if (!inviteCodes.isValidInviteCode(normalizedCode)) {
+      return NextResponse.json({ error: "A valid invite code is required" }, { status: 400 });
     }
 
     const tableRes = await pool.query(
-      "SELECT * FROM tables WHERE UPPER(invite_code) = $1",
-      [String(inviteCode).toUpperCase()]
+      `SELECT t.*,w.owner_id FROM tables t
+       JOIN workspaces w ON w.id=t.workspace_id
+       WHERE UPPER(t.invite_code) = $1`,
+      [normalizedCode]
     );
 
     const table = tableRes.rows[0];
@@ -30,14 +35,26 @@ export async function POST(req) {
     const billingError = await requireWritableSubscription(user.id, { tableId: table.id });
     if (billingError) return billingError;
 
-    let sharedUsers = Array.isArray(table.shared_users) ? table.shared_users : [];
-
-    if (!sharedUsers.some((entry) => String(entry?.userId) === String(user.id))) {
-      sharedUsers = [...sharedUsers, { userId: String(user.id), permission: "edit", role: "employee" }];
-      await pool.query(
-        "UPDATE tables SET shared_users = $1::jsonb WHERE id = $2",
-        [JSON.stringify(sharedUsers), table.id]
-      );
+    if (String(table.owner_id) !== String(user.id)) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query("SELECT * FROM tables WHERE id=$1 FOR UPDATE", [table.id]);
+        if (!locked.rows[0]) throw new Error("Table no longer exists");
+        await upsertTableMembership(client, locked.rows[0], user.id, {
+          boardRole: "editor",
+          workspaceRole: "member",
+          portalType: "standard",
+          recordAccess: { scope: "all_permitted" },
+          preserveExisting: true,
+        });
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     }
 
     return NextResponse.json({

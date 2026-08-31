@@ -50,10 +50,13 @@ test("invite UI and API submit the four independent access dimensions", () => {
 
 test("invite acceptance preserves portal metadata on legacy databases", () => {
   const accept = read("src", "app", "api", "notifications", "[id]", "accept", "route.js");
-  assert.match(accept, /hasUniversalMembership/);
-  assert.match(accept, /hasBoardMemberAccess/);
-  assert.match(accept, /portalType, landingRoute: PORTAL_ROUTES\[portalType\], recordAccess/);
-  assert.match(accept, /INSERT INTO workspace_members\(workspace_id,user_id,role,updated_at\)/);
+  const membership = read("src", "app", "api", "_lib", "tableMembership.js");
+  assert.match(accept, /upsertTableMembership/);
+  assert.match(membership, /hasUniversalMembership/);
+  assert.match(membership, /hasBoardMemberAccess/);
+  assert.match(membership, /portalType,/);
+  assert.match(membership, /landingRoute: PORTAL_ROUTES\[portalType\]/);
+  assert.match(membership, /INSERT INTO workspace_members\(workspace_id,user_id,role,updated_at\)/);
 });
 
 test("team listing supports legacy membership columns and portal metadata", () => {

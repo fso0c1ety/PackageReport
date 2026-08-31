@@ -67,19 +67,8 @@ export async function getBillingStatus(userId) {
     [userId]
   );
   const value = subscription.rows[0];
-  let demoOnlyOwner = false;
-  try {
-    const demoScope = await pool.query(
-      `SELECT COUNT(*)::int AS total,
-              COUNT(*) FILTER (WHERE COALESCE(is_demo, false))::int AS demo_count
-       FROM workspaces WHERE owner_id = $1`,
-      [userId]
-    );
-    const counts = demoScope.rows[0] || {};
-    demoOnlyOwner = Number(counts.total) > 0 && Number(counts.total) === Number(counts.demo_count);
-  } catch {}
   const internalOwnerAccount = internalOwner.isInternalOwnerEmail(accountEmail);
-  const unlimited = internalOwnerAccount || demoOnlyOwner;
+  const unlimited = internalOwnerAccount;
 
   if (unlimited) {
     await pool.query(
@@ -98,7 +87,7 @@ export async function getBillingStatus(userId) {
     writable,
     unlimited,
     internal_owner: internalOwnerAccount,
-    entitlement: internalOwnerAccount ? "internal_owner" : demoOnlyOwner ? "demo_owner" : "subscription",
+    entitlement: internalOwnerAccount ? "internal_owner" : "subscription",
     seat_limit: unlimited ? null : value?.seat_limit,
     seats_used: seats.rows[0]?.count || 1,
   };
