@@ -6085,6 +6085,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {isEditing && userPermission !== 'read' && (
   <Popover
   transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6448,6 +6451,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {isEditing && userPermission !== 'read' && (
   <Popover
   transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6788,6 +6794,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {isEditing && userPermission !== 'read' && (
   <Popover
   transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {

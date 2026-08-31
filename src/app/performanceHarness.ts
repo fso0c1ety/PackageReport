@@ -17,10 +17,21 @@ declare global {
   }
 }
 
+let enabledCache: boolean | undefined;
 const isEnabled = () => {
+  if (enabledCache !== undefined) return enabledCache;
   if (typeof window === "undefined") return false;
-  if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") return true;
-  return process.env.NEXT_PUBLIC_SM_PERF === "1";
+  if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") {
+    enabledCache = true;
+    return true;
+  }
+  const productionHost = "package-report.vercel.app";
+  if (window.location.hostname === productionHost) {
+    enabledCache = false;
+    return false;
+  }
+  enabledCache = new URLSearchParams(window.location.search).get("smperf") === "1";
+  return enabledCache;
 };
 
 let nextId = 1;
