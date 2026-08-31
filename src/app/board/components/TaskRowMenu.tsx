@@ -94,6 +94,10 @@ export default function TaskRowMenu({
       </IconButton>
       <Menu
         transitionDuration={0}
+        disableAutoFocus
+        disableAutoFocusItem
+        disableEnforceFocus
+        disableRestoreFocus
         anchorEl={anchorEl}
         open={!!anchorEl}
         onClose={handleClose}
