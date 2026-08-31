@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
       process.env.VERCEL_GIT_COMMIT_SHA ||
       process.env.COMMIT_SHA ||
       "development",
+    NEXT_PUBLIC_SM_PERF: process.env.NEXT_PUBLIC_SM_PERF || "",
   },
   trailingSlash: true,
   serverExternalPackages: ["bullmq", "ioredis"],
