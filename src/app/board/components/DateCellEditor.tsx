@@ -61,9 +61,6 @@ export default function DateCellEditor({ initialValue, onSave, onCancel, autoOpe
         }
         saveValue(value);
       }}
-      onClick={() => {
-        inputRef.current?.showPicker?.();
-      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();

@@ -5003,6 +5003,17 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   return optionsIndex;
   }, [sortedColumns]);
+  const countryOptionsByColumnId = React.useMemo(() => {
+  const optionsIndex = new Map<string, readonly string[]>();
+  sortedColumns.forEach((column) => {
+  if (column.type !== "Country") return;
+  const source = column.options && column.options.length > 0
+  ? column.options.map((option) => option.value)
+  : fullCountryList;
+  optionsIndex.set(column.id, Array.from(new Set(source.filter(Boolean))));
+  });
+  return optionsIndex;
+  }, [sortedColumns]);
   const searchableOptionsByColumnId = React.useMemo(() => {
   const searchIndex = new Map<string, ReadonlyArray<{ option: ColumnOption; searchValue: string }>>();
   optionsByColumnId.forEach((options, columnId) => {
@@ -6864,12 +6875,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id && userPermission !== 'read') {
   // Country column: dropdown in edit mode (case-insensitive)
   if (effectiveCol.type && effectiveCol.type.toLowerCase() === "country" && effectiveCol.options) {
-  const countryOptions = Array.from(new Set(
-  (effectiveCol.options.length > 0
-  ? effectiveCol.options.map((opt: ColumnOption) => opt.value)
-  : fullCountryList
-  ).filter(Boolean)
-  ));
+  const countryOptions = countryOptionsByColumnId.get(effectiveCol.id) || fullCountryList;
 
   return (
   <Autocomplete

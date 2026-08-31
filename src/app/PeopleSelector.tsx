@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "./apiUrl";
 import {
   Box,
@@ -123,18 +123,18 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   };
 
   // Deduplicate people by email
-  const uniquePeopleMap: { [email: string]: Person } = {};
-  people.forEach((p) => {
-    if (p.email && !uniquePeopleMap[p.email]) {
-      uniquePeopleMap[p.email] = p;
-    }
-  });
-  const uniquePeople = Object.values(uniquePeopleMap);
-  const filteredPeople = uniquePeople.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredPeople = useMemo(() => {
+    const uniquePeopleMap: { [email: string]: Person } = {};
+    people.forEach((person) => {
+      if (person.email && !uniquePeopleMap[person.email]) uniquePeopleMap[person.email] = person;
+    });
+    const normalizedSearch = search.trim().toLowerCase();
+    return Object.values(uniquePeopleMap).filter((person) =>
+      !normalizedSearch
+      || person.name.toLowerCase().includes(normalizedSearch)
+      || person.email.toLowerCase().includes(normalizedSearch),
+    );
+  }, [people, search]);
 
   // Remove a person from suggested people
   const handleDeleteSuggested = (person: Person) => {
