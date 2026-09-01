@@ -6880,7 +6880,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {...params}
   autoFocus
   placeholder="Search country..."
-  size="medium"
+   size="small"
   InputProps={{
   ...params.InputProps,
   sx: {
@@ -7025,7 +7025,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setEditingCell(null);
   setEditValue("");
   }}
-  size="medium"
+   size="small"
   autoFocus
   id={`number-input-${row.id}-${col.id}`}
   name={`number-input-${row.id}-${col.id}`}
@@ -7034,7 +7034,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   InputProps={{
   style: { color: theme.palette.text.primary },
   sx: {
-  minHeight: isMobile ? 34 : 38,
+   height: '100%',
+   minHeight: 0,
+   py: 0,
+   boxSizing: 'border-box',
+   '& .MuiInputBase-root': { height: '100%', minHeight: 0 },
   '& .MuiInputBase-input': {
   fontSize: isMobile ? '0.85rem' : '0.95rem',
   fontWeight: 600,
