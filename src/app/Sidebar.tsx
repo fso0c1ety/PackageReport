@@ -50,10 +50,12 @@ import WorkspaceDropdown from "./(dashboard)/workspaces/WorkspaceDropdown";
 import appLogo from "./icon.png";
 import { useNotification } from "./NotificationContext";
 import { WORKSPACE_TEMPLATES, type WorkspaceTemplateKey } from "../workspaceTemplates";
+import internalOwner from "../../server/services/internalOwnerEntitlement.js";
 
 // --- Components ---
 
 interface CurrentUser {
+  email?: string;
   name?: string;
   avatar?: string;
   job_title?: string;
@@ -329,10 +331,25 @@ export default function Sidebar({
       })
       .catch(() => {}); // Silently fail — localStorage data is a good fallback
 
-    authenticatedFetch(getApiUrl("billing/status"))
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => data && setBillingStatus(data))
-      .catch(() => {});
+    let cancelled = false;
+    const loadBillingStatus = async () => {
+      try {
+        const response = await authenticatedFetch(getApiUrl("billing/status"), { suppressNativeErrorAlert: true });
+        if (!response.ok) throw new Error(`Billing status request failed (${response.status})`);
+        const data = await response.json();
+        if (!cancelled && data && typeof data === "object" && data.plan) setBillingStatus(data);
+      } catch (error) {
+        // Keep the sidebar from being stuck forever when billing is temporarily unavailable.
+        // Internal-owner status is derived from the canonical allowlist, never guessed.
+        let email = "";
+        try { email = storedUserStr ? JSON.parse(storedUserStr)?.email || "" : ""; } catch {}
+        if (!cancelled && email && internalOwner.isInternalOwnerEmail(email)) {
+          setBillingStatus({ plan: "enterprise", status: "active", writable: true, unlimited: true, internal_owner: true });
+        }
+      }
+    };
+    loadBillingStatus();
+    return () => { cancelled = true; };
   }, []);
 
   const billingLabel = React.useMemo(() => {
