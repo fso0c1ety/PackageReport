@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { getBillingStatus } from "../../_lib/billing";
 import { getBillingUsageSummary } from "../../_lib/entitlements";
-import internalOwner from "../../../../server/services/internalOwnerEntitlement.js";
+import internalOwner from "../../../../../server/services/internalOwnerEntitlement.js";
 
 export const runtime = "nodejs";
 
