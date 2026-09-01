@@ -5718,7 +5718,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   textOverflow: 'ellipsis',
   }}>
   <Box sx={{ display: 'flex', alignItems: 'center', gap: .5, minWidth: 0, overflow: 'hidden', flex: 1 }}>
-  {visibleDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={canEdit ? (event) => { event.stopPropagation(); void stableHandleCellSave(row.id, col.id, col.type, dropdownValues.filter((candidate) => candidate !== entry)); } : undefined} sx={{ maxWidth: '100%', minWidth: 0, height: 24, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { px: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
+   {visibleDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" sx={{ maxWidth: '100%', minWidth: 0, height: 24, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { px: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
   {hiddenDropdownCount > 0 && <Chip label={`+${hiddenDropdownCount}`} size="small" sx={{ height: 24, flexShrink: 0, bgcolor: alpha(theme.palette.text.primary, 0.1), color: theme.palette.text.secondary }} />}
   </Box>
   <Box component="span" sx={{ color: theme.palette.text.secondary, fontSize: 11, flexShrink: 0 }}>▼</Box>
