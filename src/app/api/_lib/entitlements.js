@@ -381,6 +381,27 @@ export async function getBillingUsageSummary(ownerId) {
   const billing = await getBillingStatus(ownerId);
   const plan = normalizePlan(billing);
   const limits = PLAN_ENTITLEMENTS[plan] || PLAN_ENTITLEMENTS.enterprise;
+  // Internal owners have a canonical unlimited entitlement. Avoid optional usage
+  // tables (dashboards/files/usage ledgers) turning the entire billing payload
+  // into a 5xx for one owner while another happens to have complete history.
+  if (billing?.internal_owner || billing?.entitlement === "internal_owner") {
+    return {
+      billing,
+      plan: "enterprise",
+      limits: PLAN_ENTITLEMENTS.enterprise,
+      usage: {
+        seats: 0,
+        workspaces: 0,
+        boards: 0,
+        dashboards: 0,
+        storageBytes: 0,
+        nexusCredits: 0,
+        automationActions: 0,
+        activePortals: 0,
+      },
+      period: null,
+    };
+  }
   const [
     seats,
     workspaces,
