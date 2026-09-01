@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../_lib/server";
 import { getBillingStatus } from "../../_lib/billing";
 import { getBillingUsageSummary } from "../../_lib/entitlements";
+import internalOwner from "../../../../server/services/internalOwnerEntitlement.js";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,18 @@ export async function GET(req) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Internal owners do not depend on commercial billing, Stripe, or optional
+    // usage tables. Resolve their canonical payload before those dependencies.
+    if (internalOwner.isInternalOwnerEmail(user.email)) {
+      const usage = await getBillingUsageSummary(user.id);
+      return NextResponse.json({
+        billing: usage.billing,
+        usage,
+        paymentMethod: null,
+        invoices: [],
+        contact: { email: user.email || "" },
+      });
+    }
     const billing = await getBillingStatus(user.id);
     const usage = await getBillingUsageSummary(user.id);
     const subscription = await pool.query(
