@@ -6081,7 +6081,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
   {selectedDropdownValues.length > 0 && (
   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.75 }}>
-  {selectedDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={() => handleDropdownOptionSelect(entry)} sx={{ maxWidth: '100%', borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
+   {selectedDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={(event) => { event.preventDefault(); event.stopPropagation(); handleDropdownOptionSelect(entry); }} sx={{ maxWidth: '100%', borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
   </Box>
   )}
   <LocalDropdownSearch
