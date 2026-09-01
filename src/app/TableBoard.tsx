@@ -6911,6 +6911,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Search / Add */}
   <PeopleSelector
   value={people}
+  initialPeople={tableMembers}
   // Pass the tableId so the selector knows to show board members
   tableId={tableId}
   onChange={(newPeople) => {

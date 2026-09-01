@@ -43,13 +43,14 @@ interface PeopleSelectorProps {
   value?: Person[];
   onChange?: (newValue: Person[]) => void;
   onClose?: (finalValue: Person[]) => void;
+  initialPeople?: Person[];
 }
 
-export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
+export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId, initialPeople = [] }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
-  const [people, setPeople] = useState<Person[]>(defaultPeople);
+  const [people, setPeople] = useState<Person[]>(() => initialPeople.length > 0 ? initialPeople : defaultPeople);
   const [inviteError, setInviteError] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -57,6 +58,9 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
 
   // Fetch people from backend on mount (or when tableId changes)
   useEffect(() => {
+    // TableBoard already has the current table members loaded. Reuse them so
+    // opening the picker is fully local and does not wait on another request.
+    if (initialPeople.length > 0) return;
     async function fetchPeople() {
       try {
         if (tableId) {
@@ -89,7 +93,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
       }
     }
     fetchPeople();
-  }, [tableId]);
+  }, [initialPeople, tableId]);
 
   // Save people to localStorage whenever it changes
   useEffect(() => {
