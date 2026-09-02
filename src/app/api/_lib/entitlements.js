@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "./server";
 import { getBillingStatus } from "./billing";
+import internalOwner from "../../../../server/services/internalOwnerEntitlement.js";
 
 const GB = 1024 * 1024 * 1024;
 
@@ -378,9 +379,46 @@ export async function recordAutomationActions(ownerId, { actorId, workspaceId, t
 }
 
 export async function getBillingUsageSummary(ownerId) {
-  const billing = await getBillingStatus(ownerId);
+  // Resolve approved internal owners before subscription/trial or optional
+  // usage-table work. Their entitlement is independent of commercial billing.
+  const ownerResult = await pool.query("SELECT LOWER(email) AS email FROM users WHERE id=$1", [ownerId]);
+  const ownerEmail = ownerResult.rows[0]?.email || "";
+  const isInternalOwner = internalOwner.isInternalOwnerEmail(ownerEmail);
+  const billing = isInternalOwner
+    ? {
+        plan: "enterprise",
+        status: "active",
+        writable: true,
+        unlimited: true,
+        internal_owner: true,
+        entitlement: "internal_owner",
+        seat_limit: null,
+        seats_used: 0,
+      }
+    : await getBillingStatus(ownerId);
   const plan = normalizePlan(billing);
   const limits = PLAN_ENTITLEMENTS[plan] || PLAN_ENTITLEMENTS.enterprise;
+  // Internal owners have a canonical unlimited entitlement. Avoid optional usage
+  // tables (dashboards/files/usage ledgers) turning the entire billing payload
+  // into a 5xx for one owner while another happens to have complete history.
+  if (isInternalOwner || billing?.internal_owner || billing?.entitlement === "internal_owner") {
+    return {
+      billing,
+      plan: "enterprise",
+      limits: PLAN_ENTITLEMENTS.enterprise,
+      usage: {
+        seats: 0,
+        workspaces: 0,
+        boards: 0,
+        dashboards: 0,
+        storageBytes: 0,
+        nexusCredits: 0,
+        automationActions: 0,
+        activePortals: 0,
+      },
+      period: null,
+    };
+  }
   const [
     seats,
     workspaces,

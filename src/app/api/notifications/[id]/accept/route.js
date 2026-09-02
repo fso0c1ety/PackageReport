@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireWritableSubscription } from "../../../_lib/billing";
-import { legacyPermissionForBoardRole, normalizeBoardRole, normalizeJobRoles, normalizePortalType, normalizeRecordAccess, normalizeWorkspaceRole, PORTAL_ROUTES } from "../../../_lib/universalRoles";
+import { broadcastNotificationCreated } from "../../../_lib/notificationRealtime";
+import { upsertTableMembership } from "../../../_lib/tableMembership";
 
 export const runtime = "nodejs";
 
@@ -43,34 +45,30 @@ export async function POST(req, { params }) {
     const table = tableResult.rows[0];
     if (!table) return NextResponse.json({ error: "Board no longer exists" }, { status: 404 });
     const data = notification.data || {};
-    const boardRole = normalizeBoardRole(data.boardRole || data.role || data.permission);
-    const permission = legacyPermissionForBoardRole(boardRole);
-    const workspaceRole = normalizeWorkspaceRole(data.workspaceRole || "member");
-    const jobRoles = normalizeJobRoles(data.jobRoles);
-    const portalType = normalizePortalType(data.portalType || (jobRoles.includes("driver") ? "driver" : "standard"));
-    const recordAccess = normalizeRecordAccess(data.recordAccess || { scope: "all_permitted" });
-    const schema = await pool.query(`SELECT
-      EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_members' AND column_name='portal_type') AS has_portal_type,
-      to_regclass('public.board_member_access') IS NOT NULL AS has_board_member_access`);
-    const hasUniversalMembership = Boolean(schema.rows[0]?.has_portal_type);
-    const hasBoardMemberAccess = Boolean(schema.rows[0]?.has_board_member_access);
     const client = await pool.connect();
+    let acceptanceNotificationId = null;
     try {
       await client.query("BEGIN");
-      const sharedUsers = (Array.isArray(table.shared_users) ? table.shared_users : []).filter((entry) => String(entry?.userId || entry) !== String(user.id));
-      sharedUsers.push({
-        userId: String(user.id), permission, role: boardRole, boardRole,
-        workspaceRole, jobRoles, jobRole: jobRoles[0] || null,
-        portalType, landingRoute: PORTAL_ROUTES[portalType], recordAccess,
-      });
-      await client.query("UPDATE tables SET shared_users=$1::jsonb WHERE id=$2", [JSON.stringify(sharedUsers), tableId]);
-      if (hasUniversalMembership) {
-        await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,portal_type,landing_route,record_access,updated_at) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8::jsonb,NOW()) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role,workspace_role=EXCLUDED.workspace_role,job_roles=EXCLUDED.job_roles,portal_type=EXCLUDED.portal_type,landing_route=EXCLUDED.landing_route,record_access=EXCLUDED.record_access,updated_at=NOW()`, [table.workspace_id,String(user.id),jobRoles.includes("driver")?"driver":workspaceRole,workspaceRole,JSON.stringify(jobRoles),portalType,PORTAL_ROUTES[portalType],JSON.stringify(recordAccess)]);
-      } else {
-        await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,updated_at) VALUES($1,$2,$3,NOW()) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role,updated_at=NOW()`, [table.workspace_id,String(user.id),jobRoles.includes("driver")?"driver":workspaceRole]);
-      }
-      if (hasBoardMemberAccess) {
-        await client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,$3,'{}'::jsonb,$4::jsonb,NOW()) ON CONFLICT(table_id,user_id) DO UPDATE SET board_role=EXCLUDED.board_role,record_access=EXCLUDED.record_access,updated_at=NOW()`, [tableId,String(user.id),boardRole,JSON.stringify(recordAccess)]);
+      await upsertTableMembership(client, table, user.id, data);
+      if (notification.sender_id && String(notification.sender_id) !== String(user.id)) {
+        const accepter = await client.query("SELECT name FROM users WHERE id=$1", [user.id]);
+        const accepterName = accepter.rows[0]?.name || "A member";
+        const inserted = await client.query(`INSERT INTO notifications
+          (id,recipient_id,sender_id,type,data,read,created_at,dedupe_key)
+          VALUES($1,$2,$3,'invite_accepted',$4::jsonb,FALSE,NOW(),$5)
+          ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING RETURNING id`, [
+          randomUUID(), String(notification.sender_id), String(user.id),
+          JSON.stringify({
+            title: "Invite accepted",
+            body: `${accepterName} accepted your invitation to ${table.name || "the board"}.`,
+            tableId: table.id,
+            tableName: table.name,
+            workspaceId: table.workspace_id,
+            acceptedUserId: String(user.id),
+          }),
+          `invite-accepted:${notificationId}`,
+        ]);
+        acceptanceNotificationId = inserted.rows[0]?.id || null;
       }
       await client.query("DELETE FROM notifications WHERE id=$1", [notificationId]);
       await client.query("COMMIT");
@@ -78,6 +76,10 @@ export async function POST(req, { params }) {
       await client.query("ROLLBACK");
       throw error;
     } finally { client.release(); }
+
+    if (acceptanceNotificationId && notification.sender_id) {
+      await broadcastNotificationCreated(notification.sender_id, acceptanceNotificationId);
+    }
 
     return NextResponse.json({ success: true, message: "Invite accepted" });
   } catch (err) {

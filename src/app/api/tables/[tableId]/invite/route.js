@@ -8,6 +8,7 @@ import {
 import { sendPushNotification } from "../../../_lib/firebaseAdmin";
 import { requireWritableSubscription } from "../../../_lib/billing";
 import { writeAuditLog } from "../../../_lib/audit";
+import { broadcastNotificationCreated } from "../../../_lib/notificationRealtime";
 import { legacyPermissionForBoardRole, normalizeBoardRole, normalizeJobRoles, normalizePortalType, normalizeRecordAccess, normalizeWorkspaceRole } from "../../../_lib/universalRoles";
 
 export const runtime = "nodejs";
@@ -82,6 +83,8 @@ export async function POST(req, { params }) {
         false,
       ]
     );
+
+    await broadcastNotificationCreated(recipientId, notifId);
 
     await writeAuditLog({
       actorId: user.id,

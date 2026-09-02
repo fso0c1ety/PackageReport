@@ -523,6 +523,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           case 'invite':
           case 'friend_request': return <PersonAddIcon sx={{ fontSize: 18 }} />;
           case 'friend_accepted': return <CheckCircleIcon sx={{ fontSize: 18 }} />;
+          case 'invite_accepted': return <CheckCircleIcon sx={{ fontSize: 18 }} />;
           case 'automation': return <NotificationsNoneIcon sx={{ fontSize: 16 }} />;
           case 'chat_message': return <CommentIcon sx={{ fontSize: 16 }} />;
           case 'file_comment': return <CommentIcon sx={{ fontSize: 16 }} />;
@@ -536,6 +537,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           case 'invite': return '#6366f1';
           case 'friend_request': return theme.palette.info.main;
           case 'friend_accepted': return theme.palette.success.main;
+          case 'invite_accepted': return theme.palette.success.main;
           case 'automation': return '#10b981';
           case 'chat_message': return '#ec4899';
           case 'file_comment': return '#f59e0b';
@@ -629,6 +631,16 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           return (
               <>
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>New Friend</Typography>
+                  <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
+                    {data.body}
+                  </Box>
+              </>
+          );
+      }
+      if (type === 'invite_accepted' && data) {
+          return (
+              <>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>Invite Accepted</Typography>
                   <Box component="span" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.4, fontSize: '0.75rem' }}>
                     {data.body}
                   </Box>

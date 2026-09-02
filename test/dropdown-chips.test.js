@@ -7,14 +7,14 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'TableBo
 
 test('dropdown cells render independent chips for each selected value', () => {
   assert.match(source, /visibleDropdownValues\.map\(\(entry\) => <Chip/);
-  assert.match(source, /dropdownValues\.filter\(\(candidate\) => candidate !== entry\)/);
+  assert.match(source, /visibleDropdownValues\.map\(\(entry\) => <Chip key=\{entry\} label=\{entry\}/);
   assert.match(source, /hiddenDropdownCount > 0/);
   assert.match(source, /label=\{`\+\$\{hiddenDropdownCount\}`\}/);
 });
 
 test('dropdown popover renders one removable chip per selected value', () => {
   assert.match(source, /selectedDropdownValues\.map\(\(entry\) => <Chip/);
-  assert.match(source, /onDelete=\{\(\) => handleDropdownOptionSelect\(entry\)\}/);
+  assert.match(source, /onDelete=\{\(event\) => \{ event\.preventDefault\(\); event\.stopPropagation\(\); handleDropdownOptionSelect\(entry\); \}\}/);
   assert.match(source, /flexWrap: 'wrap'/);
 });
 

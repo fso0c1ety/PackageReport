@@ -5718,7 +5718,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   textOverflow: 'ellipsis',
   }}>
   <Box sx={{ display: 'flex', alignItems: 'center', gap: .5, minWidth: 0, overflow: 'hidden', flex: 1 }}>
-  {visibleDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={canEdit ? (event) => { event.stopPropagation(); void stableHandleCellSave(row.id, col.id, col.type, dropdownValues.filter((candidate) => candidate !== entry)); } : undefined} sx={{ maxWidth: '100%', minWidth: 0, height: 24, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { px: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
+   {visibleDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" sx={{ maxWidth: '100%', minWidth: 0, height: 24, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { px: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
   {hiddenDropdownCount > 0 && <Chip label={`+${hiddenDropdownCount}`} size="small" sx={{ height: 24, flexShrink: 0, bgcolor: alpha(theme.palette.text.primary, 0.1), color: theme.palette.text.secondary }} />}
   </Box>
   <Box component="span" sx={{ color: theme.palette.text.secondary, fontSize: 11, flexShrink: 0 }}>▼</Box>
@@ -6081,7 +6081,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
   {selectedDropdownValues.length > 0 && (
   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.75 }}>
-  {selectedDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={() => handleDropdownOptionSelect(entry)} sx={{ maxWidth: '100%', borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
+   {selectedDropdownValues.map((entry) => <Chip key={entry} label={entry} size="small" onDelete={(event) => { event.preventDefault(); event.stopPropagation(); handleDropdownOptionSelect(entry); }} sx={{ maxWidth: '100%', borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.16), color: theme.palette.text.primary, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} />)}
   </Box>
   )}
   <LocalDropdownSearch
@@ -6880,7 +6880,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {...params}
   autoFocus
   placeholder="Search country..."
-  size="medium"
+   size="small"
   InputProps={{
   ...params.InputProps,
   sx: {
@@ -7025,7 +7025,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setEditingCell(null);
   setEditValue("");
   }}
-  size="medium"
+   size="small"
   autoFocus
   id={`number-input-${row.id}-${col.id}`}
   name={`number-input-${row.id}-${col.id}`}
@@ -7034,7 +7034,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   InputProps={{
   style: { color: theme.palette.text.primary },
   sx: {
-  minHeight: isMobile ? 34 : 38,
+   height: '100%',
+   minHeight: 0,
+   py: 0,
+   boxSizing: 'border-box',
+   '& .MuiInputBase-root': { height: '100%', minHeight: 0 },
   '& .MuiInputBase-input': {
   fontSize: isMobile ? '0.85rem' : '0.95rem',
   fontWeight: 600,
