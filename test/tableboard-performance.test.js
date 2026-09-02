@@ -49,6 +49,9 @@ test('discussion renders cached row messages before background revalidation', ()
   assert.match(chatSource, /background revalidation/);
   assert.match(chatSource, /chatRequestIdRef\.current !== requestId/);
   assert.match(chatSource, /\.catch\(\(\) =>/);
+  assert.match(chatSource, /chatRevalidationRef\.current/);
+  assert.match(chatSource, /Date\.now\(\) - existingRevalidation\.startedAt < 1_000/);
+  assert.match(chatSource, /void revalidation\.promise\.then/);
 });
 
 test('country picker virtualizes the static country option list', () => {

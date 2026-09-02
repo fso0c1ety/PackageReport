@@ -393,15 +393,20 @@ const FastTextCellEditor = React.memo(function FastTextCellEditor({
   InputProps={{
   style: { color: textColor, padding: 0 },
   sx: {
-  minHeight: isPrimary ? (isMobile ? 34 : 38) : (isMobile ? 28 : 32),
-  '& .MuiOutlinedInput-root': { padding: isPrimary ? '0 10px !important' : '0 8px !important' },
+  height: isPrimary ? (isMobile ? 34 : 38) : (isMobile ? 28 : 32),
+  minHeight: 0,
+  boxSizing: 'border-box',
+  padding: isPrimary ? '0 10px !important' : '0 8px !important',
   '& .MuiInputBase-input': {
-  padding: isPrimary ? (isMobile ? '8px 0 !important' : '9px 0 !important') : '8px 0 !important',
+  height: '100%',
+  minHeight: 0,
+  boxSizing: 'border-box',
+  padding: '0 !important',
   fontSize: isPrimary ? (isMobile ? '0.82rem' : '0.92rem') : undefined
   }
   }
   }}
-  sx={{ width: '100%', '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
+  sx={{ width: '100%', height: isPrimary ? (isMobile ? 34 : 38) : (isMobile ? 28 : 32), minHeight: 0, '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
   />
   </>
   );
@@ -3271,6 +3276,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const chatRequestIdRef = React.useRef(0);
   const chatTaskIdRef = React.useRef<string | null>(null);
+  const chatRevalidationRef = React.useRef<{ rowId: string; startedAt: number; promise: Promise<any | null> } | null>(null);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -4789,9 +4795,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [rows, deferredFilterText, filterPerson, filterStatus, columns, tableMembers]);
 
   const filteredRows = React.useMemo(
-  () => filteredRowIds
+  () => {
+    return filteredRowIds
     .map((rowId) => rowsStore.getState().rowsById[rowId])
-    .filter((row): row is Row => Boolean(row)),
+    .filter((row): row is Row => Boolean(row));
+  },
   [filteredRowIds, rowsRevision, rowsStore],
   );
 
@@ -5569,20 +5577,26 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Render the already-loaded row messages immediately. The task fetch is a
   // background revalidation and must never delay the discussion shell.
   setChatMessages(Array.isArray(messages) ? messages : []);
-  void authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
-  .then(res => {
-  if (!res.ok) {
-  throw new Error(`Failed to load task chat (${res.status})`);
-  }
-  return res.json();
-  })
-  .then(task => {
+  const existingRevalidation = chatRevalidationRef.current;
+  const revalidation = existingRevalidation
+    && existingRevalidation.rowId === rowId
+    && Date.now() - existingRevalidation.startedAt < 1_000
+    ? existingRevalidation
+    : {
+      rowId,
+      startedAt: Date.now(),
+      promise: authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed to load task chat (${res.status})`);
+          return res.json();
+        })
+        .catch(() => null),
+    };
+  chatRevalidationRef.current = revalidation;
+  void revalidation.promise.then(task => {
+    if (!task) return;
     if (chatRequestIdRef.current !== requestId || chatTaskIdRef.current !== rowId) return;
     setChatMessages(Array.isArray(task?.values?.message) ? task.values.message : []);
-  })
-  .catch(() => {
-    // Keep the locally available messages visible if background revalidation
-    // fails; opening Discussion is a read-only interaction.
   });
   };
   const handleCloseChat = () => {
@@ -6992,27 +7006,39 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setEditingCell(null);
   }
   }}
-  renderOption={(props, option) => (
-  <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1 }}>
+  renderOption={(props, option) => {
+  const { key, ownerState: _ownerState, ...optionProps } = props as typeof props & { key?: React.Key; ownerState?: unknown };
+  return (
+  <Box component="li" key={key} {...optionProps} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1 }}>
   {countryCodeMap[option as keyof typeof countryCodeMap] ? (
   <Flag country={countryCodeMap[option as keyof typeof countryCodeMap]} size={18} style={{ borderRadius: 3, boxShadow: '0 1px 3px #0002' }} />
   ) : null}
   <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{option}</Typography>
   </Box>
-  )}
+  );
+  }}
   renderInput={(params) => (
   <TextField
   {...params}
   autoFocus
   placeholder="Search country..."
-   size="small"
+  size="small"
   InputProps={{
   ...params.InputProps,
   sx: {
   color: theme.palette.text.primary,
   bgcolor: theme.palette.background.paper,
   borderRadius: 2,
-  minHeight: 44,
+  height: isMobile ? 34 : 38,
+  minHeight: 0,
+  boxSizing: 'border-box',
+  py: 0,
+  '& .MuiInputBase-input': {
+  height: '100%',
+  minHeight: 0,
+  boxSizing: 'border-box',
+  py: 0,
+  },
   }
   }}
   />
@@ -7020,6 +7046,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   sx={{
   width: '100%',
   minWidth: 160,
+  height: isMobile ? 34 : 38,
+  minHeight: 0,
   '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main },
   '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main },
@@ -7108,7 +7136,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Date
   if (col.type === "Date") {
   return (
-  <Box sx={{ width: '100%', height: isMobile ? 38 : 44, borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
+  <Box sx={{ width: '100%', height: isMobile ? 34 : 38, minHeight: 0, boxSizing: 'border-box', borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
   <DateCellEditor
   initialValue={editValue}
   autoOpenPicker
@@ -7170,6 +7198,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   }
   }}
+  sx={{ height: isMobile ? 34 : 38, minHeight: 0 }}
   />
   );
   }
