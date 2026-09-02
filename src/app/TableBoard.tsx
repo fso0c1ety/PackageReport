@@ -393,15 +393,20 @@ const FastTextCellEditor = React.memo(function FastTextCellEditor({
   InputProps={{
   style: { color: textColor, padding: 0 },
   sx: {
-  minHeight: isPrimary ? (isMobile ? 34 : 38) : (isMobile ? 28 : 32),
-  '& .MuiOutlinedInput-root': { padding: isPrimary ? '0 10px !important' : '0 8px !important' },
+  height: isPrimary ? (isMobile ? 34 : 38) : (isMobile ? 28 : 32),
+  minHeight: 0,
+  boxSizing: 'border-box',
+  padding: isPrimary ? '0 10px !important' : '0 8px !important',
   '& .MuiInputBase-input': {
-  padding: isPrimary ? (isMobile ? '8px 0 !important' : '9px 0 !important') : '8px 0 !important',
+  height: '100%',
+  minHeight: 0,
+  boxSizing: 'border-box',
+  padding: '0 !important',
   fontSize: isPrimary ? (isMobile ? '0.82rem' : '0.92rem') : undefined
   }
   }
   }}
-  sx={{ width: '100%', '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
+  sx={{ width: '100%', height: isPrimary ? (isMobile ? 34 : 38) : (isMobile ? 28 : 32), minHeight: 0, '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
   />
   </>
   );
@@ -667,6 +672,7 @@ type VirtualRowBoundaryProps = {
   isInteractive: boolean;
   isSelected: boolean;
   dragDisabled: boolean;
+  rowStyleSignature: string;
   render: (row: Row) => React.ReactNode;
 };
 
@@ -684,9 +690,9 @@ const MemoizedVirtualRowBoundary = React.memo(
     && previous.gridContentWidth === next.gridContentWidth
     && previous.columnsRef === next.columnsRef
     && previous.membersRef === next.membersRef
-    && previous.displayRenderer === next.displayRenderer
     && previous.dragDisabled === next.dragDisabled
     && previous.isSelected === next.isSelected
+    && previous.rowStyleSignature === next.rowStyleSignature
     && !previous.isInteractive
     && !next.isInteractive
   ),
@@ -895,6 +901,77 @@ const ActiveDropdownOptionList = React.memo(function ActiveDropdownOptionList({
     </Box>
   );
 });
+
+// Country columns use a long, static option list. MUI's default Autocomplete
+// mounts every option when the picker opens, which makes the interaction cost
+// proportional to the full country list. Keep the same listbox surface and
+// option semantics while mounting only the viewport plus a small overscan.
+const VirtualizedCountryListbox = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(
+  function VirtualizedCountryListbox({ children, style, ...listboxProps }, forwardedRef) {
+    const options = React.Children.toArray(children) as React.ReactElement<any>[];
+    const listboxRef = React.useRef<HTMLElement | null>(null);
+    const optionVirtualizer = useVirtualizer({
+      count: options.length,
+      getScrollElement: () => listboxRef.current,
+      estimateSize: () => 42,
+      overscan: 6,
+      getItemKey: (index) => options[index]?.key ?? index,
+    });
+    const totalSize = optionVirtualizer.getTotalSize();
+    const maxHeight = 320;
+    const virtualOptions = optionVirtualizer.getVirtualItems();
+    // The first render happens before the listbox ref is observed. TanStack
+    // therefore has a zero viewport and can return no virtual items; render
+    // the initial viewport synchronously so opening the picker never flashes
+    // an empty menu while the observer catches up.
+    const safeVirtualOptions = virtualOptions.length > 0
+      ? virtualOptions
+      : options.slice(0, Math.ceil(maxHeight / 42) + 6).map((_, index) => ({
+        index,
+        key: options[index]?.key ?? index,
+        start: index * 42,
+      }));
+
+    return (
+      <ul
+        {...listboxProps}
+        ref={(node) => {
+          listboxRef.current = node;
+          if (typeof forwardedRef === 'function') forwardedRef(node);
+          else if (forwardedRef) forwardedRef.current = node;
+        }}
+        style={{
+          ...style,
+          maxHeight,
+          height: Math.min(maxHeight, totalSize),
+          overflowY: 'auto',
+          position: 'relative',
+        }}
+      >
+        {/* Keep a real scroll surface while option rows are absolutely positioned. */}
+        <li
+          aria-hidden="true"
+          role="presentation"
+          style={{ height: totalSize, width: '100%', opacity: 0, pointerEvents: 'none' }}
+        />
+        {safeVirtualOptions.map((virtualOption) => {
+          const option = options[virtualOption.index];
+          if (!option) return null;
+          return React.cloneElement(option, {
+            style: {
+              ...option.props?.style,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              transform: `translateY(${virtualOption.start}px)`,
+            },
+          });
+        })}
+      </ul>
+    );
+  },
+);
 
 export default function TableBoard({ tableId, taskId, initialTab, initialView }: TableBoardProps) {
   const theme = useTheme();
@@ -3181,6 +3258,25 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const [fileComment, setFileComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
+  const [statusPopoverUpward, setStatusPopoverUpward] = useState(false);
+  // Measure the anchor once, at the user interaction boundary. Keeping the
+  // direction in the same batched update as the editor state avoids the
+  // post-paint effect/second render that previously made picker opening feel
+  // intermittent while leaving the rendered layout unchanged.
+  const openCellPopover = React.useCallback((anchor: HTMLElement | null) => {
+    if (!anchor) {
+      setStatusAnchor(null);
+      return;
+    }
+    const nextUpward = typeof window !== 'undefined'
+      && anchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340);
+    setStatusPopoverUpward(nextUpward);
+    setStatusAnchor(anchor);
+  }, [isMobile]);
+
+  const chatRequestIdRef = React.useRef(0);
+  const chatTaskIdRef = React.useRef<string | null>(null);
+  const chatRevalidationRef = React.useRef<{ rowId: string; startedAt: number; promise: Promise<any | null> } | null>(null);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -4093,6 +4189,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!editingCell || editingCell.rowId !== rowId || editingCell.colId !== colId) {
   // Close chat popover if clicking any column except Message
   if (colType !== "Message") {
+  chatRequestIdRef.current += 1;
+  chatTaskIdRef.current = null;
   setChatAnchor(null);
   setChatTaskId(null);
   setChatMessages([]);
@@ -4697,9 +4795,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [rows, deferredFilterText, filterPerson, filterStatus, columns, tableMembers]);
 
   const filteredRows = React.useMemo(
-  () => filteredRowIds
+  () => {
+    return filteredRowIds
     .map((rowId) => rowsStore.getState().rowsById[rowId])
-    .filter((row): row is Row => Boolean(row)),
+    .filter((row): row is Row => Boolean(row));
+  },
   [filteredRowIds, rowsRevision, rowsStore],
   );
 
@@ -4968,6 +5068,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   firstStatusColumn?.options?.forEach((option) => colors.set(option.value, option.color));
   return colors;
   }, [firstStatusColumn]);
+  // Row rendering is memoized independently from transient cell-editor state.
+  // Include only the visual inputs that can change a row's background so
+  // opening a picker does not invalidate every visible row via a new closure.
+  const rowStyleSignature = React.useMemo(
+    () => `${theme.palette.mode}|${Array.from(firstStatusColorByValue.entries()).map(([value, color]) => `${value}:${color}`).join('|')}`,
+    [firstStatusColorByValue, theme.palette.mode],
+  );
   const optionByColumnAndValue = React.useMemo(() => {
   const optionIndex = new Map<string, Map<string, ColumnOption>>();
   sortedColumns.forEach((column) => {
@@ -4983,6 +5090,17 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const optionsIndex = new Map<string, readonly ColumnOption[]>();
   sortedColumns.forEach((column) => {
   optionsIndex.set(column.id, column.options || EMPTY_COLUMN_OPTIONS);
+  });
+  return optionsIndex;
+  }, [sortedColumns]);
+  const countryOptionsByColumnId = React.useMemo(() => {
+  const optionsIndex = new Map<string, readonly string[]>();
+  sortedColumns.forEach((column) => {
+  if (column.type !== "Country") return;
+  const source = column.options && column.options.length > 0
+  ? column.options.map((option) => option.value)
+  : fullCountryList;
+  optionsIndex.set(column.id, Array.from(new Set(source.filter(Boolean))));
   });
   return optionsIndex;
   }, [sortedColumns]);
@@ -5449,21 +5567,41 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   messages: any[],
   colId: string
   ) => {
+  const requestId = chatRequestIdRef.current + 1;
+  chatRequestIdRef.current = requestId;
+  chatTaskIdRef.current = rowId;
   setChatAnchor(event.currentTarget);
   setChatPopoverKey(`${rowId}-${colId}`);
   setChatInput("");
   setChatTaskId(rowId);
-  // Always load messages from backend when opening
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
-  .then(res => {
-  if (!res.ok) {
-  throw new Error(`Failed to load task chat (${res.status})`);
-  }
-  return res.json();
-  })
-  .then(task => setChatMessages(task.values.message || []));
+  // Render the already-loaded row messages immediately. The task fetch is a
+  // background revalidation and must never delay the discussion shell.
+  setChatMessages(Array.isArray(messages) ? messages : []);
+  const existingRevalidation = chatRevalidationRef.current;
+  const revalidation = existingRevalidation
+    && existingRevalidation.rowId === rowId
+    && Date.now() - existingRevalidation.startedAt < 1_000
+    ? existingRevalidation
+    : {
+      rowId,
+      startedAt: Date.now(),
+      promise: authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed to load task chat (${res.status})`);
+          return res.json();
+        })
+        .catch(() => null),
+    };
+  chatRevalidationRef.current = revalidation;
+  void revalidation.promise.then(task => {
+    if (!task) return;
+    if (chatRequestIdRef.current !== requestId || chatTaskIdRef.current !== rowId) return;
+    setChatMessages(Array.isArray(task?.values?.message) ? task.values.message : []);
+  });
   };
   const handleCloseChat = () => {
+  chatRequestIdRef.current += 1;
+  chatTaskIdRef.current = null;
   setChatAnchor(null);
   setChatPopoverKey(null);
   setChatMessages([]);
@@ -5633,9 +5771,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!canEdit) return;
   const cellAnchor = event.currentTarget.closest<HTMLElement>('[data-board-cell-anchor="true"]')
   || event.currentTarget;
-  if (effectiveType === "Status" || effectiveType === "Dropdown" || effectiveType === "People") {
-  setStatusAnchor(cellAnchor);
-  }
+   if (effectiveType === "Status" || effectiveType === "Dropdown" || effectiveType === "People") {
+   openCellPopover(cellAnchor);
+   }
   stableHandleCellClick(row.id, col.id, value, col.type, cellAnchor);
   };
   const commonSx = {
@@ -5882,7 +6020,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {glyphMatch && <Box component="button" type="button" aria-label={importedChecked ? 'Mark unchecked' : 'Mark checked'} onClick={(event) => { event.stopPropagation(); if (!canEdit) return; const nextGlyph = importedChecked ? '☐' : '☑'; void stableHandleCellSave(row.id, col.id, col.type, importedText.trim() ? `${nextGlyph} ${importedText.trim()}` : nextGlyph); }} sx={{ width: 16, height: 16, minWidth: 16, borderRadius: '4px', border: `1.5px solid ${importedChecked ? '#00c875' : '#579bfc'}`, bgcolor: importedChecked ? alpha('#00c875', 0.16) : 'transparent', color: importedChecked ? '#00c875' : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, p: 0, cursor: canEdit ? 'pointer' : 'default' }}>{importedChecked ? '✓' : ''}</Box>}
   <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: isFirstColumn ? 600 : 400, fontSize: isFirstColumn ? (isMobile ? '0.82rem' : '0.92rem') : (isMobile ? '0.75rem' : '0.875rem'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', minWidth: 0 }}>{glyphMatch ? importedText : text}</Typography>
   </Box>;
-  }, [ROW_HEIGHT_ESTIMATE, isMobile, optionByColumnAndValue, sortedColumns, stableHandleCellClick, stableHandleCellSave, stableHandleFileClick, stableHandleOpenChat, theme.palette.action.hover, theme.palette.background.default, theme.palette.background.paper, theme.palette.divider, theme.palette.primary.main, theme.palette.text.primary, theme.palette.text.secondary, userPermission]);
+  }, [ROW_HEIGHT_ESTIMATE, isMobile, openCellPopover, optionByColumnAndValue, sortedColumns, stableHandleCellClick, stableHandleCellSave, stableHandleFileClick, stableHandleOpenChat, theme.palette.action.hover, theme.palette.background.default, theme.palette.background.paper, theme.palette.divider, theme.palette.primary.main, theme.palette.text.primary, theme.palette.text.secondary, userPermission]);
 
   const renderCell = (row: Row, col: Column) => {
   // Force Priority column to always use Dropdown logic for editing
@@ -5991,20 +6129,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
   const valueStr = selectedDropdownValues.join(', ');
-  const dropdownShouldOpenUpward = Boolean(
-  statusAnchor
-  && typeof window !== 'undefined'
-  && statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340)
-  );
+  const dropdownShouldOpenUpward = statusPopoverUpward;
 
   return (
   <>
   <Box
   onClick={(e) => {
   e.stopPropagation();
-  if (userPermission !== 'read') {
-  setStatusAnchor(e.currentTarget);
-  setEditingCell({ rowId: row.id, colId: col.id });
+   if (userPermission !== 'read') {
+   openCellPopover(e.currentTarget);
+   setEditingCell({ rowId: row.id, colId: col.id });
   }
   }}
   sx={{
@@ -6050,6 +6184,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Dropdown Picker Popover */}
   {isEditing && userPermission !== 'read' && (
   <Popover
+  transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6365,11 +6503,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
   const currentOption = options.find(o => o.value === value) || { value: value || '-', color: '#e0e4ef' };
-  const statusShouldOpenUpward = Boolean(
-  statusAnchor
-  && typeof window !== 'undefined'
-  && statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340)
-  );
+  const statusShouldOpenUpward = statusPopoverUpward;
 
   return (
   <>
@@ -6377,7 +6511,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   onClick={(e) => {
   e.stopPropagation();
   if (userPermission !== 'read') {
-  setStatusAnchor(e.currentTarget);
+  openCellPopover(e.currentTarget);
   setEditingCell({ rowId: row.id, colId: col.id });
   }
   }}
@@ -6416,6 +6550,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Status Picker Popover */}
   {isEditing && userPermission !== 'read' && (
   <Popover
+  transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6657,7 +6795,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   onClick={(e) => {
   e.stopPropagation();
   if (userPermission !== 'read') {
-  setStatusAnchor(e.currentTarget);
+  openCellPopover(e.currentTarget);
   setEditingCell({ rowId: row.id, colId: col.id });
   }
   }}
@@ -6755,6 +6893,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   {isEditing && userPermission !== 'read' && (
   <Popover
+  transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={Boolean(statusAnchor)}
   anchorEl={statusAnchor}
   onClose={() => {
@@ -6783,6 +6925,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   {/* Search / Add */}
   <PeopleSelector
   value={people}
+  initialPeople={tableMembers}
   // Pass the tableId so the selector knows to show board members
   tableId={tableId}
   onChange={(newPeople) => {
@@ -6843,16 +6986,12 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (editingCell && editingCell.rowId === row.id && editingCell.colId === col.id && userPermission !== 'read') {
   // Country column: dropdown in edit mode (case-insensitive)
   if (effectiveCol.type && effectiveCol.type.toLowerCase() === "country" && effectiveCol.options) {
-  const countryOptions = Array.from(new Set(
-  (effectiveCol.options.length > 0
-  ? effectiveCol.options.map((opt: ColumnOption) => opt.value)
-  : fullCountryList
-  ).filter(Boolean)
-  ));
+  const countryOptions = countryOptionsByColumnId.get(effectiveCol.id) || fullCountryList;
 
   return (
   <Autocomplete
   options={countryOptions}
+  slots={{ listbox: VirtualizedCountryListbox }}
   autoHighlight
   openOnFocus
   blurOnSelect
@@ -6867,27 +7006,39 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setEditingCell(null);
   }
   }}
-  renderOption={(props, option) => (
-  <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1 }}>
+  renderOption={(props, option) => {
+  const { key, ownerState: _ownerState, ...optionProps } = props as typeof props & { key?: React.Key; ownerState?: unknown };
+  return (
+  <Box component="li" key={key} {...optionProps} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1 }}>
   {countryCodeMap[option as keyof typeof countryCodeMap] ? (
   <Flag country={countryCodeMap[option as keyof typeof countryCodeMap]} size={18} style={{ borderRadius: 3, boxShadow: '0 1px 3px #0002' }} />
   ) : null}
   <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{option}</Typography>
   </Box>
-  )}
+  );
+  }}
   renderInput={(params) => (
   <TextField
   {...params}
   autoFocus
   placeholder="Search country..."
-   size="small"
+  size="small"
   InputProps={{
   ...params.InputProps,
   sx: {
   color: theme.palette.text.primary,
   bgcolor: theme.palette.background.paper,
   borderRadius: 2,
-  minHeight: 44,
+  height: isMobile ? 34 : 38,
+  minHeight: 0,
+  boxSizing: 'border-box',
+  py: 0,
+  '& .MuiInputBase-input': {
+  height: '100%',
+  minHeight: 0,
+  boxSizing: 'border-box',
+  py: 0,
+  },
   }
   }}
   />
@@ -6895,6 +7046,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   sx={{
   width: '100%',
   minWidth: 160,
+  height: isMobile ? 34 : 38,
+  minHeight: 0,
   '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main },
   '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main },
@@ -6983,7 +7136,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Date
   if (col.type === "Date") {
   return (
-  <Box sx={{ width: '100%', height: isMobile ? 38 : 44, borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
+  <Box sx={{ width: '100%', height: isMobile ? 34 : 38, minHeight: 0, boxSizing: 'border-box', borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
   <DateCellEditor
   initialValue={editValue}
   autoOpenPicker
@@ -7045,6 +7198,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   }
   }}
+  sx={{ height: isMobile ? 34 : 38, minHeight: 0 }}
   />
   );
   }
@@ -9804,9 +9958,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   editingCell?.rowId === rowId
   || chatPopoverKey?.startsWith(`${rowId}-`) === true
   }
-  isSelected={selectedRowIds.has(rowId)}
-  dragDisabled={userPermission === 'read' || hasActiveFilters}
-  render={(row) => {
+   isSelected={selectedRowIds.has(rowId)}
+   dragDisabled={userPermission === 'read' || hasActiveFilters}
+   rowStyleSignature={rowStyleSignature}
+   render={(row) => {
   let rowBg = theme.palette.background.default;
   let rowHoverBg = theme.palette.action.hover;
   if (firstStatusColumn) {
@@ -9996,6 +10151,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   </IconButton>
   {chatPopoverKey === `${row.id}-message` && chatAnchor && (
   <Popover
+  transitionDuration={0}
+  disableAutoFocus
+  disableEnforceFocus
+  disableRestoreFocus
   open={!!chatAnchor}
   anchorEl={chatAnchor}
   onClose={handleCloseChat}

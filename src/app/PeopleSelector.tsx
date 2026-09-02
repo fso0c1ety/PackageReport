@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "./apiUrl";
 import {
   Box,
@@ -43,13 +43,14 @@ interface PeopleSelectorProps {
   value?: Person[];
   onChange?: (newValue: Person[]) => void;
   onClose?: (finalValue: Person[]) => void;
+  initialPeople?: Person[];
 }
 
-export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
+export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId, initialPeople = [] }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
-  const [people, setPeople] = useState<Person[]>(defaultPeople);
+  const [people, setPeople] = useState<Person[]>(() => initialPeople.length > 0 ? initialPeople : defaultPeople);
   const [inviteError, setInviteError] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -57,6 +58,9 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
 
   // Fetch people from backend on mount (or when tableId changes)
   useEffect(() => {
+    // TableBoard already has the current table members loaded. Reuse them so
+    // opening the picker is fully local and does not wait on another request.
+    if (initialPeople.length > 0) return;
     async function fetchPeople() {
       try {
         if (tableId) {
@@ -89,7 +93,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
       }
     }
     fetchPeople();
-  }, [tableId]);
+  }, [initialPeople, tableId]);
 
   // Save people to localStorage whenever it changes
   useEffect(() => {
@@ -123,18 +127,18 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   };
 
   // Deduplicate people by email
-  const uniquePeopleMap: { [email: string]: Person } = {};
-  people.forEach((p) => {
-    if (p.email && !uniquePeopleMap[p.email]) {
-      uniquePeopleMap[p.email] = p;
-    }
-  });
-  const uniquePeople = Object.values(uniquePeopleMap);
-  const filteredPeople = uniquePeople.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredPeople = useMemo(() => {
+    const uniquePeopleMap: { [email: string]: Person } = {};
+    people.forEach((person) => {
+      if (person.email && !uniquePeopleMap[person.email]) uniquePeopleMap[person.email] = person;
+    });
+    const normalizedSearch = search.trim().toLowerCase();
+    return Object.values(uniquePeopleMap).filter((person) =>
+      !normalizedSearch
+      || person.name.toLowerCase().includes(normalizedSearch)
+      || person.email.toLowerCase().includes(normalizedSearch),
+    );
+  }, [people, search]);
 
   // Remove a person from suggested people
   const handleDeleteSuggested = (person: Person) => {

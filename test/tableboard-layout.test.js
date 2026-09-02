@@ -4,6 +4,15 @@ const fs = require('node:fs');
 
 const source = fs.readFileSync('src/app/TableBoard.tsx', 'utf8');
 
+test('inline editors fit inside the existing row-height contract', () => {
+  assert.match(source, /height: isPrimary \? \(isMobile \? 34 : 38\)/);
+  assert.match(source, /placeholder="Search country\.\.\."[\s\S]*height: isMobile \? 34 : 38/);
+  assert.match(source, /if \(col\.type === "Date"\)[\s\S]*height: isMobile \? 34 : 38/);
+  assert.match(source, /if \(\["Numbers", "Number", "Money", "Progress", "Rating"\]\.includes\(col\.type\)\)[\s\S]*height: isMobile \? 34 : 38/);
+  assert.match(source, /BOARD_ROW_HEIGHT_DESKTOP = 36/);
+  assert.match(source, /BOARD_ROW_HEIGHT_MOBILE = 40/);
+});
+
 test('tableboard keeps the known-good bounded viewport layout', () => {
   const table = source.slice(source.indexOf('<TableContainer'), source.indexOf('<Table\n'));
   assert.match(table, /height: isMobile/);
