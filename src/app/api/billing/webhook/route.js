@@ -44,6 +44,30 @@ function invoiceSubscriptionMetadata(invoice) {
     || {};
 }
 
+function invoiceCurrentPeriodEnd(invoice) {
+  const periodEnd = invoice.period_end || invoice.lines?.data?.[0]?.period?.end;
+  return periodEnd ? new Date(periodEnd * 1000) : null;
+}
+
+async function resolveWebhookAccount({ userId, customerId, subscriptionId }) {
+  const result = await pool.query(
+    `SELECT user_id, plan
+     FROM subscriptions
+     WHERE ($1::text IS NOT NULL AND stripe_subscription_id=$1)
+        OR ($2::text IS NOT NULL AND stripe_customer_id=$2)
+     LIMIT 1`,
+    [subscriptionId || null, customerId || null]
+  );
+  const linked = result.rows[0];
+  if (linked?.user_id && userId && String(linked.user_id) !== String(userId)) {
+    throw new Error("Stripe billing identity does not match the account metadata");
+  }
+  return {
+    userId: userId || linked?.user_id || null,
+    plan: linked?.plan || null,
+  };
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -141,12 +165,20 @@ export async function POST(req) {
     const object = event.data?.object || {};
 
     if (event.type === "checkout.session.completed" && object.payment_status === "paid") {
-      const userId = object.metadata?.user_id;
-      const plan = object.metadata?.plan;
+      const account = await resolveWebhookAccount({
+        userId: object.metadata?.user_id,
+        customerId: object.customer,
+        subscriptionId: object.subscription,
+      });
+      const userId = account.userId;
+      const plan = object.metadata?.plan || account.plan;
       if (userId && plan) {
         await activateBillingPlan(userId, plan, {
           customerId: object.customer,
           subscriptionId: object.subscription,
+          currentPeriodEnd: object.current_period_end
+            ? new Date(object.current_period_end * 1000)
+            : null,
         });
         await notifyUser(
           userId,
@@ -161,13 +193,22 @@ export async function POST(req) {
     if (event.type === "invoice.paid") {
       const subscriptionId = subscriptionIdFromInvoice(object);
       const metadata = invoiceSubscriptionMetadata(object);
-      if (metadata.user_id && metadata.plan) {
-        await activateBillingPlan(metadata.user_id, metadata.plan, {
+      const account = await resolveWebhookAccount({
+        userId: metadata.user_id,
+        customerId: object.customer,
+        subscriptionId,
+      });
+      const userId = account.userId;
+      const plan = metadata.plan || account.plan;
+      const currentPeriodEnd = invoiceCurrentPeriodEnd(object);
+      if (userId && plan) {
+        await activateBillingPlan(userId, plan, {
           customerId: object.customer,
           subscriptionId,
+          currentPeriodEnd,
         });
       }
-      await setSubscriptionStatus(subscriptionId, "active");
+      await setSubscriptionStatus(subscriptionId, "active", currentPeriodEnd);
       const result = await pool.query(
         "SELECT user_id, plan FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 1",
         [subscriptionId]
