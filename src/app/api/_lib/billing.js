@@ -58,11 +58,10 @@ export async function getBillingStatus(userId) {
     `SELECT COUNT(DISTINCT member_id)::int AS count FROM (
        SELECT $1::text AS member_id
        UNION
-       SELECT elem->>'userId'
-       FROM tables t
-       JOIN workspaces w ON w.id = t.workspace_id
-       CROSS JOIN LATERAL jsonb_array_elements(COALESCE(t.shared_users, '[]'::jsonb)) elem
-       WHERE w.owner_id = $1 AND elem->>'userId' IS NOT NULL
+       SELECT wm.user_id
+       FROM workspace_members wm
+       JOIN workspaces w ON w.id = wm.workspace_id
+       WHERE w.owner_id = $1
      ) members`,
     [userId]
   );
