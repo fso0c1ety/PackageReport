@@ -1,36 +1,13 @@
-import { createHmac, randomUUID, timingSafeEqual } from "crypto";
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import Stripe from "stripe";
 import { pool } from "../../_lib/server";
 import { activateBillingPlan } from "../../_lib/billing";
 import { sendEmail } from "../../_lib/mailer";
 
 export const runtime = "nodejs";
 
-function verifyStripeSignature(payload, signatureHeader, secret) {
-  const parts = String(signatureHeader || "").split(",");
-  const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2);
-  const signatures = parts
-    .filter((part) => part.startsWith("v1="))
-    .map((part) => part.slice(3));
-
-  if (!timestamp || signatures.length === 0) return false;
-  if (Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp)) > 300) return false;
-
-  const expected = createHmac("sha256", secret)
-    .update(`${timestamp}.${payload}`, "utf8")
-    .digest("hex");
-  const expectedBuffer = Buffer.from(expected, "hex");
-
-  return signatures.some((signature) => {
-    try {
-      const actualBuffer = Buffer.from(signature, "hex");
-      return actualBuffer.length === expectedBuffer.length
-        && timingSafeEqual(actualBuffer, expectedBuffer);
-    } catch {
-      return false;
-    }
-  });
-}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
 function subscriptionIdFromInvoice(invoice) {
   return invoice.subscription
@@ -150,15 +127,15 @@ export async function POST(req) {
   }
 
   const payload = await req.text();
-  if (!verifyStripeSignature(payload, req.headers.get("stripe-signature"), webhookSecret)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-  }
-
   let event;
   try {
-    event = JSON.parse(payload);
+    event = stripe.webhooks.constructEvent(
+      payload,
+      req.headers.get("stripe-signature"),
+      webhookSecret,
+    );
   } catch {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
