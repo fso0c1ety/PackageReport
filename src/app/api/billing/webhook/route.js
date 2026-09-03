@@ -27,15 +27,31 @@ function invoiceCurrentPeriodEnd(invoice) {
 }
 
 async function resolveWebhookAccount({ userId, customerId, subscriptionId }) {
-  const result = await pool.query(
-    `SELECT user_id, plan
-     FROM subscriptions
-     WHERE ($1::text IS NOT NULL AND stripe_subscription_id=$1)
-        OR ($2::text IS NOT NULL AND stripe_customer_id=$2)
-     LIMIT 1`,
-    [subscriptionId || null, customerId || null]
-  );
-  const linked = result.rows[0];
+  const subscriptionResult = subscriptionId
+    ? await pool.query(
+      `SELECT id, user_id, plan, stripe_customer_id, stripe_subscription_id
+       FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 1`,
+      [subscriptionId]
+    )
+    : null;
+  const customerResult = customerId
+    ? await pool.query(
+      `SELECT id, user_id, plan, stripe_customer_id, stripe_subscription_id
+       FROM subscriptions WHERE stripe_customer_id=$1 LIMIT 1`,
+      [customerId]
+    )
+    : null;
+  const subscriptionMatch = subscriptionResult?.rows[0] || null;
+  const customerMatch = customerResult?.rows[0] || null;
+
+  if (subscriptionMatch && customerId && String(subscriptionMatch.stripe_customer_id) !== String(customerId)) {
+    throw new Error("Stripe subscription and customer identities conflict");
+  }
+  if (subscriptionMatch && customerMatch && String(subscriptionMatch.id) !== String(customerMatch.id)) {
+    throw new Error("Stripe subscription and customer identities conflict");
+  }
+
+  const linked = subscriptionMatch || customerMatch;
   if (linked?.user_id && userId && String(linked.user_id) !== String(userId)) {
     throw new Error("Stripe billing identity does not match the account metadata");
   }
