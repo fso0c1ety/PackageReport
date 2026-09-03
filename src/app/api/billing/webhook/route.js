@@ -22,7 +22,7 @@ function invoiceSubscriptionMetadata(invoice) {
 }
 
 function invoiceCurrentPeriodEnd(invoice) {
-  const periodEnd = invoice.period_end || invoice.lines?.data?.[0]?.period?.end;
+  const periodEnd = invoice.lines?.data?.[0]?.period?.end || invoice.period_end;
   return periodEnd ? new Date(periodEnd * 1000) : null;
 }
 

@@ -34,6 +34,7 @@ test("Stripe webhook resolves accounts by Stripe identity and preserves the paid
   assert.match(webhook, /const plan = object\.metadata\?\.plan \|\| account\.plan/);
   assert.match(webhook, /invoiceCurrentPeriodEnd\(object\)/);
   assert.match(webhook, /setSubscriptionStatus\(subscriptionId, "active", currentPeriodEnd\)/);
+  assert.match(webhook, /invoice\.lines\?\.data\?\.\[0\]\?\.period\?\.end \|\| invoice\.period_end/);
 });
 
 test("paid webhook remains on the canonical billing activation path", () => {
