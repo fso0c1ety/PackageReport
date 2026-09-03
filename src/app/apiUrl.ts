@@ -412,25 +412,6 @@ async function nativeHttpRequest(
   });
 }
 
-function resolveSupabaseStorageUrl(path: string) {
-  const supabaseBase = normalizeBaseUrl(DEFAULT_SUPABASE_URL);
-  if (!supabaseBase) {
-    return '';
-  }
-
-  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-  if (!cleanPath.startsWith('uploads/')) {
-    return '';
-  }
-
-  const objectPath = cleanPath.replace(/^uploads\//, '');
-  if (!objectPath) {
-    return '';
-  }
-
-  return `${supabaseBase}/storage/v1/object/public/${DEFAULT_SUPABASE_STORAGE_BUCKET}/${objectPath}`;
-}
-
 function isPrivateDevHost(hostname: string) {
   const host = hostname.toLowerCase();
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
@@ -594,11 +575,6 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
     return avatar;
   }
 
-  const supabaseStorageUrl = resolveSupabaseStorageUrl(avatar);
-  if (supabaseStorageUrl) {
-    return supabaseStorageUrl;
-  }
-
   const normalizedPath = avatar.startsWith('/')
     ? avatar
     : avatar.startsWith('uploads/')
@@ -607,12 +583,10 @@ export function getAvatarUrl(avatar: string | null | undefined, name: string = "
         ? `/${avatar}`
         : `/uploads/${avatar}`;
 
-  // Upload files are served by the backend (port 4000) via express.static
+  // Protected uploads are served by the authenticated application route.
   if (normalizedPath.startsWith('/uploads/')) {
-    const serverUrl = getServerUrl();
-    if (serverUrl) {
-      return `${serverUrl}${normalizedPath}`;
-    }
+    // Keep protected uploads same-origin so the browser sends its auth cookie.
+    return normalizedPath;
   }
 
   const base =

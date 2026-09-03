@@ -29,11 +29,15 @@ test("Stripe SDK accepts valid signatures and rejects invalid signatures", () =>
 
 test("Stripe webhook resolves accounts by Stripe identity and preserves the paid period", () => {
   assert.match(webhook, /stripe_subscription_id=\$1/);
-  assert.match(webhook, /stripe_customer_id=\$2/);
+  assert.match(webhook, /FROM subscriptions WHERE stripe_customer_id=\$1 LIMIT 1/);
   assert.match(webhook, /Stripe billing identity does not match/);
+  assert.match(webhook, /Stripe subscription and customer identities conflict/);
+  assert.match(webhook, /const linked = subscriptionMatch \|\| customerMatch/);
+  assert.doesNotMatch(webhook, /stripe_subscription_id=\$1\)\s+OR \(\$2::text IS NOT NULL AND stripe_customer_id=\$2\)\s+LIMIT 1/);
   assert.match(webhook, /const plan = object\.metadata\?\.plan \|\| account\.plan/);
   assert.match(webhook, /invoiceCurrentPeriodEnd\(object\)/);
   assert.match(webhook, /setSubscriptionStatus\(subscriptionId, "active", currentPeriodEnd\)/);
+  assert.match(webhook, /invoice\.lines\?\.data\?\.\[0\]\?\.period\?\.end \|\| invoice\.period_end/);
 });
 
 test("paid webhook remains on the canonical billing activation path", () => {

@@ -1490,7 +1490,7 @@ export default function SettingsPage() {
                       <Typography variant="body2" color="text.secondary">Expires {billingOverview.paymentMethod.expMonth}/{billingOverview.paymentMethod.expYear}</Typography></Box>
                       <Button variant="outlined" onClick={openBillingPortal} disabled={billingPortalBusy}>Update card</Button>
                     </Stack>
-                  ) : <Alert severity="info">No credit card is connected yet. A payment method will appear after checkout.</Alert>}
+                  ) : <Stack gap={2}><Alert severity="info">No card details are available here. Manage the payment method used for renewals in secure billing settings.</Alert><Button variant="outlined" onClick={openBillingPortal} disabled={billingPortalBusy} sx={{ alignSelf: "flex-start" }}>Manage payment method</Button></Stack>}
                 </Paper>
               )}
 
@@ -1552,11 +1552,11 @@ export default function SettingsPage() {
                       {billingStatus?.plan === "trial" ? "Trial ends" : "Next renewal"}
                     </Typography>
                     <Typography fontWeight={700}>
-                      {(billingStatus?.trial_ends_at || billingStatus?.current_period_end)
-                        ? new Date(billingStatus.trial_ends_at || billingStatus.current_period_end).toLocaleDateString()
+                      {(billingStatus?.plan === "trial" ? billingStatus?.trial_ends_at : billingStatus?.current_period_end)
+                        ? new Date(billingStatus.plan === "trial" ? billingStatus.trial_ends_at : billingStatus.current_period_end).toLocaleDateString()
                         : "Not scheduled"}
                     </Typography>
-                    {(billingStatus?.trial_ends_at || billingStatus?.current_period_end) && (
+                    {(billingStatus?.plan === "trial" ? billingStatus?.trial_ends_at : billingStatus?.current_period_end) && (
                       <Typography variant="body2" color="text.secondary">
                         {Math.max(
                           0,

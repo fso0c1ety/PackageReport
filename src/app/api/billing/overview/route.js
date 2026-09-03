@@ -46,8 +46,10 @@ export async function GET(req) {
     }
 
     const customer = await stripeGet(`customers/${encodeURIComponent(customerId)}?expand[]=invoice_settings.default_payment_method`, stripeKey);
+    const subscriptions = await stripeGet(`subscriptions?customer=${encodeURIComponent(customerId)}&status=active&limit=1&expand[]=data.default_payment_method`, stripeKey);
     const invoices = await stripeGet(`invoices?customer=${encodeURIComponent(customerId)}&limit=12`, stripeKey);
-    const method = customer?.invoice_settings?.default_payment_method;
+    const method = customer?.invoice_settings?.default_payment_method
+      || subscriptions?.data?.[0]?.default_payment_method;
     return NextResponse.json({
       billing,
       usage,
