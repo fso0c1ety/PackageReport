@@ -13,6 +13,11 @@ test("seat usage uses canonical workspace memberships instead of legacy table sh
   assert.doesNotMatch(billing, /jsonb_array_elements\(COALESCE\(t\.shared_users/);
 });
 
+test("an active paid subscription remains writable independently of its displayed period end", () => {
+  assert.match(billing, /const writable = value\?\.status === "active"/);
+  assert.match(billing, /\|\| \(value\?\.status === "trialing" && new Date\(value\.trial_ends_at\) > new Date\(\)\)/);
+});
+
 test("active billing displays its Stripe period end and retains payment portal access", () => {
   assert.match(settings, /billingStatus\.plan === "trial" \? billingStatus\.trial_ends_at : billingStatus\.current_period_end/);
   assert.match(settings, />Manage payment method</);
