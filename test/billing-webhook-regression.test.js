@@ -49,3 +49,15 @@ test("paid webhook remains on the canonical billing activation path", () => {
   assert.doesNotMatch(webhook, /unlimited|manual entitlement/i);
 });
 
+test("temporary runtime fingerprint logs only a short hash and no secret metadata", () => {
+  const diagnostic = readFileSync(
+    join(process.cwd(), "src", "app", "api", "diagnostics", "runtime-webhook-secret-fingerprint", "route.js"),
+    "utf8",
+  );
+  assert.match(diagnostic, /createHash\("sha256"\)/);
+  assert.match(diagnostic, /digest\("hex"\)\.slice\(0, 12\)/);
+  assert.match(diagnostic, /console\.info\("\[TEMP WEBHOOK SECRET FINGERPRINT\]", fingerprint\)/);
+  assert.doesNotMatch(diagnostic, /length|prefix|suffix|stripe-signature|rawBody|STRIPE_SECRET_KEY/i);
+  assert.match(diagnostic, /NextResponse\.json\(\{ ok: true \}\)/);
+});
+
