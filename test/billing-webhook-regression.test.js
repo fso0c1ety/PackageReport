@@ -49,3 +49,4 @@ test("paid webhook remains on the canonical billing activation path", () => {
   assert.doesNotMatch(webhook, /unlimited|manual entitlement/i);
 });
 
+
