@@ -388,14 +388,14 @@ export default function LandingPage() {
             <Box sx={{ scrollMarginTop: 96 }}>
               <Typography sx={{ color: LIGHT.primary, fontWeight: 900, letterSpacing: ".16em", fontSize: 12 }}>SEE SMART MANAGE IN ACTION</Typography>
               <Typography component="h2" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 900, mt: 1 }}>Real workflows. Real product UI.</Typography>
-              <Stack direction="row" flexWrap="wrap" gap={1} mt={3}>{Object.keys({ Dashboard: 1, Boards: 1, Logistics: 1, CRM: 1, Calendar: 1, Portals: 1 }).map((tab) => <Button key={tab} onClick={() => setProductPreview(tab)} variant={productPreview === tab ? "contained" : "outlined"} sx={{ borderRadius: 999, textTransform: "none", fontWeight: 800 }}>{tab}</Button>)}</Stack>
+              <Stack direction="row" flexWrap="wrap" gap={1} mt={3}>{Object.keys({ Dashboard: 1, Boards: 1, Logistics: 1, CRM: 1, Maintenance: 1, Portals: 1 }).map((tab) => <Button key={tab} onClick={() => setProductPreview(tab)} variant={productPreview === tab ? "contained" : "outlined"} sx={{ borderRadius: 999, textTransform: "none", fontWeight: 800 }}>{tab}</Button>)}</Stack>
               {(() => { const previews: Record<string, { image: string; copy: string }> = {
                 Dashboard: { image: marketingScreenshots.hero, copy: "See priorities, progress and performance in one clear operational overview." },
                 Boards: { image: marketingScreenshots.boards, copy: "Structure work exactly around the way your team operates." },
                 Logistics: { image: marketingScreenshots.operations, copy: "Coordinate shipments, routes, documents and delivery work." },
                 CRM: { image: marketingScreenshots.crm, copy: "Keep companies, contacts, deals and follow-ups connected." },
-                Calendar: { image: marketingScreenshots.education, copy: "Coordinate appointments, schedules and deadlines across the team." },
-                Portals: { image: marketingScreenshots.fleet, copy: "Give operational users focused access without exposing the full workspace." },
+                Maintenance: { image: marketingScreenshots.maintenance, copy: "Track fleet service, insurance, registration and equipment deadlines." },
+                Portals: { image: marketingScreenshots.driverPortal, copy: "Give operational users focused access without exposing the full workspace." },
               }; const current = previews[productPreview]; return <Box sx={{ mt: 2, p: { xs: 1, md: 2 }, border: `1px solid ${LIGHT.border}`, borderRadius: 5, bgcolor: "#fff", boxShadow: "0 30px 80px rgba(16,24,40,.10)" }}><Box component="img" loading="lazy" src={current.image} alt={`${productPreview} in Smart Manage`} sx={{ width: "100%", display: "block", borderRadius: 3, aspectRatio: { xs: "16/11", md: "16/8.5" }, objectFit: "cover", objectPosition: "top left" }} /><Typography sx={{ px: { xs: 1, md: 2 }, py: 2, color: LIGHT.textSecondary, fontSize: { xs: 15, md: 18 }, fontWeight: 650 }}>{current.copy}</Typography></Box>; })()}
             </Box>
 
@@ -418,7 +418,7 @@ export default function LandingPage() {
 
             <PortalShowcase />
             <Box aria-hidden sx={{ display: "none" }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.25fr .75fr" }, gap: 3, mt: 3, alignItems: "center" }}><Box component="img" loading="lazy" src={marketingScreenshots.fleet} alt="Verified Smart Manage Driver Portal" sx={{ width: "100%", borderRadius: 3, border: `1px solid ${LIGHT.border}`, aspectRatio: "16/9", objectFit: "cover", objectPosition: "top left" }} /><Box><Chip label="Verified portal" color="success" /><Typography fontSize={27} fontWeight={900} mt={2}>Driver Portal</Typography><Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 1 }}>Trips, documents, fuel, expenses and delivery updates—without exposing the full company workspace.</Typography></Box></Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.25fr .75fr" }, gap: 3, mt: 3, alignItems: "center" }}><Box component="img" loading="lazy" src={marketingScreenshots.driverPortal} alt="Verified Smart Manage Driver Portal" sx={{ width: "100%", borderRadius: 3, border: `1px solid ${LIGHT.border}`, aspectRatio: "16/9", objectFit: "cover", objectPosition: "top left" }} /><Box><Chip label="Verified portal" color="success" /><Typography fontSize={27} fontWeight={900} mt={2}>Driver Portal</Typography><Typography sx={{ color: LIGHT.textSecondary, lineHeight: 1.8, mt: 1 }}>Trips, documents, fuel, expenses and delivery updates—without exposing the full company workspace.</Typography></Box></Box>
             </Box>
 
             <Box id="templates" sx={{ scrollMarginTop: 96 }}>
