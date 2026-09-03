@@ -48,3 +48,14 @@ test("paid webhook remains on the canonical billing activation path", () => {
   assert.doesNotMatch(webhook, /createHmac|timingSafeEqual|verifyStripeSignature/);
   assert.doesNotMatch(webhook, /unlimited|manual entitlement/i);
 });
+
+test("temporary secret fingerprint diagnostic is internal and non-sensitive", () => {
+  const diagnostic = readFileSync(
+    join(process.cwd(), "src", "app", "api", "internal", "diagnostics", "webhook-secret-fingerprint", "route.js"),
+    "utf8",
+  );
+  assert.match(diagnostic, /requirePlatformPermission\(req, "demo_requests\.read"\)/);
+  assert.match(diagnostic, /createHash\("sha256"\)/);
+  assert.match(diagnostic, /digest\("hex"\)\.slice\(0, 12\)/);
+  assert.doesNotMatch(diagnostic, /length|prefix|suffix|stripe-signature|rawBody/i);
+});
