@@ -1,6 +1,46 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { clearNativeRefreshToken, getNativeRefreshToken, setNativeRefreshToken } from "./authStorage";
 
+// Refresh credentials rotate on the server. Every concurrent expired request
+// must share the same rotation, including persistence of its replacement.
+let sessionRefreshPromise: Promise<'refreshed' | 'invalid' | 'unavailable'> | null = null;
+
+async function refreshAccessSession(failedToken: string | null) {
+  if (localStorage.getItem('token') !== failedToken) {
+    return localStorage.getItem('token') ? 'refreshed' : 'unavailable';
+  }
+  if (!sessionRefreshPromise) {
+    sessionRefreshPromise = (async () => {
+      try {
+        const nativeClient = isNativeStaticRuntime();
+        const refreshToken = nativeClient ? await getNativeRefreshToken() : null;
+        const response = await authenticatedFetch(getApiUrl('auth/refresh'), {
+          method: 'POST', credentials: 'include',
+          includeAuthToken: false, handleAuthErrors: false,
+          suppressNativeErrorAlert: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nativeClient, refreshToken }),
+        });
+        // An explicit logout or a new login wins over an in-flight refresh.
+        if (localStorage.getItem('token') !== failedToken) return 'unavailable';
+        if (response.status === 401) return 'invalid';
+        if (!response.ok) return 'unavailable';
+        const session = await response.json();
+        if (!session?.token) return 'unavailable';
+        if (localStorage.getItem('token') !== failedToken) return 'unavailable';
+        if (nativeClient && session.refreshToken) await setNativeRefreshToken(session.refreshToken);
+        if (localStorage.getItem('token') !== failedToken) return 'unavailable';
+        localStorage.setItem('token', session.token);
+        return 'refreshed';
+      } catch {
+        return 'unavailable';
+      }
+    })();
+    sessionRefreshPromise.finally(() => { sessionRefreshPromise = null; });
+  }
+  return sessionRefreshPromise;
+}
+
 const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
 
 // Default to same-origin on web, but provide a safe hosted fallback for Capacitor builds.
@@ -664,11 +704,6 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   const canDedupe = shouldDedupeRequest(requestMethod, requestOptions);
   const dedupeKey = canDedupe ? getDedupeKey(requestUrl, headers as Record<string, string>) : "";
 
-  if (canDedupe && inFlightGetRequests.has(dedupeKey)) {
-    const cachedResponse = await inFlightGetRequests.get(dedupeKey)!;
-    return cachedResponse.clone();
-  }
-
   // console.log(`[Fetch] ${requestUrl}`); // Debug
 
   const canUseNativeHttpFallback =
@@ -753,46 +788,41 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     return response;
   };
 
-  const requestPromise = executeRequest();
-  if (canDedupe) {
+  const sharedRequest = canDedupe ? inFlightGetRequests.get(dedupeKey) : undefined;
+  const requestPromise = sharedRequest || executeRequest();
+  if (canDedupe && !sharedRequest) {
     inFlightGetRequests.set(dedupeKey, requestPromise);
-    requestPromise.finally(() => {
-      inFlightGetRequests.delete(dedupeKey);
-    });
+    const cleanup = () => { inFlightGetRequests.delete(dedupeKey); };
+    void requestPromise.then(cleanup, cleanup);
   }
 
-  const response = await requestPromise;
+  // Shared transports still need auth recovery for every caller. Clone before
+  // handing the response to consumers so one cannot consume another's body.
+  const response = (await requestPromise).clone();
 
+  const authError = response.status === 403
+    ? await response.clone().json().catch(() => null) : null;
+  const authMessage = String(authError?.message || authError?.error || '').toLowerCase();
+  const expiredOrInvalidToken = response.status === 403 && (
+    authMessage.includes('token is invalid') || authMessage.includes('token is expired') ||
+    authMessage.includes('invalid or expired')
+  );
   if (
-    handleAuthErrors && response.status === 401 && includeAuthToken && !skipSessionRefresh &&
+    handleAuthErrors && (response.status === 401 || expiredOrInvalidToken) && includeAuthToken && !skipSessionRefresh &&
     !requestUrl.includes('/api/auth/refresh') && typeof window !== 'undefined'
   ) {
-    try {
-      const nativeClient = isNativeStaticRuntime();
-      const nativeRefreshToken = nativeClient ? await getNativeRefreshToken() : null;
-      const refreshResponse = await fetch(getApiUrl('auth/refresh'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nativeClient, refreshToken: nativeRefreshToken }),
-      });
-      if (refreshResponse.ok) {
-        const refreshed = await refreshResponse.json();
-        if (refreshed?.token) {
-          localStorage.setItem('token', refreshed.token);
-          if (nativeClient && refreshed.refreshToken) {
-            await setNativeRefreshToken(refreshed.refreshToken);
-          }
-          return authenticatedFetch(url, { ...options, skipSessionRefresh: true });
-        }
-      }
-    } catch {
-      // Continue through the existing sign-in fallback below.
+    const outcome = await refreshAccessSession(token);
+    if (outcome === 'refreshed') {
+      return authenticatedFetch(url, { ...options, skipSessionRefresh: true });
+    }
+    if (outcome === 'unavailable') {
+      throw new Error('Session refresh temporarily unavailable');
     }
   }
 
   if (handleAuthErrors && response.status === 401) {
-    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+    if (skipSessionRefresh) throw new Error('Unauthorized');
+    if (typeof window !== 'undefined' && localStorage.getItem('token') === token && !window.location.pathname.includes('/login')) {
       void clearNativeRefreshToken();
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -805,14 +835,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   }
 
   if (handleAuthErrors && response.status === 403) {
-    const authError = await response.clone().json().catch(() => null);
-    const authMessage = String(authError?.message || authError?.error || '').toLowerCase();
-    const tokenIsInvalid =
-      authMessage.includes('token is invalid') ||
-      authMessage.includes('token is expired') ||
-      authMessage.includes('invalid or expired');
-
-    if (tokenIsInvalid && typeof window !== 'undefined') {
+    if (expiredOrInvalidToken && !skipSessionRefresh && typeof window !== 'undefined' && localStorage.getItem('token') === token) {
       void clearNativeRefreshToken();
       localStorage.removeItem('token');
       localStorage.removeItem('user');
