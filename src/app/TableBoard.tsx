@@ -2289,6 +2289,21 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   };
 
+  const saveInvoiceCompanyName = async () => {
+  if (!tableId) return;
+  try {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/invoice-branding`), {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ companyName: invoiceCompanyName })
+  });
+  if (!response.ok) throw new Error('Unable to save company name');
+  } catch (error) {
+  console.error('Invoice company name save failed:', error);
+  showNotification('Unable to save invoice branding', 'error');
+  }
+  };
+
   const handleInvoiceLogoPick = (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -5260,6 +5275,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     }
     return value === null || value === undefined ? [] : [String(value).trim()].filter(Boolean);
   };
+
   displayedBodyColumns.forEach((column) => {
     if (column.type === 'Date') {
       const dates = filteredRows.flatMap((row) => valuesFor(row.values[column.id]))
@@ -5310,6 +5326,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load branding')))
   .then((branding) => {
   if (!active) return;
+  if (branding.companyName) setInvoiceCompanyName(branding.companyName);
   setInvoiceLogoDataUrl(branding.logoUrl || null);
   setInvoiceStampDataUrl(branding.stampUrl || null);
   })
@@ -9186,7 +9203,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   </Box>
 
   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.2 }}>
-  <TextField size="small" label="Company Name" value={invoiceCompanyName} onChange={(e) => setInvoiceCompanyName(e.target.value)} />
+  <TextField size="small" label="Company Name" value={invoiceCompanyName} onChange={(e) => setInvoiceCompanyName(e.target.value)} onBlur={() => void saveInvoiceCompanyName()} />
   <TextField size="small" label="Currency" value={invoiceCurrency} onChange={(e) => setInvoiceCurrency(e.target.value)} />
   <TextField size="small" type="number" label="Tax %" value={invoiceTaxPercent} onChange={(e) => setInvoiceTaxPercent(e.target.value)} />
   <TextField size="small" type="number" label="Due In (Days)" value={invoiceDueDays} onChange={(e) => setInvoiceDueDays(e.target.value)} />

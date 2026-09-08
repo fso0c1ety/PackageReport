@@ -16,7 +16,7 @@ export async function POST(req) {
     if (!customerId) return NextResponse.json({ error: "No paid subscription is connected to this account" }, { status: 400 });
 
     const stripeKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
-    if (!/^(sk_test_|sk_live_)/.test(stripeKey)) {
+    if (!/^(?:sk|rk)_(?:test|live)_/.test(stripeKey)) {
       return NextResponse.json({ error: "Billing is not configured" }, { status: 503 });
     }
     const origin = String(process.env.NEXT_PUBLIC_FRONTEND_URL || new URL(req.url).origin).replace(/\/$/, "");

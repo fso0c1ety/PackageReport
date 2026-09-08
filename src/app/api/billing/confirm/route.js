@@ -8,7 +8,7 @@ export async function POST(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const stripeKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
-  if (!/^(sk_test_|sk_live_)[A-Za-z0-9_]+$/.test(stripeKey)) {
+  if (!/^(?:sk|rk)_(?:test|live)_[A-Za-z0-9_]+$/.test(stripeKey)) {
     return NextResponse.json({ error: "Billing is not configured" }, { status: 503 });
   }
   const { sessionId } = await req.json().catch(() => ({}));

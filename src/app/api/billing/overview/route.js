@@ -41,7 +41,7 @@ export async function GET(req) {
     );
     const customerId = subscription.rows[0]?.stripe_customer_id;
     const stripeKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
-    if (!customerId || !/^(sk_test_|sk_live_)/.test(stripeKey)) {
+    if (!customerId || !/^(?:sk|rk)_(?:test|live)_/.test(stripeKey)) {
       return NextResponse.json({ billing, usage, paymentMethod: null, invoices: [], contact: { email: user.email || "" } });
     }
 
