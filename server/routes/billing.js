@@ -15,8 +15,12 @@ const stripeKeyPrefix = stripeSecretKey.startsWith("sk_live_")
   ? "sk_live"
   : stripeSecretKey.startsWith("sk_test_")
     ? "sk_test"
+    : stripeSecretKey.startsWith("rk_live_")
+      ? "rk_live"
+      : stripeSecretKey.startsWith("rk_test_")
+        ? "rk_test"
     : stripeSecretKey.slice(0, Math.min(7, stripeSecretKey.length)) || "missing";
-const stripeKeyIsValid = /^(sk_test_|sk_live_)[A-Za-z0-9_]+$/.test(stripeSecretKey)
+const stripeKeyIsValid = /^(?:sk|rk)_(?:test|live)_[A-Za-z0-9_]+$/.test(stripeSecretKey)
   && stripeSecretKey.length >= 20
   && !stripeSecretKey.includes("...")
   && !stripeSecretKey.includes("*");
@@ -29,7 +33,7 @@ console.info("[Billing] Stripe secret configuration", {
 });
 
 if (!stripeKeyIsValid) {
-  console.error("[Billing] STRIPE_SECRET_KEY is missing or invalid. Expected a complete sk_test_ or sk_live_ server key.");
+  console.error("[Billing] STRIPE_SECRET_KEY is missing or invalid. Expected a complete sk_/rk_ test or live server key.");
 }
 
 function requireStripeConfiguration(res) {

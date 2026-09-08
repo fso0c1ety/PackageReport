@@ -41,13 +41,15 @@ export async function GET(req) {
     );
     const customerId = subscription.rows[0]?.stripe_customer_id;
     const stripeKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
-    if (!customerId || !/^(sk_test_|sk_live_)/.test(stripeKey)) {
+    if (!customerId || !/^(?:sk|rk)_(?:test|live)_/.test(stripeKey)) {
       return NextResponse.json({ billing, usage, paymentMethod: null, invoices: [], contact: { email: user.email || "" } });
     }
 
     const customer = await stripeGet(`customers/${encodeURIComponent(customerId)}?expand[]=invoice_settings.default_payment_method`, stripeKey);
+    const subscriptions = await stripeGet(`subscriptions?customer=${encodeURIComponent(customerId)}&status=active&limit=1&expand[]=data.default_payment_method`, stripeKey);
     const invoices = await stripeGet(`invoices?customer=${encodeURIComponent(customerId)}&limit=12`, stripeKey);
-    const method = customer?.invoice_settings?.default_payment_method;
+    const method = customer?.invoice_settings?.default_payment_method
+      || subscriptions?.data?.[0]?.default_payment_method;
     return NextResponse.json({
       billing,
       usage,
