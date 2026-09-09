@@ -5,13 +5,29 @@ export const runtime = "nodejs";
 
 const connectionString = process.env.DATABASE_URL || "";
 
+const DATABASE_POOL_KEY = Symbol.for("smart-manage.database-pool");
+
+function boundedPositiveInteger(value, fallback, maximum) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, maximum);
+}
+
+const poolOptions = {
+  connectionString,
+  ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false },
+  // Vercel can run many isolates concurrently. Keep each isolate deliberately
+  // small so their combined connections cannot overwhelm Supavisor.
+  max: boundedPositiveInteger(process.env.DATABASE_POOL_MAX, 2, 2),
+  connectionTimeoutMillis: boundedPositiveInteger(process.env.DATABASE_CONNECTION_TIMEOUT_MS, 5000, 15000),
+  idleTimeoutMillis: boundedPositiveInteger(process.env.DATABASE_IDLE_TIMEOUT_MS, 10000, 60000),
+  allowExitOnIdle: true,
+};
+
 export const SECRET_KEY = process.env.JWT_SECRET || process.env.SECRET_KEY || "";
 
 export const pool = connectionString
-  ? new Pool({
-      connectionString,
-      ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false },
-    })
+  ? (globalThis[DATABASE_POOL_KEY] ||= new Pool(poolOptions))
   : {
       query() {
         throw new Error("Missing required environment variable: DATABASE_URL");
