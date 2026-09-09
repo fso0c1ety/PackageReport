@@ -120,10 +120,15 @@ export function LoginForm() {
 
       if (isLogin) {
         if (typeof window !== 'undefined') {
-          if (data.refreshToken) await setNativeRefreshToken(data.refreshToken);
+          // Establish the renderer session before the Electron secure-storage
+          // IPC completes. A successful HTTP 200 must never stay on the login
+          // spinner because OS credential storage is slow or temporarily stuck.
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
           localStorage.removeItem('subscriptionBannerDismissed');
+          if (data.refreshToken) {
+            void setNativeRefreshToken(data.refreshToken).catch(() => undefined);
+          }
           redirectToAppRoute('/home');
         }
       } else {

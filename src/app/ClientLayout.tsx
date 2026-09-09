@@ -11,7 +11,7 @@ import PageTransition from "./PageTransition";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@mui/material/styles"; // Added
 import { CallProvider } from "./CallContext"; // Added
-import { authenticatedFetch, ensureNativeHistoryRouting, getApiUrl, redirectToAppRoute } from "./apiUrl";
+import { authenticatedFetch, ensureNativeHistoryRouting, getApiUrl, isNativeStaticRuntime, redirectToAppRoute, restoreNativeSession } from "./apiUrl";
 import SubscriptionBanner from "./SubscriptionBanner";
 import CommandPalette from "./CommandPalette";
 import MobileBottomNavigation from "./MobileBottomNavigation";
@@ -97,45 +97,52 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     // So we just check if token exists.
     if (typeof window === 'undefined') return;
     let cancelled = false;
+    let retryTimer: number | null = null;
 
     ensureNativeHistoryRouting();
 
-    const token = localStorage.getItem('token');
+    const continueWithSession = async () => {
+      let token = localStorage.getItem('token');
+      if (!token && isNativeStaticRuntime()) {
+        const restoreOutcome = await restoreNativeSession();
+        if (cancelled) return;
+        token = restoreOutcome === 'refreshed' ? localStorage.getItem('token') : null;
+      }
 
-    if (!token) {
+      if (!token) {
         // Redirect to login if no token.
         redirectToAppRoute('/login');
 
-        const retryTimer = window.setTimeout(() => {
+        retryTimer = window.setTimeout(() => {
           if (!localStorage.getItem('token') && !window.location.pathname.includes('/login')) {
             redirectToAppRoute('/login', true);
           }
         }, 700);
 
-        return () => clearTimeout(retryTimer);
-    }
+        return;
+      }
 
-    setIsAuthenticated(true);
-    // The driver portal is already the safe destination. Never block its UI
-    // while a secondary role lookup is running.
-    if (normalizedPathname === "/driver-trips") {
-      setDriverCheckComplete(true);
-      setLoading(false);
-      return;
-    }
-    let workspaceId = "";
-    try {
-      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-      const storedWorkspace = JSON.parse(localStorage.getItem(`lastWorkspace_${storedUser.id}`) || "{}");
-      workspaceId = storedWorkspace.id || "";
-    } catch {}
-    const requestedPortalType = normalizedPathname.startsWith("/portal/")
-      ? normalizedPathname.slice("/portal/".length).replace(/^\/+|\/+$/g, "").replaceAll("-", "_")
-      : "";
-    const portalQuery = new URLSearchParams();
-    if (requestedPortalType) portalQuery.set("portalType", requestedPortalType);
-    else if (workspaceId) portalQuery.set("workspaceId", workspaceId);
-    authenticatedFetch(getApiUrl(`portal-context${portalQuery.size ? `?${portalQuery.toString()}` : ""}`), { suppressNativeErrorAlert: true })
+      setIsAuthenticated(true);
+      // The driver portal is already the safe destination. Never block its UI
+      // while a secondary role lookup is running.
+      if (normalizedPathname === "/driver-trips") {
+        setDriverCheckComplete(true);
+        setLoading(false);
+        return;
+      }
+      let workspaceId = "";
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const storedWorkspace = JSON.parse(localStorage.getItem(`lastWorkspace_${storedUser.id}`) || "{}");
+        workspaceId = storedWorkspace.id || "";
+      } catch {}
+      const requestedPortalType = normalizedPathname.startsWith("/portal/")
+        ? normalizedPathname.slice("/portal/".length).replace(/^\/+|\/+$/g, "").replaceAll("-", "_")
+        : "";
+      const portalQuery = new URLSearchParams();
+      if (requestedPortalType) portalQuery.set("portalType", requestedPortalType);
+      else if (workspaceId) portalQuery.set("workspaceId", workspaceId);
+      authenticatedFetch(getApiUrl(`portal-context${portalQuery.size ? `?${portalQuery.toString()}` : ""}`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (cancelled) return;
@@ -162,8 +169,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         setDriverCheckComplete(true);
         setLoading(false);
       })
-      .catch(() => { if (!cancelled) { setDriverCheckComplete(true); setLoading(false); } });
-    return () => { cancelled = true; };
+        .catch(() => { if (!cancelled) { setDriverCheckComplete(true); setLoading(false); } });
+    };
+    void continueWithSession();
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
   }, [normalizedPathname, pathname, router]);
 
   // Failsafe: only release the loading shell if authentication actually exists.

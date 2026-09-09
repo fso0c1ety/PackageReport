@@ -11,6 +11,7 @@ function harness(fetch) {
   const values = new Map([['token', 'expired-access']]);
   let refreshToken = 'valid-refresh';
   const context = {
+    exports: {},
     authenticatedFetch: fetch, isNativeStaticRuntime: () => true, getApiUrl: () => '/api/auth/refresh',
     localStorage: { getItem: k => values.get(k) || null, setItem: (k,v) => values.set(k,v) },
     getNativeRefreshToken: async () => refreshToken,
@@ -20,6 +21,39 @@ function harness(fetch) {
   vm.runInContext(ts.transpile(source.slice(start,end)), context);
   return { refresh: () => context.refreshAccessSession('expired-access'), values, token: () => refreshToken };
 }
+
+test('Electron startup restores an access session from secure refresh storage', async () => {
+  const values = new Map();
+  let storedRefresh = 'valid-refresh';
+  const context = {
+    exports: {}, require: name => name === './authStorage' ? {
+      getNativeRefreshToken: async () => storedRefresh,
+      setNativeRefreshToken: async value => { storedRefresh = value; },
+      clearNativeRefreshToken: async () => { storedRefresh = null; },
+    } : { Capacitor: { isNativePlatform: () => false } },
+    fetch: async () => Response.json({token:'restored-access',refreshToken:'rotated-refresh'}),
+    URL, URLSearchParams, Response, Headers, FormData, console,
+    process: { env: {} }, navigator: { userAgent: 'Electron' },
+    localStorage: { getItem: key => values.get(key) || null, setItem: (key,value) => values.set(key,value), removeItem: key => values.delete(key) },
+    sessionStorage: { removeItem() {} },
+    window: { smartManageRuntime: {isElectron:true}, location: {origin:'app://localhost',hostname:'localhost',port:'',protocol:'app:',pathname:'/home',replace() {}} },
+  };
+  vm.createContext(context);
+  vm.runInContext(ts.transpile(fs.readFileSync('src/app/apiUrl.ts', 'utf8'), {module:ts.ModuleKind.CommonJS}), context);
+  assert.equal(await context.exports.restoreNativeSession(), 'refreshed');
+  assert.equal(values.get('token'), 'restored-access');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(storedRefresh, 'rotated-refresh');
+});
+
+test('successful login commits local session before non-blocking secure persistence', () => {
+  const source = fs.readFileSync('src/app/(auth)/LoginForm.tsx', 'utf8');
+  const tokenWrite = source.indexOf("localStorage.setItem('token', data.token)");
+  const secureWrite = source.indexOf('void setNativeRefreshToken(data.refreshToken)');
+  const redirect = source.indexOf("redirectToAppRoute('/home')");
+  assert.ok(tokenWrite > 0 && secureWrite > tokenWrite && redirect > secureWrite);
+  assert.equal(source.includes('await setNativeRefreshToken(data.refreshToken)'), false);
+});
 
 test('simultaneous expired requests rotate once and persist replacement credentials', async () => {
   let calls = 0;
