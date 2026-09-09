@@ -744,6 +744,9 @@ const LocalDropdownSearch = React.memo(function LocalDropdownSearch({
 
 const EMPTY_COLUMN_OPTIONS: readonly ColumnOption[] = Object.freeze([]);
 const EMPTY_ROWS: readonly Row[] = Object.freeze([]);
+const CHAT_CACHE_TTL_MS = 15_000;
+const taskChatCache = new Map<string, { messages: any[]; fetchedAt: number }>();
+const taskChatRequests = new Map<string, Promise<any[]>>();
 const withSequentialRowOrder = (rows: Row[]) => rows.map((row, index) => ({
   ...row,
   values: {
@@ -1192,6 +1195,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatTaskId, setChatTaskId] = useState<string | null>(null);
+  const chatTaskIdRef = React.useRef<string | null>(null);
   // --- State ---
 
   // Fix popover anchor to button
@@ -3032,6 +3036,20 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const [fileComment, setFileComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusAnchor, setStatusAnchor] = useState<null | HTMLElement>(null);
+  const [popoverOpensUpward, setPopoverOpensUpward] = useState(false);
+  useEffect(() => {
+  if (!statusAnchor || typeof window === 'undefined') {
+  setPopoverOpensUpward(false);
+  return;
+  }
+  // Measure after the first visible commit so opening a local picker never
+  // waits on a synchronous layout/reflow calculation.
+  const frame = window.requestAnimationFrame(() => {
+  const bottom = statusAnchor.getBoundingClientRect().bottom;
+  setPopoverOpensUpward(bottom > window.innerHeight - (isMobile ? 260 : 340));
+  });
+  return () => window.cancelAnimationFrame(frame);
+  }, [isMobile, statusAnchor]);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
@@ -5139,25 +5157,42 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   messages: any[],
   colId: string
   ) => {
+  const cacheKey = `${tableId}:${rowId}`;
+  const cached = taskChatCache.get(cacheKey);
   setChatAnchor(event.currentTarget);
   setChatPopoverKey(`${rowId}-${colId}`);
   setChatInput("");
+  chatTaskIdRef.current = rowId;
   setChatTaskId(rowId);
-  // Always load messages from backend when opening
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
+  // Paint the panel with local/cached data first, then revalidate in the
+  // background. Repeated opens share one in-flight request.
+  setChatMessages(cached?.messages || (Array.isArray(messages) ? messages : []));
+  if (cached && Date.now() - cached.fetchedAt < CHAT_CACHE_TTL_MS) return;
+  let request = taskChatRequests.get(cacheKey);
+  if (!request) {
+  request = authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}`))
   .then(res => {
-  if (!res.ok) {
-  throw new Error(`Failed to load task chat (${res.status})`);
-  }
+  if (!res.ok) throw new Error(`Failed to load task chat (${res.status})`);
   return res.json();
   })
-  .then(task => setChatMessages(task.values.message || []));
+  .then(task => {
+  const freshMessages = Array.isArray(task.values?.message) ? task.values.message : [];
+  taskChatCache.set(cacheKey, { messages: freshMessages, fetchedAt: Date.now() });
+  return freshMessages;
+  })
+  .finally(() => taskChatRequests.delete(cacheKey));
+  taskChatRequests.set(cacheKey, request);
+  }
+  request.then(freshMessages => {
+  if (chatTaskIdRef.current === rowId) setChatMessages(freshMessages);
+  }).catch(error => console.error(error));
   };
   const handleCloseChat = () => {
   setChatAnchor(null);
   setChatPopoverKey(null);
   setChatMessages([]);
   setChatInput("");
+  chatTaskIdRef.current = null;
   setChatTaskId(null);
   setChatTab('chat');
   setChatAttachment(null);
@@ -5674,11 +5709,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
   const valueStr = selectedDropdownValues.join(', ');
-  const dropdownShouldOpenUpward = Boolean(
-  statusAnchor
-  && typeof window !== 'undefined'
-  && statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340)
-  );
+  const dropdownShouldOpenUpward = popoverOpensUpward;
 
   return (
   <>
@@ -6074,11 +6105,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
   const isLabelEditing = editingLabelsColId === effectiveCol.id;
   const currentOption = options.find(o => o.value === value) || { value: value || '-', color: '#e0e4ef' };
-  const statusShouldOpenUpward = Boolean(
-  statusAnchor
-  && typeof window !== 'undefined'
-  && statusAnchor.getBoundingClientRect().bottom > window.innerHeight - (isMobile ? 260 : 340)
-  );
+  const statusShouldOpenUpward = popoverOpensUpward;
 
   return (
   <>
@@ -6492,6 +6519,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   {/* Search / Add */}
   <PeopleSelector
   value={people}
+  availablePeople={tableMembers}
   // Pass the tableId so the selector knows to show board members
   tableId={tableId}
   onChange={(newPeople) => {
@@ -9587,7 +9615,6 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   </div>
   <TaskRowMenu
   row={row}
-  dragHandleProps={provided.dragHandleProps}
   onView={() => openReviewTask(row)}
   onMoveUp={() => handleMoveRow(row.id, 'up')}
   onMoveDown={() => handleMoveRow(row.id, 'down')}
@@ -11613,6 +11640,7 @@ export default function TableBoard({ tableId, taskId, initialTab }: TableBoardPr
   <Box sx={{ bgcolor: theme.palette.action.hover, borderRadius: 2, p: 0.5 }}>
   <PeopleSelector
   value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
+  availablePeople={tableMembers}
   tableId={tableId}
   onChange={(newPeople: Person[]) => {
   if (reviewTask) {

@@ -21,12 +21,10 @@ import TableViewIcon from "@mui/icons-material/TableView";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import DeleteIcon from "@mui/icons-material/Delete";
-import type { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 import type { Row } from "../../../types";
 
 type TaskRowMenuProps = {
   row: Row;
-  dragHandleProps?: DraggableProvidedDragHandleProps | null;
   onDelete: () => void;
   onView: () => void;
   onMoveUp?: () => void;
@@ -38,7 +36,6 @@ type TaskRowMenuProps = {
 };
 
 export default function TaskRowMenu({
-  dragHandleProps,
   onDelete,
   onView,
   onMoveUp,
@@ -86,9 +83,8 @@ export default function TaskRowMenu({
   return (
     <>
       <IconButton
-        {...dragHandleProps}
         onClick={handleOpen}
-        sx={{ color: theme.palette.text.secondary, cursor: "grab", "&:hover": { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
+        sx={{ color: theme.palette.text.secondary, "&:hover": { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
       >
         <MoreVertIcon fontSize="small" />
       </IconButton>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { getApiUrl, authenticatedFetch, getAvatarUrl } from "./apiUrl";
 import {
   Box,
@@ -41,15 +41,16 @@ export interface Person {
 
 interface PeopleSelectorProps {
   value?: Person[];
+  availablePeople?: Person[];
   onChange?: (newValue: Person[]) => void;
   onClose?: (finalValue: Person[]) => void;
 }
 
-export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
+export default function PeopleSelector({ value = [], availablePeople, onChange, onClose, embed = false, tableId }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
-  const [people, setPeople] = useState<Person[]>(defaultPeople);
+  const [people, setPeople] = useState<Person[]>(availablePeople || defaultPeople);
   const [inviteError, setInviteError] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -57,6 +58,10 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
 
   // Fetch people from backend on mount (or when tableId changes)
   useEffect(() => {
+    if (availablePeople) {
+      setPeople(availablePeople);
+      return;
+    }
     async function fetchPeople() {
       try {
         if (tableId) {
@@ -89,7 +94,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
       }
     }
     fetchPeople();
-  }, [tableId]);
+  }, [availablePeople, tableId]);
 
   // Save people to localStorage whenever it changes
   useEffect(() => {
@@ -122,19 +127,21 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
     onChange && onChange(newSelected);
   };
 
-  // Deduplicate people by email
-  const uniquePeopleMap: { [email: string]: Person } = {};
-  people.forEach((p) => {
-    if (p.email && !uniquePeopleMap[p.email]) {
-      uniquePeopleMap[p.email] = p;
-    }
-  });
-  const uniquePeople = Object.values(uniquePeopleMap);
-  const filteredPeople = uniquePeople.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const deferredSearch = useDeferredValue(search);
+  const uniquePeople = useMemo(() => {
+    const uniquePeopleMap: { [email: string]: Person } = {};
+    people.forEach((person) => {
+      if (person.email && !uniquePeopleMap[person.email]) uniquePeopleMap[person.email] = person;
+    });
+    return Object.values(uniquePeopleMap);
+  }, [people]);
+  const filteredPeople = useMemo(() => {
+    const normalizedSearch = deferredSearch.toLowerCase();
+    return uniquePeople.filter((person) =>
+      person.name.toLowerCase().includes(normalizedSearch)
+      || person.email.toLowerCase().includes(normalizedSearch)
+    );
+  }, [deferredSearch, uniquePeople]);
 
   // Remove a person from suggested people
   const handleDeleteSuggested = (person: Person) => {
