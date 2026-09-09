@@ -28,9 +28,16 @@ async function refreshAccessSession(failedToken: string | null) {
         const session = await response.json();
         if (!session?.token) return 'unavailable';
         if (localStorage.getItem('token') !== failedToken) return 'unavailable';
-        if (nativeClient && session.refreshToken) await setNativeRefreshToken(session.refreshToken);
+        // Commit the usable access session before asking Electron secure storage
+        // to persist the rotated refresh credential. An IPC/storage stall must
+        // never leave a successful login or refresh permanently loading.
+        // The main-process handler writes synchronously once invoked, so it is
+        // safe to let the renderer continue without blocking navigation.
         if (localStorage.getItem('token') !== failedToken) return 'unavailable';
         localStorage.setItem('token', session.token);
+        if (nativeClient && session.refreshToken) {
+          void setNativeRefreshToken(session.refreshToken).catch(() => undefined);
+        }
         return 'refreshed';
       } catch {
         return 'unavailable';
@@ -39,6 +46,17 @@ async function refreshAccessSession(failedToken: string | null) {
     sessionRefreshPromise.finally(() => { sessionRefreshPromise = null; });
   }
   return sessionRefreshPromise;
+}
+
+export async function restoreNativeSession() {
+  if (typeof window === 'undefined' || !isNativeStaticRuntime()) return 'unavailable' as const;
+  if (localStorage.getItem('token')) return 'refreshed' as const;
+
+  const outcome = await refreshAccessSession(null);
+  if (outcome === 'invalid') {
+    await clearNativeRefreshToken().catch(() => undefined);
+  }
+  return outcome;
 }
 
 const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
