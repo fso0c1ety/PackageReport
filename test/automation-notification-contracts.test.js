@@ -14,9 +14,13 @@ test("automation routes use the universal board permission model", () => {
   }
 });
 
-test("scheduled automations require editor access through the shared authorization model", () => {
+test("scheduled automations enforce editor access in the set-based candidate query", () => {
   const source = read("src", "app", "api", "automation", "due", "route.js");
-  assert.match(source, /requireBoardPermission\(pool, user\.id, item\.table_id, "editor"\)/);
+  assert.match(source, /a\.created_by IS NOT NULL/);
+  assert.match(source, /workspace_members/);
+  assert.match(source, /board_member_access/);
+  assert.match(source, /NOT IN \('read','viewer','comment','commenter'\)/);
+  assert.doesNotMatch(source, /for \(const item of result\.rows\) \{\s*if \(!\(await requireBoardPermission/);
 });
 
 test("notification delivery respects board and record access and supports idempotency", () => {

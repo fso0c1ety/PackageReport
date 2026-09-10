@@ -39,6 +39,7 @@ logger.info('server_process_starting');
 process.on('exit', (code) => logger.info('server_process_exit', { code }));
 const { appQueue } = require('./jobs');
 const { startScheduledMessageJob } = require('./jobs/scheduledMessages');
+const { startScheduledAutomationJob } = require('./jobs/scheduledAutomations');
 const billingService = require('./services/billingService');
 const { normalizeActivityHtml } = require('./utils/formatCellValue');
 const BUILD_COMMIT = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'edc8e7463386ac815cb01ca7bdaa24346ba30c97';
@@ -278,12 +279,14 @@ bootstrap({
 });
 
 const stopScheduledMessages = startScheduledMessageJob({ db, sendNotification, logger });
+const stopScheduledAutomations = startScheduledAutomationJob({ logger });
 
 let shuttingDown = false;
 async function gracefulShutdown(signal) {
   if (shuttingDown) return; shuttingDown = true;
   logger.info('graceful_shutdown_started', { signal });
   stopScheduledMessages();
+  stopScheduledAutomations();
   await new Promise((resolve) => server.close(resolve));
   await io.close();
   await closeQueues();
