@@ -21,6 +21,15 @@ function isAuthorizedSchedulerRequest(req) {
   return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
 }
 
+function isLegacyClientRequest(req) {
+  const supplied = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  // Releases before v1.0.19 called this scheduler endpoint from the browser
+  // with the user's JWT. Returning 401 makes those already-installed clients
+  // rotate their refresh session every 30 seconds, multiplying database load.
+  // A legacy JWT must remain a no-op: it never reaches scheduler/DB work.
+  return supplied.split(".").length === 3;
+}
+
 async function acquireSchedulerLock(token) {
   const result = await pool.query(`
     INSERT INTO scheduler_locks(name,token,locked_until,updated_at)
@@ -62,7 +71,10 @@ async function processCalendarReminders() {
 }
 
 export async function GET(req) {
-  if (!isAuthorizedSchedulerRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAuthorizedSchedulerRequest(req)) {
+    if (isLegacyClientRequest(req)) return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const lockToken = randomUUID();
   let hasLock = false;

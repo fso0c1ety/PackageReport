@@ -27,6 +27,15 @@ test("the existing backend scheduler is the single controlled scheduled automati
   assert.match(route, /SCHEDULER_PURPOSE/);
   assert.match(route, /already-running/);
   assert.match(route, /scheduler_locks/);
+  assert.match(route, /isLegacyClientRequest/);
+  assert.match(route, /new NextResponse\(null, \{ status: 204 \}\)/);
+});
+
+test("legacy browser scheduler calls are harmless no-ops instead of auth-refresh triggers", () => {
+  const route = read("src", "app", "api", "automation", "due", "route.js");
+  assert.match(route, /supplied\.split\("\."\)\.length === 3/);
+  assert.match(route, /if \(isLegacyClientRequest\(req\)\) return new NextResponse\(null, \{ status: 204 \}\)/);
+  assert.match(route, /return NextResponse\.json\(\{ error: "Unauthorized" \}, \{ status: 401 \}\)/);
 });
 
 test("scheduled automation requests contain no runtime DDL and filter candidates in SQL", () => {
