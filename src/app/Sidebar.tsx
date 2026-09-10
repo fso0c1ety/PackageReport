@@ -227,15 +227,11 @@ export default function Sidebar({
 
   useEffect(() => {
     let active = true;
+    let requestInFlight = false;
     const checkCalendarReminders = async () => {
+      if (requestInFlight || document.hidden) return;
+      requestInFlight = true;
       try {
-        const automationResponse = await authenticatedFetch(getApiUrl("automation/due"), { suppressNativeErrorAlert: true });
-        if (automationResponse.ok) {
-          const automationData = await automationResponse.json();
-          for (const run of automationData.triggered || []) {
-            showNotification(`Automation executed: ${String(run.actionType || "action").replaceAll("_", " ")}`, "success");
-          }
-        }
         const response = await authenticatedFetch(getApiUrl("calendar-events/reminders"), { suppressNativeErrorAlert: true });
         if (!response.ok) return;
         const data = await response.json();
@@ -250,6 +246,8 @@ export default function Sidebar({
         }
       } catch {
         // Reminder polling should never interrupt navigation.
+      } finally {
+        requestInFlight = false;
       }
     };
     void checkCalendarReminders();
