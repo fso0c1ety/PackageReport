@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import { pool } from "../../_lib/server";
+import { createHmac, randomUUID, timingSafeEqual } from "crypto";
+import { pool, SECRET_KEY } from "../../_lib/server";
 import { sendEmail } from "../../_lib/mailer";
 import automationBuilder from "../../../../../server/services/automationBuilderEngine.cjs";
 
@@ -10,10 +10,15 @@ const asArray = (value) => Array.isArray(value) ? value : [];
 
 const SCHEDULER_LOCK = "scheduled-automations";
 const SCHEDULER_LEASE_SECONDS = 600;
+const SCHEDULER_PURPOSE = "smart-manage:scheduled-automations:v1";
 
 function isAuthorizedSchedulerRequest(req) {
-  const secret = process.env.CRON_SECRET;
-  return Boolean(secret) && req.headers.get("authorization") === `Bearer ${secret}`;
+  if (!SECRET_KEY) return false;
+  const supplied = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  const expected = createHmac("sha256", SECRET_KEY).update(SCHEDULER_PURPOSE).digest("hex");
+  const suppliedBuffer = Buffer.from(supplied);
+  const expectedBuffer = Buffer.from(expected);
+  return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
 }
 
 async function acquireSchedulerLock(token) {
