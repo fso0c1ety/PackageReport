@@ -4,9 +4,20 @@ import { requireWritableSubscription } from "../../../_lib/billing";
 import { inferWorkspaceModules, moduleStorageShape, normalizeWorkspaceModules, WORKSPACE_MODULES } from "../../../../../../server/services/moduleEngine";
 
 export const runtime = "nodejs";
+
+let modulesStorageShapePromise;
+
 async function getModulesStorageShape() {
-  const result = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_modules'");
-  return moduleStorageShape(result.rows.map((row) => row.column_name));
+  if (!modulesStorageShapePromise) {
+    modulesStorageShapePromise = pool
+      .query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_modules'")
+      .then((result) => moduleStorageShape(result.rows.map((row) => row.column_name)))
+      .catch((error) => {
+        modulesStorageShapePromise = undefined;
+        throw error;
+      });
+  }
+  return modulesStorageShapePromise;
 }
 
 async function inferModules(workspaceId) {
@@ -17,33 +28,35 @@ async function inferModules(workspaceId) {
 
 async function authorize(workspaceId, userId, ownerOnly = false) {
   const result = await pool.query("SELECT owner_id FROM workspaces WHERE id = $1", [workspaceId]);
-  if (!result.rows[0]) return false;
-  if (String(result.rows[0].owner_id) === String(userId)) return true;
-  if (ownerOnly) return false;
+  if (!result.rows[0]) return { authorized: false, isOwner: false };
+  const isOwner = String(result.rows[0].owner_id) === String(userId);
+  if (isOwner) return { authorized: true, isOwner: true };
+  if (ownerOnly) return { authorized: false, isOwner: false };
   const shared = await pool.query("SELECT 1 FROM tables WHERE workspace_id=$1 AND COALESCE(shared_users,'[]'::jsonb) @> $2::jsonb LIMIT 1", [workspaceId, JSON.stringify([{ userId: String(userId) }])]);
-  return shared.rowCount > 0;
+  return { authorized: shared.rowCount > 0, isOwner: false };
 }
 
 export async function GET(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await params;
-  if (!(await authorize(workspaceId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const authorization = await authorize(workspaceId, user.id);
+  if (!authorization.authorized) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const shape = await getModulesStorageShape();
   const result = shape === "rows"
     ? await pool.query("SELECT module_key FROM workspace_modules WHERE workspace_id=$1 AND enabled=TRUE ORDER BY module_key", [workspaceId])
     : await pool.query("SELECT modules FROM workspace_modules WHERE workspace_id=$1", [workspaceId]);
   const stored = shape === "rows" ? result.rows.map((row) => row.module_key) : result.rows[0]?.modules;
   const modules = stored == null || result.rowCount === 0 ? await inferModules(workspaceId) : normalizeWorkspaceModules(stored);
-  const owner = await pool.query("SELECT owner_id FROM workspaces WHERE id=$1", [workspaceId]);
-  return NextResponse.json({ workspaceId, modules, available: WORKSPACE_MODULES, canManage: String(owner.rows[0]?.owner_id) === String(user.id) });
+  return NextResponse.json({ workspaceId, modules, available: WORKSPACE_MODULES, canManage: authorization.isOwner });
 }
 
 export async function PUT(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await params;
-  if (!(await authorize(workspaceId, user.id, true))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const authorization = await authorize(workspaceId, user.id, true);
+  if (!authorization.authorized) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const billingError = await requireWritableSubscription(user.id, { workspaceId });
   if (billingError) return billingError;
   const body = await req.json();
