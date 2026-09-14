@@ -170,7 +170,7 @@ function WorkspaceContent() {
     setLoading(true);
     setLoadError(null);
     const [res, modulesRes] = await Promise.all([
-      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`)),
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
       authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 }),
     ]);
     if (!res.ok) {

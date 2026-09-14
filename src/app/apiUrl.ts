@@ -665,6 +665,7 @@ type AuthenticatedFetchOptions = RequestInit & {
   handleAuthErrors?: boolean;
   skipSessionRefresh?: boolean;
   responseCacheTtlMs?: number;
+  consumeCachedResponse?: boolean;
 };
 
 const inFlightGetRequests = new Map<string, Promise<Response>>();
@@ -702,6 +703,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     handleAuthErrors = true,
     skipSessionRefresh = false,
     responseCacheTtlMs = 0,
+    consumeCachedResponse = false,
     ...requestOptions
   } = options;
 
@@ -818,6 +820,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   const cached = canDedupe && responseCacheTtlMs > 0 ? cachedGetResponses.get(dedupeKey) : undefined;
   if (cached && cached.expiresAt <= Date.now()) cachedGetResponses.delete(dedupeKey);
   const validCached = cached && cached.expiresAt > Date.now() ? cached.response : undefined;
+  if (validCached && consumeCachedResponse) cachedGetResponses.delete(dedupeKey);
   const sharedRequest = canDedupe && !validCached ? inFlightGetRequests.get(dedupeKey) : undefined;
   const requestPromise = validCached ? Promise.resolve(validCached) : sharedRequest || executeRequest();
   if (canDedupe && !sharedRequest) {
@@ -831,7 +834,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   // Shared transports still need auth recovery for every caller. Clone before
   // handing the response to consumers so one cannot consume another's body.
   const response = (await requestPromise).clone();
-  if (!validCached && canDedupe && responseCacheTtlMs > 0 && response.ok) {
+  if (!validCached && !consumeCachedResponse && canDedupe && responseCacheTtlMs > 0 && response.ok) {
     cachedGetResponses.set(dedupeKey, {
       response: response.clone(),
       expiresAt: Date.now() + responseCacheTtlMs,

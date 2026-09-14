@@ -534,20 +534,24 @@ export async function GET(req, { params }) {
       const visibilityParams = [tableId, JSON.stringify(visibility.columns), visibility.userId,
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
       const visibleWhere = `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
-      [result, countResult] = await Promise.all([
-        paginated
-          ? pool.query(
-            `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
-            [...visibilityParams, limit, offset]
-          )
-          : pool.query(
-            `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
-            visibilityParams
-          ),
-        paginated
-          ? pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)
-          : Promise.resolve({ rows: [{ total: 0 }] }),
-      ]);
+      if (paginated) {
+        result = await pool.query(
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
+          [...visibilityParams, limit, offset]
+        );
+        const total = result.rows[0]?.__visible_total
+          ?? (offset > 0
+            ? (await pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
+            : 0);
+        result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
+        countResult = { rows: [{ total }] };
+      } else {
+        result = await pool.query(
+          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
+          visibilityParams
+        );
+        countResult = { rows: [{ total: 0 }] };
+      }
     }
 
     const hasDueScheduledMessage = result.rows.some((row) =>

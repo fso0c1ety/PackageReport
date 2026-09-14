@@ -341,6 +341,16 @@ export default function HomeDashboard() {
   useEffect(() => {
     if (lastWorkspace?.id) {
       router.prefetch(getAppHref(`/workspace?id=${lastWorkspace.id}`));
+      void Promise.all([
+        authenticatedFetch(getApiUrl(`workspaces/${lastWorkspace.id}/tables`), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 60_000,
+        }),
+        authenticatedFetch(getApiUrl(`workspaces/${lastWorkspace.id}/modules`), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 60_000,
+        }),
+      ]).catch(() => undefined);
     }
   }, [lastWorkspace?.id, router]);
 
