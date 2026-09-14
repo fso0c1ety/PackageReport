@@ -664,9 +664,11 @@ type AuthenticatedFetchOptions = RequestInit & {
   includeAuthToken?: boolean;
   handleAuthErrors?: boolean;
   skipSessionRefresh?: boolean;
+  responseCacheTtlMs?: number;
 };
 
 const inFlightGetRequests = new Map<string, Promise<Response>>();
+const cachedGetResponses = new Map<string, { response: Response; expiresAt: number }>();
 
 function shouldDedupeRequest(method: string, requestOptions: RequestInit) {
   return method === 'GET' && !requestOptions.body;
@@ -699,6 +701,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     includeAuthToken = true,
     handleAuthErrors = true,
     skipSessionRefresh = false,
+    responseCacheTtlMs = 0,
     ...requestOptions
   } = options;
 
@@ -721,6 +724,12 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   const requestMethod = (requestOptions.method || 'GET').toUpperCase();
   const canDedupe = shouldDedupeRequest(requestMethod, requestOptions);
   const dedupeKey = canDedupe ? getDedupeKey(requestUrl, headers as Record<string, string>) : "";
+
+  if (!canDedupe) {
+    for (const key of cachedGetResponses.keys()) {
+      if (key.startsWith(`${requestUrl}|`)) cachedGetResponses.delete(key);
+    }
+  }
 
   // console.log(`[Fetch] ${requestUrl}`); // Debug
 
@@ -806,17 +815,28 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     return response;
   };
 
-  const sharedRequest = canDedupe ? inFlightGetRequests.get(dedupeKey) : undefined;
-  const requestPromise = sharedRequest || executeRequest();
+  const cached = canDedupe && responseCacheTtlMs > 0 ? cachedGetResponses.get(dedupeKey) : undefined;
+  if (cached && cached.expiresAt <= Date.now()) cachedGetResponses.delete(dedupeKey);
+  const validCached = cached && cached.expiresAt > Date.now() ? cached.response : undefined;
+  const sharedRequest = canDedupe && !validCached ? inFlightGetRequests.get(dedupeKey) : undefined;
+  const requestPromise = validCached ? Promise.resolve(validCached) : sharedRequest || executeRequest();
   if (canDedupe && !sharedRequest) {
-    inFlightGetRequests.set(dedupeKey, requestPromise);
-    const cleanup = () => { inFlightGetRequests.delete(dedupeKey); };
-    void requestPromise.then(cleanup, cleanup);
+    if (!validCached) {
+      inFlightGetRequests.set(dedupeKey, requestPromise);
+      const cleanup = () => { inFlightGetRequests.delete(dedupeKey); };
+      void requestPromise.then(cleanup, cleanup);
+    }
   }
 
   // Shared transports still need auth recovery for every caller. Clone before
   // handing the response to consumers so one cannot consume another's body.
   const response = (await requestPromise).clone();
+  if (!validCached && canDedupe && responseCacheTtlMs > 0 && response.ok) {
+    cachedGetResponses.set(dedupeKey, {
+      response: response.clone(),
+      expiresAt: Date.now() + responseCacheTtlMs,
+    });
+  }
 
   const authError = response.status === 403
     ? await response.clone().json().catch(() => null) : null;

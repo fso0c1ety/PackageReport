@@ -338,6 +338,12 @@ export default function HomeDashboard() {
     else setGreeting("Good evening");
   }, []);
 
+  useEffect(() => {
+    if (lastWorkspace?.id) {
+      router.prefetch(getAppHref(`/workspace?id=${lastWorkspace.id}`));
+    }
+  }, [lastWorkspace?.id, router]);
+
   const saveOnboarding = (steps: number[], dismissed = false) => {
     if (!currentUser) return;
     const key = `smartManageOnboarding_${currentUser.id || currentUser.email || "user"}`;

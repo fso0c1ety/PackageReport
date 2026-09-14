@@ -288,7 +288,7 @@ export default function Sidebar({
   const normalWorkspaceSidebar = !dedicatedPortal && !driverPortal;
   useEffect(() => {
     if (!currentWorkspaceId) { setWorkspaceModules([]); return; }
-    const loadModules = () => authenticatedFetch(getApiUrl(`workspaces/${currentWorkspaceId}/modules`), { suppressNativeErrorAlert: true })
+    const loadModules = () => authenticatedFetch(getApiUrl(`workspaces/${currentWorkspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 })
       .then((response) => response.ok ? response.json() : null).then((data) => setWorkspaceModules(Array.isArray(data?.modules) ? data.modules : [])).catch(() => setWorkspaceModules([]));
     void loadModules();
     window.addEventListener("workspaceModulesUpdated", loadModules);

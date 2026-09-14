@@ -171,7 +171,7 @@ function WorkspaceContent() {
     setLoadError(null);
     const [res, modulesRes] = await Promise.all([
       authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`)),
-      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true }),
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 }),
     ]);
     if (!res.ok) {
       throw new Error(`Failed to fetch tables (${res.status})`);
