@@ -506,15 +506,20 @@ export async function GET(req, { params }) {
   const entered = Date.now();
   const timing = { checkout: 0, sql: 0, authorization: 0, serialization: 0 };
   let queryPlan;
-  const readPool = !diagnostic ? pool : { query: async (sql, values) => {
-    const waiting = Date.now();
-    const client = await pool.connect();
-    timing.checkout += Date.now() - waiting;
+  let readClient;
+  const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
+  const readPool = { query: async (sql, values) => {
+    if (!readClient) {
+      const waiting = Date.now();
+      readClient = await pool.connect();
+      timing.checkout += Date.now() - waiting;
+    }
+    const client = readClient;
     try {
       const started = Date.now();
       const result = await client.query(sql, values);
       timing.sql += Date.now() - started;
-      if (!queryPlan && req.headers.get('x-sm-query-plan') === '1' && sql.includes('__visible_total')) {
+      if (diagnostic && !queryPlan && req.headers.get('x-sm-query-plan') === '1' && sql.includes('__visible_total')) {
         const explained = await client.query(`EXPLAIN (ANALYZE, FORMAT JSON, TIMING OFF) ${sql}`, values);
         const plan = explained.rows[0]['QUERY PLAN'][0];
         const summarize = (node) => ({ type: node['Node Type'], rows: node['Actual Rows'], loops: node['Actual Loops'],
@@ -522,7 +527,7 @@ export async function GET(req, { params }) {
         queryPlan = JSON.stringify({ executionMs: plan['Execution Time'], planningMs: plan['Planning Time'], plan: summarize(plan.Plan) });
       }
       return result;
-    } finally { client.release(); }
+    } catch (error) { releaseReadClient(); throw error; }
   } };
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -579,6 +584,7 @@ export async function GET(req, { params }) {
       }
     }
 
+    releaseReadClient();
     const hasDueScheduledMessage = result.rows.some((row) =>
       toArray(row?.values?.message).some((message) =>
         message?.scheduledFor
@@ -611,6 +617,8 @@ export async function GET(req, { params }) {
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    releaseReadClient();
   }
 }
 

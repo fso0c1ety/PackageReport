@@ -7,20 +7,26 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../src/app/api/tables/[tableId]/tasks/route.js'), 'utf8');
 const getSource = source.slice(source.indexOf('export async function GET('), source.indexOf('export async function POST(')).replace('export async function', 'async function');
 
-async function readPage(scope, rows, offset = 0) {
+async function readPage(scope, rows, offset = 0, failure = '') {
   const queries = [];
+  let checkouts = 0;
+  let releases = 0;
   const context = {
     getAuthenticatedUser: () => ({ id: 'reader' }),
-    requireBoardPermission: async () => ({ id: 'board' }),
+    requireBoardPermission: async (db) => { await db.query('SELECT authorization'); return failure === 'forbidden' ? null : { id: 'board' }; },
     recordAccessQueryContext: () => ({ access: { scope }, columns: [], userId: 'reader' }),
-    pool: { query: async (sql, params) => { queries.push({ sql, params }); return { rows: sql.startsWith('SELECT COUNT') ? [{ total: 12 }] : rows }; } },
+    pool: { connect: async () => { checkouts++; return { release() { releases++; }, query: async (sql, params) => {
+      if (sql === 'SELECT authorization') return { rows: [] };
+      if (failure === 'query') throw new Error('simulated query failure');
+      queries.push({ sql, params }); return { rows: sql.startsWith('SELECT COUNT') ? [{ total: 12 }] : rows };
+    } }; } },
     NextResponse: { json: (body, options) => ({ body, options }) },
     toArray: () => [], console,
   };
   vm.createContext(context);
   vm.runInContext(getSource + '\nthis.runGet = GET;', context);
   const result = await context.runGet({ nextUrl: new URL(`https://example.test/?limit=100&offset=${offset}`) }, { params: { tableId: 'board' } });
-  return { queries, body: result.body };
+  return { queries, body: result.body, checkouts, releases };
 }
 
 test('all-permitted rows retain table scoping and exact pagination without per-row permission calls', async () => {
@@ -33,6 +39,14 @@ test('all-permitted rows retain table scoping and exact pagination without per-r
   assert.equal(body.total, 12);
   assert.equal(body.hasMore, true);
   assert.equal('__visible_total' in body.rows[0], false);
+});
+
+test('one read connection is reused and released for success, denial and query failure', async () => {
+  for (const failure of ['', 'forbidden', 'query']) {
+    const result = await readPage('all_permitted', [], 100, failure);
+    assert.equal(result.checkouts, 1);
+    assert.equal(result.releases, 1);
+  }
 });
 
 test('restricted rows retain the existing SQL authorization predicate and parameters', async () => {
