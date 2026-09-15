@@ -1,4 +1,5 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { navigationRequest } from "./navigationTiming";
 import { clearNativeRefreshToken, getNativeRefreshToken, setNativeRefreshToken } from "./authStorage";
 
 // Refresh credentials rotate on the server. Every concurrent expired request
@@ -748,6 +749,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     shouldUseElectronApiProxy(requestUrl);
 
   const executeRequest = async () => {
+    const finishTiming = navigationRequest?.(requestUrl, headers);
     let response;
     try {
     response = await fetch(requestUrl, {
@@ -814,6 +816,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     }
   }
 
+    finishTiming?.(response);
     return response;
   };
 

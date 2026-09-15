@@ -502,6 +502,28 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  const diagnostic = typeof process !== 'undefined' && process.env.VERCEL_ENV === 'preview' && req.headers?.get('x-sm-perf') === '1';
+  const entered = Date.now();
+  const timing = { checkout: 0, sql: 0, authorization: 0, serialization: 0 };
+  let queryPlan;
+  const readPool = !diagnostic ? pool : { query: async (sql, values) => {
+    const waiting = Date.now();
+    const client = await pool.connect();
+    timing.checkout += Date.now() - waiting;
+    try {
+      const started = Date.now();
+      const result = await client.query(sql, values);
+      timing.sql += Date.now() - started;
+      if (!queryPlan && req.headers.get('x-sm-query-plan') === '1' && sql.includes('__visible_total')) {
+        const explained = await client.query(`EXPLAIN (ANALYZE, FORMAT JSON, TIMING OFF) ${sql}`, values);
+        const plan = explained.rows[0]['QUERY PLAN'][0];
+        const summarize = (node) => ({ type: node['Node Type'], rows: node['Actual Rows'], loops: node['Actual Loops'],
+          sort: node['Sort Method'], children: (node.Plans || []).map(summarize) });
+        queryPlan = JSON.stringify({ executionMs: plan['Execution Time'], planningMs: plan['Planning Time'], plan: summarize(plan.Plan) });
+      }
+      return result;
+    } finally { client.release(); }
+  } };
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -517,7 +539,9 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
-    const table = await requireBoardPermission(pool, user.id, tableId, "viewer");
+    const authorizationStart = Date.now();
+    const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
+    timing.authorization = Date.now() - authorizationStart;
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
@@ -525,7 +549,7 @@ export async function GET(req, { params }) {
     let result;
     let countResult;
     if (table.legacy_authorization) {
-      const legacyRows = await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
+      const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
       const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
       result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
       countResult = { rows: [{ total: visibleRows.length }] };
@@ -536,18 +560,18 @@ export async function GET(req, { params }) {
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
-        result = await pool.query(
+        result = await readPool.query(
           `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
           ?? (offset > 0
-            ? (await pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
+            ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
             : 0);
         result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
         countResult = { rows: [{ total }] };
       } else {
-        result = await pool.query(
+        result = await readPool.query(
           `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
           visibilityParams
         );
@@ -574,9 +598,16 @@ export async function GET(req, { params }) {
       }
       : result.rows;
 
-    return NextResponse.json(responseBody, {
+    const serializationStart = Date.now();
+    const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
+    if (diagnostic) {
+      timing.serialization = Date.now() - serializationStart;
+      response.headers.set('Server-Timing', [...Object.entries(timing).map(([key, value]) => `${key};dur=${value}`), `total;dur=${Date.now()-entered}`].join(', '));
+      if (queryPlan) response.headers.set('X-SM-Query-Plan', queryPlan);
+    }
+    return response;
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

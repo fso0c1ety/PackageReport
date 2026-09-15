@@ -1,4 +1,5 @@
 "use client";
+import { navigationPhase } from "./navigationTiming";
 import { getApiUrl, authenticatedFetch, getAvatarUrl, navigateToAppRoute } from "./apiUrl";
 import { evaluateBoardFormula } from "../lib/safeFormula";
 import dynamic from "next/dynamic";
@@ -3336,6 +3337,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!firstRowsRes.ok) throw new Error(`Failed to fetch table tasks (${firstRowsRes.status})`);
 
   const [table, firstPage] = await Promise.all([tableRes.json(), firstRowsRes.json()]);
+  navigationPhase('jsonParsed');
   if (cancelled) return;
   const tableColumns = table.columns || [];
   setBoardTitle(table.name);
@@ -3352,6 +3354,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const firstRows = normalizeRows(Array.isArray(firstPage) ? firstPage : firstPage.rows || []);
   const totalRows = Array.isArray(firstPage) ? firstRows.length : Number(firstPage.total || 0);
   if (firstRows.length > 0) {
+  navigationPhase('rowsSet');
   setRows(firstRows);
   } else if (totalRows === 0) {
   setRows([{ id: 'placeholder', values: Object.fromEntries(tableColumns.map((col: Column) => [col.id, col.type === 'People' ? [] : ''])) }]);
