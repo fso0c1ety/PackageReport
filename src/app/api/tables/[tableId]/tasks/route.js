@@ -531,12 +531,13 @@ export async function GET(req, { params }) {
       countResult = { rows: [{ total: visibleRows.length }] };
     } else {
       const visibility = recordAccessQueryContext(table, user.id);
-      const visibilityParams = [tableId, JSON.stringify(visibility.columns), visibility.userId,
+      const unrestrictedRows = (visibility.access?.scope ?? "all_permitted") === "all_permitted";
+      const visibilityParams = unrestrictedRows ? [tableId] : [tableId, JSON.stringify(visibility.columns), visibility.userId,
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
-      const visibleWhere = `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
+      const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
         result = await pool.query(
-          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
