@@ -502,31 +502,15 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
-  const diagnostic = typeof process !== 'undefined' && process.env.VERCEL_ENV === 'preview' && req.headers?.get('x-sm-perf') === '1';
-  const entered = Date.now();
-  const timing = { checkout: 0, sql: 0, authorization: 0, serialization: 0 };
-  let queryPlan;
   let readClient;
   const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
   const readPool = { query: async (sql, values) => {
     if (!readClient) {
-      const waiting = Date.now();
       readClient = await pool.connect();
-      timing.checkout += Date.now() - waiting;
     }
     const client = readClient;
     try {
-      const started = Date.now();
-      const result = await client.query(sql, values);
-      timing.sql += Date.now() - started;
-      if (diagnostic && !queryPlan && req.headers.get('x-sm-query-plan') === '1' && sql.includes('__visible_total')) {
-        const explained = await client.query(`EXPLAIN (ANALYZE, FORMAT JSON, TIMING OFF) ${sql}`, values);
-        const plan = explained.rows[0]['QUERY PLAN'][0];
-        const summarize = (node) => ({ type: node['Node Type'], rows: node['Actual Rows'], loops: node['Actual Loops'],
-          sort: node['Sort Method'], children: (node.Plans || []).map(summarize) });
-        queryPlan = JSON.stringify({ executionMs: plan['Execution Time'], planningMs: plan['Planning Time'], plan: summarize(plan.Plan) });
-      }
-      return result;
+      return await client.query(sql, values);
     } catch (error) { releaseReadClient(); throw error; }
   } };
   const user = getAuthenticatedUser(req);
@@ -544,9 +528,7 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
-    const authorizationStart = Date.now();
     const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
-    timing.authorization = Date.now() - authorizationStart;
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
@@ -604,15 +586,9 @@ export async function GET(req, { params }) {
       }
       : result.rows;
 
-    const serializationStart = Date.now();
     const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
-    if (diagnostic) {
-      timing.serialization = Date.now() - serializationStart;
-      response.headers.set('Server-Timing', [...Object.entries(timing).map(([key, value]) => `${key};dur=${value}`), `total;dur=${Date.now()-entered}`].join(', '));
-      if (queryPlan) response.headers.set('X-SM-Query-Plan', queryPlan);
-    }
     return response;
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);
