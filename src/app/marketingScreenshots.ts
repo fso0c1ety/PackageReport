@@ -1,5 +1,6 @@
 export const marketingScreenshots = Object.freeze({
-  hero: "/marketing/dashboard.webp",
+  hero: "/marketing/home.webp",
+  dashboard: "/marketing/dashboard.webp",
   maintenance: "/marketing/maintenance.webp",
   driverPortal: "/marketing/portals/driver-mobile.webp",
   boards: "/marketing/boards.webp",
