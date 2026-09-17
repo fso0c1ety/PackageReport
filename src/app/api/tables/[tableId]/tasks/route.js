@@ -502,6 +502,17 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  let readClient;
+  const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
+  const readPool = { query: async (sql, values) => {
+    if (!readClient) {
+      readClient = await pool.connect();
+    }
+    const client = readClient;
+    try {
+      return await client.query(sql, values);
+    } catch (error) { releaseReadClient(); throw error; }
+  } };
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -517,7 +528,7 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
-    const table = await requireBoardPermission(pool, user.id, tableId, "viewer");
+    const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
@@ -525,31 +536,37 @@ export async function GET(req, { params }) {
     let result;
     let countResult;
     if (table.legacy_authorization) {
-      const legacyRows = await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
+      const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
       const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
       result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
       countResult = { rows: [{ total: visibleRows.length }] };
     } else {
       const visibility = recordAccessQueryContext(table, user.id);
-      const visibilityParams = [tableId, JSON.stringify(visibility.columns), visibility.userId,
+      const unrestrictedRows = (visibility.access?.scope ?? "all_permitted") === "all_permitted";
+      const visibilityParams = unrestrictedRows ? [tableId] : [tableId, JSON.stringify(visibility.columns), visibility.userId,
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
-      const visibleWhere = `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
-      [result, countResult] = await Promise.all([
-        paginated
-          ? pool.query(
-            `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $8 OFFSET $9`,
-            [...visibilityParams, limit, offset]
-          )
-          : pool.query(
-            `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
-            visibilityParams
-          ),
-        paginated
-          ? pool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)
-          : Promise.resolve({ rows: [{ total: 0 }] }),
-      ]);
+      const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
+      if (paginated) {
+        result = await readPool.query(
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
+          [...visibilityParams, limit, offset]
+        );
+        const total = result.rows[0]?.__visible_total
+          ?? (offset > 0
+            ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
+            : 0);
+        result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
+        countResult = { rows: [{ total }] };
+      } else {
+        result = await readPool.query(
+          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
+          visibilityParams
+        );
+        countResult = { rows: [{ total: 0 }] };
+      }
     }
 
+    releaseReadClient();
     const hasDueScheduledMessage = result.rows.some((row) =>
       toArray(row?.values?.message).some((message) =>
         message?.scheduledFor
@@ -569,12 +586,15 @@ export async function GET(req, { params }) {
       }
       : result.rows;
 
-    return NextResponse.json(responseBody, {
+    const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
+    return response;
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    releaseReadClient();
   }
 }
 

@@ -338,6 +338,22 @@ export default function HomeDashboard() {
     else setGreeting("Good evening");
   }, []);
 
+  useEffect(() => {
+    if (lastWorkspace?.id) {
+      router.prefetch(getAppHref(`/workspace?id=${lastWorkspace.id}`));
+      void Promise.all([
+        authenticatedFetch(getApiUrl(`workspaces/${lastWorkspace.id}/tables`), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 60_000,
+        }),
+        authenticatedFetch(getApiUrl(`workspaces/${lastWorkspace.id}/modules`), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 60_000,
+        }),
+      ]).catch(() => undefined);
+    }
+  }, [lastWorkspace?.id, router]);
+
   const saveOnboarding = (steps: number[], dismissed = false) => {
     if (!currentUser) return;
     const key = `smartManageOnboarding_${currentUser.id || currentUser.email || "user"}`;
