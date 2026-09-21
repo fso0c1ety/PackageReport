@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = new Set([
   'capacitor://localhost',
   'app://localhost',
   'https://package-report.vercel.app',
+  'https://smartmanage.dev',
 ]);
 
 const CORS_HEADERS: Record<string, string> = {

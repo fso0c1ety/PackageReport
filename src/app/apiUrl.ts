@@ -59,7 +59,7 @@ export async function restoreNativeSession() {
   return outcome;
 }
 
-const NATIVE_PRODUCTION_FALLBACK_URL = "https://package-report.vercel.app";
+const NATIVE_PRODUCTION_FALLBACK_URL = "https://smartmanage.dev";
 
 // Default to same-origin on web, but provide a safe hosted fallback for Capacitor builds.
 export const DEFAULT_FRONTEND_URL =
