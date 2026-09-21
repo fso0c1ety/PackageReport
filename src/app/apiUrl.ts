@@ -841,7 +841,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     }
   }
 
-    if (perfDiagnostics) console.info('[SM_PERF_REQUEST]', { id: perfRequestId, path: perfPath, method: requestMethod, status: response.status, durationMs: Math.round(performance.now() - perfStartedAt) });
+    if (perfDiagnostics) console.info(`[SM_PERF_REQUEST] ${JSON.stringify({ id: perfRequestId, path: perfPath, method: requestMethod, status: response.status, durationMs: Math.round(performance.now() - perfStartedAt) })}`);
     return response;
   };
 
@@ -880,10 +880,10 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     handleAuthErrors && (response.status === 401 || expiredOrInvalidToken) && includeAuthToken && !skipSessionRefresh &&
     !requestUrl.includes('/api/auth/refresh') && typeof window !== 'undefined'
   ) {
-    if (perfDiagnostics) console.info('[SM_PERF_REFRESH_START]', { id: perfRequestId, path: perfPath });
+    if (perfDiagnostics) console.info(`[SM_PERF_REFRESH_START] ${JSON.stringify({ id: perfRequestId, path: perfPath })}`);
     const refreshStartedAt = perfDiagnostics ? performance.now() : 0;
     const outcome = await refreshAccessSession(token);
-    if (perfDiagnostics) console.info('[SM_PERF_REFRESH_END]', { id: perfRequestId, path: perfPath, outcome, durationMs: Math.round(performance.now() - refreshStartedAt) });
+    if (perfDiagnostics) console.info(`[SM_PERF_REFRESH_END] ${JSON.stringify({ id: perfRequestId, path: perfPath, outcome, durationMs: Math.round(performance.now() - refreshStartedAt) })}`);
     if (outcome === 'refreshed') {
       return authenticatedFetch(url, { ...options, skipSessionRefresh: true });
     }
