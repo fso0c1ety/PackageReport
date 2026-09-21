@@ -121,22 +121,16 @@ function createWorkspacesRouter({ db, logger }) {
   });
 
   router.get("/workspaces/:workspaceId/tables", async (req, res) => {
-    const perf = req.query.smperf === "1";
-    const startedAt = perf ? process.hrtime.bigint() : 0n;
-    const elapsed = () => perf ? Number(process.hrtime.bigint() - startedAt) / 1e6 : 0;
     try {
-      const authStartedAt = perf ? process.hrtime.bigint() : 0n;
       const existing = await db.query(`SELECT w.*,
         COALESCE(wm.workspace_role,wm.role) AS member_role
         FROM workspaces w
         LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
         WHERE w.id=$1 LIMIT 1`, [req.params.workspaceId, req.user.id]);
       const workspace = existing.rows[0];
-      const authMs = perf ? Number(process.hrtime.bigint() - authStartedAt) / 1e6 : 0;
       if (!workspace) return res.status(404).json({ error: "Workspace not found" });
       const workspaceAdmin = workspace.owner_id === req.user.id
         || ["owner", "admin", "logistics_admin", "manager"].includes(String(workspace.member_role || "").toLowerCase());
-      const queryStartedAt = perf ? process.hrtime.bigint() : 0n;
       const result = await db.query(`SELECT t.* FROM tables t WHERE t.workspace_id = $1 AND ($2::boolean OR EXISTS
         (SELECT 1 FROM board_member_access bma WHERE bma.table_id=t.id AND bma.user_id::text=$3::text) OR EXISTS
         (SELECT 1 FROM jsonb_array_elements(
@@ -144,9 +138,7 @@ function createWorkspacesRouter({ db, logger }) {
             THEN COALESCE(t.shared_users, '[]'::jsonb) ELSE '[]'::jsonb END
         ) elem WHERE COALESCE(elem->>'userId', elem#>>'{}') = $3))`,
       [req.params.workspaceId, workspaceAdmin, req.user.id]);
-      const queryMs = perf ? Number(process.hrtime.bigint() - queryStartedAt) / 1e6 : 0;
       if (!workspaceAdmin && result.rows.length === 0) return res.status(403).json({ error: "Forbidden" });
-      if (perf) res.set("Server-Timing", `auth;dur=${Math.round(authMs)},sql;dur=${Math.round(queryMs)},total;dur=${Math.round(elapsed())}`);
       return res.json(result.rows);
     } catch (error) {
       logger.error("workspace_tables_fetch_failed", { workspaceId: req.params.workspaceId, userId: req.user.id, error: error.message });

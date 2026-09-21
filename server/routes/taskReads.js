@@ -6,10 +6,7 @@ function createTaskReadsRouter({ logger, requireTablePermission, requireRowPermi
 
   router.get("/tables/:tableId/tasks", requireTablePermission("viewer"), async (req, res) => {
     try {
-      const perf = req.query.smperf === "1";
-      const startedAt = perf ? process.hrtime.bigint() : 0n;
       const rows = await tableService.getRows(req.params.tableId, req.table, req.user.id);
-      if (perf) res.set("Server-Timing", `rows;dur=${Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6)}`);
       return res.json(rows);
     } catch (error) {
       logger.error("tasks_fetch_failed", { tableId: req.params.tableId, userId: req.user.id, error: error.message });

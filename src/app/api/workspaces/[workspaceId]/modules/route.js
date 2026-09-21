@@ -5,15 +5,6 @@ import { inferWorkspaceModules, moduleStorageShape, normalizeWorkspaceModules, W
 
 export const runtime = "nodejs";
 
-function perfResponse(payload, timings, enabled, requestId) {
-  const response = NextResponse.json(payload);
-  if (enabled) {
-    response.headers.set("Server-Timing", Object.entries(timings).map(([name, value]) => `${name};dur=${Math.max(0, Math.round(value))}`).join(", "));
-    response.headers.set("X-SM-Perf-Request-Id", requestId);
-  }
-  return response;
-}
-
 let modulesStorageShapePromise;
 
 async function getModulesStorageShape() {
@@ -46,29 +37,18 @@ async function authorize(workspaceId, userId, ownerOnly = false) {
 }
 
 export async function GET(req, { params }) {
-  const enabled = req.nextUrl.searchParams.get("smperf") === "1";
-  const requestId = enabled ? crypto.randomUUID() : "";
-  const startedAt = performance.now();
   const user = getAuthenticatedUser(req);
-  if (!user?.id) return perfResponse({ error: "Unauthorized" }, { total: performance.now() - startedAt }, enabled, requestId);
+  if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await params;
-  const authStartedAt = performance.now();
   const authorization = await authorize(workspaceId, user.id);
-  const authMs = performance.now() - authStartedAt;
-  if (!authorization.authorized) return perfResponse({ error: "Forbidden" }, { auth: authMs, total: performance.now() - startedAt }, enabled, requestId);
-  const shapeStartedAt = performance.now();
+  if (!authorization.authorized) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const shape = await getModulesStorageShape();
-  const shapeMs = performance.now() - shapeStartedAt;
-  const queryStartedAt = performance.now();
   const result = shape === "rows"
     ? await pool.query("SELECT module_key FROM workspace_modules WHERE workspace_id=$1 AND enabled=TRUE ORDER BY module_key", [workspaceId])
     : await pool.query("SELECT modules FROM workspace_modules WHERE workspace_id=$1", [workspaceId]);
   const stored = shape === "rows" ? result.rows.map((row) => row.module_key) : result.rows[0]?.modules;
-  const queryMs = performance.now() - queryStartedAt;
-  const inferStartedAt = performance.now();
   const modules = stored == null || result.rowCount === 0 ? await inferModules(workspaceId) : normalizeWorkspaceModules(stored);
-  const inferMs = performance.now() - inferStartedAt;
-  return perfResponse({ workspaceId, modules, available: WORKSPACE_MODULES, canManage: authorization.isOwner }, { auth: authMs, shape: shapeMs, sql: queryMs, infer: inferMs, total: performance.now() - startedAt }, enabled, requestId);
+  return NextResponse.json({ workspaceId, modules, available: WORKSPACE_MODULES, canManage: authorization.isOwner });
 }
 
 export async function PUT(req, { params }) {
