@@ -714,7 +714,11 @@ function isTransientNetworkError(error: unknown) {
 export async function authenticatedFetch(url: string, options: AuthenticatedFetchOptions = {}) {
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const requestUrl = normalizeRequestUrl(url);
+  let requestUrl = normalizeRequestUrl(url);
+  const perfDiagnostics = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('smperf') === '1';
+  if (perfDiagnostics && /\/api\/(workspaces\/[^/]+\/(tables|modules)|tables\/[^/]+\/tasks)(?:$|\?)/.test(requestUrl) && !/[?&]smperf=1(?:&|$)/.test(requestUrl)) {
+    requestUrl += `${requestUrl.includes('?') ? '&' : '?'}smperf=1`;
+  }
   const {
     suppressNativeErrorAlert = false,
     includeAuthToken = true,
@@ -764,6 +768,11 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     typeof window !== 'undefined' &&
     isElectronRuntime() &&
     shouldUseElectronApiProxy(requestUrl);
+
+  // Temporary opt-in diagnostics: timings, request paths, and status only.
+  const perfRequestId = perfDiagnostics ? Math.random().toString(36).slice(2, 10) : '';
+  const perfStartedAt = perfDiagnostics && typeof performance !== 'undefined' ? performance.now() : 0;
+  const perfPath = (() => { try { return new URL(requestUrl, window.location.origin).pathname; } catch { return '/unknown'; } })();
 
   const executeRequest = async () => {
     let response;
@@ -832,6 +841,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     }
   }
 
+    if (perfDiagnostics) console.info('[SM_PERF_REQUEST]', { id: perfRequestId, path: perfPath, method: requestMethod, status: response.status, durationMs: Math.round(performance.now() - perfStartedAt) });
     return response;
   };
 
@@ -870,7 +880,10 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     handleAuthErrors && (response.status === 401 || expiredOrInvalidToken) && includeAuthToken && !skipSessionRefresh &&
     !requestUrl.includes('/api/auth/refresh') && typeof window !== 'undefined'
   ) {
+    if (perfDiagnostics) console.info('[SM_PERF_REFRESH_START]', { id: perfRequestId, path: perfPath });
+    const refreshStartedAt = perfDiagnostics ? performance.now() : 0;
     const outcome = await refreshAccessSession(token);
+    if (perfDiagnostics) console.info('[SM_PERF_REFRESH_END]', { id: perfRequestId, path: perfPath, outcome, durationMs: Math.round(performance.now() - refreshStartedAt) });
     if (outcome === 'refreshed') {
       return authenticatedFetch(url, { ...options, skipSessionRefresh: true });
     }
