@@ -129,7 +129,7 @@ export default function SubscriptionBanner() {
         size="small"
         component={isDemo ? "a" : "button"}
         href={isDemo ? `${brand.supportMailto}?subject=Smart%20Manage%20Demo` : undefined}
-        onClick={isDemo ? undefined : () => navigateToAppRoute("/pricing", router)}
+        onClick={isDemo ? undefined : () => navigateToAppRoute("/settings/?tab=billing", router)}
         sx={{
           color: "#fff",
           p: 0,
