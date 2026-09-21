@@ -1459,12 +1459,12 @@ export default function SettingsPage() {
             Review your subscription and change the plan for your team.
           </Typography>
 
-          {loadingBilling ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <>
+          <>
+            {loadingBilling && (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
               <Paper variant="outlined" sx={{ p: 1, mb: 3, borderRadius: 3, bgcolor: panelBg }}>
                 <Stack direction={{ xs: "column", md: "row" }} gap={1}>
                   {[
@@ -1684,8 +1684,7 @@ export default function SettingsPage() {
                 })}
               </Box>}
               </>}
-            </>
-          )}
+          </>
         </TabPanel>
 
         <TabPanel value={tabValue} index={6}>
