@@ -511,9 +511,26 @@ function getLocalDevServerUrl() {
   return `${protocol}//${hostname}:4000`;
 }
 
+function isLegacyProductionOrigin(url: string) {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'package-report.vercel.app';
+  } catch {
+    return false;
+  }
+}
+
+function shouldUseOfficialWebOrigin(url: string) {
+  if (typeof window === 'undefined' || isNativeStaticRuntime() || !isLegacyProductionOrigin(url)) {
+    return false;
+  }
+  const host = window.location.hostname.toLowerCase();
+  return host === 'smartmanage.dev' || host === 'www.smartmanage.dev';
+}
+
 export function getServerUrl() {
   const configuredServer = normalizeBaseUrl(DEFAULT_SERVER_URL);
   if (configuredServer) {
+    if (shouldUseOfficialWebOrigin(configuredServer)) return window.location.origin;
     if (typeof window !== 'undefined' && !isNativeStaticRuntime()) {
       try {
         const configuredHost = new URL(configuredServer).hostname.toLowerCase();
@@ -546,6 +563,7 @@ export function getServerUrl() {
 
   // Fall back to production Vercel for all other cases (including Native .exe/.apk)
   const configuredFrontend = normalizeBaseUrl(DEFAULT_FRONTEND_URL);
+  if (configuredFrontend && shouldUseOfficialWebOrigin(configuredFrontend)) return window.location.origin;
   const finalUrl = configuredFrontend || NATIVE_PRODUCTION_FALLBACK_URL;
   if (configuredFrontend) return configuredFrontend;
 
