@@ -3292,13 +3292,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const chatRequestIdRef = React.useRef(0);
   const chatTaskIdRef = React.useRef<string | null>(null);
   const chatRevalidationRef = React.useRef<{ rowId: string; startedAt: number; promise: Promise<any | null> } | null>(null);
-  const initialRowsLoadedRef = React.useRef(false);
 
   // --- Fetch columns and tasks from backend on mount ---
   useEffect(() => {
   if (!tableId) return;
   let cancelled = false;
-  initialRowsLoadedRef.current = false;
   setLoading(true);
 
   const userJson = localStorage.getItem("user");
@@ -3358,7 +3356,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   } else if (totalRows === 0) {
   setRows([{ id: 'placeholder', values: Object.fromEntries(tableColumns.map((col: Column) => [col.id, col.type === 'People' ? [] : ''])) }]);
   }
-  initialRowsLoadedRef.current = true;
   setLoading(false);
 
   let offset = firstRows.length;
@@ -3528,9 +3525,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   startFallbackPolling();
   } else if (status === 'SUBSCRIBED') {
   stopFallbackPolling();
-  // The initial table load already fetched the first page. Avoid a duplicate
-  // full-table refresh racing that request; retain recovery after loading.
-  if (initialRowsLoadedRef.current) void pollRowsFallback();
+  // The initial table load already fetched the first page. Do not issue a
+  // second full-table refresh when the realtime channel first subscribes.
   }
   });
   tableRealtimeChannelRef.current = subscription.channel;
