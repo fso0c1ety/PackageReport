@@ -714,7 +714,9 @@ function isTransientNetworkError(error: unknown) {
 export async function authenticatedFetch(url: string, options: AuthenticatedFetchOptions = {}) {
   // Use generic return type or specific if needed
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const requestUrl = normalizeRequestUrl(url);
+  let requestUrl = normalizeRequestUrl(url);
+  const perfDiagnostics = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('smperf') === '1';
+  if (perfDiagnostics && /\/api\/(workspaces\/[^/]+\/(tables|modules)|tables\/[^/]+\/tasks)(?:$|\?)/.test(requestUrl) && !/[?&]smperf=1(?:&|$)/.test(requestUrl)) requestUrl += `${requestUrl.includes('?') ? '&' : '?'}smperf=1`;
   const {
     suppressNativeErrorAlert = false,
     includeAuthToken = true,
@@ -764,6 +766,8 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     typeof window !== 'undefined' &&
     isElectronRuntime() &&
     shouldUseElectronApiProxy(requestUrl);
+  const perfStartedAt = perfDiagnostics ? performance.now() : 0;
+  const perfPath = (() => { try { return new URL(requestUrl, window.location.origin).pathname; } catch { return '/unknown'; } })();
 
   const executeRequest = async () => {
     let response;
@@ -832,6 +836,7 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
     }
   }
 
+    if (perfDiagnostics) console.info(`[SM_PERF_SERVER] ${JSON.stringify({ path: perfPath, method: requestMethod, status: response.status, durationMs: Math.round(performance.now() - perfStartedAt), serverTiming: response.headers.get('server-timing'), requestId: response.headers.get('x-request-id') || response.headers.get('x-sm-perf-request-id') })}`);
     return response;
   };
 
