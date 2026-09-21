@@ -5,21 +5,39 @@ import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
 
+function perfResponse(payload, timings, enabled, requestId, init) {
+  const response = NextResponse.json(payload, init);
+  if (enabled) {
+    response.headers.set("Server-Timing", Object.entries(timings).map(([name, value]) => `${name};dur=${Math.max(0, Math.round(value))}`).join(", "));
+    response.headers.set("X-SM-Perf-Request-Id", requestId);
+  }
+  return response;
+}
+
 export async function GET(req, { params }) {
+  const enabled = req.nextUrl.searchParams.get("smperf") === "1";
+  const requestId = enabled ? crypto.randomUUID() : "";
+  const startedAt = performance.now();
+  const timings = {};
+  const authStartedAt = performance.now();
   const user = getAuthenticatedUser(req);
+  timings.auth = performance.now() - authStartedAt;
   if (!user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return perfResponse({ error: "Unauthorized" }, { ...timings, total: performance.now() - startedAt }, enabled, requestId, { status: 401 });
   }
 
   try {
     const { workspaceId } = await params;
+    const wsStartedAt = performance.now();
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
+    timings.workspaceSql = performance.now() - wsStartedAt;
     const workspace = wsResult.rows[0];
 
     if (!workspace) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+      return perfResponse({ error: "Workspace not found" }, { ...timings, total: performance.now() - startedAt }, enabled, requestId, { status: 404 });
     }
 
+    const tablesStartedAt = performance.now();
     const tablesResult = await pool.query(
       `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
@@ -29,8 +47,10 @@ export async function GET(req, { params }) {
        ))`,
       [workspaceId, String(user.id)]
     );
+    timings.tablesSql = performance.now() - tablesStartedAt;
 
-    return NextResponse.json(tablesResult.rows);
+    timings.total = performance.now() - startedAt;
+    return perfResponse(tablesResult.rows, timings, enabled, requestId);
   } catch (err) {
     console.error("[WORKSPACE TABLES][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

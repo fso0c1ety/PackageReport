@@ -502,6 +502,10 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  const perfEnabled = req.nextUrl.searchParams.get("smperf") === "1";
+  const perfRequestId = perfEnabled ? crypto.randomUUID() : "";
+  const perfStartedAt = performance.now();
+  const perfTimings = {};
   let readClient;
   const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
   const readPool = { query: async (sql, values) => {
@@ -513,9 +517,13 @@ export async function GET(req, { params }) {
       return await client.query(sql, values);
     } catch (error) { releaseReadClient(); throw error; }
   } };
+  const authStartedAt = performance.now();
   const user = getAuthenticatedUser(req);
+  perfTimings.auth = performance.now() - authStartedAt;
   if (!user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (perfEnabled) { response.headers.set("Server-Timing", `auth;dur=${Math.round(perfTimings.auth)}, total;dur=${Math.round(performance.now() - perfStartedAt)}`); response.headers.set("X-SM-Perf-Request-Id", perfRequestId); }
+    return response;
   }
 
   try {
@@ -528,7 +536,9 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
+    const authzStartedAt = performance.now();
     const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
+    perfTimings.authorization = performance.now() - authzStartedAt;
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
@@ -547,10 +557,12 @@ export async function GET(req, { params }) {
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
+        const rowsStartedAt = performance.now();
         result = await readPool.query(
           `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
+        perfTimings.rowsSql = performance.now() - rowsStartedAt;
         const total = result.rows[0]?.__visible_total
           ?? (offset > 0
             ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
@@ -558,10 +570,12 @@ export async function GET(req, { params }) {
         result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
         countResult = { rows: [{ total }] };
       } else {
+        const rowsStartedAt = performance.now();
         result = await readPool.query(
           `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
           visibilityParams
         );
+        perfTimings.rowsSql = performance.now() - rowsStartedAt;
         countResult = { rows: [{ total: 0 }] };
       }
     }
@@ -589,6 +603,11 @@ export async function GET(req, { params }) {
     const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
+    if (perfEnabled) {
+      perfTimings.total = performance.now() - perfStartedAt;
+      response.headers.set("Server-Timing", Object.entries(perfTimings).map(([name, value]) => `${name};dur=${Math.max(0, Math.round(value))}`).join(", "));
+      response.headers.set("X-SM-Perf-Request-Id", perfRequestId);
+    }
     return response;
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);
