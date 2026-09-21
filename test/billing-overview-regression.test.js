@@ -7,6 +7,7 @@ const root = process.cwd();
 const billing = readFileSync(join(root, "src", "app", "api", "_lib", "billing.js"), "utf8");
 const overview = readFileSync(join(root, "src", "app", "api", "billing", "overview", "route.js"), "utf8");
 const settings = readFileSync(join(root, "src", "app", "(dashboard)", "settings", "page.tsx"), "utf8");
+const entitlements = readFileSync(join(root, "src", "app", "api", "_lib", "entitlements.js"), "utf8");
 
 test("seat usage uses canonical workspace memberships instead of legacy table shares", () => {
   assert.match(billing, /SELECT wm\.user_id\s+FROM workspace_members wm/);
@@ -23,4 +24,10 @@ test("active billing displays its Stripe period end and retains payment portal a
   assert.match(settings, />Manage payment method</);
   assert.match(overview, /subscriptions\?customer=\$\{encodeURIComponent\(customerId\)\}&status=active/);
   assert.match(overview, /\|\| subscriptions\?\.data\?\.\[0\]\?\.default_payment_method/);
+});
+
+test("usage reset remains the intentional calendar-month period", () => {
+  assert.match(entitlements, /function monthPeriod\(date = new Date\(\)\)/);
+  assert.match(entitlements, /new Date\(date\.getFullYear\(\), date\.getMonth\(\) \+ 1, 1\)/);
+  assert.match(entitlements, /period: \{\s*start: period\.start\.toISOString\(\),\s*end: period\.end\.toISOString\(\)/s);
 });
