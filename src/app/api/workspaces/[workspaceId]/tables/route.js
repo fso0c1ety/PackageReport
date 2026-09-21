@@ -29,6 +29,7 @@ export async function GET(req, { params }) {
        ))`,
       [workspaceId, String(user.id)]
     );
+
     return NextResponse.json(tablesResult.rows);
   } catch (err) {
     console.error("[WORKSPACE TABLES][GET] Error:", err);
