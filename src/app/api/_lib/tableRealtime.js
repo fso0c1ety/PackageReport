@@ -1,34 +1,5 @@
 import crypto from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
 import { SECRET_KEY } from "./server";
-
-let realtimeClient;
-const realtimeChannels = new Map();
-
-function withTimeout(promise, timeoutMs, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
-  ]);
-}
-
-function getSubscribedChannel(topic) {
-  const existing = realtimeChannels.get(topic);
-  if (existing) return existing;
-
-  const channel = realtimeClient.channel(topic, { config: { broadcast: { ack: true, self: false } } });
-  const pending = new Promise((resolve, reject) => {
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") resolve(channel);
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        realtimeChannels.delete(topic);
-        reject(new Error(status));
-      }
-    });
-  });
-  realtimeChannels.set(topic, pending);
-  return pending;
-}
 
 export function getTableRealtimeTopic(tableId) {
   const secret = process.env.REALTIME_TOPIC_SECRET || SECRET_KEY;
@@ -39,22 +10,28 @@ export function getTableRealtimeTopic(tableId) {
   return `table-${digest}`;
 }
 
-export async function broadcastTableInvalidation(tableId, eventType = "UPDATE") {
+export async function broadcastTableInvalidation(tableId, eventType = "UPDATE", change = {}) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const topic = getTableRealtimeTopic(tableId);
   if (!url || !key || !topic) return false;
-  realtimeClient ||= createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   try {
-    const channel = await withTimeout(getSubscribedChannel(topic), 5_000, "Realtime subscription timed out");
-    const result = await withTimeout(
-      channel.send({ type: "broadcast", event: `row-change:${topic}`, payload: { topic, eventType, changedAt: Date.now() } }),
-      5_000,
-      "Realtime broadcast timed out",
-    );
-    return result === "ok";
+    const response = await fetch(`${url}/realtime/v1/api/broadcast`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messages: [{
+        topic,
+        event: `row-change:${topic}`,
+        payload: { topic, eventType, ...change, changedAt: Date.now() },
+      }] }),
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
   } catch {
-    realtimeChannels.delete(topic);
     return false;
   }
 }

@@ -122,7 +122,7 @@ test.describe("focused authenticated realtime sync", () => {
       await editTextCell(pageA, primary.id, primaryRow.id, columnId, "Realtime from A");
       await expect.poll(() => pageB.evaluate(() => (window as any).__smartManageRealtimeReceived || 0), { timeout: 10_000 }).toBe(1);
       await expect(pageB.getByText("Realtime from A", { exact: true })).toBeVisible({ timeout: 20_000 });
-      expect(primaryRefreshesOnB).toBe(1);
+      expect(primaryRefreshesOnB).toBe(0);
       expect(await unrelatedPage.evaluate(() => (window as any).__smartManageRealtimeReceived || 0)).toBe(unrelatedEventsBefore);
 
       primaryRefreshesOnB = 0;

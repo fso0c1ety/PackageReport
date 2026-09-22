@@ -169,16 +169,11 @@ function WorkspaceContent() {
     if (!workspaceId) return;
     setLoading(true);
     setLoadError(null);
-    const [res, modulesRes] = await Promise.all([
-      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
-      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 }),
-    ]);
+    const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
     if (!res.ok) {
       throw new Error(`Failed to fetch tables (${res.status})`);
     }
     const allTables = await res.json();
-    const modulesData = modulesRes.ok ? await modulesRes.json() : null;
-    const enabledModules = Array.isArray(modulesData?.modules) ? modulesData.modules : null;
     const patterns: Record<string, RegExp> = {
       crm: /lead|deal|pipeline|contact|compan/i, customers: /customer|client/i,
       finance: /invoice|expense|payment|revenue|finance|account/i, inventory: /product|stock|inventory|material|warehouse/i,
@@ -187,13 +182,14 @@ function WorkspaceContent() {
       tasks: /task|work item|todo/i, maintenance: /maintenance|service|repair|oil|tire|insurance|registration|tachograph/i,
     };
     const boardModule = (name: string) => Object.entries(patterns).find(([, pattern]) => pattern.test(name))?.[0];
-    const data = Array.isArray(allTables) && enabledModules
+    const filterTables = (enabledModules: string[] | null) => Array.isArray(allTables) && enabledModules
       ? allTables.filter((table: any) => {
           const requiredModule = boardModule(String(table.name || ""));
           if (moduleParam) return requiredModule === moduleParam;
           return !requiredModule || enabledModules.includes(requiredModule);
         })
       : allTables;
+    const data = filterTables(null);
     setTables(data);
     setSelected((prev) => {
       if (tableIdParam && data.some((table: any) => table.id === tableIdParam)) return tableIdParam;
@@ -201,6 +197,17 @@ function WorkspaceContent() {
       return data[0]?.id || "";
     });
     setLoading(false);
+    void authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 })
+      .then((modulesRes) => modulesRes.ok ? modulesRes.json() : null)
+      .then((modulesData) => {
+        const enabledModules = Array.isArray(modulesData?.modules) ? modulesData.modules : null;
+        if (enabledModules) {
+          const filtered = filterTables(enabledModules);
+          setTables(filtered);
+          setSelected((prev) => filtered.some((table: any) => table.id === prev) ? prev : filtered[0]?.id || "");
+        }
+      })
+      .catch(() => undefined);
   };
 
   useEffect(() => {

@@ -131,7 +131,7 @@ import BackupTableIcon from '@mui/icons-material/BackupTable';
 import { supabase } from "../lib/supabase";
 import { downloadStoredInvoicePdf } from "./invoicePdfDownload";
 
-type TableRealtimeListener = () => void;
+type TableRealtimeListener = (message: any) => void;
 type TableRealtimeStatusListener = (status: string) => void;
 type TableRealtimeEntry = {
   channel: ReturnType<typeof supabase.channel>;
@@ -154,14 +154,12 @@ function acquireTableRealtimeChannel(tableId: string, topic: string, listener: T
       .on('broadcast', { event: `row-change:${topic}` }, (message) => {
         const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
         if (eventTopic !== topic) return;
-        if (typeof window !== 'undefined') (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
-        listeners.forEach((notify) => notify());
+        listeners.forEach((notify) => notify((message as any)?.payload ?? message));
       })
       .on('broadcast', { event: `row-order:${topic}` }, (message) => {
         const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
         if (eventTopic !== topic) return;
-        if (typeof window !== 'undefined') (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
-        listeners.forEach((notify) => notify());
+        listeners.forEach((notify) => notify((message as any)?.payload ?? message));
       });
     entry = { channel, listeners, statusListeners, references: 0, cleanupTimer: null, lastStatus: null };
     tableRealtimeEntries.set(tableId, entry);
@@ -2955,7 +2953,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   useEffect(() => {
     let cancelled = false;
 
-    authenticatedFetch(getApiUrl(`/billing/status?tableId=${encodeURIComponent(tableId)}`))
+    authenticatedFetch(getApiUrl(`/billing/status?tableId=${encodeURIComponent(tableId)}`), {
+      responseCacheTtlMs: 60_000,
+      consumeCachedResponse: true,
+    })
       .then(async (response) => {
         if (!response.ok) return null;
         return response.json();
@@ -3513,20 +3514,41 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!response.ok) throw new Error(`Realtime authorization failed (${response.status})`);
   const data = await response.json();
   if (cancelled || typeof data?.topic !== 'string') return;
-  subscription = acquireTableRealtimeChannel(tableId, data.topic, () => { void pollRowsFallback(); }, (status) => {
-  if (typeof window !== 'undefined') {
-  (window as any).__smartManageRealtimeStatus = {
-  ...((window as any).__smartManageRealtimeStatus || {}),
-  [tableId]: status,
-  };
+  subscription = acquireTableRealtimeChannel(tableId, data.topic, (payload) => {
+  const eventType = payload?.eventType;
+  if (eventType === 'DELETE' && typeof payload?.rowId === 'string') {
+  setRows((current) => current.filter((row) => row.id !== payload.rowId));
+  return;
   }
+  const realtimeRow = normalizeRealtimeRow(payload?.row);
+  if (realtimeRow?.id) {
+  setRows((current) => {
+  const withoutPlaceholder = current.filter((row) => row.id !== 'placeholder');
+  const existing = withoutPlaceholder.find((row) => row.id === realtimeRow.id);
+  const values = { ...(realtimeRow.values ?? {}) };
+  pendingCellValuesRef.current.forEach((pending, key) => {
+  const separator = key.indexOf(':');
+  if (separator < 0 || key.slice(0, separator) !== realtimeRow.id) return;
+  values[key.slice(separator + 1)] = pending.value;
+  });
+  const mergedRow = { ...realtimeRow, values };
+  return sortRowsForRealtime(existing
+  ? withoutPlaceholder.map((row) => row.id === mergedRow.id ? mergedRow : row)
+  : [...withoutPlaceholder, mergedRow]);
+  });
+  return;
+  }
+  // Compatibility for older mutation paths. Normal task mutations include a
+  // committed row payload and never require this full-table recovery request.
+  void pollRowsFallback();
+  }, (status) => {
   if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
   console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
   startFallbackPolling();
   } else if (status === 'SUBSCRIBED') {
   stopFallbackPolling();
-  // Recover changes missed while the browser or network was disconnected.
-  void pollRowsFallback();
+  // The initial table load already fetched the first page. Do not issue a
+  // second full-table refresh when the realtime channel first subscribes.
   }
   });
   tableRealtimeChannelRef.current = subscription.channel;
