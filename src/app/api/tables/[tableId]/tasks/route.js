@@ -15,6 +15,7 @@ import { isSafePublicHttpsUrl } from "../../../_lib/security";
 import { recordAccessQueryContext, requireBoardPermission, requireRowPermission, rowMatchesRecordAccess } from "../../../_lib/authorization";
 import addressFields from "@/shared/internationalAddress.cjs";
 import activityLogTimestamp from "../../../../../../server/utils/activityLogTimestamp.cjs";
+import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 
 export const runtime = "nodejs";
 
@@ -637,7 +638,9 @@ export async function POST(req, { params }) {
       console.error("[TABLE TASKS][POST] Automation processing failed after task creation:", automationErr);
     }
 
-    return NextResponse.json(insertRes.rows[0], { status: 201 });
+    const createdRow = insertRes.rows[0];
+    await broadcastTableInvalidation(tableId, "INSERT", { row: createdRow });
+    return NextResponse.json(createdRow, { status: 201 });
   } catch (err) {
     console.error("[TABLE TASKS][POST] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -757,7 +760,9 @@ export async function PUT(req, { params }) {
       console.error("[TABLE TASKS][PUT] Automation processing failed after task save:", automationErr);
     }
 
-    return NextResponse.json({ success: true, task: updateRes.rows[0] });
+    const updatedRow = updateRes.rows[0];
+    await broadcastTableInvalidation(tableId, "UPDATE", { row: updatedRow });
+    return NextResponse.json({ success: true, task: updatedRow });
   } catch (err) {
     console.error("[TABLE TASKS][PUT] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

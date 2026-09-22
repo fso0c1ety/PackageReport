@@ -39,7 +39,7 @@ export function getTableRealtimeTopic(tableId) {
   return `table-${digest}`;
 }
 
-export async function broadcastTableInvalidation(tableId, eventType = "UPDATE") {
+export async function broadcastTableInvalidation(tableId, eventType = "UPDATE", change = {}) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const topic = getTableRealtimeTopic(tableId);
@@ -48,7 +48,11 @@ export async function broadcastTableInvalidation(tableId, eventType = "UPDATE") 
   try {
     const channel = await withTimeout(getSubscribedChannel(topic), 5_000, "Realtime subscription timed out");
     const result = await withTimeout(
-      channel.send({ type: "broadcast", event: `row-change:${topic}`, payload: { topic, eventType, changedAt: Date.now() } }),
+      channel.send({
+        type: "broadcast",
+        event: `row-change:${topic}`,
+        payload: { topic, eventType, ...change, changedAt: Date.now() },
+      }),
       5_000,
       "Realtime broadcast timed out",
     );
