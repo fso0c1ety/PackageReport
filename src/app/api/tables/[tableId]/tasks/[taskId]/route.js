@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../_lib/billing";
 import { requireRowPermission } from "../../../../_lib/authorization";
@@ -51,7 +52,7 @@ export async function DELETE(req, { params }) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    await broadcastTableInvalidation(tableId, "DELETE", { rowId: taskId });
+    after(() => broadcastTableInvalidation(tableId, "DELETE", { rowId: taskId }));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[TABLE TASK BY ID][DELETE] Error:", err);
