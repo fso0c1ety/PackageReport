@@ -154,13 +154,11 @@ function acquireTableRealtimeChannel(tableId: string, topic: string, listener: T
       .on('broadcast', { event: `row-change:${topic}` }, (message) => {
         const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
         if (eventTopic !== topic) return;
-        if (typeof window !== 'undefined') (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
         listeners.forEach((notify) => notify((message as any)?.payload ?? message));
       })
       .on('broadcast', { event: `row-order:${topic}` }, (message) => {
         const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
         if (eventTopic !== topic) return;
-        if (typeof window !== 'undefined') (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
         listeners.forEach((notify) => notify((message as any)?.payload ?? message));
       });
     entry = { channel, listeners, statusListeners, references: 0, cleanupTimer: null, lastStatus: null };
@@ -3512,13 +3510,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   let subscription: ReturnType<typeof acquireTableRealtimeChannel> | null = null;
   const setupRealtime = async () => {
   try {
-  if (typeof window !== 'undefined') (window as any).__smartManageRealtimeSetup = 'starting';
   const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/realtime-topic`), { suppressNativeErrorAlert: true });
-  if (typeof window !== 'undefined') (window as any).__smartManageRealtimeSetup = `authorization:${response.status}`;
   if (!response.ok) throw new Error(`Realtime authorization failed (${response.status})`);
   const data = await response.json();
   if (cancelled || typeof data?.topic !== 'string') return;
-  if (typeof window !== 'undefined') (window as any).__smartManageRealtimeSetup = 'authorized';
   subscription = acquireTableRealtimeChannel(tableId, data.topic, (payload) => {
   const eventType = payload?.eventType;
   if (eventType === 'DELETE' && typeof payload?.rowId === 'string') {
@@ -3547,13 +3542,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // committed row payload and never require this full-table recovery request.
   void pollRowsFallback();
   }, (status) => {
-  if (typeof window !== 'undefined') {
-  (window as any).__smartManageRealtimeSetup = `channel:${status}`;
-  (window as any).__smartManageRealtimeStatus = {
-  ...((window as any).__smartManageRealtimeStatus || {}),
-  [tableId]: status,
-  };
-  }
   if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
   console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
   startFallbackPolling();
@@ -3566,7 +3554,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   tableRealtimeChannelRef.current = subscription.channel;
   } catch (error) {
   if (cancelled) return;
-  if (typeof window !== 'undefined') (window as any).__smartManageRealtimeSetup = 'error';
   console.warn('[TableBoard realtime] Unable to authorize table subscription', { tableId, error });
   startFallbackPolling();
   }
