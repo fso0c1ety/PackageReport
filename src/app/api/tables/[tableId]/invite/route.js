@@ -68,21 +68,41 @@ export async function POST(req, { params }) {
     const tableName = tableRes.rows[0].name;
     const workspaceId = tableRes.rows[0].workspace_id;
     const notifId = uuidv4();
+    const invitationId = uuidv4();
 
-    await pool.query(
-      `
-        INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      `,
-      [
-        notifId,
-        recipientId,
-        user.id,
-        "invite",
-        JSON.stringify({ tableId, tableName, workspaceId, permission, boardRole, workspaceRole, jobRoles, portalType, recordAccess }),
-        false,
-      ]
+    const existing = await pool.query(
+      `SELECT id FROM professional_invitations
+       WHERE workspace_id=$1 AND table_id=$2 AND inviter_id=$3 AND recipient_id=$4 AND status='pending'
+       LIMIT 1`,
+      [workspaceId, tableId, String(user.id), String(recipientId)]
     );
+    if (existing.rows[0]) {
+      return NextResponse.json({ error: "An invitation is already pending" }, { status: 409 });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO professional_invitations
+         (id,workspace_id,table_id,inviter_id,recipient_id,workspace_role,board_role,job_roles,portal_type,record_access,notification_id)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb,$11)`,
+        [invitationId, workspaceId, tableId, String(user.id), String(recipientId), workspaceRole, boardRole,
+          JSON.stringify(jobRoles), portalType, JSON.stringify(recordAccess), notifId]
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at)
+         VALUES ($1, $2, $3, 'invite', $4::jsonb, FALSE, NOW())`,
+        [notifId, recipientId, user.id,
+          JSON.stringify({ invitationId, tableId, tableName, workspaceId, permission, boardRole, workspaceRole, jobRoles, portalType, recordAccess })]
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
 
     await broadcastNotificationCreated(recipientId, notifId);
 
