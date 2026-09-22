@@ -2955,7 +2955,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   useEffect(() => {
     let cancelled = false;
 
-    authenticatedFetch(getApiUrl(`/billing/status?tableId=${encodeURIComponent(tableId)}`))
+    authenticatedFetch(getApiUrl(`/billing/status?tableId=${encodeURIComponent(tableId)}`), {
+      responseCacheTtlMs: 60_000,
+      consumeCachedResponse: true,
+    })
       .then(async (response) => {
         if (!response.ok) return null;
         return response.json();
