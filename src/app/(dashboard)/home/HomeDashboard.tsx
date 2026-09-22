@@ -390,7 +390,10 @@ export default function HomeDashboard() {
   useEffect(() => {
     const fetchWorkspaces = async () => {
       try {
-        const wsRes = await authenticatedFetch(getApiUrl("workspaces"));
+        const wsRes = await authenticatedFetch(getApiUrl("workspaces"), {
+          responseCacheTtlMs: 60_000,
+          consumeCachedResponse: true,
+        });
         if (wsRes.status === 401 || wsRes.status === 403) {
             setWorkspaces([]);
             return;
