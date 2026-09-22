@@ -503,18 +503,26 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  const timingStart = performance.now();
+  const timing = {};
+  const mark = (name) => { timing[name] = Math.round(performance.now() - timingStart); };
+  mark("request_received");
   let readClient;
   const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
   const readPool = { query: async (sql, values) => {
     if (!readClient) {
+      timing.db_acquire_start = Math.round(performance.now() - timingStart);
       readClient = await pool.connect();
+      timing.db_acquire_end = Math.round(performance.now() - timingStart);
     }
     const client = readClient;
     try {
       return await client.query(sql, values);
     } catch (error) { releaseReadClient(); throw error; }
   } };
+  const authStart = performance.now();
   const user = getAuthenticatedUser(req);
+  timing.auth_ms = Math.round(performance.now() - authStart);
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -529,7 +537,9 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
+    const authorizationStart = performance.now();
     const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
+    timing.authorization_ms = Math.round(performance.now() - authorizationStart);
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
@@ -548,10 +558,12 @@ export async function GET(req, { params }) {
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
+        const sqlStart = performance.now();
         result = await readPool.query(
           `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
+        timing.sql_ms = Math.round(performance.now() - sqlStart);
         const total = result.rows[0]?.__visible_total
           ?? (offset > 0
             ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
@@ -559,10 +571,12 @@ export async function GET(req, { params }) {
         result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
         countResult = { rows: [{ total }] };
       } else {
+        const sqlStart = performance.now();
         result = await readPool.query(
           `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
           visibilityParams
         );
+        timing.sql_ms = Math.round(performance.now() - sqlStart);
         countResult = { rows: [{ total: 0 }] };
       }
     }
@@ -588,7 +602,17 @@ export async function GET(req, { params }) {
       : result.rows;
 
     const response = NextResponse.json(responseBody, {
-      headers: { "Cache-Control": "private, no-store, max-age=0" },
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Server-Timing": Object.entries({
+          auth: timing.auth_ms,
+          db: timing.db_acquire_end != null && timing.db_acquire_start != null ? timing.db_acquire_end - timing.db_acquire_start : 0,
+          authorization: timing.authorization_ms,
+          sql: timing.sql_ms,
+          total: Math.round(performance.now() - timingStart),
+        }).map(([name, value]) => `${name};dur=${value}`).join(", "),
+        "X-SmartManage-Runtime-Region": process.env.VERCEL_REGION || "unknown",
+      },
     });
     return response;
   } catch (err) {
