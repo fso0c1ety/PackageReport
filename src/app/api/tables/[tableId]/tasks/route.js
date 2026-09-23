@@ -504,11 +504,17 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  const diagnosticNow = () => globalThis.performance?.now?.() ?? Date.now();
+  const startedAt = diagnosticNow();
+  let dbAcquireMs = 0;
+  let authMs = 0;
   let readClient;
   const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
   const readPool = { query: async (sql, values) => {
     if (!readClient) {
+      const acquireStartedAt = diagnosticNow();
       readClient = await pool.connect();
+      dbAcquireMs += diagnosticNow() - acquireStartedAt;
     }
     const client = readClient;
     try {
@@ -530,7 +536,9 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
+    const authStartedAt = diagnosticNow();
     const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
+    authMs = diagnosticNow() - authStartedAt;
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
@@ -591,6 +599,7 @@ export async function GET(req, { params }) {
     const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
+    response.headers?.set?.("Server-Timing", `db-acquire;dur=${dbAcquireMs.toFixed(1)},auth;dur=${authMs.toFixed(1)},total;dur=${(diagnosticNow() - startedAt).toFixed(1)}`);
     return response;
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);

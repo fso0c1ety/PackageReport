@@ -3,9 +3,12 @@ import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireWritableSubscription } from "../../../_lib/billing";
 
+const diagnosticNow = () => globalThis.performance?.now?.() ?? Date.now();
+
 export const runtime = "nodejs";
 
 export async function GET(req, { params }) {
+  const startedAt = diagnosticNow();
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,6 +16,7 @@ export async function GET(req, { params }) {
 
   try {
     const { workspaceId } = await params;
+    const dbStartedAt = diagnosticNow();
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
@@ -30,7 +34,9 @@ export async function GET(req, { params }) {
       [workspaceId, String(user.id)]
     );
 
-    return NextResponse.json(tablesResult.rows);
+    const response = NextResponse.json(tablesResult.rows);
+    response.headers?.set?.("Server-Timing", `db;dur=${(diagnosticNow() - dbStartedAt).toFixed(1)},total;dur=${(diagnosticNow() - startedAt).toFixed(1)}`);
+    return response;
   } catch (err) {
     console.error("[WORKSPACE TABLES][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
