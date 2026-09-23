@@ -24,8 +24,9 @@ function WorkspaceContent() {
   useEffect(() => {
     if (typeof window !== 'undefined' && workspaceId) {
       const schedule = (callback: () => void) => {
-        if ("requestIdleCallback" in window) window.requestIdleCallback(callback, { timeout: 2000 });
-        else window.setTimeout(callback, 250);
+        const browserWindow = window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number };
+        if (browserWindow.requestIdleCallback) browserWindow.requestIdleCallback(callback, { timeout: 2000 });
+        else globalThis.setTimeout(callback, 250);
       };
       schedule(() => {
       const userJson = localStorage.getItem("user");
@@ -207,8 +208,11 @@ function WorkspaceContent() {
     });
     setLoading(false);
     const schedule = (callback: () => void) => {
-      if (typeof window !== "undefined" && "requestIdleCallback" in window) window.requestIdleCallback(callback, { timeout: 2000 });
-      else window.setTimeout(callback, 250);
+      const browserWindow = typeof window !== "undefined"
+        ? window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }
+        : null;
+      if (browserWindow?.requestIdleCallback) browserWindow.requestIdleCallback(callback, { timeout: 2000 });
+      else globalThis.setTimeout(callback, 250);
     };
     schedule(() => void authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 })
       .then((modulesRes) => modulesRes.ok ? modulesRes.json() : null)
