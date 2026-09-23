@@ -180,7 +180,7 @@ function WorkspaceContent() {
     const tablesStartedAt = diagnosticNow();
     console.info("[PERF_DIAG] tables_start");
     const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
-    console.info("[PERF_DIAG] tables_response", { ms: Number((diagnosticNow() - tablesStartedAt).toFixed(1)) });
+    console.info("[PERF_DIAG] tables_response", { ms: Number((diagnosticNow() - tablesStartedAt).toFixed(1)), serverTiming: res.headers.get("Server-Timing") || "" });
     if (!res.ok) {
       throw new Error(`Failed to fetch tables (${res.status})`);
     }
