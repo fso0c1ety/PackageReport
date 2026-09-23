@@ -8,6 +8,7 @@ const DIAGNOSTIC_FIELDS = [
   "authorization_ms",
   "query_ms",
   "serialization_ms",
+  "phase_ms",
   "error_name",
   "error_code",
   "error_category",
@@ -48,6 +49,9 @@ function createPerfDiagnostic(routeLabel, requestKind) {
       authorization_ms: duration("authorization_start", "authorization_end"),
       query_ms: duration("query_start", "query_end"),
       serialization_ms: duration("serialization_start", "serialization_end"),
+      phase_ms: Object.fromEntries([...marks.keys()]
+        .filter((name) => name.endsWith("_start"))
+        .map((name) => [name.slice(0, -6), duration(name, `${name.slice(0, -6)}_end`)])),
     };
     if (error) {
       record.error_name = typeof error.name === "string" ? error.name : "Error";

@@ -22,11 +22,12 @@ test("workspace startup diagnostics emit only sanitized timing fields", () => {
   assert.equal(messages.length, 1);
   const record = JSON.parse(messages[0][1]);
   assert.deepEqual(Object.keys(record).sort(), [
-    "auth_ms", "authorization_ms", "db_acquire_ms", "query_ms", "request_kind", "route_label", "serialization_ms", "status", "total_ms",
+    "auth_ms", "authorization_ms", "db_acquire_ms", "phase_ms", "query_ms", "request_kind", "route_label", "serialization_ms", "status", "total_ms",
   ].sort());
   assert.equal(record.route_label, "workspace_tables");
   assert.equal(record.request_kind, "tables");
   assert.equal(record.status, 200);
+  assert.equal(typeof record.phase_ms, "object");
 });
 
 test("workspace startup diagnostics do not emit identifiers, payloads, or secrets", () => {

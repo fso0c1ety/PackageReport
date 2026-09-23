@@ -19,7 +19,9 @@ export async function GET(req, { params }) {
   try {
     const { workspaceId } = await params;
     diagnostic?.mark("authorization_start");
+    diagnostic?.mark("workspace_lookup_start");
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
+    diagnostic?.mark("workspace_lookup_end");
     const workspace = wsResult.rows[0];
 
     if (!workspace) {
@@ -30,6 +32,7 @@ export async function GET(req, { params }) {
     diagnostic?.mark("authorization_end");
 
     diagnostic?.mark("query_start");
+    diagnostic?.mark("tables_query_start");
     const tablesResult = await pool.query(
       `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
@@ -39,6 +42,7 @@ export async function GET(req, { params }) {
        ))`,
       [workspaceId, String(user.id)]
     );
+    diagnostic?.mark("tables_query_end");
     diagnostic?.mark("query_end");
 
     diagnostic?.mark("serialization_start");
