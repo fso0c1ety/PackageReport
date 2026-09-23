@@ -69,6 +69,12 @@ export async function GET(req) {
           FROM owned_tables ot
           CROSS JOIN LATERAL jsonb_array_elements(ot.shared_users) AS elem
           UNION ALL
+          SELECT pi.recipient_id::text, 'pending', pi.table_id, NULL, pi.workspace_id, NULL,
+            CASE WHEN pi.board_role='viewer' THEN 'read' ELSE 'edit' END, pi.board_role,
+            NULL::jsonb, pi.workspace_role, pi.job_roles, pi.portal_type, pi.record_access
+          FROM professional_invitations pi
+          WHERE pi.inviter_id=$1 AND pi.status='pending'
+          UNION ALL
           SELECT
             n.recipient_id::text as user_id,
             'pending' as status,

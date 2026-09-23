@@ -49,6 +49,14 @@ export async function POST(req, { params }) {
     let acceptanceNotificationId = null;
     try {
       await client.query("BEGIN");
+      const invitationId = notification.data?.invitationId;
+      if (invitationId) {
+        const invitation = await client.query(
+          `SELECT * FROM professional_invitations WHERE id=$1 AND recipient_id=$2 AND status='pending' FOR UPDATE`,
+          [invitationId, String(user.id)]
+        );
+        if (!invitation.rows[0]) throw new Error("Invitation is no longer pending");
+      }
       await upsertTableMembership(client, table, user.id, data);
       if (notification.sender_id && String(notification.sender_id) !== String(user.id)) {
         const accepter = await client.query("SELECT name FROM users WHERE id=$1", [user.id]);
@@ -69,6 +77,12 @@ export async function POST(req, { params }) {
           `invite-accepted:${notificationId}`,
         ]);
         acceptanceNotificationId = inserted.rows[0]?.id || null;
+      }
+      if (invitationId) {
+        await client.query(
+          `UPDATE professional_invitations SET status='accepted', accepted_at=NOW() WHERE id=$1 AND status='pending'`,
+          [invitationId]
+        );
       }
       await client.query("DELETE FROM notifications WHERE id=$1", [notificationId]);
       await client.query("COMMIT");
