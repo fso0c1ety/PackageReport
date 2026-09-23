@@ -110,6 +110,15 @@ export async function POST(req) {
         createdBoards.push({ id: tableId, name: board.name });
         createdBoardColumns.set(board.name, columns);
       }
+      // A template install is only successful when every declared board was persisted.
+      // Keep this inside the transaction so a partial install can never be reported as ready.
+      if (createdBoards.length !== template.boards.length) {
+        throw new Error(`Template provisioning created ${createdBoards.length} of ${template.boards.length} boards`);
+      }
+      const persistedBoards = await client.query("SELECT name FROM tables WHERE workspace_id=$1", [newWorkspace.id]);
+      if (persistedBoards.rows.length !== template.boards.length) {
+        throw new Error(`Template provisioning persisted ${persistedBoards.rows.length} of ${template.boards.length} boards`);
+      }
       if (includeSampleData) {
         const sampleRows = new Map();
         for (const board of template.boards) {
