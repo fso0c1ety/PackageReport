@@ -186,7 +186,10 @@ function WorkspaceContent() {
       ? allTables.filter((table: any) => {
           const requiredModule = boardModule(String(table.name || ""));
           if (moduleParam) return requiredModule === moduleParam;
-          return !requiredModule || enabledModules.includes(requiredModule);
+          // Logistics templates use the shared `logistics` module for their
+          // fleet/maintenance boards; keep those persisted boards visible.
+          const logisticsBoard = requiredModule === "fleet" || requiredModule === "maintenance";
+          return !requiredModule || enabledModules.includes(requiredModule) || (logisticsBoard && enabledModules.includes("logistics"));
         })
       : allTables;
     const data = filterTables(null);
