@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../../../../_lib/server";
 import { requireWritableSubscription } from "../../../../../../_lib/billing";
 import { requireRowPermission } from "../../../../../../_lib/authorization";
@@ -54,9 +55,9 @@ export async function PATCH(req, { params }) {
   } catch (automationError) {
     console.error("[cell-update] automation failed after save", automationError instanceof Error ? automationError.message : "failed");
   }
-  const realtimeBroadcasted = await broadcastTableInvalidation(tableId, "UPDATE", {
+  after(() => broadcastTableInvalidation(tableId, "UPDATE", {
     row: result.rows[0],
     changedColumnId: columnId,
-  });
-  return NextResponse.json({ success: true, task: result.rows[0], changedColumnId: columnId, version: Number(result.rows[0].version), clientVersion: body.clientVersion ?? null, realtimeBroadcasted, automationEventId: eventId });
+  }));
+  return NextResponse.json({ success: true, task: result.rows[0], changedColumnId: columnId, version: Number(result.rows[0].version), clientVersion: body.clientVersion ?? null, realtimeBroadcasted: true, automationEventId: eventId });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { v4 as uuidv4, validate as uuidValidate } from "uuid";
 import {
   ensureUserNotificationColumns,
@@ -639,7 +640,7 @@ export async function POST(req, { params }) {
     }
 
     const createdRow = insertRes.rows[0];
-    await broadcastTableInvalidation(tableId, "INSERT", { row: createdRow });
+    after(() => broadcastTableInvalidation(tableId, "INSERT", { row: createdRow }));
     return NextResponse.json(createdRow, { status: 201 });
   } catch (err) {
     console.error("[TABLE TASKS][POST] Error:", err);
@@ -761,7 +762,7 @@ export async function PUT(req, { params }) {
     }
 
     const updatedRow = updateRes.rows[0];
-    await broadcastTableInvalidation(tableId, "UPDATE", { row: updatedRow });
+    after(() => broadcastTableInvalidation(tableId, "UPDATE", { row: updatedRow }));
     return NextResponse.json({ success: true, task: updatedRow });
   } catch (err) {
     console.error("[TABLE TASKS][PUT] Error:", err);

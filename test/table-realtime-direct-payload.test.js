@@ -16,6 +16,20 @@ test("task mutations publish committed realtime row payloads", () => {
   assert.match(cell, /broadcastTableInvalidation\(tableId, "UPDATE", \{[\s\S]*row: result\.rows\[0\]/);
 });
 
+test("task mutation responses schedule broadcast with Next after", () => {
+  const collection = read("src", "app", "api", "tables", "[tableId]", "tasks", "route.js");
+  const item = read("src", "app", "api", "tables", "[tableId]", "tasks", "[taskId]", "route.js");
+  const cell = read("src", "app", "api", "tables", "[tableId]", "tasks", "[taskId]", "cells", "[columnId]", "route.js");
+
+  assert.match(collection, /after\(\(\) => broadcastTableInvalidation\(tableId, "INSERT"/);
+  assert.match(collection, /after\(\(\) => broadcastTableInvalidation\(tableId, "UPDATE"/);
+  assert.match(item, /after\(\(\) => broadcastTableInvalidation\(tableId, "DELETE"/);
+  assert.match(cell, /after\(\(\) => broadcastTableInvalidation\(tableId, "UPDATE"/);
+  assert.doesNotMatch(collection, /await broadcastTableInvalidation/);
+  assert.doesNotMatch(item, /await broadcastTableInvalidation/);
+  assert.doesNotMatch(cell, /await broadcastTableInvalidation/);
+});
+
 test("TableBoard applies realtime payloads directly and keeps polling as compatibility fallback", () => {
   const source = read("src", "app", "TableBoard.tsx");
 
