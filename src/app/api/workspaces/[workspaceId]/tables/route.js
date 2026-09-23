@@ -2,24 +2,34 @@ import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireWritableSubscription } from "../../../_lib/billing";
+import { createPerfDiagnostic } from "../../../../../../server/perfDiagnostics.cjs";
 
 export const runtime = "nodejs";
 
 export async function GET(req, { params }) {
+  const diagnostic = typeof createPerfDiagnostic === "function" ? createPerfDiagnostic("workspace_tables", "tables") : null;
+  diagnostic?.mark("auth_start");
   const user = getAuthenticatedUser(req);
+  diagnostic?.mark("auth_end");
   if (!user?.id) {
+    diagnostic?.finish(401);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const { workspaceId } = await params;
+    diagnostic?.mark("authorization_start");
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
     if (!workspace) {
+      diagnostic?.mark("authorization_end");
+      diagnostic?.finish(404);
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
     }
+    diagnostic?.mark("authorization_end");
 
+    diagnostic?.mark("query_start");
     const tablesResult = await pool.query(
       `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
@@ -29,9 +39,15 @@ export async function GET(req, { params }) {
        ))`,
       [workspaceId, String(user.id)]
     );
+    diagnostic?.mark("query_end");
 
-    return NextResponse.json(tablesResult.rows);
+    diagnostic?.mark("serialization_start");
+    const response = NextResponse.json(tablesResult.rows);
+    diagnostic?.mark("serialization_end");
+    diagnostic?.finish(200);
+    return response;
   } catch (err) {
+    diagnostic?.finish(500, err);
     console.error("[WORKSPACE TABLES][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
