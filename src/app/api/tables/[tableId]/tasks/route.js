@@ -545,6 +545,7 @@ export async function GET(req, { params }) {
 
     let result;
     let countResult;
+    const taskQueryStartedAt = diagnosticNow();
     if (table.legacy_authorization) {
       const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
       const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
@@ -576,6 +577,8 @@ export async function GET(req, { params }) {
       }
     }
 
+    const taskQueryMs = diagnosticNow() - taskQueryStartedAt;
+
     releaseReadClient();
     const hasDueScheduledMessage = result.rows.some((row) =>
       toArray(row?.values?.message).some((message) =>
@@ -599,7 +602,7 @@ export async function GET(req, { params }) {
     const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
-    response.headers?.set?.("Server-Timing", `db-acquire;dur=${dbAcquireMs.toFixed(1)},auth;dur=${authMs.toFixed(1)},total;dur=${(diagnosticNow() - startedAt).toFixed(1)}`);
+    response.headers?.set?.("Server-Timing", `db-acquire;dur=${dbAcquireMs.toFixed(1)},auth;dur=${authMs.toFixed(1)},tasks;dur=${taskQueryMs.toFixed(1)},total;dur=${(diagnosticNow() - startedAt).toFixed(1)}`);
     return response;
   } catch (err) {
     console.error("[TABLE TASKS][GET] Error:", err);

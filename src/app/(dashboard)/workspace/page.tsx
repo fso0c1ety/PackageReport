@@ -176,7 +176,11 @@ function WorkspaceContent() {
     if (!workspaceId) return;
     setLoading(true);
     setLoadError(null);
+    const diagnosticNow = () => typeof performance !== "undefined" ? performance.now() : Date.now();
+    const tablesStartedAt = diagnosticNow();
+    console.info("[PERF_DIAG] tables_start");
     const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
+    console.info("[PERF_DIAG] tables_response", { ms: Number((diagnosticNow() - tablesStartedAt).toFixed(1)) });
     if (!res.ok) {
       throw new Error(`Failed to fetch tables (${res.status})`);
     }
@@ -207,6 +211,7 @@ function WorkspaceContent() {
       return data[0]?.id || "";
     });
     setLoading(false);
+    console.info("[PERF_DIAG] tables_state_commit", { ms: Number((diagnosticNow() - tablesStartedAt).toFixed(1)) });
     const schedule = (callback: () => void) => {
       const browserWindow = typeof window !== "undefined"
         ? window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }
