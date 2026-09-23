@@ -3,33 +3,26 @@ import { v4 as uuidv4 } from "uuid";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireWritableSubscription } from "../../../_lib/billing";
 
-const diagnosticNow = () => globalThis.performance?.now?.() ?? Date.now();
-
 export const runtime = "nodejs";
 
 export async function GET(req, { params }) {
-  const startedAt = diagnosticNow();
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let client;
   try {
     const { workspaceId } = await params;
-    const dbStartedAt = diagnosticNow();
-    let workspaceLookupMs = 0;
-    let tablesQueryMs = 0;
-    const workspaceLookupStartedAt = diagnosticNow();
-    const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
-    workspaceLookupMs = diagnosticNow() - workspaceLookupStartedAt;
+    client = await pool.connect();
+    const wsResult = await client.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
     if (!workspace) {
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
     }
 
-    const tablesQueryStartedAt = diagnosticNow();
-    const tablesResult = await pool.query(
+    const tablesResult = await client.query(
       `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
        WHERE t.workspace_id=$1 AND (w.owner_id::text=$2::text OR LOWER(COALESCE(wm.role,'')) IN ('owner','admin','logistics_admin') OR EXISTS (
@@ -38,14 +31,12 @@ export async function GET(req, { params }) {
        ))`,
       [workspaceId, String(user.id)]
     );
-    tablesQueryMs = diagnosticNow() - tablesQueryStartedAt;
-
-    const response = NextResponse.json(tablesResult.rows);
-    response.headers?.set?.("Server-Timing", `workspace;dur=${workspaceLookupMs.toFixed(1)},tables;dur=${tablesQueryMs.toFixed(1)},db;dur=${(diagnosticNow() - dbStartedAt).toFixed(1)},total;dur=${(diagnosticNow() - startedAt).toFixed(1)}`);
-    return response;
+    return NextResponse.json(tablesResult.rows);
   } catch (err) {
     console.error("[WORKSPACE TABLES][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    client?.release();
   }
 }
 

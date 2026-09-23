@@ -3325,14 +3325,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const loadTable = async () => {
   try {
-  const diagnosticNow = () => typeof performance !== "undefined" ? performance.now() : Date.now();
-  const tasksStartedAt = diagnosticNow();
-  console.info("[PERF_DIAG] tasks_start");
   const [tableRes, firstRowsRes] = await Promise.all([
   authenticatedFetch(getApiUrl(`/tables/${tableId}`)),
   authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`)),
   ]);
-  console.info("[PERF_DIAG] tasks_response", { ms: Number((diagnosticNow() - tasksStartedAt).toFixed(1)), serverTiming: firstRowsRes.headers.get("Server-Timing") || "" });
   if (tableRes.status === 403) {
   showNotification("You cant access this you are not the owner", "error");
   throw new Error("Forbidden");
@@ -3362,7 +3358,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setRows([{ id: 'placeholder', values: Object.fromEntries(tableColumns.map((col: Column) => [col.id, col.type === 'People' ? [] : ''])) }]);
   }
   setLoading(false);
-  console.info("[PERF_DIAG] tasks_state_commit", { ms: Number((diagnosticNow() - tasksStartedAt).toFixed(1)) });
 
   let offset = firstRows.length;
   while (!cancelled && offset < totalRows) {
