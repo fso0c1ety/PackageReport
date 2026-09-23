@@ -23,6 +23,12 @@ function WorkspaceContent() {
   // Set last opened workspace in localStorage for HomeDashboard
   useEffect(() => {
     if (typeof window !== 'undefined' && workspaceId) {
+      const schedule = (callback: () => void) => {
+        const browserWindow = window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number };
+        if (browserWindow.requestIdleCallback) browserWindow.requestIdleCallback(callback, { timeout: 2000 });
+        else globalThis.setTimeout(callback, 250);
+      };
+      schedule(() => {
       const userJson = localStorage.getItem("user");
       if (!userJson) return;
       const user = JSON.parse(userJson);
@@ -47,6 +53,7 @@ function WorkspaceContent() {
         .catch(() => {
           localStorage.setItem(storageKey, JSON.stringify({ id: workspaceId, name: workspaceId }));
         });
+      });
     }
   }, [workspaceId]);
   const [tables, setTables] = useState<any[]>([]);
@@ -200,7 +207,14 @@ function WorkspaceContent() {
       return data[0]?.id || "";
     });
     setLoading(false);
-    void authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 })
+    const schedule = (callback: () => void) => {
+      const browserWindow = typeof window !== "undefined"
+        ? window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }
+        : null;
+      if (browserWindow?.requestIdleCallback) browserWindow.requestIdleCallback(callback, { timeout: 2000 });
+      else globalThis.setTimeout(callback, 250);
+    };
+    schedule(() => void authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), { suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 })
       .then((modulesRes) => modulesRes.ok ? modulesRes.json() : null)
       .then((modulesData) => {
         const enabledModules = Array.isArray(modulesData?.modules) ? modulesData.modules : null;
@@ -210,7 +224,7 @@ function WorkspaceContent() {
           setSelected((prev) => filtered.some((table: any) => table.id === prev) ? prev : filtered[0]?.id || "");
         }
       })
-      .catch(() => undefined);
+      .catch(() => undefined));
   };
 
   useEffect(() => {

@@ -11,16 +11,18 @@ export async function GET(req, { params }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let client;
   try {
     const { workspaceId } = await params;
-    const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
+    client = await pool.connect();
+    const wsResult = await client.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
     if (!workspace) {
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
     }
 
-    const tablesResult = await pool.query(
+    const tablesResult = await client.query(
       `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
        LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
        WHERE t.workspace_id=$1 AND (w.owner_id::text=$2::text OR LOWER(COALESCE(wm.role,'')) IN ('owner','admin','logistics_admin') OR EXISTS (
@@ -29,11 +31,12 @@ export async function GET(req, { params }) {
        ))`,
       [workspaceId, String(user.id)]
     );
-
     return NextResponse.json(tablesResult.rows);
   } catch (err) {
     console.error("[WORKSPACE TABLES][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    client?.release();
   }
 }
 
