@@ -57,3 +57,11 @@ test("invoice registry migration is included in production deploys", () => {
   const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
   assert.match(buildScript, /030_invoice_registry\.sql/);
 });
+
+test("professional invitation migration is included in production deploys", () => {
+  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "033_professional_invitations.sql"), "utf8");
+  assert.match(buildScript, /033_professional_invitations\.sql/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS professional_invitations/);
+  assert.match(migration, /professional_invitations_pending_unique_idx/);
+});
