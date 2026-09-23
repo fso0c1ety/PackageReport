@@ -1006,9 +1006,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const [taskTypingUsers, setTaskTypingUsers] = useState<Record<string, string[]>>({});
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  // Raised after the first page is installed so non-critical metadata cannot
-  // compete with initial rows on a small serverless pool.
-  const [initialRowsReady, setInitialRowsReady] = useState(false);
   const currentUserRef = React.useRef<any>(null);
   const loadedPreferencesRef = React.useRef<string | null>(null);
   const skipPreferenceSaveRef = React.useRef(false);
@@ -2830,13 +2827,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   // Fetch table members (Owner + Shared Users)
   useEffect(() => {
-  if (tableId && initialRowsReady) {
+  if (tableId) {
   authenticatedFetch(getApiUrl(`/tables/${tableId}/members`))
   .then(res => res.ok ? res.json() : [])
   .then(setTableMembers)
   .catch(console.error);
   }
-  }, [tableId, initialRowsReady]);
+  }, [tableId]);
 
   // People options for Automation (derived from table members)
   const peopleOptions = React.useMemo(() => {
@@ -2954,7 +2951,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     billingWritable === true ? accountPermission : 'read';
 
   useEffect(() => {
-    if (!initialRowsReady) return;
     let cancelled = false;
 
     authenticatedFetch(getApiUrl(`/billing/status?tableId=${encodeURIComponent(tableId)}`), {
@@ -2975,7 +2971,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     return () => {
       cancelled = true;
     };
-  }, [tableId, initialRowsReady]);
+  }, [tableId]);
 
   const [boardTitle, setBoardTitle] = useState("");
 
@@ -3303,12 +3299,22 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!tableId) return;
   let cancelled = false;
   setLoading(true);
-  setInitialRowsReady(false);
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
   setCurrentUser(user);
   const currentUserId = user ? user.id : null;
+
+  // Sync profile to get latest avatar
+  authenticatedFetch(getApiUrl("/users/profile"))
+  .then(res => res.ok ? res.json() : null)
+  .then(freshUser => {
+  if (freshUser && !cancelled) {
+  setCurrentUser(freshUser);
+  localStorage.setItem("user", JSON.stringify(freshUser));
+  }
+  })
+  .catch(err => console.error("Failed to sync profile:", err));
 
   const normalizeRows = (data: Row[]) => data.map((row: Row) => {
   if (row.values && Array.isArray(row.values.message)) {
@@ -3352,19 +3358,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setRows([{ id: 'placeholder', values: Object.fromEntries(tableColumns.map((col: Column) => [col.id, col.type === 'People' ? [] : ''])) }]);
   }
   setLoading(false);
-  setInitialRowsReady(true);
-
-  // Profile freshness is not required to render the first rows. Start it only
-  // after that deterministic first-page-ready signal.
-  authenticatedFetch(getApiUrl("/users/profile"))
-  .then(res => res.ok ? res.json() : null)
-  .then(freshUser => {
-  if (freshUser && !cancelled) {
-  setCurrentUser(freshUser);
-  localStorage.setItem("user", JSON.stringify(freshUser));
-  }
-  })
-  .catch(err => console.error("Failed to sync profile:", err));
 
   let offset = firstRows.length;
   while (!cancelled && offset < totalRows) {
