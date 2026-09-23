@@ -17,6 +17,7 @@ import { recordAccessQueryContext, requireBoardPermission, requireRowPermission,
 import addressFields from "@/shared/internationalAddress.cjs";
 import activityLogTimestamp from "../../../../../../server/utils/activityLogTimestamp.cjs";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
+import { createPerfDiagnostic } from "../../../../../../server/perfDiagnostics.cjs";
 
 export const runtime = "nodejs";
 
@@ -504,11 +505,22 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get("limit") || "", 10);
+  const requestedOffset = Number.parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
+  const requestKind = requestedLimit === 100 && requestedOffset === 0
+    ? "tasks_initial"
+    : requestedLimit === 500 && requestedOffset === 100
+      ? "tasks_continuation"
+      : null;
+  const diagnostic = requestKind && typeof createPerfDiagnostic === "function" ? createPerfDiagnostic("tasks", requestKind) : null;
+  diagnostic?.mark("auth_start");
   let readClient;
   const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
   const readPool = { query: async (sql, values) => {
     if (!readClient) {
+      diagnostic?.mark("db_acquire_start");
       readClient = await pool.connect();
+      diagnostic?.mark("db_acquire_end");
     }
     const client = readClient;
     try {
@@ -516,25 +528,29 @@ export async function GET(req, { params }) {
     } catch (error) { releaseReadClient(); throw error; }
   } };
   const user = getAuthenticatedUser(req);
+  diagnostic?.mark("auth_end");
   if (!user?.id) {
+    diagnostic?.finish(401);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const { tableId } = await params;
-    const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get("limit") || "", 10);
-    const requestedOffset = Number.parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
     const paginated = Number.isFinite(requestedLimit) && requestedLimit > 0;
     const limit = paginated ? Math.min(requestedLimit, 500) : null;
     const offset = paginated && Number.isFinite(requestedOffset) && requestedOffset > 0
       ? requestedOffset
       : 0;
 
+    diagnostic?.mark("authorization_start");
     const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
+    diagnostic?.mark("authorization_end");
     if (!table) {
+      diagnostic?.finish(404);
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
+    diagnostic?.mark("query_start");
     let result;
     let countResult;
     if (table.legacy_authorization) {
@@ -567,6 +583,7 @@ export async function GET(req, { params }) {
         countResult = { rows: [{ total: 0 }] };
       }
     }
+    diagnostic?.mark("query_end");
 
     releaseReadClient();
     const hasDueScheduledMessage = result.rows.some((row) =>
@@ -588,11 +605,15 @@ export async function GET(req, { params }) {
       }
       : result.rows;
 
+    diagnostic?.mark("serialization_start");
     const response = NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
+    diagnostic?.mark("serialization_end");
+    diagnostic?.finish(200);
     return response;
   } catch (err) {
+    diagnostic?.finish(500, err);
     console.error("[TABLE TASKS][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   } finally {
