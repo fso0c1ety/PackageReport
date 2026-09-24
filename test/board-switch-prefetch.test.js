@@ -16,3 +16,10 @@ test('TableBoard consumes warmed responses without changing pagination', () => {
   assert.ok(board.includes('tasks?limit=100&offset=0'));
   assert.ok(board.includes('tasks?limit=500&offset=${offset}'));
 });
+
+test('People selector merges authoritative current-workspace teammates', () => {
+  const people = fs.readFileSync('src/app/PeopleSelector.tsx', 'utf8');
+  assert.match(people, /getApiUrl\('\/teammates'\)/);
+  assert.match(people, /membership\.workspaceId/);
+  assert.match(people, /entry\.workspaceId/);
+});

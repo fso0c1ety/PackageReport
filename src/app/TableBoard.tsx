@@ -6971,6 +6971,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <PeopleSelector
   value={people}
   initialPeople={tableMembers}
+  workspaceId={workspaceIdForImport}
   // Pass the tableId so the selector knows to show board members
   tableId={tableId}
   onChange={(newPeople) => {
@@ -12261,6 +12262,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <PeopleSelector
   value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
   tableId={tableId}
+  workspaceId={workspaceIdForImport}
   onChange={(newPeople: Person[]) => {
   if (reviewTask) {
   const updatedReviewTask = {

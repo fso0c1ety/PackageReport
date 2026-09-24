@@ -63,9 +63,10 @@ test('country picker virtualizes the static country option list', () => {
   assert.match(source, /slots=\{\{ listbox: VirtualizedCountryListbox \}\}/);
 });
 
-test('people picker reuses loaded table members without an opening fetch', () => {
+test('people picker reuses table members and augments them from workspace membership', () => {
   assert.match(source, /<PeopleSelector[\s\S]*initialPeople=\{tableMembers\}/);
   const peopleSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'PeopleSelector.tsx'), 'utf8');
   assert.match(peopleSource, /initialPeople\?: Person\[\]/);
-  assert.match(peopleSource, /if \(initialPeople\.length > 0\) return;/);
+  assert.match(peopleSource, /workspaceId\?: string \| null/);
+  assert.match(peopleSource, /getApiUrl\('\/teammates'\)/);
 });
