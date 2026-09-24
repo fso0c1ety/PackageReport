@@ -26,6 +26,9 @@ test("production migration runner supports an explicit safe target", () => {
   assert.match(source, /MIGRATION_TARGET/);
   assert.match(vercelBuild, /VERCEL_ENV === 'production'/);
   assert.match(vercelBuild, /020_account_security\.sql/);
+  assert.match(source, /db\.pool\.connect\(\)/);
+  assert.match(source, /client\.query\("COMMIT"\)/);
+  assert.match(source, /client\.release\(\)/);
 });
 
 test("tenant file security migration is included in production deploys", () => {
