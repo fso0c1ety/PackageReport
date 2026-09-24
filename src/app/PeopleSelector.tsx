@@ -39,6 +39,14 @@ export interface Person {
   passport?: unknown;
 }
 
+export function normalizePerson(value: any): Person | null {
+  if (!value || typeof value !== 'object') return null;
+  const email = String(value.email ?? '').trim();
+  const name = String(value.name ?? email).trim();
+  if (!email && !name) return null;
+  return { id: value.id ? String(value.id) : undefined, name: name || email || 'Unknown user', email, avatar: value.avatar == null ? null : String(value.avatar), phone: value.phone ?? null, license: value.license ?? null, licenseExpiry: value.licenseExpiry ?? null, passport: value.passport ?? null };
+}
+
 interface PeopleSelectorProps {
   value?: Person[];
   onChange?: (newValue: Person[]) => void;
@@ -76,13 +84,13 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
                   const memberships = Array.isArray(teammate.memberships) ? teammate.memberships : [];
                   return memberships.some((membership: any) => String(membership.workspaceId) === String(workspaceId))
                     || access.some((entry: any) => String(entry.workspaceId) === String(workspaceId));
-                })
+                }).map((teammate: any) => normalizePerson(teammate)).filter(Boolean) as Person[]
               : [];
             if (workspaceMembers.length > 0) {
               setPeople((previous) => {
                 const merged = [...currentPeople, ...workspaceMembers];
                 const byEmail = new Map<string, Person>();
-                merged.forEach((person: Person) => { if (person.email) byEmail.set(person.email, person); });
+                merged.map((person) => normalizePerson(person)).filter(Boolean).forEach((person) => { if (person?.email) byEmail.set(person.email, person); });
                 return Array.from(byEmail.values());
               });
               return;
@@ -145,13 +153,15 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   };
 
   const handleSelect = (person: Person) => {
+    const normalizedPerson = normalizePerson(person);
+    if (!normalizedPerson) return;
     // Toggle logic
-    const exists = value.some((p) => p.email === person.email);
+    const exists = value.some((p) => p.email === normalizedPerson.email);
     let newSelected;
     if (exists) {
-      newSelected = value.filter(p => p.email !== person.email);
+      newSelected = value.filter(p => p.email !== normalizedPerson.email);
     } else {
-      newSelected = [...value, person];
+      newSelected = [...value, normalizedPerson];
     }
     onChange && onChange(newSelected);
   };
