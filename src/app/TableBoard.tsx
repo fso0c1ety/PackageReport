@@ -246,6 +246,15 @@ function relationDisplayLabel(value: unknown, fallback = "Untitled row"): string
   return text && text !== "[object Object]" ? text : fallback;
 }
 
+function normalizeRenderedPerson(value: any): { id?: string; name: string; email: string; avatar: string | null } | null {
+  if (!value || typeof value !== 'object') return null;
+  const rawName = value.name;
+  const rawEmail = value.email;
+  const email = typeof rawEmail === 'string' ? rawEmail : '';
+  const name = typeof rawName === 'string' ? rawName : (email || 'Unknown user');
+  return { id: value.id ? String(value.id) : undefined, name, email, avatar: typeof value.avatar === 'string' ? value.avatar : null };
+}
+
 function RelationCellEditor({
   workspaceId,
   currentTableId,
@@ -5934,7 +5943,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (effectiveType === "People") {
-  const people = Array.isArray(value) ? value : [];
+  const people = Array.isArray(value) ? value.map(normalizeRenderedPerson).filter((person): person is NonNullable<typeof person> => Boolean(person)) : [];
   const isUserIdentityColumn = col.name.trim().toLowerCase() === 'user';
   const maxDisplay = isMobile ? 2 : 3;
   const displayPeople = people.slice(0, maxDisplay);
@@ -6839,7 +6848,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   // People Column - Modern
   if (col.type === "People") {
-  const people = Array.isArray(value) ? value : [];
+  const people = Array.isArray(value) ? value.map(normalizeRenderedPerson).filter((person): person is NonNullable<typeof person> => Boolean(person)) : [];
   const isUserIdentityColumn = col.name.trim().toLowerCase() === 'user';
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
 

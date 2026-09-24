@@ -20,4 +20,9 @@ describe('fleet driver assignment and relation options', () => {
     assert.match(tableBoard, /relationDisplayLabel\(rawLabel\)/);
     assert.doesNotMatch(tableBoard, /label: String\(rawLabel \|\| "Untitled row"\)/);
   });
+  it('never renders object-shaped person names as React children', () => {
+    assert.match(tableBoard, /function normalizeRenderedPerson/);
+    assert.match(tableBoard, /typeof rawName === 'string'/);
+    assert.match(tableBoard, /value\.map\(normalizeRenderedPerson\)/);
+  });
 });
