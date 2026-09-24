@@ -24,5 +24,7 @@ describe('fleet driver assignment and relation options', () => {
     assert.match(tableBoard, /function normalizeRenderedPerson/);
     assert.match(tableBoard, /typeof rawName === 'string'/);
     assert.match(tableBoard, /value\.map\(normalizeRenderedPerson\)/);
+    assert.match(tableBoard, /function safeEditorValue/);
+    assert.match(tableBoard, /value=\{safeEditorValue\(reviewTask\.values\[col\.id\]\)\}/);
   });
 });

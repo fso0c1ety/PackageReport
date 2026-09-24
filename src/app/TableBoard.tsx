@@ -255,6 +255,13 @@ function normalizeRenderedPerson(value: any): { id?: string; name: string; email
   return { id: value.id ? String(value.id) : undefined, name, email, avatar: typeof value.avatar === 'string' ? value.avatar : null };
 }
 
+function safeEditorValue(value: unknown): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map((entry) => safeEditorValue(entry)).filter(Boolean).join(', ');
+  if (typeof value === 'object') return relationDisplayLabel(value, '');
+  return String(value);
+}
+
 function RelationCellEditor({
   workspaceId,
   currentTableId,
@@ -11782,7 +11789,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <TextField
   fullWidth
   variant="standard"
-  value={reviewTask.values[col.id] ?? ''}
+  value={safeEditorValue(reviewTask.values[col.id])}
   placeholder="Empty"
   onChange={(e) => updateReviewTaskValue(col.id, e.target.value)}
   onBlur={(e) => {
@@ -11821,7 +11828,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   multiline={col.type === "LongText"}
   minRows={col.type === "LongText" ? 2 : undefined}
   type={["Money", "Progress", "Rating"].includes(col.type) ? "number" : "text"}
-  value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id].join(', ') : (reviewTask.values[col.id] ?? '')}
+  value={safeEditorValue(reviewTask.values[col.id])}
   placeholder={col.type === "Phone" ? "+383 44 000 000" : col.type === "Email" ? "name@company.com" : col.type === "Color" ? "#6366f1" : "Empty"}
   onChange={(event) => updateReviewTaskValue(col.id, event.target.value)}
   onBlur={(event) => handleCellSave(reviewTask.id, col.id, col.type, event.target.value)}
