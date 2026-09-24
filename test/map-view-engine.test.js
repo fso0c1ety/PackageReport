@@ -2,6 +2,17 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { buildMapData, coordinates } = require("../server/services/mapViewEngine");
 
+test("geocoder keeps the complete address as the canonical query", async () => {
+  const { geocodeAddress } = await import("../server/services/geocoding.js");
+  const previousFetch = global.fetch;
+  let requested = "";
+  global.fetch = async (url) => { requested = String(url); return { ok: true, async json() { return [{ lat: "41.005", lon: "28.88" }]; } }; };
+  try {
+    assert.deepEqual(await geocodeAddress("Yakuplu Mah. Hürriyet Bulvarı 59. Sok No:32/A Kat:3, Yakuplu, 34524 Beylikdüzü/İstanbul, Türkiye"), { latitude: 41.005, longitude: 28.88 });
+    assert.match(decodeURIComponent(requested).replace(/\+/g, " "), /Yakuplu Mah\. Hürriyet Bulvarı 59\. Sok No:32\/A Kat:3/);
+  } finally { global.fetch = previousFetch; }
+});
+
 test("map accepts structured coordinates, countries and addresses", () => {
   assert.deepEqual(coordinates({ latitude: 42.66, longitude: 21.16 }), [42.66, 21.16]);
   assert.deepEqual(coordinates("XK"), [42.6675, 21.1662]);

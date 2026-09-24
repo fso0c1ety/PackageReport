@@ -6,6 +6,7 @@ import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { runAutomationWithPlanQuota } from "../../../_lib/automationQuota";
 import automationEngine from "../../../../../../server/services/automationEngine";
+import { geocodeAddress } from "../../../../../../server/services/geocoding";
 
 export const runtime = "nodejs";
 
@@ -64,6 +65,32 @@ function serializeTrip(row, columns, tableId) {
   };
 }
 
+async function hydrateTripLocations(row, columns, tableId) {
+  const trip = serializeTrip(row, columns, tableId);
+  const values = { ...(row.values || {}) };
+  let changed = false;
+  for (const side of ["pickup", "delivery"]) {
+    const latKey = `_${side}Latitude`;
+    const lonKey = `_${side}Longitude`;
+    const address = trip[`${side}Address`];
+    if (Number.isFinite(Number(values[latKey])) && Number.isFinite(Number(values[lonKey]))) continue;
+    if (!address) continue;
+    try {
+      const point = await geocodeAddress(address);
+      if (!point) continue;
+      values[latKey] = point.latitude;
+      values[lonKey] = point.longitude;
+      trip[`${side}Latitude`] = point.latitude;
+      trip[`${side}Longitude`] = point.longitude;
+      changed = true;
+    } catch {
+      // An unresolved address remains unresolved; the map shows its explicit warning.
+    }
+  }
+  if (changed) await pool.query("UPDATE rows SET values=$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(values), row.id, tableId]);
+  return trip;
+}
+
 async function context(workspaceId, userId) {
   const access = await logisticsAccess(workspaceId, userId);
   if (!access || access.role !== "driver") return null;
@@ -83,7 +110,7 @@ export async function GET(req) {
   const resolvedRows = await Promise.all(result.rows.map(async (row) => ({ row, driverId: await resolveDriverUserId(row.values, ctx.table.columns || [], workspaceId) })));
   const rows = resolvedRows.filter(({ driverId }) => String(driverId || "") === String(user.id)).map(({ row }) => row);
   if (tripId && !rows[0]) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
-  const trips = rows.map((row) => serializeTrip(row, ctx.table.columns || [], ctx.table.id));
+  const trips = await Promise.all(rows.map((row) => hydrateTripLocations(row, ctx.table.columns || [], ctx.table.id)));
   return NextResponse.json(tripId ? trips[0] : { role: ctx.access.role, workspace: { id: workspaceId, name: ctx.access.name }, trips });
 }
 
