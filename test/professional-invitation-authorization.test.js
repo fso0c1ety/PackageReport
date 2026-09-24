@@ -52,3 +52,9 @@ test("removing a pending teammate cancels the durable invite and linked notifica
   assert.match(route, /inviter_id=\$1 AND recipient_id=\$2 AND status='pending'/);
   assert.match(route, /DELETE FROM notifications WHERE id = ANY/);
 });
+
+test("workspace listing does not perform an unused fleet access pool lookup", () => {
+  const route = read("src", "app", "api", "workspaces", "route.js");
+  assert.match(route, /getAuthenticatedUser/);
+  assert.doesNotMatch(route, /ensureFleetDriverAccess/);
+});
