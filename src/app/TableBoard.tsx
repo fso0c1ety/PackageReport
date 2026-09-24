@@ -3332,8 +3332,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const loadTable = async () => {
   try {
   const [tableRes, firstRowsRes] = await Promise.all([
-  authenticatedFetch(getApiUrl(`/tables/${tableId}`)),
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`)),
+  authenticatedFetch(getApiUrl(`/tables/${tableId}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
   ]);
   if (tableRes.status === 403) {
   showNotification("You cant access this you are not the owner", "error");
