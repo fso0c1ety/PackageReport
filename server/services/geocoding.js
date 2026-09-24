@@ -4,8 +4,9 @@ function candidateQueries(address) {
   const original = normalizeAddress(address);
   const expanded = original.replace(/\bMah\.?\b/gi, "Mahallesi").replace(/(\d+)\.\s*Sok\b/gi, "$1. Sokak").replace(/\bNo\s*:\s*/gi, "No ");
   const compact = original.match(/(\d+)\.\s*Sok\b/i)?.[1];
-  const district = original.match(/(?:Yakuplu|Beylikdüzü|Istanbul|İstanbul)[^,]*/i)?.[0] || "";
-  const compactQuery = compact && district ? `${compact} Sokak ${district} İstanbul Türkiye` : "";
+  const neighborhood = original.match(/Yakuplu/i)?.[0] || "";
+  const district = original.match(/Beylikdüzü/i)?.[0] || "";
+  const compactQuery = compact && neighborhood && district ? `${compact} Sokak ${neighborhood} ${district} İstanbul Türkiye` : "";
   return [...new Set([original, expanded, compactQuery].filter(Boolean))];
 }
 
