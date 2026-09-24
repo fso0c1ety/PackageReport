@@ -5,11 +5,12 @@ const { buildMapData, coordinates } = require("../server/services/mapViewEngine"
 test("geocoder keeps the complete address as the canonical query", async () => {
   const { geocodeAddress } = await import("../server/services/geocoding.js");
   const previousFetch = global.fetch;
-  let requested = "";
-  global.fetch = async (url) => { requested = String(url); return { ok: true, async json() { return [{ lat: "41.005", lon: "28.88" }]; } }; };
+  const requests = [];
+  global.fetch = async (url) => { requests.push(String(url)); const exact = requests.length === 1; return { ok: true, async json() { return exact ? [] : [{ lat: "41.005", lon: "28.88", display_name: "59. Sokak, Yakuplu Mahallesi, Beylikdüzü, İstanbul, Türkiye" }]; } }; };
   try {
     assert.deepEqual(await geocodeAddress("Yakuplu Mah. Hürriyet Bulvarı 59. Sok No:32/A Kat:3, Yakuplu, 34524 Beylikdüzü/İstanbul, Türkiye"), { latitude: 41.005, longitude: 28.88 });
-    assert.match(decodeURIComponent(requested).replace(/\+/g, " "), /Yakuplu Mah\. Hürriyet Bulvarı 59\. Sok No:32\/A Kat:3/);
+    assert.match(decodeURIComponent(requests[0]).replace(/\+/g, " "), /Yakuplu Mah\. Hürriyet Bulvarı 59\. Sok No:32\/A Kat:3/);
+    assert.ok(requests.length >= 2);
   } finally { global.fetch = previousFetch; }
 });
 
