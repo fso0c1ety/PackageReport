@@ -43,12 +43,15 @@ describe('fleet driver assignment and relation options', () => {
   });
   it('uses one driver identity resolver across trips, documents and expenses', () => {
     assert.match(logistics, /function driverUserIdFromValues/);
+    assert.match(logistics, /function resolveDriverUserId/);
+    assert.match(logistics, /LOWER\(name\)='drivers'/);
     assert.match(logistics, /_assignedDriverUserId/);
     assert.match(logistics, /assigned driver/);
-    assert.match(driverTripsRoute, /driverUserIdFromValues\(row\.values/);
-    assert.match(driverTripsRoute, /driverUserIdFromValues\(candidate\.values/);
-    assert.match(driverDocumentsRoute, /driverUserIdFromValues\(row\.values/);
-    assert.match(driverDocumentsRoute, /driverUserIdFromValues\(tripCandidate\.values/);
+    assert.match(driverTripsRoute, /resolveDriverUserId\(row\.values/);
+    assert.match(driverTripsRoute, /resolveDriverUserId\(candidate\.values/);
+    assert.match(driverDocumentsRoute, /resolveDriverUserId\(row\.values/);
+    assert.match(driverDocumentsRoute, /resolveDriverUserId\(tripCandidate\.values/);
     assert.match(driverDocumentsRoute, /_assignedDriverUserId/);
+    assert.match(driverDocumentsRoute, /await resolveDriverUserId/);
   });
 });
