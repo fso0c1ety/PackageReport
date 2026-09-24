@@ -135,8 +135,8 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
     const normalizedSearch = search.trim().toLowerCase();
     return Object.values(uniquePeopleMap).filter((person) =>
       !normalizedSearch
-      || person.name.toLowerCase().includes(normalizedSearch)
-      || person.email.toLowerCase().includes(normalizedSearch),
+      || String(person.name || person.email || '').toLowerCase().includes(normalizedSearch)
+      || String(person.email || '').toLowerCase().includes(normalizedSearch),
     );
   }, [people, search]);
 

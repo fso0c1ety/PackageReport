@@ -3291,6 +3291,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [isMobile]);
 
   const chatRequestIdRef = React.useRef(0);
+  const profileSyncRef = React.useRef(false);
   const chatTaskIdRef = React.useRef<string | null>(null);
   const chatRevalidationRef = React.useRef<{ rowId: string; startedAt: number; promise: Promise<any | null> } | null>(null);
 
@@ -3305,7 +3306,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setCurrentUser(user);
   const currentUserId = user ? user.id : null;
 
-  // Sync profile to get latest avatar
+  // Sync the profile once per mounted board shell. Board switches reuse this
+  // shell, so repeating the profile request on every tab adds an unrelated
+  // network round-trip and competes with the selected board's data requests.
+  if (!profileSyncRef.current) {
+  profileSyncRef.current = true;
   authenticatedFetch(getApiUrl("/users/profile"))
   .then(res => res.ok ? res.json() : null)
   .then(freshUser => {
@@ -3315,6 +3320,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   })
   .catch(err => console.error("Failed to sync profile:", err));
+  }
 
   const normalizeRows = (data: Row[]) => data.map((row: Row) => {
   if (row.values && Array.isArray(row.values.message)) {
