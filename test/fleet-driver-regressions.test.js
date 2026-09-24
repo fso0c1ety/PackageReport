@@ -5,6 +5,7 @@ const { describe, it } = require('node:test');
 
 const tableBoard = fs.readFileSync(path.join(__dirname, '..', 'src/app/TableBoard.tsx'), 'utf8');
 const peopleSelector = fs.readFileSync(path.join(__dirname, '..', 'src/app/PeopleSelector.tsx'), 'utf8');
+const tasksRoute = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/tables/[tableId]/tasks/route.js'), 'utf8');
 
 describe('fleet driver assignment and relation options', () => {
   it('normalizes selected workspace members before persisting People cells', () => {
@@ -28,5 +29,13 @@ describe('fleet driver assignment and relation options', () => {
     assert.match(tableBoard, /value=\{safeEditorValue\(reviewTask\.values\[col\.id\]\)\}/);
     assert.match(tableBoard, /safeEditorValue\(reviewTask\.values\[columns\[0\]\.id\]\)/);
     assert.match(peopleSelector, /initialPeople\.map\(normalizePerson\)/);
+  });
+  it('normalizes People values once at the tasks API boundary', () => {
+    assert.match(tasksRoute, /function normalizePeopleValues/);
+    assert.match(tasksRoute, /column\?\.type !== "People"/);
+    assert.match(tasksRoute, /values: normalizePeopleValues\(table\.columns, row\.values\)/);
+    assert.match(tasksRoute, /const values = normalizePeopleValues\(tableForAssignment\?\.columns/);
+    assert.match(tasksRoute, /const newValues = normalizePeopleValues\(table\.columns, addressResult\.values\)/);
+    assert.match(tasksRoute, /name: String\(person\.name \|\| person\.email/);
   });
 });
