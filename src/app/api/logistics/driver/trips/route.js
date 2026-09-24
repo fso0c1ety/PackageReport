@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
-import { DRIVER_STATUSES, logisticsAccess } from "../../../_lib/logistics";
+import { DRIVER_STATUSES, driverUserIdFromValues, logisticsAccess } from "../../../_lib/logistics";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { runAutomationWithPlanQuota } from "../../../_lib/automationQuota";
@@ -79,9 +79,10 @@ export async function GET(req) {
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const ctx = await context(workspaceId, user.id);
   if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const result = await pool.query(`SELECT * FROM rows WHERE table_id=$1 AND values->>'_workspaceId'=$2 AND values->>'_assignedDriverUserId'=$3 ${tripId ? "AND id=$4" : ""} ORDER BY created_at DESC`, tripId ? [ctx.table.id, workspaceId, String(user.id), tripId] : [ctx.table.id, workspaceId, String(user.id)]);
-  if (tripId && !result.rows[0]) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
-  const trips = result.rows.map((row) => serializeTrip(row, ctx.table.columns || [], ctx.table.id));
+  const result = await pool.query(`SELECT * FROM rows WHERE table_id=$1 AND values->>'_workspaceId'=$2 ${tripId ? "AND id=$3" : ""} ORDER BY created_at DESC`, tripId ? [ctx.table.id, workspaceId, tripId] : [ctx.table.id, workspaceId]);
+  const rows = result.rows.filter((row) => String(driverUserIdFromValues(row.values, ctx.table.columns || []) || "") === String(user.id));
+  if (tripId && !rows[0]) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
+  const trips = rows.map((row) => serializeTrip(row, ctx.table.columns || [], ctx.table.id));
   return NextResponse.json(tripId ? trips[0] : { role: ctx.access.role, workspace: { id: workspaceId, name: ctx.access.name }, trips });
 }
 
@@ -97,7 +98,8 @@ export async function PATCH(req) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return NextResponse.json({ error: "Valid location is required" }, { status: 400 });
     const ctx = await context(workspaceId, user.id);
     if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    const row = (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2 AND values->>'_workspaceId'=$3 AND values->>'_assignedDriverUserId'=$4", [tripId, ctx.table.id, workspaceId, String(user.id)])).rows[0];
+    const candidate = (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2 AND values->>'_workspaceId'=$3", [tripId, ctx.table.id, workspaceId])).rows[0];
+    const row = candidate && String(driverUserIdFromValues(candidate.values, ctx.table.columns || []) || "") === String(user.id) ? candidate : null;
     if (!row) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
     const liveLocation = { latitude, longitude, updatedAt: new Date().toISOString(), userId: String(user.id) };
     await pool.query("UPDATE rows SET values=jsonb_set(values,'{_driverLiveLocation}',$1::jsonb,true),updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(liveLocation), tripId, ctx.table.id]);
@@ -109,7 +111,8 @@ export async function PATCH(req) {
   if (["Loaded", "Delivered"].includes(newStatus) && body?.confirmed !== true) return NextResponse.json({ error: "Confirmation is required" }, { status: 409 });
   const ctx = await context(workspaceId, user.id);
   if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const row = (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2 AND values->>'_workspaceId'=$3 AND values->>'_assignedDriverUserId'=$4", [tripId, ctx.table.id, workspaceId, String(user.id)])).rows[0];
+  const candidate = (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2 AND values->>'_workspaceId'=$3", [tripId, ctx.table.id, workspaceId])).rows[0];
+  const row = candidate && String(driverUserIdFromValues(candidate.values, ctx.table.columns || []) || "") === String(user.id) ? candidate : null;
   if (!row) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
   const statusColumn = (ctx.table.columns || []).find((column) => String(column.name).trim().toLowerCase() === "status");
   const previousStatus = statusColumn ? row.values?.[statusColumn.id] : null;
