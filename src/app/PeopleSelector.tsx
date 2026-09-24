@@ -44,9 +44,10 @@ interface PeopleSelectorProps {
   onChange?: (newValue: Person[]) => void;
   onClose?: (finalValue: Person[]) => void;
   initialPeople?: Person[];
+  workspaceId?: string | null;
 }
 
-export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId, initialPeople = [] }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
+export default function PeopleSelector({ value = [], onChange, onClose, embed = false, tableId, initialPeople = [], workspaceId }: PeopleSelectorProps & { embed?: boolean, tableId?: string | null }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
@@ -60,9 +61,38 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   useEffect(() => {
     // TableBoard already has the current table members loaded. Reuse them so
     // opening the picker is fully local and does not wait on another request.
-    if (initialPeople.length > 0) return;
     async function fetchPeople() {
       try {
+        const currentPeople = initialPeople;
+        if (workspaceId) {
+          const teammatesResponse = await authenticatedFetch(getApiUrl('/teammates'), {
+            responseCacheTtlMs: 60_000,
+          });
+          if (teammatesResponse.ok) {
+            const teammates = await teammatesResponse.json();
+            const workspaceMembers = Array.isArray(teammates)
+              ? teammates.filter((teammate: any) => {
+                  const access = Array.isArray(teammate.access) ? teammate.access : [];
+                  const memberships = Array.isArray(teammate.memberships) ? teammate.memberships : [];
+                  return memberships.some((membership: any) => String(membership.workspaceId) === String(workspaceId))
+                    || access.some((entry: any) => String(entry.workspaceId) === String(workspaceId));
+                })
+              : [];
+            if (workspaceMembers.length > 0) {
+              setPeople((previous) => {
+                const merged = [...currentPeople, ...workspaceMembers];
+                const byEmail = new Map<string, Person>();
+                merged.forEach((person: Person) => { if (person.email) byEmail.set(person.email, person); });
+                return Array.from(byEmail.values());
+              });
+              return;
+            }
+          }
+        }
+        if (currentPeople.length > 0) {
+          setPeople(currentPeople);
+          return;
+        }
         if (tableId) {
           try {
             const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/members`));
@@ -93,7 +123,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
       }
     }
     fetchPeople();
-  }, [initialPeople, tableId]);
+  }, [initialPeople, tableId, workspaceId]);
 
   // Save people to localStorage whenever it changes
   useEffect(() => {

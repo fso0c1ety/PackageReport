@@ -172,6 +172,17 @@ function WorkspaceContent() {
     fetchTables();
   };
 
+  // Warm the exact payloads consumed by TableBoard before a tab click. The
+  // shared authenticated response cache lets the selected board render from
+  // these responses without changing the board UI or request semantics.
+  const prefetchTable = (tableId: string) => {
+    if (!tableId) return;
+    void Promise.all([
+      authenticatedFetch(getApiUrl(`tables/${tableId}`), { responseCacheTtlMs: 60_000 }),
+      authenticatedFetch(getApiUrl(`tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000 }),
+    ]).catch(() => undefined);
+  };
+
   const fetchTables = async () => {
     if (!workspaceId) return;
     setLoading(true);
@@ -336,6 +347,8 @@ function WorkspaceContent() {
             <Tab
               key={table.id}
               value={table.id}
+              onMouseEnter={() => prefetchTable(table.id)}
+              onFocus={() => prefetchTable(table.id)}
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <span>{table.name}</span>

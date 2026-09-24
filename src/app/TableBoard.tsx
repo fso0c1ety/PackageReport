@@ -3332,8 +3332,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const loadTable = async () => {
   try {
   const [tableRes, firstRowsRes] = await Promise.all([
-  authenticatedFetch(getApiUrl(`/tables/${tableId}`)),
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`)),
+  authenticatedFetch(getApiUrl(`/tables/${tableId}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
   ]);
   if (tableRes.status === 403) {
   showNotification("You cant access this you are not the owner", "error");
@@ -6971,6 +6971,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <PeopleSelector
   value={people}
   initialPeople={tableMembers}
+  workspaceId={workspaceIdForImport}
   // Pass the tableId so the selector knows to show board members
   tableId={tableId}
   onChange={(newPeople) => {
@@ -12261,6 +12262,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <PeopleSelector
   value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id] : []}
   tableId={tableId}
+  workspaceId={workspaceIdForImport}
   onChange={(newPeople: Person[]) => {
   if (reviewTask) {
   const updatedReviewTask = {
