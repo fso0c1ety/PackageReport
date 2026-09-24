@@ -38,3 +38,17 @@ test("post-commit audit failure cannot turn a durable invite into a 500", () => 
   assert.match(route, /try \{[\s\S]*?await writeAuditLog\([\s\S]*?\} catch \(auditError\)/);
   assert.match(route, /Audit log failed after invite commit/);
 });
+
+test("pending invite notifications remain visible to the exact recipient before membership exists", () => {
+  const route = read("src", "app", "api", "notifications", "route.js");
+  assert.match(route, /notification\.type === "invite"/);
+  assert.match(route, /professional_invitations/);
+  assert.match(route, /recipient_id=\$2 AND status='pending'/);
+});
+
+test("removing a pending teammate cancels the durable invite and linked notification", () => {
+  const route = read("src", "app", "api", "teammates", "[teammateId]", "route.js");
+  assert.match(route, /DELETE FROM professional_invitations/);
+  assert.match(route, /inviter_id=\$1 AND recipient_id=\$2 AND status='pending'/);
+  assert.match(route, /DELETE FROM notifications WHERE id = ANY/);
+});

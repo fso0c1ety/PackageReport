@@ -20,6 +20,17 @@ export async function DELETE(req, { params }) {
   if (billingError) return billingError;
 
   try {
+    const pendingInvites = await pool.query(
+      `DELETE FROM professional_invitations
+       WHERE inviter_id=$1 AND recipient_id=$2 AND status='pending'
+       RETURNING notification_id`,
+      [String(user.id), String(teammateId)]
+    );
+    const notificationIds = pendingInvites.rows.map((row) => row.notification_id).filter(Boolean);
+    if (notificationIds.length > 0) {
+      await pool.query("DELETE FROM notifications WHERE id = ANY($1::text[])", [notificationIds]);
+    }
+
     const ownedTablesRes = await pool.query(
       `
         SELECT t.id, t.shared_users

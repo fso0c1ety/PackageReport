@@ -42,6 +42,14 @@ export async function GET(req) {
     // same row/board authorization check for every item.
     const visibleRows = (await Promise.all(categoryRows.map(async (notification) => {
       const data = notification.data || {};
+      if (notification.type === "invite" && data.invitationId) {
+        const invitation = await pool.query(
+          `SELECT 1 FROM professional_invitations
+           WHERE id=$1 AND recipient_id=$2 AND status='pending' LIMIT 1`,
+          [String(data.invitationId), String(user.id)]
+        );
+        if (invitation.rows[0]) return notification;
+      }
       if (data.taskId && data.tableId) {
         return await requireRowPermission(pool, user.id, data.taskId, "viewer", data.tableId)
           ? notification
