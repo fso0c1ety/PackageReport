@@ -59,7 +59,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
-  const [people, setPeople] = useState<Person[]>(() => initialPeople.length > 0 ? initialPeople : defaultPeople);
+  const [people, setPeople] = useState<Person[]>(() => initialPeople.map(normalizePerson).filter((person): person is Person => Boolean(person)));
   const [inviteError, setInviteError] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -71,7 +71,7 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
     // opening the picker is fully local and does not wait on another request.
     async function fetchPeople() {
       try {
-        const currentPeople = initialPeople;
+        const currentPeople = initialPeople.map(normalizePerson).filter((person): person is Person => Boolean(person));
         if (workspaceId) {
           const teammatesResponse = await authenticatedFetch(getApiUrl('/teammates'), {
             responseCacheTtlMs: 60_000,
