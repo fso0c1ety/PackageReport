@@ -233,6 +233,19 @@ const BOARD_ROW_HEIGHT_MOBILE = 40;
 type RelationValue = { tableId: string; rowId: string; label: string; tableName?: string };
 type RelationOption = RelationValue & { key: string };
 
+function relationDisplayLabel(value: unknown, fallback = "Untitled row"): string {
+  if (Array.isArray(value)) {
+    const labels = value.map((item) => relationDisplayLabel(item, "")).filter(Boolean);
+    return labels.join(", ") || fallback;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return String(record.name || record.email || record.label || record.value || fallback);
+  }
+  const text = String(value ?? "").trim();
+  return text && text !== "[object Object]" ? text : fallback;
+}
+
 function RelationCellEditor({
   workspaceId,
   currentTableId,
@@ -266,7 +279,8 @@ function RelationCellEditor({
           if (table.id === currentTableId) continue;
           if (targetTableName && table.name.trim().toLowerCase() !== targetTableName.trim().toLowerCase()) continue;
           const columns = Array.isArray(table.columns) ? table.columns : [];
-          const primaryColumn = [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+          const primaryColumn = columns.find((column) => String(column.name || '').trim().toLowerCase() === 'user')
+            || [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
           const rows = Array.isArray(table.tasks) ? table.tasks : [];
           for (const row of rows) {
             const rawLabel = primaryColumn ? row.values?.[primaryColumn.id] : "";
@@ -275,7 +289,7 @@ function RelationCellEditor({
               tableId: table.id,
               rowId: row.id,
               tableName: table.name,
-              label: String(rawLabel || "Untitled row"),
+              label: relationDisplayLabel(rawLabel),
             });
           }
         }
@@ -4331,11 +4345,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (col && col.type === "People") {
-  newValue = Array.isArray(newValue) ? newValue.map((p: any) => ({ 
-  id: p.id,
-  name: p.name, 
-  email: p.email,
-  avatar: p.avatar,
+  newValue = Array.isArray(newValue) ? newValue.filter(Boolean).map((p: any) => ({
+  id: p?.id,
+  name: String(p?.name ?? p?.email ?? 'Unknown user'),
+  email: String(p?.email ?? ''),
+  avatar: p?.avatar ?? null,
   phone: p.phone ?? null,
   license: p.license ?? null,
   licenseExpiry: p.licenseExpiry ?? null,
