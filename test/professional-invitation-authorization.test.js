@@ -31,3 +31,10 @@ test("invite acceptance remains transactional and scoped to the recipient", () =
   assert.match(route, /status='accepted'/);
   assert.match(route, /await client\.query\("COMMIT"\)/);
 });
+
+test("post-commit audit failure cannot turn a durable invite into a 500", () => {
+  const route = read("src", "app", "api", "tables", "[tableId]", "invite", "route.js");
+  assert.match(route, /await client\.query\("COMMIT"\)[\s\S]*?client\.release\(\)/);
+  assert.match(route, /try \{[\s\S]*?await writeAuditLog\([\s\S]*?\} catch \(auditError\)/);
+  assert.match(route, /Audit log failed after invite commit/);
+});

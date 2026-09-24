@@ -143,15 +143,21 @@ export async function POST(req, { params }) {
 
     await broadcastNotificationCreated(recipientId, notifId);
 
-    await writeAuditLog({
-      actorId: user.id,
-      action: "member.invited",
-      entityType: "member",
-      entityId: String(recipientId),
-      tableId,
-      workspaceId,
-      metadata: { workspaceRole, jobRoles, portalType, recordAccess, boardRole, permission, tableName },
-    });
+    // Audit logging is secondary to the committed invitation. A transient audit
+    // schema/insert failure must not turn a successful invite into a 500.
+    try {
+      await writeAuditLog({
+        actorId: user.id,
+        action: "member.invited",
+        entityType: "member",
+        entityId: String(recipientId),
+        tableId,
+        workspaceId,
+        metadata: { workspaceRole, jobRoles, portalType, recordAccess, boardRole, permission, tableName },
+      });
+    } catch (auditError) {
+      console.error("[TABLE INVITE][POST] Audit log failed after invite commit:", auditError);
+    }
 
     // Push notification (best-effort).
     try {
