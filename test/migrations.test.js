@@ -31,6 +31,11 @@ test("production migration runner supports an explicit safe target", () => {
   assert.match(source, /client\.release\(\)/);
 });
 
+test("Vercel uses the migration-aware production build entrypoint", () => {
+  const config = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"));
+  assert.equal(config.buildCommand, "npm run vercel-build");
+});
+
 test("tenant file security migration is included in production deploys", () => {
   const source = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
   assert.match(source, /021_tenant_file_security\.sql/);
