@@ -11593,7 +11593,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   textOverflow: 'ellipsis'
   }}
   >
-  {reviewTask?.values && columns.length > 0 ? (reviewTask.values[columns[0].id] || 'Task Details') : 'Task Details'}
+  {reviewTask?.values && columns.length > 0 ? (safeEditorValue(reviewTask.values[columns[0].id]) || 'Task Details') : 'Task Details'}
   </Typography>
 
   <IconButton
