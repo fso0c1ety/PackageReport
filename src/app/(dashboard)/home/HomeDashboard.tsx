@@ -431,9 +431,16 @@ export default function HomeDashboard() {
       }
     };
 
-    // Initial fetches (independent to avoid blocking UI)
+    // Workspaces make up the initial Home shell. Activity updates are useful,
+    // but non-critical, so avoid competing with workspace navigation at paint.
     fetchWorkspaces();
-    fetchUpdates();
+    const browserWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const initialUpdatesHandle = browserWindow.requestIdleCallback
+      ? browserWindow.requestIdleCallback(() => { void fetchUpdates(); }, { timeout: 2_000 })
+      : window.setTimeout(() => { void fetchUpdates(); }, 250);
 
     // Poll for updates (optional)
     const refreshVisibleData = () => {
@@ -446,6 +453,8 @@ export default function HomeDashboard() {
 
     return () => {
       clearInterval(interval);
+      if (browserWindow.cancelIdleCallback && browserWindow.requestIdleCallback) browserWindow.cancelIdleCallback(initialUpdatesHandle);
+      else window.clearTimeout(initialUpdatesHandle);
       document.removeEventListener("visibilitychange", refreshVisibleData);
     };
   }, []);
