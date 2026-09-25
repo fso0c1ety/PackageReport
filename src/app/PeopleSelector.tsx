@@ -65,11 +65,17 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
 
-  // Fetch people from backend on mount (or when tableId changes)
+  // Keep the already-loaded board members available immediately. Workspace
+  // augmentation is only useful after the user opens this picker, so avoid
+  // starting a /teammates request for hidden pickers during board startup.
   useEffect(() => {
-    // TableBoard already has the current table members loaded. Reuse them so
-    // opening the picker is fully local and does not wait on another request.
-    async function fetchPeople() {
+    const currentPeople = initialPeople
+      .map(normalizePerson)
+      .filter((person): person is Person => Boolean(person));
+    if (currentPeople.length > 0) setPeople(currentPeople);
+  }, [initialPeople]);
+
+  const loadPeopleForPicker = React.useCallback(async () => {
       try {
         const currentPeople = initialPeople.map(normalizePerson).filter((person): person is Person => Boolean(person));
         if (workspaceId) {
@@ -129,8 +135,6 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
       } catch (err) {
         console.error('Error fetching people:', err);
       }
-    }
-    fetchPeople();
   }, [initialPeople, tableId, workspaceId]);
 
   // Save people to localStorage whenever it changes
@@ -138,7 +142,10 @@ export default function PeopleSelector({ value = [], onChange, onClose, embed = 
     localStorage.setItem("suggestedPeople", JSON.stringify(people));
   }, [people]);
 
-  const handleOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
+  const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+    void loadPeopleForPicker();
+  };
   const handleClose = () => {
     setAnchorEl(null);
     if (onClose) onClose(value);
