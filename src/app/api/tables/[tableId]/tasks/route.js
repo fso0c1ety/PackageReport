@@ -78,6 +78,9 @@ function getFileIdentifier(file) {
 
 async function processDueScheduledMessages(table, rows) {
   let anyChanged = false;
+  // Multiple due messages can reference the same legacy sender name. Resolve
+  // that name once per batch instead of issuing one lookup per message.
+  const senderIdsByName = new Map();
   for (const row of rows) {
     const values = row.values && typeof row.values === "object" ? row.values : {};
     const messages = toArray(values.message);
@@ -86,8 +89,11 @@ async function processDueScheduledMessages(table, rows) {
       if (!message?.scheduledFor || message.notificationSent || new Date(message.scheduledFor) > new Date()) continue;
       let senderId = message.senderId || null;
       if (!senderId && message.sender) {
-        const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
-        senderId = senderResult.rows[0]?.id || null;
+        if (!senderIdsByName.has(message.sender)) {
+          const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
+          senderIdsByName.set(message.sender, senderResult.rows[0]?.id || null);
+        }
+        senderId = senderIdsByName.get(message.sender);
       }
       const taskName = getTaskName(table, values);
       const body = `${message.sender || "User"} scheduled a message on ${taskName}: ${message.text || "Scheduled message"}`;
@@ -580,7 +586,13 @@ export async function GET(req, { params }) {
         && new Date(message.scheduledFor) <= new Date()
       )
     );
-    if (hasDueScheduledMessage) await processDueScheduledMessages(table, result.rows);
+    // Scheduled delivery is a post-read side effect. It must not make the
+    // board's first page wait for database writes, notifications, or email.
+    if (hasDueScheduledMessage) {
+      after(() => processDueScheduledMessages(table, result.rows).catch((error) => {
+        console.error("[TABLE TASKS][GET] Scheduled message processing failed:", error);
+      }));
+    }
 
     const responseBody = paginated
       ? {

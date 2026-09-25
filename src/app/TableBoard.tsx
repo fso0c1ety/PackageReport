@@ -3346,7 +3346,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // network round-trip and competes with the selected board's data requests.
   if (!profileSyncRef.current) {
   profileSyncRef.current = true;
-  authenticatedFetch(getApiUrl("/users/profile"))
+  authenticatedFetch(getApiUrl("/users/profile"), {
+  responseCacheTtlMs: 60_000,
+  })
   .then(res => res.ok ? res.json() : null)
   .then(freshUser => {
   if (freshUser && !cancelled) {

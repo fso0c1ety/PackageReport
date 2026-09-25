@@ -1,6 +1,6 @@
 "use client";
 
-import { BottomNavigation, BottomNavigationAction, Paper } from "@mui/material";
+import { BottomNavigation, BottomNavigationAction, Paper, useMediaQuery, useTheme } from "@mui/material";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
@@ -11,19 +11,28 @@ import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 
 export default function MobileBottomNavigation() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"), { noSsr: true });
   const pathname = usePathname();
   const router = useRouter();
   const workspaceId = useSearchParams().get("id");
   const [portalContext, setPortalContext] = useState<any>(null);
   useEffect(() => {
+    // This component is mounted by the application shell on every viewport,
+    // but its navigation can only be rendered on mobile. Avoid an additional
+    // portal-context authorization request on desktop board navigation.
+    if (!isMobile) {
+      setPortalContext(null);
+      return;
+    }
     authenticatedFetch(getApiUrl(`portal-context${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ""}`), { suppressNativeErrorAlert: true })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => setPortalContext(data?.active || null))
       .catch(() => setPortalContext(null));
-  }, [workspaceId]);
+  }, [isMobile, workspaceId]);
 
   const dedicatedPortal = portalContext?.portalType && portalContext.portalType !== "standard";
-  if (!dedicatedPortal) return null;
+  if (!isMobile || !dedicatedPortal) return null;
 
   const portalBase = portalContext?.landingRoute || `/portal/${String(portalContext?.portalType || "standard").replaceAll("_", "-")}`;
   const iconFor = (item: string) => item.includes("calendar") ? <CalendarMonthRoundedIcon /> : item.includes("document") ? <FolderRoundedIcon /> : item.includes("profile") || item.includes("setting") ? <SettingsRoundedIcon /> : item.includes("trip") || item.includes("delivery") ? <LocalShippingRoundedIcon /> : <HomeRoundedIcon />;

@@ -30,3 +30,18 @@ test('People selector merges authoritative current-workspace teammates', () => {
   assert.match(people, /membership\.workspaceId/);
   assert.match(people, /entry\.workspaceId/);
 });
+
+test('shell profile consumers share a brief authenticated response cache', () => {
+  for (const file of ['src/app/TopBar.tsx', 'src/app/Sidebar.tsx', 'src/app/TableBoard.tsx']) {
+    const source = fs.readFileSync(file, 'utf8');
+    const profileRead = source.slice(source.indexOf('users/profile'), source.indexOf('users/profile') + 220);
+    assert.match(profileRead, /responseCacheTtlMs: 60_000/);
+  }
+});
+
+test('desktop navigation does not load mobile-only portal context', () => {
+  const mobileNavigation = fs.readFileSync('src/app/MobileBottomNavigation.tsx', 'utf8');
+  assert.match(mobileNavigation, /const isMobile = useMediaQuery/);
+  assert.match(mobileNavigation, /if \(!isMobile\) \{\s*setPortalContext\(null\);\s*return;/);
+  assert.match(mobileNavigation, /if \(!isMobile \|\| !dedicatedPortal\) return null/);
+});

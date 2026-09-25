@@ -161,7 +161,9 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     const storedUser = localStorage.getItem('user');
     const fetchProfile = async () => {
       try {
-        const res = await authenticatedFetch(getApiUrl('users/profile'));
+        const res = await authenticatedFetch(getApiUrl('users/profile'), {
+          responseCacheTtlMs: 60_000,
+        });
         if (res.ok) {
           const data = await res.json();
           setUser(data);
