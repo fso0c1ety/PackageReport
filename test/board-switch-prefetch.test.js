@@ -11,6 +11,13 @@ test('workspace warms board metadata and first rows before a tab click', () => {
   assert.ok(workspace.includes('tasks?limit=100&offset=0'));
 });
 
+test('workspace coalesces repeated hover/focus prefetches per board', () => {
+  assert.match(workspace, /prefetchesRef = useRef\(new Map<string, Promise<void>>\(\)\)/);
+  assert.match(workspace, /const existing = prefetchesRef\.current\.get\(tableId\)/);
+  assert.match(workspace, /if \(existing\) return/);
+  assert.match(workspace, /prefetchesRef\.current\.set\(tableId, request\)/);
+});
+
 test('TableBoard consumes warmed responses without changing pagination', () => {
   assert.match(board, /consumeCachedResponse: true/);
   assert.ok(board.includes('tasks?limit=100&offset=0'));

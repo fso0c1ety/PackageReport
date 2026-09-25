@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import TableBoard from "../../TableBoard";
 import { Alert, Box, IconButton, Tabs, Tab, CircularProgress, Menu, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip } from "@mui/material";
@@ -57,6 +57,7 @@ function WorkspaceContent() {
     }
   }, [workspaceId]);
   const [tables, setTables] = useState<any[]>([]);
+  const prefetchesRef = useRef(new Map<string, Promise<void>>());
   const [selected, setSelected] = useState<string>(tableIdParam || ""); // Init with param if present
 
   // Update selected if param changes
@@ -177,10 +178,16 @@ function WorkspaceContent() {
   // these responses without changing the board UI or request semantics.
   const prefetchTable = (tableId: string) => {
     if (!tableId) return;
-    void Promise.all([
+    const existing = prefetchesRef.current.get(tableId);
+    if (existing) return;
+    const request = Promise.all([
       authenticatedFetch(getApiUrl(`tables/${tableId}`), { responseCacheTtlMs: 60_000 }),
       authenticatedFetch(getApiUrl(`tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000 }),
-    ]).catch(() => undefined);
+    ]).then(() => undefined);
+    prefetchesRef.current.set(tableId, request);
+    void request.catch(() => {
+      if (prefetchesRef.current.get(tableId) === request) prefetchesRef.current.delete(tableId);
+    });
   };
 
   const fetchTables = async () => {
