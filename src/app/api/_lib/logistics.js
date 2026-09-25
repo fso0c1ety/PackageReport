@@ -4,6 +4,35 @@ import { pool } from "./server";
 export const LOGISTICS_TEMPLATE_KEYS = ["freight_broker", "fleet_management"];
 export const DRIVER_STATUSES = ["Assigned", "Accepted", "Going to Pickup", "At Pickup", "Loaded", "In Transit", "At Delivery", "Delivered", "Problem Reported"];
 
+// All fleet surfaces resolve the driver to the same persisted user identity.
+// The metadata fields are canonical; the relation fallback keeps legacy rows
+// readable until they are next saved through the tasks boundary.
+export function driverUserIdFromValues(values, columns = []) {
+  const direct = values?._assignedDriverUserId;
+  if (direct) return String(direct);
+  const driverColumn = columns.find((column) => ["driver", "people", "people/driver", "assigned driver"].includes(String(column.name || "").trim().toLowerCase()));
+  const raw = driverColumn ? values?.[driverColumn.id] : null;
+  const relation = Array.isArray(raw) ? raw[0] : raw;
+  if (!relation) return null;
+  if (typeof relation === "string") return relation;
+  return relation.userId || relation.linkedUserId || relation.id || null;
+}
+
+export async function resolveDriverUserId(values, columns = [], workspaceId = null) {
+  const direct = driverUserIdFromValues(values, columns);
+  const driverColumn = columns.find((column) => ["driver", "people", "people/driver", "assigned driver"].includes(String(column.name || "").trim().toLowerCase()));
+  const raw = driverColumn ? values?.[driverColumn.id] : null;
+  const relation = Array.isArray(raw) ? raw[0] : raw;
+  if (!relation || typeof relation !== "object" || !workspaceId || !relation.rowId) return direct;
+  const driverBoard = (await pool.query("SELECT id,columns FROM tables WHERE workspace_id=$1 AND LOWER(name)='drivers' LIMIT 1", [workspaceId])).rows[0];
+  if (!driverBoard) return direct;
+  const driverRow = (await pool.query("SELECT values FROM rows WHERE id=$1 AND table_id=$2", [String(relation.rowId), driverBoard.id])).rows[0];
+  if (!driverRow) return direct;
+  const peopleColumn = (driverBoard.columns || []).find((column) => column.type === "People" || String(column.name || "").trim().toLowerCase() === "user");
+  const person = peopleColumn && (Array.isArray(driverRow.values?.[peopleColumn.id]) ? driverRow.values[peopleColumn.id][0] : driverRow.values?.[peopleColumn.id]);
+  return person?.id || person?.userId || person?.linkedUserId || direct;
+}
+
 let schemaPromise;
 export function ensureLogisticsSchema() {
   if (!schemaPromise) schemaPromise = pool.query(`

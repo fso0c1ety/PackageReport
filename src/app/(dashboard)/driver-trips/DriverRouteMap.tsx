@@ -8,49 +8,14 @@ import "leaflet/dist/leaflet.css";
 type Point=[number,number];
 type Props={pickup?:Point|null;delivery?:Point|null;pickupAddress?:string;deliveryAddress?:string;focus?:"pickup"|"delivery"|null;onLocation?:(point:Point)=>void};
 
-function geocodeCandidates(address:string):string[]{
-  const original=address.trim();
-  const cleaned=original.replace(/\s+/g," ").trim();
-  const spanishStreet=cleaned
-    .replace(/^(\d+)\s+St\.?\s*([^,]+)/i,"Calle $2 $1")
-    .replace(/\bI\.?\s*A\.?\b/gi,"")
-    .replace(/\s+,/g,",")
-    .replace(/,\s*,+/g,",")
-    .replace(/\s+/g," ")
-    .trim();
-  const turkishStreet=cleaned
-    .replace(/\bMah\.(?=\s|,)/gi,"Mahallesi")
-    .replace(/\b(\d+)\.\s*Sok\b/gi,"$1. Sokak")
-    .replace(/\bNo\s*:\s*(\d+)\s*\/\s*([A-Z])\b/gi,"No $1 $2")
-    .replace(/\bNo\s*:\s*/gi,"No ")
-    .replace(/\s+Kat\s*:\s*\d+\b/gi,"")
-    .replace(/Beylikdüzü\s*\/\s*İstanbul/gi,"Beylikdüzü, İstanbul")
-    .replace(/\s+,/g,",")
-    .replace(/,\s*,+/g,",")
-    .replace(/\s+/g," ")
-    .trim();
-  const turkishStreetWithoutBuilding=turkishStreet
-    .replace(/,?\s*No\s+\d+\s*[A-Z]?\b/gi,"")
-    .replace(/\s+,/g,",")
-    .trim();
-  // Always ask the geocoder with the complete human-readable address first.
-  // Locale-specific fallbacks are query-only and never replace the stored value.
-  return [...new Set([original,spanishStreet,turkishStreet,turkishStreetWithoutBuilding,cleaned].filter(Boolean))];
-}
-
 async function geocode(address?:string):Promise<Point|null>{
   if(!address)return null;
-  for(const query of geocodeCandidates(address)){
-    const params=new URLSearchParams({format:"jsonv2",limit:"1",q:query});
-    if(/spain|españa/i.test(query))params.set("countrycodes","es");
-    else if(/türkiye|turkey/i.test(query))params.set("countrycodes","tr");
-    const response=await fetch(`https://nominatim.openstreetmap.org/search?${params}`,{headers:{"Accept-Language":"en"}});
-    if(!response.ok)continue;
-    const item=(await response.json())?.[0];
-    const lat=Number(item?.lat),lon=Number(item?.lon);
-    if(Number.isFinite(lat)&&Number.isFinite(lon))return [lat,lon];
-  }
-  return null;
+  const params=new URLSearchParams({format:"jsonv2",limit:"1",q:address.trim().replace(/\s+/g," ")});
+  const response=await fetch(`https://nominatim.openstreetmap.org/search?${params}`,{headers:{"Accept-Language":"en"}});
+  if(!response.ok)return null;
+  const item=(await response.json())?.[0];
+  const lat=Number(item?.lat),lon=Number(item?.lon);
+  return Number.isFinite(lat)&&Number.isFinite(lon)?[lat,lon]:null;
 }
 
 async function route(from:Point,to:Point):Promise<Point[]>{

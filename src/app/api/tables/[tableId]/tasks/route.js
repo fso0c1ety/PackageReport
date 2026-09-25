@@ -569,6 +569,10 @@ export async function GET(req, { params }) {
     }
 
     releaseReadClient();
+    result.rows = result.rows.map((row) => ({
+      ...row,
+      values: normalizePeopleValues(table.columns, row.values),
+    }));
     const hasDueScheduledMessage = result.rows.some((row) =>
       toArray(row?.values?.message).some((message) =>
         message?.scheduledFor
@@ -600,6 +604,27 @@ export async function GET(req, { params }) {
   }
 }
 
+// People cells have one wire format at the API boundary: an array of compact
+// person records. This keeps every consumer (board, editors, relations and
+// realtime payloads) from having to handle legacy object/array variants.
+function normalizePeopleValues(columns, values) {
+  const normalized = { ...(values || {}) };
+  for (const column of columns || []) {
+    if (column?.type !== "People" || !Object.prototype.hasOwnProperty.call(normalized, column.id)) continue;
+    const raw = Array.isArray(normalized[column.id]) ? normalized[column.id] : [normalized[column.id]];
+    normalized[column.id] = raw
+      .filter((person) => person && typeof person === "object")
+      .map((person) => ({
+        id: person.id || person.userId || undefined,
+        name: String(person.name || person.email || "Unknown user"),
+        email: String(person.email || ""),
+        avatar: person.avatar == null ? null : String(person.avatar),
+      }))
+      .filter((person) => person.name || person.email || person.id);
+  }
+  return normalized;
+}
+
 export async function POST(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -617,9 +642,8 @@ export async function POST(req, { params }) {
     }
 
     const newTaskId = typeof body?.id === "string" && uuidValidate(body.id) ? body.id : uuidv4();
-    const values = body?.values && typeof body.values === "object" ? body.values : {};
-
     const tableForAssignment = (await pool.query("SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
+    const values = normalizePeopleValues(tableForAssignment?.columns, body?.values && typeof body.values === "object" ? body.values : {});
     const addressResult = validateAndNormalizeAddresses(tableForAssignment?.columns, values);
     if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
     const assignedValues = await syncTripAssignment({ table: tableForAssignment, values: addressResult.values, previousValues: {}, actorId: user.id, rowId: newTaskId });
@@ -680,7 +704,7 @@ export async function PUT(req, { params }) {
     const oldValues = row.values || {};
     const addressResult = validateAndNormalizeAddresses(table.columns, values || {});
     if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
-    const newValues = addressResult.values;
+    const newValues = normalizePeopleValues(table.columns, addressResult.values);
     const timestamp = new Date().toISOString();
     const eventId = uuidv4();
     const oldActivity = toArray(oldValues.activity);

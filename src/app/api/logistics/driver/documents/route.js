@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../../../_lib/server";
-import { logisticsAccess } from "../../../_lib/logistics";
+import { logisticsAccess, resolveDriverUserId } from "../../../_lib/logistics";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 import { sendTableNotification } from "../../../_lib/notificationHelper";
 import { runAutomationWithPlanQuota } from "../../../_lib/automationQuota";
@@ -24,15 +24,12 @@ const valueByName = (row, columns, names) => {
   return column ? row.values?.[column.id] : undefined;
 };
 
-const driverMatches = (row, columns, user) => {
-  if (String(row.values?._assignedDriverUserId || "") === String(user.id)) return true;
+const driverMatches = async (row, columns, workspaceId, user) => {
+  const resolved = await resolveDriverUserId(row.values, columns, workspaceId);
+  if (String(resolved || "") === String(user.id)) return true;
   const driver = valueByName(row, columns, ["Driver", "People", "Assigned Driver"]);
   const candidates = Array.isArray(driver) ? driver : driver ? [driver] : [];
-  return candidates.some((entry) => {
-    if (typeof entry === "string") return entry === String(user.id) || entry.toLowerCase() === String(user.email || "").toLowerCase();
-    return String(entry?.id || entry?.userId || entry?.linkedUserId || "") === String(user.id)
-      || String(entry?.email || "").toLowerCase() === String(user.email || "").toLowerCase();
-  });
+  return candidates.some((entry) => String(entry?.email || "").toLowerCase() === String(user.email || "").toLowerCase());
 };
 
 const relationLabel = (value) => {
@@ -58,7 +55,8 @@ export async function GET(req) {
   const table = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, names])).rows[0];
   if (!table) return NextResponse.json({ records: [] });
   const rows = (await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY created_at DESC", [table.id])).rows;
-  const records = rows.filter((row) => driverMatches(row, table.columns || [], user)).map((row) => ({
+  const matches = await Promise.all(rows.map(async (row) => ({ row, matches: await driverMatches(row, table.columns || [], workspaceId, user) })));
+  const records = matches.filter(({ matches: isMatch }) => isMatch).map(({ row }) => ({
     id: row.id,
     tableId: table.id,
     date: valueByName(row, table.columns, ["Date"]),
@@ -95,7 +93,8 @@ export async function POST(req) {
   const access = await logisticsAccess(workspaceId, user.id);
   if (!access || access.role !== "driver") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const tripTable = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) ORDER BY CASE WHEN LOWER(name)='trips' THEN 0 ELSE 1 END LIMIT 1", [workspaceId, ["trips", "loads"]])).rows[0];
-  const trip = tripTable && (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2 AND values->>'_assignedDriverUserId'=$3", [tripId, tripTable.id, String(user.id)])).rows[0];
+  const tripCandidate = tripTable && (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2", [tripId, tripTable.id])).rows[0];
+  const trip = tripCandidate && String(await resolveDriverUserId(tripCandidate.values, tripTable.columns || [], workspaceId) || "") === String(user.id) ? tripCandidate : null;
   if (!trip) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
 
   const storedFile = { id: file.id || randomUUID(), url: file.url, name: file.name || "Document", originalName: file.originalName || file.name || "Document", type: file.type || "application/octet-stream", size: Number(file.size) || 0, uploadedAt: new Date().toISOString(), uploadedBy: String(user.id), category };

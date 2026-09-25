@@ -55,7 +55,8 @@ test("API, Excel, geocoder and UI contracts preserve complete addresses", () => 
   const board = fs.readFileSync(path.join(root, "src/app/TableBoard.tsx"), "utf8");
   for (const source of [cellRoute, taskRoute, excelRoute]) assert.match(source, /validateInternationalAddress/);
   assert.match(excelRoute, /addressFields\.isAddressColumn\(column\) \? String\(rawValue\)/);
-  assert.match(map, /\[original,spanishStreet,turkishStreet/);
+  assert.match(map, /q:address\.trim\(\)\.replace/);
+  assert.match(fs.readFileSync(path.join(root, "server/services/geocoding.js"), "utf8"), /geocodeAddress/);
   assert.match(board, /overflowWrap: 'anywhere'/);
   assert.doesNotMatch(cellRoute + taskRoute, /\[\^a-zA-Z0-9/);
 });

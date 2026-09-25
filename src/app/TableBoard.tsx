@@ -246,6 +246,22 @@ function relationDisplayLabel(value: unknown, fallback = "Untitled row"): string
   return text && text !== "[object Object]" ? text : fallback;
 }
 
+function normalizeRenderedPerson(value: any): { id?: string; name: string; email: string; avatar: string | null } | null {
+  if (!value || typeof value !== 'object') return null;
+  const rawName = value.name;
+  const rawEmail = value.email;
+  const email = typeof rawEmail === 'string' ? rawEmail : '';
+  const name = typeof rawName === 'string' ? rawName : (email || 'Unknown user');
+  return { id: value.id ? String(value.id) : undefined, name, email, avatar: typeof value.avatar === 'string' ? value.avatar : null };
+}
+
+function safeEditorValue(value: unknown): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map((entry) => safeEditorValue(entry)).filter(Boolean).join(', ');
+  if (typeof value === 'object') return relationDisplayLabel(value, '');
+  return String(value);
+}
+
 function RelationCellEditor({
   workspaceId,
   currentTableId,
@@ -5934,7 +5950,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (effectiveType === "People") {
-  const people = Array.isArray(value) ? value : [];
+  const people = Array.isArray(value) ? value.map(normalizeRenderedPerson).filter((person): person is NonNullable<typeof person> => Boolean(person)) : [];
   const isUserIdentityColumn = col.name.trim().toLowerCase() === 'user';
   const maxDisplay = isMobile ? 2 : 3;
   const displayPeople = people.slice(0, maxDisplay);
@@ -6839,7 +6855,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   // People Column - Modern
   if (col.type === "People") {
-  const people = Array.isArray(value) ? value : [];
+  const people = Array.isArray(value) ? value.map(normalizeRenderedPerson).filter((person): person is NonNullable<typeof person> => Boolean(person)) : [];
   const isUserIdentityColumn = col.name.trim().toLowerCase() === 'user';
   const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colId === col.id;
 
@@ -11577,7 +11593,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   textOverflow: 'ellipsis'
   }}
   >
-  {reviewTask?.values && columns.length > 0 ? (reviewTask.values[columns[0].id] || 'Task Details') : 'Task Details'}
+  {reviewTask?.values && columns.length > 0 ? (safeEditorValue(reviewTask.values[columns[0].id]) || 'Task Details') : 'Task Details'}
   </Typography>
 
   <IconButton
@@ -11773,7 +11789,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <TextField
   fullWidth
   variant="standard"
-  value={reviewTask.values[col.id] ?? ''}
+  value={safeEditorValue(reviewTask.values[col.id])}
   placeholder="Empty"
   onChange={(e) => updateReviewTaskValue(col.id, e.target.value)}
   onBlur={(e) => {
@@ -11812,7 +11828,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   multiline={col.type === "LongText"}
   minRows={col.type === "LongText" ? 2 : undefined}
   type={["Money", "Progress", "Rating"].includes(col.type) ? "number" : "text"}
-  value={Array.isArray(reviewTask.values[col.id]) ? reviewTask.values[col.id].join(', ') : (reviewTask.values[col.id] ?? '')}
+  value={safeEditorValue(reviewTask.values[col.id])}
   placeholder={col.type === "Phone" ? "+383 44 000 000" : col.type === "Email" ? "name@company.com" : col.type === "Color" ? "#6366f1" : "Empty"}
   onChange={(event) => updateReviewTaskValue(col.id, event.target.value)}
   onBlur={(event) => handleCellSave(reviewTask.id, col.id, col.type, event.target.value)}
