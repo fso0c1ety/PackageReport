@@ -314,7 +314,9 @@ export default function Sidebar({
     }
 
     // Fetch fresh profile from API so avatar is always up-to-date
-    authenticatedFetch(getApiUrl("users/profile"))
+    authenticatedFetch(getApiUrl("users/profile"), {
+      responseCacheTtlMs: 60_000,
+    })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data) {

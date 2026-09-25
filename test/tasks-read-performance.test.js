@@ -67,3 +67,12 @@ test('empty and out-of-range pages preserve the exact total contract', async () 
   assert.equal(beyond.body.hasMore, false);
   assert.equal(beyond.queries.length, 2);
 });
+
+test('scheduled-message delivery runs after the task-read response and reuses sender lookups', () => {
+  assert.match(source, /const senderIdsByName = new Map\(\)/);
+  assert.match(source, /senderIdsByName\.has\(message\.sender\)/);
+  assert.match(source, /senderIdsByName\.set\(message\.sender, senderResult\.rows\[0\]\?\.id \|\| null\)/);
+  const scheduledDelivery = getSource.slice(getSource.indexOf('if (hasDueScheduledMessage)'), getSource.indexOf('const responseBody'));
+  assert.match(scheduledDelivery, /after\(\(\) => processDueScheduledMessages/);
+  assert.doesNotMatch(scheduledDelivery, /await processDueScheduledMessages/);
+});
