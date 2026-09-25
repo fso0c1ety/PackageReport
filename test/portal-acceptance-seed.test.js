@@ -42,3 +42,9 @@ test("portal acceptance seed fails closed before database access without a passw
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /SMART_MANAGE_PORTAL_TEST_PASSWORD/);
 });
+
+test("portal acceptance seed refuses Production even with otherwise valid credentials", () => {
+  assert.match(source, /Refusing portal acceptance seed in Production/);
+  assert.match(source, /VERCEL_ENV.*production/);
+  assert.match(source, /NODE_ENV.*production/);
+});
