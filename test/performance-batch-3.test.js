@@ -35,3 +35,11 @@ test('home defers non-critical activity updates until the browser is idle', () =
   assert.match(initialLoad, /fetchUpdates\(\)/);
   assert.match(home, /cancelIdleCallback\(initialUpdatesHandle\)/);
 });
+
+test('notification realtime setup reuses its deterministic user topic across navigation', () => {
+  const topBar = fs.readFileSync('src/app/TopBar.tsx', 'utf8');
+  const setupRealtime = topBar.slice(topBar.indexOf('const setupRealtime = async () =>'), topBar.indexOf('void setupRealtime()', topBar.indexOf('const setupRealtime = async () =>')));
+  assert.match(setupRealtime, /getApiUrl\("notifications\/realtime-topic"\)/);
+  assert.match(setupRealtime, /responseCacheTtlMs:\s*60_000/);
+  assert.match(setupRealtime, /supabase\s*\.channel\(topic/);
+});
