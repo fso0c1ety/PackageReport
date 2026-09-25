@@ -70,3 +70,27 @@ test('people picker reuses table members and augments them from workspace member
   assert.match(peopleSource, /workspaceId\?: string \| null/);
   assert.match(peopleSource, /getApiUrl\('\/teammates'\)/);
 });
+
+test('board startup does not fetch workspace people until the people picker opens', () => {
+  const peopleSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'PeopleSelector.tsx'), 'utf8');
+  const initialization = peopleSource.slice(
+    peopleSource.indexOf('// Keep the already-loaded board members available immediately.'),
+    peopleSource.indexOf('const loadPeopleForPicker'),
+  );
+  assert.doesNotMatch(initialization, /authenticatedFetch/);
+  assert.match(peopleSource, /const loadPeopleForPicker = React\.useCallback/);
+  assert.match(peopleSource, /void loadPeopleForPicker\(\)/);
+});
+
+test('table member reads are briefly cached across repeated board switches', () => {
+  const membersEffect = source.slice(source.indexOf('// Fetch table members'), source.indexOf('// People options for Automation'));
+  assert.match(membersEffect, /getApiUrl\(`\/tables\/\$\{tableId\}\/members`\)/);
+  assert.match(membersEffect, /responseCacheTtlMs: 60_000/);
+});
+
+test('invoice branding stays off the board-startup request path', () => {
+  const brandingEffect = source.slice(source.indexOf('Invoice branding is only consumed'), source.indexOf('// Column menu'));
+  assert.match(brandingEffect, /if \(!tableId \|\| !isInvoiceDialogOpen\) return/);
+  assert.match(brandingEffect, /getApiUrl\(`\/tables\/\$\{tableId\}\/invoice-branding`\)/);
+  assert.match(brandingEffect, /responseCacheTtlMs: 60_000/);
+});

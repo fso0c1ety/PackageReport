@@ -2858,7 +2858,12 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // Fetch table members (Owner + Shared Users)
   useEffect(() => {
   if (tableId) {
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/members`))
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/members`), {
+  // Board members do not need a second network round-trip when the user
+  // immediately returns to a board. Mutations still invalidate their own
+  // URLs, and this only retains the read response briefly.
+  responseCacheTtlMs: 60_000,
+  })
   .then(res => res.ok ? res.json() : [])
   .then(setTableMembers)
   .catch(console.error);
@@ -5378,9 +5383,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [isInvoiceDialogOpen]);
 
   useEffect(() => {
-  if (!tableId) return;
+  // Invoice branding is only consumed by the invoice dialog. Loading it for
+  // every board switch competes with the table and task requests even when
+  // the user never opens the invoice flow.
+  if (!tableId || !isInvoiceDialogOpen) return;
   let active = true;
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/invoice-branding`))
+  authenticatedFetch(getApiUrl(`/tables/${tableId}/invoice-branding`), {
+  responseCacheTtlMs: 60_000,
+  })
   .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load branding')))
   .then((branding) => {
   if (!active) return;
@@ -5390,7 +5400,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   })
   .catch((error) => console.error('Invoice branding load failed:', error));
   return () => { active = false; };
-  }, [tableId]);
+  }, [isInvoiceDialogOpen, tableId]);
 
   // Column menu
   const handleColMenuOpen = (event: React.MouseEvent<HTMLElement>, colId: string) => {
