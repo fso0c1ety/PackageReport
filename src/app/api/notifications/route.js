@@ -36,6 +36,20 @@ export async function GET(req) {
 
     const categoryFor = (type) => type === "security" || type === "login" ? "security" : type === "comment" || type === "chat" ? "comments" : type === "deadline" || type === "calendar" ? "deadlines" : type === "billing" ? "billing" : "assignments";
     const categoryRows = result.rows.filter((notification) => categories[categoryFor(notification.type)] !== false);
+    // Professional invites were added after v1.0.1. Resolve all pending IDs in
+    // one lookup rather than adding one database query per bell item.
+    const inviteIds = [...new Set(categoryRows
+      .filter((notification) => notification.type === "invite" && notification.data?.invitationId)
+      .map((notification) => String(notification.data.invitationId)))];
+    const pendingInvitationIds = new Set();
+    if (inviteIds.length) {
+      const pendingInvitations = await pool.query(
+        `SELECT id::text AS id FROM professional_invitations
+         WHERE recipient_id=$1 AND status='pending' AND id::text = ANY($2::text[])`,
+        [String(user.id), inviteIds]
+      );
+      for (const invitation of pendingInvitations.rows) pendingInvitationIds.add(String(invitation.id));
+    }
     // Permission checks are independent per notification. Running them in
     // parallel avoids a serial N+1 waterfall that can delay realtime-driven
     // refreshes when the user has many notifications, while preserving the
@@ -43,12 +57,7 @@ export async function GET(req) {
     const visibleRows = (await Promise.all(categoryRows.map(async (notification) => {
       const data = notification.data || {};
       if (notification.type === "invite" && data.invitationId) {
-        const invitation = await pool.query(
-          `SELECT 1 FROM professional_invitations
-           WHERE id=$1 AND recipient_id=$2 AND status='pending' LIMIT 1`,
-          [String(data.invitationId), String(user.id)]
-        );
-        if (invitation.rows[0]) return notification;
+        if (pendingInvitationIds.has(String(data.invitationId))) return notification;
       }
       if (data.taskId && data.tableId) {
         return await requireRowPermission(pool, user.id, data.taskId, "viewer", data.tableId)
