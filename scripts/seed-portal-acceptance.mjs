@@ -44,6 +44,9 @@ async function rows(client,table) { return (await client.query("SELECT id,values
 async function patchRow(client,row,patch) { await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2",[JSON.stringify(patch),row.id]); }
 
 export async function seedPortalAcceptance({connectionString=process.env.DATABASE_URL,password=process.env[PASSWORD_ENV],env=process.env}={}) {
+  if (String(env.VERCEL_ENV || "").toLowerCase() === "production" || String(env.NODE_ENV || "").toLowerCase() === "production") {
+    throw new Error("Refusing portal acceptance seed in Production");
+  }
   if (!password || password.length < 24) throw new Error(`${PASSWORD_ENV} must be at least 24 characters`);
   await verifyDemoDatabaseTarget({connectionString,env});
   const manifest=JSON.parse(await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)),".marketing-demo-manifest.json"),"utf8"));
