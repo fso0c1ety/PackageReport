@@ -43,7 +43,8 @@ test("pending invite notifications remain visible to the exact recipient before 
   const route = read("src", "app", "api", "notifications", "route.js");
   assert.match(route, /notification\.type === "invite"/);
   assert.match(route, /professional_invitations/);
-  assert.match(route, /recipient_id=\$2 AND status='pending'/);
+  assert.match(route, /recipient_id=\$1 AND status='pending'/);
+  assert.match(route, /id::text = ANY\(\$2::text\[\]\)/);
 });
 
 test("removing a pending teammate cancels the durable invite and linked notification", () => {
