@@ -39,6 +39,17 @@ test('shell profile consumers share a brief authenticated response cache', () =>
   }
 });
 
+test('sidebar startup checks reuse their existing polling windows across navigation remounts', () => {
+  const sidebar = fs.readFileSync('src/app/Sidebar.tsx', 'utf8');
+  const platformAccess = sidebar.slice(sidebar.indexOf('internal/platform-access'), sidebar.indexOf('internal/platform-access') + 220);
+  const calendarReminders = sidebar.slice(sidebar.indexOf('calendar-events/reminders'), sidebar.indexOf('calendar-events/reminders') + 240);
+  const maintenanceReminders = sidebar.slice(sidebar.indexOf('maintenance/reminders'), sidebar.indexOf('maintenance/reminders') + 260);
+
+  assert.match(platformAccess, /responseCacheTtlMs: 60_000/);
+  assert.match(calendarReminders, /responseCacheTtlMs: 30_000/);
+  assert.match(maintenanceReminders, /responseCacheTtlMs: 5 \* 60_000/);
+});
+
 test('desktop navigation does not load mobile-only portal context', () => {
   const mobileNavigation = fs.readFileSync('src/app/MobileBottomNavigation.tsx', 'utf8');
   assert.match(mobileNavigation, /const isMobile = useMediaQuery/);

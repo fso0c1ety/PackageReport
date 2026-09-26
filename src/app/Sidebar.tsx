@@ -211,7 +211,10 @@ export default function Sidebar({
 
   useEffect(() => {
     let active = true;
-    authenticatedFetch(getApiUrl("internal/platform-access"), { suppressNativeErrorAlert: true })
+    authenticatedFetch(getApiUrl("internal/platform-access"), {
+      suppressNativeErrorAlert: true,
+      responseCacheTtlMs: 60_000,
+    })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => { if (active) setPlatformAccess(data || null); })
       .catch(() => { if (active) setPlatformAccess(null); });
@@ -232,7 +235,10 @@ export default function Sidebar({
       if (requestInFlight || document.hidden) return;
       requestInFlight = true;
       try {
-        const response = await authenticatedFetch(getApiUrl("calendar-events/reminders"), { suppressNativeErrorAlert: true });
+        const response = await authenticatedFetch(getApiUrl("calendar-events/reminders"), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 30_000,
+        });
         if (!response.ok) return;
         const data = await response.json();
         if (!active) return;
@@ -259,7 +265,10 @@ export default function Sidebar({
     let active = true;
     const checkMaintenance = async () => {
       try {
-        const response = await authenticatedFetch(getApiUrl("maintenance/reminders"), { suppressNativeErrorAlert: true });
+        const response = await authenticatedFetch(getApiUrl("maintenance/reminders"), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 5 * 60_000,
+        });
         if (!response.ok) return;
         const data = await response.json();
         if (!active) return;
