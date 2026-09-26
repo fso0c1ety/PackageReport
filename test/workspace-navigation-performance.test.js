@@ -20,10 +20,16 @@ test('workspace module reads reuse a bounded authenticated response cache', () =
   assert.match(workspaceSource, /tables`\), \{ responseCacheTtlMs: 60_000, consumeCachedResponse: true \}/);
 });
 
-test('the recent workspace route is prefetched without changing navigation UI', () => {
-  assert.match(homeSource, /router\.prefetch\(getAppHref\(`\/workspace\?id=\$\{lastWorkspace\.id\}`\)\)/);
-  assert.match(homeSource, /workspaces\/\$\{lastWorkspace\.id\}\/tables/);
-  assert.match(homeSource, /workspaces\/\$\{lastWorkspace\.id\}\/modules/);
+test('the recent workspace route is prefetched only after the Home shell is idle', () => {
+  const recentWorkspacePrefetch = homeSource.slice(
+    homeSource.indexOf('const prefetchWorkspace = () =>'),
+    homeSource.indexOf('const saveOnboarding')
+  );
+  assert.match(recentWorkspacePrefetch, /router\.prefetch\(getAppHref\(`\/workspace\?id=\$\{workspaceId\}`\)\)/);
+  assert.match(recentWorkspacePrefetch, /workspaces\/\$\{workspaceId\}\/tables/);
+  assert.match(recentWorkspacePrefetch, /workspaces\/\$\{workspaceId\}\/modules/);
+  assert.match(recentWorkspacePrefetch, /requestIdleCallback\(prefetchWorkspace, \{ timeout: 2_000 \}\)/);
+  assert.match(recentWorkspacePrefetch, /cancelIdleCallback\(prefetchHandle\)/);
 });
 
 test('paginated task loading derives the visible total without a duplicate count scan', () => {
