@@ -668,14 +668,18 @@ export async function POST(req, { params }) {
       [newTaskId, tableId, JSON.stringify(assignedValues), user.id]
     );
 
-    try {
-      const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
-      if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: assignedValues, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created" });
-    } catch (automationErr) {
-      console.error("[TABLE TASKS][POST] Automation processing failed after task creation:", automationErr);
-    }
-
     const createdRow = insertRes.rows[0];
+    // The row is committed before automation delivery begins. Automation may
+    // write activity, notifications, or send email, none of which should hold
+    // up the successful create response seen by the board.
+    after(async () => {
+      try {
+        const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
+        if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: assignedValues, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created" });
+      } catch (automationErr) {
+        console.error("[TABLE TASKS][POST] Automation processing failed after task creation:", automationErr);
+      }
+    });
     after(() => broadcastTableInvalidation(tableId, "INSERT", { row: createdRow }));
     return NextResponse.json(createdRow, { status: 201 });
   } catch (err) {
@@ -750,18 +754,6 @@ export async function PUT(req, { params }) {
     mergedValues = await syncTripAssignment({ table, values: mergedValues, previousValues: oldValues, actorId: user.id, rowId: id });
     mergedValues.activity = newActivity.length > 0 ? [...newActivity, ...oldActivity] : oldActivity;
 
-    try {
-      await maybeSendTaskNotifications({
-        table,
-        user,
-        taskId: id,
-        oldValues,
-        mergedValues,
-      });
-    } catch (notificationErr) {
-      console.error("[TABLE TASKS][PUT] Notification processing failed:", notificationErr);
-    }
-
     const updateRes = await pool.query(
       `
         UPDATE rows
@@ -772,32 +764,38 @@ export async function PUT(req, { params }) {
       [JSON.stringify(mergedValues), id, tableId]
     );
 
-    if (newActivity.length > 0) {
-      await sendTableNotification({
-        table,
-        senderId: user.id,
-        type: "record_update",
-        title: `${table.name} updated`,
-        body: `${getTaskName(table, mergedValues)} was updated.`,
-        taskId: id,
-        extraData: { taskName: getTaskName(table, mergedValues), dedupeKey: `row-update:${eventId}` },
-      });
-    }
-
-    try {
-      await runAutomations({
-        table,
-        taskId: id,
-        oldValues,
-        newValues: mergedValues,
-        currentUserId: user.id,
-        eventId,
-      });
-    } catch (automationErr) {
-      console.error("[TABLE TASKS][PUT] Automation processing failed after task save:", automationErr);
-    }
-
     const updatedRow = updateRes.rows[0];
+    // Secondary delivery observes the committed row and runs after the API has
+    // acknowledged the edit. Failures remain isolated from the saved mutation.
+    after(async () => {
+      try {
+        await maybeSendTaskNotifications({ table, user, taskId: id, oldValues, mergedValues });
+      } catch (notificationErr) {
+        console.error("[TABLE TASKS][PUT] Notification processing failed:", notificationErr);
+      }
+
+      if (newActivity.length > 0) {
+        try {
+          await sendTableNotification({
+            table,
+            senderId: user.id,
+            type: "record_update",
+            title: `${table.name} updated`,
+            body: `${getTaskName(table, mergedValues)} was updated.`,
+            taskId: id,
+            extraData: { taskName: getTaskName(table, mergedValues), dedupeKey: `row-update:${eventId}` },
+          });
+        } catch (notificationErr) {
+          console.error("[TABLE TASKS][PUT] Activity notification failed:", notificationErr);
+        }
+      }
+
+      try {
+        await runAutomations({ table, taskId: id, oldValues, newValues: mergedValues, currentUserId: user.id, eventId });
+      } catch (automationErr) {
+        console.error("[TABLE TASKS][PUT] Automation processing failed after task save:", automationErr);
+      }
+    });
     after(() => broadcastTableInvalidation(tableId, "UPDATE", { row: updatedRow }));
     return NextResponse.json({ success: true, task: updatedRow });
   } catch (err) {

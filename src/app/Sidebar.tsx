@@ -295,7 +295,10 @@ export default function Sidebar({
     return () => window.removeEventListener("workspaceModulesUpdated", loadModules);
   }, [currentWorkspaceId]);
   useEffect(() => {
-    authenticatedFetch(getApiUrl(`portal-context${currentWorkspaceId ? `?workspaceId=${encodeURIComponent(currentWorkspaceId)}` : ""}`), { suppressNativeErrorAlert: true })
+    authenticatedFetch(getApiUrl(`portal-context${currentWorkspaceId ? `?workspaceId=${encodeURIComponent(currentWorkspaceId)}` : ""}`), {
+      suppressNativeErrorAlert: true,
+      responseCacheTtlMs: 15_000,
+    })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => { setPortalContext(data?.active || null); setDriverPortal(data?.active?.portalType === "driver"); })
       .catch(() => { setPortalContext(null); setDriverPortal(false); });

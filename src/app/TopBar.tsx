@@ -358,7 +358,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     let cancelled = false;
     const setupRealtime = async () => {
       try {
-        const response = await authenticatedFetch(getApiUrl("notifications/realtime-topic"), { suppressNativeErrorAlert: true });
+        // The user-scoped topic is deterministic. Reusing it briefly avoids a
+        // post-v1.0.1 request on every TopBar remount while still rebuilding
+        // the realtime subscription normally for the active session.
+        const response = await authenticatedFetch(getApiUrl("notifications/realtime-topic"), {
+          suppressNativeErrorAlert: true,
+          responseCacheTtlMs: 60_000,
+        });
         if (!response.ok || cancelled) return;
         const { topic } = await response.json();
         if (!topic || cancelled) return;

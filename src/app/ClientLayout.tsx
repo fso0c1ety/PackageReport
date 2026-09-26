@@ -142,7 +142,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       const portalQuery = new URLSearchParams();
       if (requestedPortalType) portalQuery.set("portalType", requestedPortalType);
       else if (workspaceId) portalQuery.set("workspaceId", workspaceId);
-      authenticatedFetch(getApiUrl(`portal-context${portalQuery.size ? `?${portalQuery.toString()}` : ""}`), { suppressNativeErrorAlert: true })
+      // Navigation can change the page without changing the active role. Keep
+      // this short-lived only: APIs remain authoritative for every request.
+      authenticatedFetch(getApiUrl(`portal-context${portalQuery.size ? `?${portalQuery.toString()}` : ""}`), {
+        suppressNativeErrorAlert: true,
+        responseCacheTtlMs: 15_000,
+      })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (cancelled) return;
