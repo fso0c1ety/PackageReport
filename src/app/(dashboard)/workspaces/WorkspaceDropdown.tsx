@@ -43,7 +43,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       } catch (e) { console.error(e); }
     }
 
-    authenticatedFetch(getApiUrl("workspaces"))
+    authenticatedFetch(getApiUrl("workspaces"), { responseCacheTtlMs: 60_000 })
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
           return [];

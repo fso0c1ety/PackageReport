@@ -6,6 +6,7 @@ const test = require('node:test');
 const apiSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'apiUrl.ts'), 'utf8');
 const sidebarSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'Sidebar.tsx'), 'utf8');
 const workspaceSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', '(dashboard)', 'workspace', 'page.tsx'), 'utf8');
+const workspaceDropdownSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', '(dashboard)', 'workspaces', 'WorkspaceDropdown.tsx'), 'utf8');
 const homeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', '(dashboard)', 'home', 'HomeDashboard.tsx'), 'utf8');
 const tasksRouteSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'api', 'tables', '[tableId]', 'tasks', 'route.js'), 'utf8');
 
@@ -18,6 +19,7 @@ test('workspace module reads reuse a bounded authenticated response cache', () =
   assert.match(sidebarSource, /modules`\), \{ suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 \}/);
   assert.match(workspaceSource, /modules`\), \{ suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 \}/);
   assert.match(workspaceSource, /tables`\), \{ responseCacheTtlMs: 60_000, consumeCachedResponse: true \}/);
+  assert.match(workspaceDropdownSource, /authenticatedFetch\(getApiUrl\("workspaces"\), \{ responseCacheTtlMs: 60_000 \}\)/);
 });
 
 test('the recent workspace route is prefetched only after the Home shell is idle', () => {
