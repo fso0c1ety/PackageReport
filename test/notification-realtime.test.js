@@ -52,3 +52,12 @@ test("notification reads authorize items concurrently for realtime refresh laten
   assert.match(route, /requireRowPermission\(pool, user\.id/);
   assert.match(route, /requireBoardPermission\(pool, user\.id/);
 });
+
+test("notification reads batch professional-invite validation instead of adding one query per bell item", () => {
+  const route = read("src", "app", "api", "notifications", "route.js");
+  const visibilityChecks = route.slice(route.indexOf("const visibleRows"), route.indexOf("const notifications"));
+  assert.match(route, /const inviteIds = \[\.\.\.new Set\(categoryRows/);
+  assert.match(route, /id::text = ANY\(\$2::text\[\]\)/);
+  assert.match(route, /pendingInvitationIds\.has\(String\(data\.invitationId\)\)/);
+  assert.doesNotMatch(visibilityChecks, /await pool\.query/);
+});
