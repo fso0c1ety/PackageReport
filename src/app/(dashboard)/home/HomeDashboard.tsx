@@ -339,19 +339,36 @@ export default function HomeDashboard() {
   }, []);
 
   useEffect(() => {
-    if (lastWorkspace?.id) {
-      router.prefetch(getAppHref(`/workspace?id=${lastWorkspace.id}`));
+    if (!lastWorkspace?.id) return;
+
+    const workspaceId = lastWorkspace.id;
+    const browserWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    // This prefetch was added after v1.0.1. Keep the warm navigation cache,
+    // but do not compete with the initial Home shell and workspace list.
+    const prefetchWorkspace = () => {
+      router.prefetch(getAppHref(`/workspace?id=${workspaceId}`));
       void Promise.all([
-        authenticatedFetch(getApiUrl(`workspaces/${lastWorkspace.id}/tables`), {
+        authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/tables`), {
           suppressNativeErrorAlert: true,
           responseCacheTtlMs: 60_000,
         }),
-        authenticatedFetch(getApiUrl(`workspaces/${lastWorkspace.id}/modules`), {
+        authenticatedFetch(getApiUrl(`workspaces/${workspaceId}/modules`), {
           suppressNativeErrorAlert: true,
           responseCacheTtlMs: 60_000,
         }),
       ]).catch(() => undefined);
-    }
+    };
+    const prefetchHandle = browserWindow.requestIdleCallback
+      ? browserWindow.requestIdleCallback(prefetchWorkspace, { timeout: 2_000 })
+      : window.setTimeout(prefetchWorkspace, 250);
+
+    return () => {
+      if (browserWindow.cancelIdleCallback && browserWindow.requestIdleCallback) browserWindow.cancelIdleCallback(prefetchHandle);
+      else window.clearTimeout(prefetchHandle);
+    };
   }, [lastWorkspace?.id, router]);
 
   const saveOnboarding = (steps: number[], dismissed = false) => {
