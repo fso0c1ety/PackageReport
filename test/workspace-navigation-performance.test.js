@@ -19,7 +19,9 @@ test('workspace module reads reuse a bounded authenticated response cache', () =
   assert.match(sidebarSource, /modules`\), \{ suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 \}/);
   assert.match(workspaceSource, /modules`\), \{ suppressNativeErrorAlert: true, responseCacheTtlMs: 60_000 \}/);
   assert.match(workspaceSource, /tables`\), \{ responseCacheTtlMs: 60_000, consumeCachedResponse: true \}/);
-  assert.match(workspaceDropdownSource, /authenticatedFetch\(getApiUrl\("workspaces"\), \{ responseCacheTtlMs: 60_000 \}\)/);
+  assert.match(workspaceDropdownSource, /const fetchWorkspaces = \(bypassCache = false\)/);
+  assert.match(workspaceDropdownSource, /bypassCache \? undefined : \{ responseCacheTtlMs: 60_000 \}/);
+  assert.match(workspaceDropdownSource, /const handleUpdate = \(\) => \{\s*fetchWorkspaces\(true\);\s*\}/);
 });
 
 test('the recent workspace route is prefetched only after the Home shell is idle', () => {
