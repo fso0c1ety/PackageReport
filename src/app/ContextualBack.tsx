@@ -2,14 +2,12 @@
 
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import { Box, Button } from "@mui/material";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { navigateToAppRoute } from "./apiUrl";
+import { usePathname, useSearchParams } from "next/navigation";
 
 /** A stable in-app escape hatch for secondary authenticated routes. */
 export default function ContextualBack() {
   const pathname = (usePathname() || "/").replace(/\/+$/, "") || "/";
   const searchParams = useSearchParams();
-  const router = useRouter();
   const workspaceId = searchParams.get("id") || searchParams.get("workspaceId") || "";
 
   if (["/home", "/", "/driver-trips"].includes(pathname) || pathname.startsWith("/portal/")) return null;
@@ -33,10 +31,15 @@ export default function ContextualBack() {
   return (
     <Box sx={{ mb: { xs: 1, md: 1.5 }, display: "flex", alignItems: "center" }}>
       <Button
+        component="a"
+        href={destination}
+        onClick={(event) => {
+          event.preventDefault();
+          window.location.assign(destination);
+        }}
         type="button"
         size="small"
         startIcon={<ArrowBackRoundedIcon />}
-        onClick={() => navigateToAppRoute(destination, router)}
         sx={{ textTransform: "none", fontWeight: 800, borderRadius: 2 }}
         aria-label={label}
       >
