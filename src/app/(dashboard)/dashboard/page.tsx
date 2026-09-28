@@ -362,7 +362,10 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const [wsRes, tablesRes] = await Promise.all([
-          authenticatedFetch(getApiUrl("workspaces")),
+          authenticatedFetch(getApiUrl("workspaces"), {
+            responseCacheTtlMs: 60_000,
+            consumeCachedResponse: true,
+          }),
           authenticatedFetch(getApiUrl("tables")),
         ]);
         const wsData = await wsRes.json();
