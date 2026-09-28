@@ -510,6 +510,7 @@ async function runAutomations({ table, taskId, oldValues, newValues, currentUser
 }
 
 export async function GET(req, { params }) {
+  const startedAt = Date.now();
   let readClient;
   const releaseReadClient = () => { readClient?.release(); readClient = undefined; };
   const readPool = { query: async (sql, values) => {
@@ -536,11 +537,14 @@ export async function GET(req, { params }) {
       ? requestedOffset
       : 0;
 
+    const authorizationStart = Date.now();
     const table = await requireBoardPermission(readPool, user.id, tableId, "viewer");
+    const authorizationMs = Date.now() - authorizationStart;
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
+    const queryStart = Date.now();
     let result;
     let countResult;
     if (table.legacy_authorization) {
@@ -574,6 +578,7 @@ export async function GET(req, { params }) {
       }
     }
 
+    const queryMs = Date.now() - queryStart;
     releaseReadClient();
     result.rows = result.rows.map((row) => ({
       ...row,
@@ -605,7 +610,10 @@ export async function GET(req, { params }) {
       : result.rows;
 
     const response = NextResponse.json(responseBody, {
-      headers: { "Cache-Control": "private, no-store, max-age=0" },
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Server-Timing": `authorization;dur=${authorizationMs},query;dur=${queryMs},total;dur=${Date.now() - startedAt}`,
+      },
     });
     return response;
   } catch (err) {
