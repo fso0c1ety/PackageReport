@@ -31,8 +31,6 @@ jobs:
       VERCEL_ENV: ""
       DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: "false"
-      SMART_MANAGE_PORTAL_TEST_PASSWORD: ci-portal-acceptance-2026-strong-password
-      SMART_MANAGE_DEMO_PASSWORD: ci-portal-acceptance-2026-strong-password
       E2E_BASE_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +39,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Generate ephemeral CI test password
+        shell: bash
+        run: |
+          password="CiPortalAcceptance$(node -e "process.stdout.write(String(Date.now()))")A1!"
+          {
+            echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$password"
+            echo "SMART_MANAGE_DEMO_PASSWORD=$password"
+          } >> "$GITHUB_ENV"
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
