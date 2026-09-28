@@ -28,6 +28,16 @@ const landing = (portal) => portal === "driver" ? "/driver-trips" : `/portal/${p
 const col = (table,name) => (table.columns || []).find((item) => String(item.name).toLowerCase() === name.toLowerCase());
 const person = (id,[email,name]) => [{id,userId:id,email,name}];
 
+export function assertPortalSeedEnvironment(env = process.env) {
+  const vercelEnv = String(env.VERCEL_ENV || "").trim().toLowerCase();
+  const nodeEnv = String(env.NODE_ENV || "").trim().toLowerCase();
+  // Vercel Preview builds use NODE_ENV=production. VERCEL_ENV is the
+  // authoritative deployment boundary; keep local production fail-closed.
+  if (vercelEnv === "production" || (!vercelEnv && nodeEnv === "production")) {
+    throw new Error("Refusing portal acceptance seed in Production");
+  }
+}
+
 async function ensureAccount(client,key,password) {
   const [email,name] = accounts[key];
   let user = (await client.query("SELECT id FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",[email])).rows[0];
@@ -44,9 +54,7 @@ async function rows(client,table) { return (await client.query("SELECT id,values
 async function patchRow(client,row,patch) { await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2",[JSON.stringify(patch),row.id]); }
 
 export async function seedPortalAcceptance({connectionString=process.env.DATABASE_URL,password=process.env[PASSWORD_ENV],env=process.env}={}) {
-  if (String(env.VERCEL_ENV || "").toLowerCase() === "production" || String(env.NODE_ENV || "").toLowerCase() === "production") {
-    throw new Error("Refusing portal acceptance seed in Production");
-  }
+  assertPortalSeedEnvironment(env);
   if (!password || password.length < 24) throw new Error(`${PASSWORD_ENV} must be at least 24 characters`);
   await verifyDemoDatabaseTarget({connectionString,env});
   const manifest=JSON.parse(await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)),".marketing-demo-manifest.json"),"utf8"));

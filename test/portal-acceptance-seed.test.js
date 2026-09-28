@@ -7,6 +7,14 @@ const { spawnSync } = require("node:child_process");
 const source = readFileSync(join(process.cwd(), "scripts", "seed-portal-acceptance.mjs"), "utf8");
 const preparation = readFileSync(join(process.cwd(), "scripts", "prepare-portal-acceptance-env.mjs"), "utf8");
 
+test("portal acceptance seed environment guard distinguishes Preview from Production", async () => {
+  const { assertPortalSeedEnvironment } = await import("../scripts/seed-portal-acceptance.mjs");
+  assert.throws(() => assertPortalSeedEnvironment({ VERCEL_ENV: "production", NODE_ENV: "production" }), /Refusing portal acceptance seed/);
+  assert.doesNotThrow(() => assertPortalSeedEnvironment({ VERCEL_ENV: "preview", NODE_ENV: "production" }));
+  assert.doesNotThrow(() => assertPortalSeedEnvironment({ NODE_ENV: "test" }));
+  assert.throws(() => assertPortalSeedEnvironment({ NODE_ENV: "production" }), /Refusing portal acceptance seed/);
+});
+
 test("portal acceptance environment is prepared without hardcoded secrets", () => {
   assert.match(preparation, /randomBytes/);
   assert.match(preparation, /DEMO_DATABASE_FINGERPRINT/);
@@ -43,8 +51,10 @@ test("portal acceptance seed fails closed before database access without a passw
   assert.match(`${result.stdout}${result.stderr}`, /SMART_MANAGE_PORTAL_TEST_PASSWORD/);
 });
 
-test("portal acceptance seed refuses Production even with otherwise valid credentials", () => {
-  assert.match(source, /Refusing portal acceptance seed in Production/);
-  assert.match(source, /VERCEL_ENV.*production/);
-  assert.match(source, /NODE_ENV.*production/);
+test("portal acceptance seed refuses Production even with otherwise valid credentials", async () => {
+  const { assertPortalSeedEnvironment } = await import("../scripts/seed-portal-acceptance.mjs");
+  assert.throws(
+    () => assertPortalSeedEnvironment({ VERCEL_ENV: "production", NODE_ENV: "production" }),
+    /Refusing portal acceptance seed in Production/
+  );
 });
