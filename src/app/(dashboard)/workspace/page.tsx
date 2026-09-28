@@ -38,7 +38,7 @@ function WorkspaceContent() {
       const storageKey = `lastWorkspace_${userId}`;
 
       // Try to get workspace name from API or fallback to id
-      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`))
+      authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`), { responseCacheTtlMs: 60_000 })
         .then(res => {
           if (!res.ok) {
             throw new Error(`Workspace fetch failed (${res.status})`);
