@@ -33,6 +33,10 @@ export default function ContextualBack() {
       <Button
         component="a"
         href={destination}
+        onClick={(event) => {
+          event.preventDefault();
+          window.location.assign(destination);
+        }}
         type="button"
         size="small"
         startIcon={<ArrowBackRoundedIcon />}
