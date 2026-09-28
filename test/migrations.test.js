@@ -26,6 +26,12 @@ test("fresh schema backfill uses timestamptz semantics", () => {
   assert.doesNotMatch(migration, /EXTRACT\(EPOCH FROM NOW\(\)\)\s*\*\s*1000/);
 });
 
+test("fresh schema creates marketplace tables before extending them", () => {
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "013_template_marketplace.sql"), "utf8");
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS marketplace_templates/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS marketplace_reviews/);
+});
+
 test("production migration runner supports an explicit safe target", () => {
   const source = readFileSync(join(process.cwd(), "server", "db", "runMigrations.js"), "utf8");
   const vercelBuild = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
