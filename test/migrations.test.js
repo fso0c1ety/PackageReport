@@ -20,6 +20,12 @@ test("migration validation accepts ordered unique files", () => {
   assert.equal(validateMigrationFiles(["001_first.sql", "002_second.sql"]), true);
 });
 
+test("fresh schema backfill uses timestamptz semantics", () => {
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "002_backfill_empty_workspaces.sql"), "utf8");
+  assert.match(migration, /NOW\(\),\s*\n\s*UPPER\(SUBSTRING/);
+  assert.doesNotMatch(migration, /EXTRACT\(EPOCH FROM NOW\(\)\)\s*\*\s*1000/);
+});
+
 test("production migration runner supports an explicit safe target", () => {
   const source = readFileSync(join(process.cwd(), "server", "db", "runMigrations.js"), "utf8");
   const vercelBuild = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
