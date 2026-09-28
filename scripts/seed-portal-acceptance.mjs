@@ -5,10 +5,11 @@ import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import pg from "pg";
 import { verifyDemoDatabaseTarget } from "./verify-demo-database-target.mjs";
+import { assertPortalCiEnvironment } from "./portal-ci-guard.mjs";
 
 const PASSWORD_ENV = "SMART_MANAGE_PORTAL_TEST_PASSWORD";
 const accounts = {
-  driverA:["driver-a@smartmanage-demo.com","Driver A"],driverB:["driver-b@smartmanage-demo.com","Driver B"],manager:["portal-manager-v2@smartmanage-demo.com","Portal Manager"],
+  driverA:["driver-a@smartmanage-demo.com","Driver A"],driverB:["driver-b@smartmanage-demo.com","Driver B"],manager:["portal-manager-v2@smartmanage-demo.com","Portal Manager"],managerLegacy:["portal-manager@smartmanage-demo.com","Portal Manager Legacy"],
   teacherA:["teacher-a@smartmanage-demo.com","Arta Berisha"],teacherB:["teacher-b@smartmanage-demo.com","Elira Gashi"],parentA:["parent-a@smartmanage-demo.com","Mira Morina"],parentB:["parent-b@smartmanage-demo.com","Blerim Gashi"],
   doctorA:["doctor-a@smartmanage-demo.com","Dr. Era Krasniqi"],doctorB:["doctor-b@smartmanage-demo.com","Dr. Luan Hoxha"],patientA:["patient-a@smartmanage-demo.com","Elira Krasniqi"],patientB:["patient-b@smartmanage-demo.com","Arben Hoxha"],
   clientA:["client-a@smartmanage-demo.com","Northstar Foods"],clientB:["client-b@smartmanage-demo.com","Alpine Retail Group"],
@@ -56,7 +57,8 @@ async function patchRow(client,row,patch) { await client.query("UPDATE rows SET 
 export async function seedPortalAcceptance({connectionString=process.env.DATABASE_URL,password=process.env[PASSWORD_ENV],env=process.env}={}) {
   assertPortalSeedEnvironment(env);
   if (!password || password.length < 24) throw new Error(`${PASSWORD_ENV} must be at least 24 characters`);
-  await verifyDemoDatabaseTarget({connectionString,env});
+  if (env.PORTAL_ACCEPTANCE_CI === "1") assertPortalCiEnvironment(env, connectionString);
+  else await verifyDemoDatabaseTarget({connectionString,env});
   const manifest=JSON.parse(await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)),".marketing-demo-manifest.json"),"utf8"));
   const pool=new pg.Pool({connectionString,ssl:env.DATABASE_SSL==="false"?false:{rejectUnauthorized:false}}); const client=await pool.connect();
   try { await client.query("BEGIN"); const ids={}; for (const key of Object.keys(accounts)) ids[key]=await ensureAccount(client,key,password);
@@ -69,10 +71,12 @@ export async function seedPortalAcceptance({connectionString=process.env.DATABAS
     }
     for (const workspaceKey of ["daycare","dental","freight"]) {
       const workspaceId=manifest.workspaces[workspaceKey].workspaceId;
+      for (const managerKey of ["manager", "managerLegacy"]) {
       await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,job_roles,primary_job_role,portal_type,permitted_portals,landing_route,record_access,updated_at)
         VALUES($1,$2,'admin','admin','["manager"]'::jsonb,'manager','manager','["manager"]'::jsonb,'/workspace','{"scope":"all"}'::jsonb,NOW())
-        ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='admin',workspace_role='admin',job_roles='["manager"]'::jsonb,primary_job_role='manager',portal_type='manager',permitted_portals='["manager"]'::jsonb,landing_route='/workspace',record_access='{"scope":"all"}'::jsonb,updated_at=NOW()`,[workspaceId,ids.manager]);
-      for(const table of await boards(client,workspaceId)) await client.query("INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'owner','{}'::jsonb,'{\"scope\":\"all\"}'::jsonb,NOW()) ON CONFLICT(table_id,user_id) DO UPDATE SET board_role='owner',record_access='{\"scope\":\"all\"}'::jsonb,updated_at=NOW()",[table.id,ids.manager]);
+        ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='admin',workspace_role='admin',job_roles='["manager"]'::jsonb,primary_job_role='manager',portal_type='manager',permitted_portals='["manager"]'::jsonb,landing_route='/workspace',record_access='{"scope":"all"}'::jsonb,updated_at=NOW()`,[workspaceId,ids[managerKey]]);
+      for(const table of await boards(client,workspaceId)) await client.query("INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'owner','{}'::jsonb,'{\"scope\":\"all\"}'::jsonb,NOW()) ON CONFLICT(table_id,user_id) DO UPDATE SET board_role='owner',record_access='{\"scope\":\"all\"}'::jsonb,updated_at=NOW()",[table.id,ids[managerKey]]);
+      }
     }
     const link = async (workspaceKey,tableName,userKeys,patcher) => { const workspaceId=manifest.workspaces[workspaceKey].workspaceId; const table=(await boards(client,workspaceId)).find((item)=>item.name===tableName); const records=await rows(client,table); for(let i=0;i<Math.min(userKeys.length,records.length);i++) await patchRow(client,records[i],patcher(ids[userKeys[i]],accounts[userKeys[i]],records[i],table,i)); return {table,records}; };
     const drivers=await link("fleet","Drivers",["driverA","driverB"],(id)=>({_linkedUserId:id})); await link("fleet","Trips",["driverA","driverB"],(id,_,row,table,i)=>({_workspaceId:manifest.workspaces.fleet.workspaceId,_assignedDriverUserId:id,_assignedDriverProfileId:drivers.records[i]?.id}));

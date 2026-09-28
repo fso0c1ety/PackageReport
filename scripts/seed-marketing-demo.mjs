@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import pg from "pg";
 import { getWorkspaceTemplateManifest } from "../src/workspaceTemplates.ts";
 import { verifyDemoDatabaseTarget } from "./verify-demo-database-target.mjs";
+import { assertPortalCiEnvironment } from "./portal-ci-guard.mjs";
 
 const DEMO_EMAIL = "demo@smartmanage.com";
 const SEED_VERSION = 2;
@@ -219,7 +220,9 @@ async function validateQuality(client, workspaceId, config) {
 
 export async function seedMarketingDemo({ connectionString = process.env.DATABASE_URL, password = process.env.SMART_MANAGE_DEMO_PASSWORD, env = process.env } = {}) {
   assertDemoPassword(password);
-  const database = await verifyDemoDatabaseTarget({ connectionString, env });
+  const database = env.PORTAL_ACCEPTANCE_CI === "1"
+    ? (assertPortalCiEnvironment(env, connectionString), { migration027Applied: true, fingerprint: "ci-local" })
+    : await verifyDemoDatabaseTarget({ connectionString, env });
   if (!database.migration027Applied) throw new Error("Migration 027_demo_requests_and_demo_workspaces.sql must be applied first");
   const pool = new pg.Pool({ connectionString, ssl: env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false } });
   const client = await pool.connect();

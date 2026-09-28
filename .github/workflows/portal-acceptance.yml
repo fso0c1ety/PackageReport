@@ -1,0 +1,49 @@
+name: Portal Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "src/portal-engine/**"
+      - "src/app/api/professional-portal/**"
+      - "scripts/seed-portal-acceptance.mjs"
+      - "scripts/seed-marketing-demo.mjs"
+      - "scripts/portal-ci-guard.mjs"
+      - "e2e/portal-*.spec.ts"
+      - ".github/workflows/portal-acceptance.yml"
+
+jobs:
+  portal-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_portal_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: portal-ci-local-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CI: true
+      PORTAL_ACCEPTANCE_CI: "1"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: "false"
+      SMART_MANAGE_PORTAL_TEST_PASSWORD: ci-portal-acceptance-2026-strong-password
+      SMART_MANAGE_DEMO_PASSWORD: ci-portal-acceptance-2026-strong-password
+      E2E_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- e2e/portal-authenticated.spec.ts e2e/portal-writes.spec.ts --project=desktop-1440 --workers=1
