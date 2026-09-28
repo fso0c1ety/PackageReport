@@ -4,6 +4,7 @@ import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireWritableSubscription } from "../../../_lib/billing";
 
 export const runtime = "nodejs";
+const timingNow = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 export async function GET(req, { params }) {
   const user = getAuthenticatedUser(req);
@@ -12,26 +13,36 @@ export async function GET(req, { params }) {
   }
 
   let client;
+  const startedAt = timingNow();
   try {
     const { workspaceId } = await params;
+    const dbStart = timingNow();
     client = await pool.connect();
-    const wsResult = await client.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
-    const workspace = wsResult.rows[0];
-
-    if (!workspace) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-    }
-
-    const tablesResult = await client.query(
-      `SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id
-       LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id::text=$2::text
-       WHERE t.workspace_id=$1 AND (w.owner_id::text=$2::text OR LOWER(COALESCE(wm.role,'')) IN ('owner','admin','logistics_admin') OR EXISTS (
+    const result = await client.query(
+      `SELECT
+         COALESCE(json_agg(to_jsonb(t)) FILTER (WHERE t.id IS NOT NULL), '[]'::json) AS tables
+       FROM workspaces w
+       LEFT JOIN tables t ON t.workspace_id=w.id AND (w.owner_id::text=$2::text OR EXISTS (
+         SELECT 1 FROM workspace_members wm
+         WHERE wm.workspace_id=w.id AND wm.user_id::text=$2::text
+           AND LOWER(COALESCE(wm.role,'')) IN ('owner','admin','logistics_admin')
+       ) OR EXISTS (
          SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(t.shared_users,'[]'::jsonb))='array' THEN COALESCE(t.shared_users,'[]'::jsonb) ELSE '[]'::jsonb END) elem
          WHERE COALESCE(elem->>'userId',elem#>>'{}')=$2::text
-       ))`,
+       ))
+       WHERE w.id=$1
+       GROUP BY w.id`,
       [workspaceId, String(user.id)]
     );
-    return NextResponse.json(tablesResult.rows);
+    const row = result.rows[0];
+    if (!row) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+    const dbMs = Math.round(timingNow() - dbStart);
+    const response = NextResponse.json(row.tables, {
+      headers: { "Server-Timing": `db;dur=${dbMs},total;dur=${Math.round(timingNow() - startedAt)}` },
+    });
+    return response;
   } catch (err) {
     console.error("[WORKSPACE TABLES][GET] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
