@@ -98,6 +98,7 @@ export async function GET(req) {
     if (portalType === "doctor") {
       if (entity === "Patients") return context.patientIds.has(String(row.id));
       if (["Appointments","Treatments"].includes(entity)) return hasUser(value(row, table, "Dentist"), user);
+      if (entity === "Documents") return context.patientIds.has(ids(value(row, table, "Patient"))[0]);
       if (entity === "Lab Requests") return context.patientIds.has(ids(value(row, table, "Patient"))[0]);
     }
     if (portalType === "patient") {
