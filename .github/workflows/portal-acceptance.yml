@@ -55,7 +55,7 @@ jobs:
       - name: Start application server
         shell: bash
         run: |
-          PORT=3000 nohup node server/index.js > /tmp/portal-acceptance-server.log 2>&1 &
+          nohup npx next start -p 3000 -H 127.0.0.1 > /tmp/portal-acceptance-server.log 2>&1 &
           for attempt in $(seq 1 60); do
             if curl --silent --fail http://127.0.0.1:3000/login/ > /dev/null; then
               break
