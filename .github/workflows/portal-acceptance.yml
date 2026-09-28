@@ -64,6 +64,3 @@ jobs:
           done
           curl --silent --fail http://127.0.0.1:3000/login/ > /dev/null
       - run: npm run test:e2e -- e2e/portal-authenticated.spec.ts e2e/portal-writes.spec.ts --project=desktop-1440 --workers=1
-      - name: Dump application log on failure
-        if: ${{ failure() }}
-        run: cat /tmp/portal-acceptance-server.log || true
