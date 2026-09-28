@@ -33,7 +33,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
 
   const resolvedWorkspaceId = currentId || searchParams.get("id") || "";
 
-  const fetchWorkspaces = () => {
+  const fetchWorkspaces = (bypassCache = false) => {
     // Get current user id from localStorage to identify shared workspaces
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -43,7 +43,10 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
       } catch (e) { console.error(e); }
     }
 
-    authenticatedFetch(getApiUrl("workspaces"), { responseCacheTtlMs: 60_000 })
+    authenticatedFetch(
+      getApiUrl("workspaces"),
+      bypassCache ? undefined : { responseCacheTtlMs: 60_000 }
+    )
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
           return [];
@@ -84,7 +87,7 @@ export default function WorkspaceDropdown({ currentId }: { currentId?: string })
     fetchWorkspaces();
 
     const handleUpdate = () => {
-      fetchWorkspaces();
+      fetchWorkspaces(true);
     };
 
     window.addEventListener('workspaceUpdated', handleUpdate);
