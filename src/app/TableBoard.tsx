@@ -9592,10 +9592,23 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   overflow: 'hidden'
   }
   }}
+  slotProps={{
+  list: {
+  sx: {
+  maxHeight: 210,
+  overflowY: 'auto',
+  overflowX: 'hidden',
+  p: 0,
+  '&::-webkit-scrollbar': { width: 6 },
+  '&::-webkit-scrollbar-track': { background: 'transparent' },
+  '&::-webkit-scrollbar-thumb': { background: theme.palette.action.disabled, borderRadius: 3 },
+  }
+  }
+  }}
   transformOrigin={{ horizontal: 'left', vertical: 'top' }}
   anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
   >
-  <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+  <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, position: 'sticky', top: 0, zIndex: 1, bgcolor: theme.palette.background.paper }}>
   <Typography variant="overline" sx={{ color: theme.palette.text.secondary, fontWeight: 700, letterSpacing: 1 }}>
   Board Views
   </Typography>
