@@ -8,6 +8,8 @@ on:
       - "scripts/seed-portal-acceptance.mjs"
       - "scripts/seed-marketing-demo.mjs"
       - "scripts/portal-ci-guard.mjs"
+      - "scripts/verify-local-realtime.mjs"
+      - "supabase/config.toml"
       - "e2e/portal-*.spec.ts"
       - ".github/workflows/portal-acceptance.yml"
 
@@ -39,6 +41,26 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.33.9
+      - name: Start isolated local Supabase Realtime
+        shell: bash
+        run: |
+          supabase start
+          supabase status -o env > /tmp/supabase-status.env
+          api_url="$(sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
+          anon_key="$(sed -n 's/^ANON_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
+          service_key="$(sed -n 's/^SERVICE_ROLE_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
+          test -n "$api_url" && test -n "$anon_key" && test -n "$service_key"
+          echo "::add-mask::$api_url"
+          echo "::add-mask::$anon_key"
+          echo "::add-mask::$service_key"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$api_url"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$service_key"
+          } >> "$GITHUB_ENV"
       - name: Generate ephemeral CI test password
         shell: bash
         run: |
@@ -51,6 +73,8 @@ jobs:
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
+      - name: Verify local Supabase Realtime
+        run: node scripts/verify-local-realtime.mjs
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start application server
