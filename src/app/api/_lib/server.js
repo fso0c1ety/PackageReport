@@ -19,7 +19,7 @@ const poolOptions = {
   // Vercel can run many isolates concurrently. Keep each isolate deliberately
   // small so their combined connections cannot overwhelm Supavisor.
   max: boundedPositiveInteger(process.env.DATABASE_POOL_MAX, 2, 2),
-  connectionTimeoutMillis: boundedPositiveInteger(process.env.DATABASE_CONNECTION_TIMEOUT_MS, 5000, 15000),
+  connectionTimeoutMillis: boundedPositiveInteger(process.env.DATABASE_CONNECTION_TIMEOUT_MS, 15000, 15000),
   idleTimeoutMillis: boundedPositiveInteger(process.env.DATABASE_IDLE_TIMEOUT_MS, 10000, 60000),
   allowExitOnIdle: true,
 };
@@ -35,7 +35,31 @@ export const pool = connectionString
       connect() {
         throw new Error("Missing required environment variable: DATABASE_URL");
       },
-    };
+  };
+
+export function poolDiagnostics() {
+  return {
+    totalCount: pool.totalCount ?? null,
+    idleCount: pool.idleCount ?? null,
+    waitingCount: pool.waitingCount ?? null,
+  };
+}
+
+export async function connectWithDiagnostics(route) {
+  const startedAt = Date.now();
+  try {
+    return await pool.connect();
+  } catch (error) {
+    console.error("[DB_POOL_ACQUIRE_TIMEOUT]", {
+      route,
+      errorName: error instanceof Error ? error.name : "Error",
+      errorCode: error?.code || null,
+      elapsedMs: Date.now() - startedAt,
+      ...poolDiagnostics(),
+    });
+    throw error;
+  }
+}
 
 export async function ensureUserNotificationColumns() {
   // Columns are managed by server/db/migrations/001_core_saas_schema.sql.
