@@ -312,7 +312,7 @@ export async function POST(req) {
     }
 
     const safeSubject = `${portalType}:${action}`;
-    await client.query("INSERT INTO activity_logs(id,recipients,subject,html,timestamp,table_id,task_id,status) VALUES($1,'[]'::jsonb,$2,$3,$4,$5,$6,'sent')", [randomUUID(), safeSubject, definition.sensitive ? null : `${user.name || user.email || portalType} performed ${action}`, Date.now(), table.id, resultId]);
+    await client.query("INSERT INTO activity_logs(id,recipients,subject,html,timestamp,table_id,task_id,status) VALUES($1,'[]'::jsonb,$2,$3,$4,$5,$6,'sent')", [randomUUID(), safeSubject, definition.sensitive ? null : `${user.name || user.email || portalType} performed ${action}`, new Date(), table.id, resultId]);
     await client.query("COMMIT");
     const eventId = randomUUID();
     after(() => broadcastTableInvalidation(table.id, eventType === "row_created" ? "INSERT" : "UPDATE"));
