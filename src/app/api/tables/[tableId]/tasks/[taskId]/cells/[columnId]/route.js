@@ -8,6 +8,7 @@ import { runAutomationWithPlanQuota } from "../../../../../../_lib/automationQuo
 import addressFields from "@/shared/internationalAddress.cjs";
 import automationEngine from "../../../../../../../../../server/services/automationEngine";
 import { randomUUID } from "node:crypto";
+import { validate as uuidValidate } from "uuid";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,8 @@ const diagnosticQuery = (route, text, values) => typeof pool.queryWithDiagnostic
   : pool.query(text, values);
 
 export async function PATCH(req, { params }) {
+  const mutationIdHeader = req.headers.get("x-smartmanage-mutation-id");
+  const mutationId = uuidValidate(mutationIdHeader || "") ? mutationIdHeader : randomUUID();
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { tableId, taskId, columnId } = await params;
@@ -43,7 +46,7 @@ export async function PATCH(req, { params }) {
   );
   if (!result.rows[0]) return NextResponse.json({ error: "Row not found" }, { status: 404 });
   const newValues = result.rows[0].values && typeof result.rows[0].values === "object" ? result.rows[0].values : { ...oldValues, ...patch };
-  const eventId = randomUUID();
+  const eventId = mutationId;
   try {
     await runAutomationWithPlanQuota({
       table: access.board,

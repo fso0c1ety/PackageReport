@@ -665,20 +665,33 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
 
-    const newTaskId = typeof body?.id === "string" && uuidValidate(body.id) ? body.id : uuidv4();
+    const mutationIdHeader = req.headers.get("x-smartmanage-mutation-id");
+    const newTaskId = typeof body?.id === "string" && uuidValidate(body.id)
+      ? body.id
+      : (uuidValidate(mutationIdHeader || "") ? mutationIdHeader : uuidv4());
     const tableForAssignment = (await diagnosticQuery("POST /api/tables/[tableId]/tasks table", "SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
     const values = normalizePeopleValues(tableForAssignment?.columns, body?.values && typeof body.values === "object" ? body.values : {});
     const addressResult = validateAndNormalizeAddresses(tableForAssignment?.columns, values);
     if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
     const assignedValues = await syncTripAssignment({ table: tableForAssignment, values: addressResult.values, previousValues: {}, actorId: user.id, rowId: newTaskId });
-    const insertRes = await diagnosticQuery("POST /api/tables/[tableId]/tasks insert",
-      `
-        INSERT INTO rows (id, table_id, values, created_by, created_at)
-        VALUES ($1, $2, $3, $4, NOW())
-        RETURNING *
-      `,
-      [newTaskId, tableId, JSON.stringify(assignedValues), user.id]
-    );
+    let insertRes;
+    try {
+      insertRes = await diagnosticQuery("POST /api/tables/[tableId]/tasks insert",
+        `
+          INSERT INTO rows (id, table_id, values, created_by, created_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          RETURNING *
+        `,
+        [newTaskId, tableId, JSON.stringify(assignedValues), user.id]
+      );
+    } catch (insertError) {
+      if (insertError?.code !== "23505") throw insertError;
+      const existing = (await pool.query("SELECT * FROM rows WHERE id=$1", [newTaskId])).rows[0];
+      if (!existing || String(existing.table_id) !== String(tableId) || String(existing.created_by) !== String(user.id)) {
+        return NextResponse.json({ error: "Task creation conflict" }, { status: 409 });
+      }
+      return NextResponse.json(existing, { status: 200 });
+    }
 
     const createdRow = insertRes.rows[0];
     // The row is committed before automation delivery begins. Automation may
@@ -687,7 +700,7 @@ export async function POST(req, { params }) {
     after(async () => {
       try {
         const tableResult = await pool.query("SELECT * FROM tables WHERE id=$1", [tableId]);
-        if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: assignedValues, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created" });
+        if (tableResult.rows[0]) await runAutomations({ table: tableResult.rows[0], taskId: newTaskId, oldValues: {}, newValues: assignedValues, currentUserId: user.id, eventType: body?.source === "form" ? "form_submitted" : "row_created", eventId: newTaskId });
       } catch (automationErr) {
         console.error("[TABLE TASKS][POST] Automation processing failed after task creation:", automationErr);
       }

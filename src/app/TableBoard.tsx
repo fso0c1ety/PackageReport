@@ -1472,7 +1472,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
 
   if (!response.ok) {
-  const errorText = await response.text().catch(() => "");
+  const errorText = response ? await response.text().catch(() => "") : "";
   throw new Error(errorText || `Failed to save task details (${response.status})`);
   }
 
@@ -3738,17 +3738,32 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   const creationPromise = (async (): Promise<Row> => {
-  const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+  const mutationId = optimisticTask.id;
+  let res: Response | undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+  try {
+  res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "X-SmartManage-Mutation-Id": mutationId },
   body: JSON.stringify(optimisticTask),
   });
-
-  if (!res.ok) {
-  const responseText = await res.text().catch(() => "");
-  throw new Error(responseText || `Failed to create task (${res.status})`);
+  } catch (error) {
+  if (attempt === 0 && /fetch failed|network|temporarily unavailable/i.test(String((error as Error)?.message || error))) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  continue;
   }
-
+  throw error;
+  }
+  if ([408, 425, 429, 500, 502, 503, 504].includes(res.status) && attempt === 0) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  continue;
+  }
+  break;
+  }
+  if (!res || !res.ok) {
+  const responseText = res ? await res.text().catch(() => "") : "";
+  throw new Error(responseText || `Failed to create task (${res?.status ?? 0})`);
+  }
   return res.json();
   })();
   pendingTaskCreationsRef.current.set(optimisticTask.id, creationPromise);
@@ -3776,7 +3791,25 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const handleFormSubmission = async (submittedValues: Record<string, any>) => {
   if (userPermission === 'read') throw new Error('Read-only access');
   const optimisticTask: Row = { id: uuidv4(), values: submittedValues, created_by: currentUser?.id };
-  const res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(optimisticTask) });
+  const mutationId = optimisticTask.id;
+  let res: Response | undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+  try {
+  res = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-SmartManage-Mutation-Id': mutationId }, body: JSON.stringify(optimisticTask) });
+  } catch (error) {
+  if (attempt === 0 && /fetch failed|network|temporarily unavailable/i.test(String((error as Error)?.message || error))) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  continue;
+  }
+  throw error;
+  }
+  if ([408, 425, 429, 500, 502, 503, 504].includes(res.status) && attempt === 0) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  continue;
+  }
+  break;
+  }
+  if (!res) throw new Error('Unable to submit form');
   if (!res.ok) throw new Error(await res.text().catch(() => 'Unable to submit form'));
   const created = await res.json();
   setRows((previous) => [...previous.filter((row) => row.id !== 'placeholder'), created]);
@@ -4487,13 +4520,30 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   const latestRow = rowsStore.getState().rowsById[rowId] ?? updatedRow;
   const derivedValues = Object.fromEntries(columns.filter((candidate) => candidate.type === 'Formula').map((candidate) => [candidate.id, latestRow.values?.[candidate.id]]));
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}/cells/${colId}`), {
+  const mutationId = uuidv4();
+  let response: Response | undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+  try {
+  response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${rowId}/cells/${colId}`), {
   method: "PATCH",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "X-SmartManage-Mutation-Id": mutationId },
   body: JSON.stringify({ value: latestRow.values?.[colId], derivedValues, clientVersion: saveVersion }),
   });
+  } catch (error) {
+  if (attempt === 0 && /fetch failed|network|temporarily unavailable/i.test(String((error as Error)?.message || error))) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  continue;
+  }
+  throw error;
+  }
+  if ([408, 425, 429, 500, 502, 503, 504].includes(response.status) && attempt === 0) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  continue;
+  }
+  break;
+  }
 
-  if (!response.ok) {
+  if (!response || !response.ok) {
   const errorText = await response.text().catch(() => "");
   throw new Error(errorText || `Failed to save task (${response.status})`);
   }
