@@ -154,11 +154,13 @@ function acquireTableRealtimeChannel(tableId: string, topic: string, listener: T
       .on('broadcast', { event: `row-change:${topic}` }, (message) => {
         const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
         if (eventTopic !== topic) return;
+        (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
         listeners.forEach((notify) => notify((message as any)?.payload ?? message));
       })
       .on('broadcast', { event: `row-order:${topic}` }, (message) => {
         const eventTopic = (message as any)?.topic ?? (message as any)?.payload?.topic;
         if (eventTopic !== topic) return;
+        (window as any).__smartManageRealtimeReceived = ((window as any).__smartManageRealtimeReceived || 0) + 1;
         listeners.forEach((notify) => notify((message as any)?.payload ?? message));
       });
     entry = { channel, listeners, statusListeners, references: 0, cleanupTimer: null, lastStatus: null };
@@ -167,6 +169,7 @@ function acquireTableRealtimeChannel(tableId: string, topic: string, listener: T
       const current = tableRealtimeEntries.get(tableId);
       if (!current) return;
       current.lastStatus = status;
+      (window as any).__smartManageRealtimeStatus = { ...((window as any).__smartManageRealtimeStatus || {}), [tableId]: status };
       current.statusListeners.forEach((notify) => notify(status));
     });
   }
