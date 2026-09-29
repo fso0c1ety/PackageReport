@@ -356,6 +356,11 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
     fetchNotifications();
     let cancelled = false;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+    const startFallbackPolling = () => {
+      if (fallbackInterval) return;
+      fallbackInterval = setInterval(fetchNotifications, 90000);
+    };
     const setupRealtime = async () => {
       try {
         // The user-scoped topic is deterministic. Reusing it briefly avoids a
@@ -391,23 +396,29 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           if (typeof window !== 'undefined') {
             (window as any).__smartManageNotificationRealtimeStatus = status;
           }
-          if (status === "SUBSCRIBED") void fetchNotifications();
+          if (status === "SUBSCRIBED") {
+            if (fallbackInterval) {
+              clearInterval(fallbackInterval);
+              fallbackInterval = null;
+            }
+            void fetchNotifications();
+          } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+            startFallbackPolling();
+          }
         });
       } catch {
         // Polling remains the safe reconciliation fallback when Realtime is unavailable.
       }
     };
+    startFallbackPolling();
     void setupRealtime();
-
-    // Realtime is the primary path; this fallback only reconciles missed events.
-    const interval = setInterval(fetchNotifications, isElectronRuntime() ? 10000 : 30000);
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (fallbackInterval) clearInterval(fallbackInterval);
       if (notificationsChannelRef.current) {
         void supabase.removeChannel(notificationsChannelRef.current);
         notificationsChannelRef.current = null;
