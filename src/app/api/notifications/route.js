@@ -4,6 +4,10 @@ import { requireBoardPermission, requireRowPermission } from "../_lib/authorizat
 
 export const runtime = "nodejs";
 
+const diagnosticQuery = (route, text, values) => typeof pool.queryWithDiagnostics === "function"
+  ? pool.queryWithDiagnostics(route, text, values)
+  : pool.query(text, values);
+
 export async function GET(req) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) {
@@ -15,9 +19,9 @@ export async function GET(req) {
     const typeFilter = String(url.searchParams.get("type") || "").trim();
     const workspaceFilter = String(url.searchParams.get("workspaceId") || "").trim();
     const unreadOnly = url.searchParams.get("unread") === "true";
-    const prefResult = await pool.query("SELECT notification_preferences FROM users WHERE id=$1", [user.id]);
+    const prefResult = await diagnosticQuery("GET /api/notifications preferences", "SELECT notification_preferences FROM users WHERE id=$1", [user.id]);
     const categories = prefResult.rows[0]?.notification_preferences?.categories || {};
-    const result = await pool.query(
+    const result = await diagnosticQuery("GET /api/notifications list",
       `
         SELECT n.*, u.name as sender_name, u.avatar as sender_avatar
         FROM notifications n
@@ -43,7 +47,7 @@ export async function GET(req) {
       .map((notification) => String(notification.data.invitationId)))];
     const pendingInvitationIds = new Set();
     if (inviteIds.length) {
-      const pendingInvitations = await pool.query(
+      const pendingInvitations = await diagnosticQuery("GET /api/notifications invitations",
         `SELECT id::text AS id FROM professional_invitations
          WHERE recipient_id=$1 AND status='pending' AND id::text = ANY($2::text[])`,
         [String(user.id), inviteIds]
@@ -78,7 +82,7 @@ export async function GET(req) {
         if (!data.workspaceId && data.tableId) {
           try {
             if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId)) {
-              const tableRes = await pool.query("SELECT workspace_id FROM tables WHERE id = $1", [
+              const tableRes = await diagnosticQuery("GET /api/notifications workspace enrichment", "SELECT workspace_id FROM tables WHERE id = $1", [
                 data.tableId,
               ]);
               if (tableRes.rows[0]) {
