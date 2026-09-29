@@ -12,3 +12,8 @@ test("doctor portal exposes and scopes documents through the assigned patient re
   assert.match(config, /Documents:\["Patient","Document Type","Upload Date","Expiry Date","File","Visibility","Status"\]/);
   assert.match(route, /if \(entity === "Documents"\) return context\.patientIds\.has\(ids\(value\(row, table, "Patient"\)\)\[0\]\)/);
 });
+
+test("custom parent and patient scopes cannot be widened by a broad board grant", () => {
+  assert.match(route, /const customScoped = config\.recordScopes\?\.\[entity\]\?\.scope === "custom"/);
+  assert.match(route, /const related = customScoped\s*\n\s*\? relationshipVisible\(entity, row, table\)/);
+});

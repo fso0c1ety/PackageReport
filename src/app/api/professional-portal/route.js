@@ -128,7 +128,13 @@ export async function GET(req) {
       .filter((row) => {
         const explicitScope = portalScopeField ? row.values?.[portalScopeField] : null;
         if (explicitScope != null && String(explicitScope) !== portalScopeValue) return false;
-        const related = rowMatchesRecordAccess(row, scopedBoard, user.id) || relationshipVisible(entity, row, table);
+        // Custom portal scopes are the authoritative record boundary. A broad
+        // board grant must not re-admit foreign rows after the relationship
+        // filter has scoped the portal to the current parent/patient.
+        const customScoped = config.recordScopes?.[entity]?.scope === "custom";
+        const related = customScoped
+          ? relationshipVisible(entity, row, table)
+          : rowMatchesRecordAccess(row, scopedBoard, user.id) || relationshipVisible(entity, row, table);
         if (!related) return false;
         if (portalType === "parent" && entity === "Documents") return ["approved","shared","parent","shareable"].includes(normalize(value(row, table, "Visibility") || value(row, table, "Status")));
         if (portalType === "parent" && entity === "Activities") return ["parent","shared","shareable","approved"].includes(normalize(value(row, table, "Visibility")));
