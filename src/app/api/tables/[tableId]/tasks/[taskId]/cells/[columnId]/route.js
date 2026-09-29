@@ -11,6 +11,10 @@ import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 
+const diagnosticQuery = (route, text, values) => typeof pool.queryWithDiagnostics === "function"
+  ? pool.queryWithDiagnostics(route, text, values)
+  : pool.query(text, values);
+
 export async function PATCH(req, { params }) {
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,7 +37,7 @@ export async function PATCH(req, { params }) {
   const allowedDerived = Object.fromEntries(Object.entries(derivedValues).filter(([key]) => access.board.columns.some((column) => String(column.id) === key && column.type === "Formula")));
   const patch = { [columnId]: body.value, ...allowedDerived };
   const oldValues = access.row?.values && typeof access.row.values === "object" ? access.row.values : {};
-  const result = await pool.query(
+  const result = await diagnosticQuery("PATCH /api/tables/[tableId]/tasks/[taskId]/cells/[columnId]",
     "UPDATE rows SET values=COALESCE(values,'{}'::jsonb) || $3::jsonb, updated_at=NOW() WHERE id=$1 AND table_id=$2 RETURNING *, EXTRACT(EPOCH FROM updated_at)*1000 AS version",
     [taskId, tableId, JSON.stringify(patch)],
   );

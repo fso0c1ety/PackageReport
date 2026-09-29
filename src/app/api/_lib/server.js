@@ -61,6 +61,19 @@ export async function connectWithDiagnostics(route) {
   }
 }
 
+export async function queryWithDiagnostics(route, text, values) {
+  const client = await connectWithDiagnostics(route);
+  try {
+    return await client.query(text, values);
+  } finally {
+    client.release();
+  }
+}
+
+if (typeof pool.queryWithDiagnostics !== "function") {
+  pool.queryWithDiagnostics = (route, text, values) => queryWithDiagnostics(route, text, values);
+}
+
 export async function ensureUserNotificationColumns() {
   // Columns are managed by server/db/migrations/001_core_saas_schema.sql.
   // Kept as a compatibility hook for older callers.

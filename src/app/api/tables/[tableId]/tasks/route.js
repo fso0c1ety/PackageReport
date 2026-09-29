@@ -20,6 +20,10 @@ import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 
 export const runtime = "nodejs";
 
+const diagnosticQuery = (route, text, values) => typeof pool.queryWithDiagnostics === "function"
+  ? pool.queryWithDiagnostics(route, text, values)
+  : pool.query(text, values);
+
 function validateAndNormalizeAddresses(columns, values) {
   const normalized = { ...(values || {}) };
   for (const column of columns || []) {
@@ -662,12 +666,12 @@ export async function POST(req, { params }) {
     }
 
     const newTaskId = typeof body?.id === "string" && uuidValidate(body.id) ? body.id : uuidv4();
-    const tableForAssignment = (await pool.query("SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
+    const tableForAssignment = (await diagnosticQuery("POST /api/tables/[tableId]/tasks table", "SELECT t.* FROM tables t JOIN workspaces w ON w.id=t.workspace_id WHERE t.id=$1", [tableId])).rows[0];
     const values = normalizePeopleValues(tableForAssignment?.columns, body?.values && typeof body.values === "object" ? body.values : {});
     const addressResult = validateAndNormalizeAddresses(tableForAssignment?.columns, values);
     if (addressResult.error) return NextResponse.json({ error: addressResult.error }, { status: 400 });
     const assignedValues = await syncTripAssignment({ table: tableForAssignment, values: addressResult.values, previousValues: {}, actorId: user.id, rowId: newTaskId });
-    const insertRes = await pool.query(
+    const insertRes = await diagnosticQuery("POST /api/tables/[tableId]/tasks insert",
       `
         INSERT INTO rows (id, table_id, values, created_by, created_at)
         VALUES ($1, $2, $3, $4, NOW())

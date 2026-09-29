@@ -22,3 +22,15 @@ test("notification fallback polling yields to healthy realtime and recovers on c
   assert.match(source, /CHANNEL_ERROR.*TIMED_OUT.*CLOSED/);
   assert.match(source, /setInterval\(fetchNotifications, 90000\)/);
 });
+
+test("critical DB routes invoke acquisition diagnostics without exposing payloads", () => {
+  const server = read("src", "app", "api", "_lib", "server.js");
+  const notifications = read("src", "app", "api", "notifications", "route.js");
+  const cell = read("src", "app", "api", "tables", "[tableId]", "tasks", "[taskId]", "cells", "[columnId]", "route.js");
+  const tasks = read("src", "app", "api", "tables", "[tableId]", "tasks", "route.js");
+  assert.match(server, /queryWithDiagnostics/);
+  for (const source of [notifications, cell, tasks]) {
+    assert.match(source, /queryWithDiagnostics/);
+  }
+  assert.doesNotMatch(server, /DATABASE_URL.*console|console.*DATABASE_URL/);
+});
