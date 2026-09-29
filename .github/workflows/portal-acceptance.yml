@@ -46,6 +46,7 @@ jobs:
           {
             echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$password"
             echo "SMART_MANAGE_DEMO_PASSWORD=$password"
+            echo "JWT_SECRET=$password"
           } >> "$GITHUB_ENV"
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
