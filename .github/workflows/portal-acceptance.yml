@@ -43,7 +43,7 @@ jobs:
       - run: npm ci
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.33.9
+          version: 2.118.0
       - name: Start isolated local Supabase Realtime
         shell: bash
         run: |
