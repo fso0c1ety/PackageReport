@@ -8,10 +8,17 @@ import { runAutomationWithPlanQuota } from "../../../../../../_lib/automationQuo
 import addressFields from "@/shared/internationalAddress.cjs";
 import automationEngine from "../../../../../../../../../server/services/automationEngine";
 import { randomUUID } from "node:crypto";
+import { validate as uuidValidate } from "uuid";
 
 export const runtime = "nodejs";
 
+const diagnosticQuery = (route, text, values) => typeof pool.queryWithDiagnostics === "function"
+  ? pool.queryWithDiagnostics(route, text, values)
+  : pool.query(text, values);
+
 export async function PATCH(req, { params }) {
+  const mutationIdHeader = req.headers.get("x-smartmanage-mutation-id");
+  const mutationId = uuidValidate(mutationIdHeader || "") ? mutationIdHeader : randomUUID();
   const user = getAuthenticatedUser(req);
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { tableId, taskId, columnId } = await params;
@@ -33,13 +40,13 @@ export async function PATCH(req, { params }) {
   const allowedDerived = Object.fromEntries(Object.entries(derivedValues).filter(([key]) => access.board.columns.some((column) => String(column.id) === key && column.type === "Formula")));
   const patch = { [columnId]: body.value, ...allowedDerived };
   const oldValues = access.row?.values && typeof access.row.values === "object" ? access.row.values : {};
-  const result = await pool.query(
+  const result = await diagnosticQuery("PATCH /api/tables/[tableId]/tasks/[taskId]/cells/[columnId]",
     "UPDATE rows SET values=COALESCE(values,'{}'::jsonb) || $3::jsonb, updated_at=NOW() WHERE id=$1 AND table_id=$2 RETURNING *, EXTRACT(EPOCH FROM updated_at)*1000 AS version",
     [taskId, tableId, JSON.stringify(patch)],
   );
   if (!result.rows[0]) return NextResponse.json({ error: "Row not found" }, { status: 404 });
   const newValues = result.rows[0].values && typeof result.rows[0].values === "object" ? result.rows[0].values : { ...oldValues, ...patch };
-  const eventId = randomUUID();
+  const eventId = mutationId;
   try {
     await runAutomationWithPlanQuota({
       table: access.board,
