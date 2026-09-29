@@ -85,3 +85,9 @@ test("professional invitation migration is included in production deploys", () =
   assert.match(migration, /CREATE TABLE IF NOT EXISTS professional_invitations/);
   assert.match(migration, /professional_invitations_pending_unique_idx/);
 });
+
+test("notification preferences migration exists before notification reads", () => {
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "034_notification_preferences.sql"), "utf8");
+  assert.match(migration, /ALTER TABLE users/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_preferences JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
+});
