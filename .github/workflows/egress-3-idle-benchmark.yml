@@ -1,0 +1,85 @@
+name: EGRESS-3 Idle Benchmark
+
+on:
+  pull_request:
+    paths:
+      - 'src/app/TopBar.tsx'
+      - 'src/app/Sidebar.tsx'
+      - 'src/app/(dashboard)/driver-trips/page.tsx'
+      - 'scripts/benchmark-egress3-idle.mjs'
+      - '.github/workflows/egress-3-idle-benchmark.yml'
+
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: base
+            ref: c85c9294785b23fb079f2266bf49a6686ac146c9
+          - name: head
+            ref: ${{ github.event.pull_request.head.sha }}
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_portal_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: portal-ci-local-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: 'false'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      EGRESS3_DURATION_SECONDS: 600
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.118.0 }
+      - name: Start local Realtime
+        shell: bash
+        run: |
+          supabase start
+          supabase status -o env > /tmp/supabase-status.env
+          api_url="$(sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"')"
+          anon_key="$(sed -n 's/^ANON_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"')"
+          service_key="$(sed -n 's/^SERVICE_ROLE_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"')"
+          { echo "NEXT_PUBLIC_SUPABASE_URL=$api_url"; echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"; echo "SUPABASE_SERVICE_ROLE_KEY=$service_key"; } >> "$GITHUB_ENV"
+      - name: Generate disposable secret
+        shell: bash
+        run: |
+          secret="Egress3Ci$(date +%s)A1!"
+          echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$secret" >> "$GITHUB_ENV"
+          echo "SMART_MANAGE_DEMO_PASSWORD=$secret" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          echo "EGRESS3_PASSWORD=$secret" >> "$GITHUB_ENV"
+      - name: Checkout benchmark ref
+        shell: bash
+        run: |
+          git checkout "${{ matrix.ref }}"
+          if [ "${{ matrix.name }}" = "base" ]; then git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress3-idle.mjs" > scripts/.benchmark-egress3-idle.mjs; else cp scripts/benchmark-egress3-idle.mjs scripts/.benchmark-egress3-idle.mjs; fi
+      - run: npm run db:migrate
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start server
+        shell: bash
+        run: |
+          nohup npx next start -p 3000 -H 127.0.0.1 >/tmp/egress3-server.log 2>&1 &
+          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+      - name: Run 10-minute browser benchmark
+        run: node scripts/.benchmark-egress3-idle.mjs > egress3-${{ matrix.name }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: egress3-${{ matrix.name }}
+          path: egress3-${{ matrix.name }}.json
