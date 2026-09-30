@@ -26,6 +26,10 @@ async function seed() {
   const tableIds = [];
   try {
     await client.query('BEGIN');
+    // The deliberately minimal benchmark schema predates the optional
+    // verification timestamp used by the login path. Keep this compatibility
+    // column local to the disposable benchmark database.
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ');
     await client.query('INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW())', [userId, marker, `${marker.toLowerCase()}@example.test`, passwordHash]);
     await client.query('INSERT INTO workspaces(id,name,owner_id) VALUES($1,$2,$3)', [workspaceId, marker, userId]);
     await client.query('INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,$3)', [workspaceId, userId, 'owner']);
