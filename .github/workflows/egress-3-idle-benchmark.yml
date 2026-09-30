@@ -69,6 +69,15 @@ jobs:
           # BASE checkout has migrations that predate the current schema and
           # cannot safely bootstrap a fresh database on its own.
           git checkout "${{ github.event.pull_request.head.sha }}"
+      - name: Configure benchmark migration allowlist
+        shell: bash
+        run: |
+          # The benchmark needs the current application schema, but not legacy
+          # backfills/scheduler migrations that are incompatible with a fresh
+          # disposable database (002) or depend on later calendar tables (032).
+          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v -E '^(002_backfill_empty_workspaces|032_scheduled_automation_runtime)\\.sql$' | paste -sd, -)"
+          test -n "$targets"
+          echo "MIGRATION_TARGET=$targets" >> "$GITHUB_ENV"
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
