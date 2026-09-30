@@ -45,6 +45,22 @@ test("private download route issues short-lived signed URLs after authorization"
   assert.match(route, /createSignedUrl\([^,]+, 60/);
 });
 
+test("file authorization metadata queries never select legacy BYTEA data", () => {
+  const authorization = fs.readFileSync(path.join(__dirname, "../src/app/api/_lib/authorization.js"), "utf8");
+  const permissions = fs.readFileSync(path.join(__dirname, "../server/services/permissions.js"), "utf8");
+  assert.doesNotMatch(authorization, /SELECT \* FROM uploaded_files/i);
+  assert.doesNotMatch(permissions, /SELECT \* FROM uploaded_files/i);
+  assert.match(authorization, /storage_provider,storage_bucket,object_path/);
+  assert.match(permissions, /storage_provider,storage_bucket,object_path/);
+  const download = fs.readFileSync(path.join(__dirname, "../src/app/uploads/[filename]/route.js"), "utf8");
+  assert.match(download, /SELECT data FROM uploaded_files/);
+  const invoicePdf = fs.readFileSync(path.join(__dirname, "../src/app/api/invoices/[invoiceId]/pdf/route.js"), "utf8");
+  assert.doesNotMatch(invoicePdf, /SELECT \* FROM uploaded_files/i);
+  assert.match(invoicePdf, /SELECT data FROM uploaded_files/);
+  const compatibility = fs.readFileSync(path.join(__dirname, "../server/routes/compatibilityFiles.js"), "utf8");
+  assert.match(compatibility, /SELECT data FROM uploaded_files/);
+});
+
 test("upload route maps file validation failures to a professional 400 response", () => {
   const route = fs.readFileSync(path.join(__dirname, "../src/app/api/upload/route.js"), "utf8");
   assert.match(route, /error\?\.name === "FileValidationError"/);
