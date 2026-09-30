@@ -20,6 +20,6 @@ try {
   const columns = [{ id: "name", name: "Name", type: "Text", order: 0 }, { id: "status", name: "Status", type: "Status", order: 1, options: [{ value: "Open" }, { value: "Done" }] }];
   await client.query("INSERT INTO tables (id,name,workspace_id,columns,invite_code) VALUES ($1,$2,$3,$4,'EGRESS3') ON CONFLICT (id) DO UPDATE SET columns=EXCLUDED.columns", [tableId, "TEST_EGRESS3_IDLE", workspaceId, JSON.stringify(columns)]);
   await client.query("DELETE FROM rows WHERE table_id=$1", [tableId]);
-  for (let i = 0; i < 100; i++) await client.query("INSERT INTO rows (id,table_id,values,created_by) VALUES ($1,$2,$3,$4)", [`egress3-row-${i}`, tableId, JSON.stringify({ name: `TEST_EGRESS3_ROW_${i}`, status: i % 2 ? "Open" : "Done" }), userId);
+  for (let i = 0; i < 100; i++) await client.query("INSERT INTO rows (id,table_id,values,created_by) VALUES ($1,$2,$3,$4)", [`egress3-row-${i}`, tableId, JSON.stringify({ name: `TEST_EGRESS3_ROW_${i}`, status: i % 2 ? "Open" : "Done" }), userId]);
   await client.query("COMMIT");
 } catch (error) { await client.query("ROLLBACK"); throw error; } finally { await client.end(); }
