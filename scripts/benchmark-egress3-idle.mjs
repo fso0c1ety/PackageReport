@@ -21,10 +21,10 @@ const classify = (url) => {
 const browser = await chromium.launch({ headless: true });
 const manager = await browser.newContext({ baseURL });
 const driver = await browser.newContext({ baseURL });
-const tracked = new Set();
+let collecting = false;
 const attach = (context) => {
   context.on('response', async (response) => {
-    if (!tracked.has(response.request())) return;
+    if (!collecting) return;
     const category = classify(response.url());
     try {
       const body = await response.body();
@@ -57,8 +57,7 @@ await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace
 await new Promise((resolve) => setTimeout(resolve, 5000));
 result.realtimeHealthy = Boolean(await driverTrips.evaluate(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED')) || await managerHome.evaluate(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED'));
 const start = Date.now();
-const markRequest = (request) => { if (request.url().includes('/api/')) tracked.add(request); };
-for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) page.on('request', markRequest);
+collecting = true;
 await new Promise((resolve) => setTimeout(resolve, durationSeconds * 1000));
 for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) await page.close();
 await manager.close(); await driver.close(); await browser.close();
