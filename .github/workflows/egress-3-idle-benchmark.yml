@@ -65,11 +65,18 @@ jobs:
       - name: Checkout benchmark ref
         shell: bash
         run: |
-          git checkout "${{ matrix.ref }}"
-          if [ "${{ matrix.name }}" = "base" ]; then git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress3-idle.mjs" > scripts/.benchmark-egress3-idle.mjs; else cp scripts/benchmark-egress3-idle.mjs scripts/.benchmark-egress3-idle.mjs; fi
+          # Build the disposable schema and seed once from HEAD. The historical
+          # BASE checkout has migrations that predate the current schema and
+          # cannot safely bootstrap a fresh database on its own.
+          git checkout "${{ github.event.pull_request.head.sha }}"
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
+      - name: Switch to measured application ref
+        shell: bash
+        run: |
+          git checkout "${{ matrix.ref }}"
+          if [ "${{ matrix.name }}" = "base" ]; then git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress3-idle.mjs" > scripts/.benchmark-egress3-idle.mjs; else cp scripts/benchmark-egress3-idle.mjs scripts/.benchmark-egress3-idle.mjs; fi
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start server
