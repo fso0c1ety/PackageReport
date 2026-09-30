@@ -18,10 +18,14 @@ test('workspace coalesces repeated hover/focus prefetches per board', () => {
   assert.match(workspace, /prefetchesRef\.current\.set\(tableId, request\)/);
 });
 
-test('TableBoard consumes warmed responses without changing pagination', () => {
+test('TableBoard keeps initial board transfer bounded and loads later pages on demand', () => {
   assert.match(board, /consumeCachedResponse: true/);
   assert.ok(board.includes('tasks?limit=100&offset=0'));
   assert.ok(board.includes('tasks?limit=500&offset=${offset}'));
+  assert.match(board, /loadMoreRowsRef\.current = async/);
+  assert.match(board, /container\.scrollHeight - \(container\.scrollTop \+ container\.clientHeight\) < 600/);
+  assert.match(board, /nextRowsOffsetRef\.current >= totalRowsRef\.current/);
+  assert.doesNotMatch(board, /while \(!cancelled && offset < totalRows\)/);
 });
 
 test('People selector merges authoritative current-workspace teammates', () => {

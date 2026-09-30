@@ -1746,6 +1746,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const invoiceStampInputRef = React.useRef<HTMLInputElement | null>(null);
   const [columnDragPreviewIds, setColumnDragPreviewIds] = useState<string[] | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const loadMoreRowsRef = React.useRef<(() => Promise<void>) | null>(null);
+  const totalRowsRef = React.useRef(0);
+  const nextRowsOffsetRef = React.useRef(0);
+  const loadingMoreRowsRef = React.useRef(false);
   const [mobileTableHeight, setMobileTableHeight] = useState<number | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
   const columnDragOriginTopRef = React.useRef<number | null>(null);
@@ -3398,6 +3402,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const firstRows = normalizeRows(Array.isArray(firstPage) ? firstPage : firstPage.rows || []);
   const totalRows = Array.isArray(firstPage) ? firstRows.length : Number(firstPage.total || 0);
+  totalRowsRef.current = totalRows;
+  nextRowsOffsetRef.current = firstRows.length;
   if (firstRows.length > 0) {
   setRows(firstRows);
   } else if (totalRows === 0) {
@@ -3405,19 +3411,25 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
   setLoading(false);
 
-  let offset = firstRows.length;
-  while (!cancelled && offset < totalRows) {
-  const pageRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=500&offset=${offset}`));
-  if (!pageRes.ok) throw new Error(`Failed to fetch more table tasks (${pageRes.status})`);
-  const page = await pageRes.json();
-  const pageRows = normalizeRows(Array.isArray(page) ? page : page.rows || []);
-  if (cancelled || pageRows.length === 0) break;
-  setRows((current) => {
-  const existingIds = new Set(current.map((row) => row.id));
-  return [...current.filter((row) => row.id !== 'placeholder'), ...pageRows.filter((row) => !existingIds.has(row.id))];
-  });
-  offset += pageRows.length;
+  loadMoreRowsRef.current = async () => {
+  if (cancelled || loadingMoreRowsRef.current || nextRowsOffsetRef.current >= totalRowsRef.current) return;
+  loadingMoreRowsRef.current = true;
+  const offset = nextRowsOffsetRef.current;
+  try {
+    const pageRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=500&offset=${offset}`));
+    if (!pageRes.ok) throw new Error(`Failed to fetch more table tasks (${pageRes.status})`);
+    const page = await pageRes.json();
+    const pageRows = normalizeRows(Array.isArray(page) ? page : page.rows || []);
+    if (cancelled || pageRows.length === 0) return;
+    setRows((current) => {
+      const existingIds = new Set(current.map((row) => row.id));
+      return [...current.filter((row) => row.id !== 'placeholder'), ...pageRows.filter((row) => !existingIds.has(row.id))];
+    });
+    nextRowsOffsetRef.current += pageRows.length;
+  } finally {
+    loadingMoreRowsRef.current = false;
   }
+  };
   } catch (err) {
   if (!cancelled) {
   console.error("Failed to fetch table data", err);
@@ -3428,8 +3440,20 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   };
 
   void loadTable();
-  return () => { cancelled = true; };
+  return () => { cancelled = true; loadMoreRowsRef.current = null; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
+
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return undefined;
+    const onScroll = () => {
+      if (container.scrollHeight - (container.scrollTop + container.clientHeight) < 600) {
+        void loadMoreRowsRef.current?.();
+      }
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [tableId]);
 
   // Fleet V2: a Drivers record represents an application user, not free-form text.
   // Existing Drivers boards are upgraded in place while row data is preserved.
