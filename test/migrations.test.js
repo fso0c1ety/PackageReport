@@ -20,16 +20,24 @@ test("migration validation accepts ordered unique files", () => {
   assert.equal(validateMigrationFiles(["001_first.sql", "002_second.sql"]), true);
 });
 
-test("fresh schema backfill uses timestamptz semantics", () => {
+test("historical workspace backfill migration keeps its original checksum", () => {
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "002_backfill_empty_workspaces.sql"), "utf8");
-  assert.match(migration, /NOW\(\),\s*\n\s*UPPER\(SUBSTRING/);
-  assert.doesNotMatch(migration, /EXTRACT\(EPOCH FROM NOW\(\)\)\s*\*\s*1000/);
+  assert.match(migration, /EXTRACT\(EPOCH FROM NOW\(\)\)\s*\*\s*1000/);
+  assert.doesNotMatch(migration, /NOW\(\),\s*\n\s*UPPER\(SUBSTRING/);
 });
 
-test("fresh schema creates marketplace tables before extending them", () => {
+test("historical marketplace migration is not rewritten", () => {
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "013_template_marketplace.sql"), "utf8");
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS marketplace_templates/);
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS marketplace_reviews/);
+  assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS marketplace_templates/);
+  assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS marketplace_reviews/);
+});
+
+test("historical scheduler migration leaves calendar changes to a forward migration", () => {
+  const historical = readFileSync(join(process.cwd(), "server", "db", "migrations", "032_scheduled_automation_runtime.sql"), "utf8");
+  const forward = readFileSync(join(process.cwd(), "server", "db", "migrations", "035_calendar_events_baseline.sql"), "utf8");
+  assert.doesNotMatch(historical, /CREATE TABLE IF NOT EXISTS calendar_events/);
+  assert.match(forward, /CREATE TABLE IF NOT EXISTS calendar_events/);
+  assert.match(forward, /calendar_events_user_start_idx/);
 });
 
 test("production migration runner supports an explicit safe target", () => {
@@ -38,6 +46,8 @@ test("production migration runner supports an explicit safe target", () => {
   assert.match(source, /MIGRATION_TARGET/);
   assert.match(vercelBuild, /VERCEL_ENV === 'production'/);
   assert.match(vercelBuild, /020_account_security\.sql/);
+  assert.match(vercelBuild, /034_notification_preferences\.sql/);
+  assert.match(vercelBuild, /035_calendar_events_baseline\.sql/);
   assert.match(source, /db\.pool\.connect\(\)/);
   assert.match(source, /client\.query\("COMMIT"\)/);
   assert.match(source, /client\.release\(\)/);
@@ -87,7 +97,14 @@ test("professional invitation migration is included in production deploys", () =
 });
 
 test("notification preferences migration exists before notification reads", () => {
+  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "034_notification_preferences.sql"), "utf8");
+  assert.ok(buildScript.indexOf("033_professional_invitations.sql") < buildScript.indexOf("034_notification_preferences.sql"));
   assert.match(migration, /ALTER TABLE users/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_preferences JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
+});
+
+test("calendar baseline is ordered after notification preferences", () => {
+  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  assert.ok(buildScript.indexOf("034_notification_preferences.sql") < buildScript.indexOf("035_calendar_events_baseline.sql"));
 });
