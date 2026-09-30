@@ -53,6 +53,7 @@ jobs:
       - name: Head benchmark
         shell: bash
         run: |
+          rm -f scripts/benchmark-egress2.mjs
           git checkout "${{ github.event.pull_request.head.sha }}"
           export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
           npm run db:migrate
