@@ -78,3 +78,12 @@ test('calendar polling recovers on visibility and focus without changing its fal
   assert.match(sidebar, /addEventListener\("focus", recover\)/);
   assert.match(sidebar, /addEventListener\("pageshow", recover\)/);
 });
+
+test('notification fallback starts only after realtime is unavailable', () => {
+  const topBar = fs.readFileSync('src/app/TopBar.tsx', 'utf8');
+  assert.match(topBar, /if \(!response\.ok \|\| cancelled\) \{[\s\S]*startFallbackPolling\(\)/);
+  assert.match(topBar, /if \(!topic \|\| cancelled\) \{[\s\S]*startFallbackPolling\(\)/);
+  assert.match(topBar, /catch \{[\s\S]*startFallbackPolling\(\)/);
+  assert.doesNotMatch(topBar, /\n    startFallbackPolling\(\);\n    void setupRealtime\(\)/);
+  assert.match(topBar, /window\.addEventListener\('pageshow', handleVisibilityChange\)/);
+});
