@@ -26,6 +26,14 @@ test("active billing displays its Stripe period end and retains payment portal a
   assert.match(overview, /\|\| subscriptions\?\.data\?\.\[0\]\?\.default_payment_method/);
 });
 
+test("task write entitlement uses a bounded subscription query instead of full seat aggregation", () => {
+  assert.match(billing, /export async function getWriteEntitlement/);
+  assert.match(billing, /LEFT JOIN subscriptions s ON s\.user_id = u\.id/);
+  assert.match(billing, /return getBillingStatus\(ownerId\)/);
+  assert.match(billing, /requireWritableSubscription\(userId, scope = \{\}\)/);
+  assert.match(billing, /const billing = await getWriteEntitlement\(userId, scope\)/);
+});
+
 test("usage reset remains the intentional calendar-month period", () => {
   assert.match(entitlements, /function monthPeriod\(date = new Date\(\)\)/);
   assert.match(entitlements, /new Date\(date\.getFullYear\(\), date\.getMonth\(\) \+ 1, 1\)/);
