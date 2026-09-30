@@ -161,7 +161,9 @@ export async function requireRowPermission(pool, userId, rowId, required = "view
 
 export async function requireFilePermission(pool, userId, fileIdOrName, required = "viewer") {
   if (!userId || !fileIdOrName) return null;
-  const result = await pool.query("SELECT * FROM uploaded_files WHERE id::text=$1::text OR filename=$1 LIMIT 1", [String(fileIdOrName)]);
+  const result = await pool.query(`SELECT id,filename,originalname,mimetype,size,uploaded_by,workspace_id,table_id,row_id,
+      visibility,storage_provider,storage_bucket,object_path,storage_path,checksum,virus_scan_status,deleted_at,created_at
+    FROM uploaded_files WHERE id::text=$1::text OR filename=$1 LIMIT 1`, [String(fileIdOrName)]);
   const file = result.rows[0];
   if (!file) return null;
   if (file.visibility === "profile") return { file, role: "viewer" };

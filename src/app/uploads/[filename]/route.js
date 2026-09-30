@@ -31,7 +31,11 @@ export async function GET(req, { params }) {
       return NextResponse.redirect(data.signedUrl, 307);
     }
 
-    if (!fileRecord.data) {
+    let legacyData = fileRecord.data;
+    if (!legacyData) {
+      legacyData = (await pool.query("SELECT data FROM uploaded_files WHERE id=$1", [fileRecord.id])).rows[0]?.data;
+    }
+    if (!legacyData) {
       const candidates = [
         fileRecord.storage_path,
         path.join(process.cwd(), "uploads", decodedFilename),
@@ -68,7 +72,7 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    return new NextResponse(fileRecord.data, {
+    return new NextResponse(legacyData, {
       status: 200,
       headers: {
         "Content-Type": fileRecord.mimetype || "application/octet-stream",

@@ -9,11 +9,15 @@ function createCompatibilityFilesRouter({ authenticateToken, db, legacyUploadDir
     const decodedFilename = decodeURIComponent(filename);
     const authorizedFile = req.fileAccess?.file;
     try {
-      if (authorizedFile?.data) {
+      let legacyData = authorizedFile?.data;
+      if (!legacyData && authorizedFile?.storage_provider !== "supabase") {
+        legacyData = (await db.query("SELECT data FROM uploaded_files WHERE id=$1", [authorizedFile?.id])).rows[0]?.data;
+      }
+      if (legacyData) {
         const file = authorizedFile;
         res.setHeader("Content-Type", file.mimetype || "application/octet-stream");
         res.setHeader("Cache-Control", "private, no-store");
-        return res.send(file.data);
+        return res.send(legacyData);
       }
     } catch (error) {
       logger.error("database_file_serve_failed", { filename: decodedFilename, error: error.message });

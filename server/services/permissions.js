@@ -165,7 +165,9 @@ async function getRowAccess(db, rowId, userId, required = "viewer", expectedTabl
 async function getFileAccess(db, fileIdOrName, userId, required = "viewer") {
   if (!fileIdOrName || !userId) return null;
   const result = await db.query(
-    "SELECT * FROM uploaded_files WHERE id::text=$1::text OR filename=$1 LIMIT 1",
+    `SELECT id,filename,originalname,mimetype,size,uploaded_by,workspace_id,table_id,row_id,
+      visibility,storage_provider,storage_bucket,object_path,storage_path,checksum,virus_scan_status,deleted_at,created_at
+     FROM uploaded_files WHERE id::text=$1::text OR filename=$1 LIMIT 1`,
     [String(fileIdOrName)],
   );
   const file = result.rows[0];
