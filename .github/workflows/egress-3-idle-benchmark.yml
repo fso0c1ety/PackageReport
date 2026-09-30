@@ -81,9 +81,7 @@ jobs:
           test -n "$targets"
           echo "MIGRATION_TARGET=$targets" >> "$GITHUB_ENV"
       - run: npm run db:migrate
-      - run: node scripts/seed-marketing-demo.mjs
-      # Portal seed is intentionally omitted: this benchmark only exercises
-      # the disposable demo account and avoids unrelated portal migrations.
+      - run: node scripts/seed-egress3-idle.mjs
       - name: Switch to measured application ref
         shell: bash
         run: |
