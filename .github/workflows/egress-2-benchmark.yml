@@ -1,0 +1,59 @@
+name: EGRESS-2 Board Transfer Benchmark
+
+on:
+  pull_request:
+    paths:
+      - 'src/app/TableBoard.tsx'
+      - 'scripts/benchmark-egress2.mjs'
+      - '.github/workflows/egress-2-benchmark.yml'
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_portal_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: portal-ci-local-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: 'false'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      EGRESS2_PASSWORD: Egress2CiOnlyPasswordA1!
+      JWT_SECRET: Egress2CiOnlyPasswordA1!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Preserve benchmark harness across checkouts
+        run: cp scripts/benchmark-egress2.mjs /tmp/benchmark-egress2.mjs
+      - name: Baseline benchmark
+        shell: bash
+        run: |
+          git checkout "${{ github.event.pull_request.base.sha }}"
+          npm run db:migrate
+          npm run build
+          nohup npx next start -p 3000 -H 127.0.0.1 >/tmp/egress2-base.log 2>&1 &
+          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+          node /tmp/benchmark-egress2.mjs | tee /tmp/egress2-base.json
+          pkill -f 'next start -p 3000' || true
+      - name: Head benchmark
+        shell: bash
+        run: |
+          git checkout "${{ github.event.pull_request.head.sha }}"
+          npm run db:migrate
+          npm run build
+          nohup npx next start -p 3000 -H 127.0.0.1 >/tmp/egress2-head.log 2>&1 &
+          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+          EGRESS2_MODE=initial node /tmp/benchmark-egress2.mjs | tee /tmp/egress2-head.json
