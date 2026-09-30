@@ -39,6 +39,7 @@ jobs:
       EGRESS3_DURATION_SECONDS: 600
       EGRESS3_EMAIL: demo@smartmanage.com
       EGRESS3_DRIVER_EMAIL: demo@smartmanage.com
+      EGRESS3_WORKSPACE_ID: egress3-demo-workspace
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
