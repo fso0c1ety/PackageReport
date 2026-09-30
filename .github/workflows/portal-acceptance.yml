@@ -1,0 +1,91 @@
+name: Portal Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "src/portal-engine/**"
+      - "src/app/api/professional-portal/**"
+      - "scripts/seed-portal-acceptance.mjs"
+      - "scripts/seed-marketing-demo.mjs"
+      - "scripts/portal-ci-guard.mjs"
+      - "scripts/verify-local-realtime.mjs"
+      - "supabase/config.toml"
+      - "e2e/portal-*.spec.ts"
+      - ".github/workflows/portal-acceptance.yml"
+
+jobs:
+  portal-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_portal_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: portal-ci-local-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CI: true
+      PORTAL_ACCEPTANCE_CI: "1"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: "false"
+      E2E_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+      - name: Start isolated local Supabase Realtime
+        shell: bash
+        run: |
+          supabase start
+          supabase status -o env > /tmp/supabase-status.env
+          api_url="$(sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
+          anon_key="$(sed -n 's/^ANON_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
+          service_key="$(sed -n 's/^SERVICE_ROLE_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
+          test -n "$api_url" && test -n "$anon_key" && test -n "$service_key"
+          echo "::add-mask::$api_url"
+          echo "::add-mask::$anon_key"
+          echo "::add-mask::$service_key"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$api_url"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$service_key"
+          } >> "$GITHUB_ENV"
+      - name: Generate ephemeral CI test password
+        shell: bash
+        run: |
+          password="CiPortalAcceptance$(node -e "process.stdout.write(String(Date.now()))")A1!"
+          {
+            echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$password"
+            echo "SMART_MANAGE_DEMO_PASSWORD=$password"
+            echo "JWT_SECRET=$password"
+          } >> "$GITHUB_ENV"
+      - run: npm run db:migrate
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - name: Verify local Supabase Realtime
+        run: node scripts/verify-local-realtime.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start application server
+        shell: bash
+        run: |
+          nohup npx next start -p 3000 -H 127.0.0.1 > /tmp/portal-acceptance-server.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login/ > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --silent --fail http://127.0.0.1:3000/login/ > /dev/null
+      - run: npm run test:e2e -- e2e/portal-authenticated.spec.ts e2e/portal-writes.spec.ts e2e/portal-files.spec.ts e2e/portal-ready.spec.ts --project=desktop-1440 --workers=1

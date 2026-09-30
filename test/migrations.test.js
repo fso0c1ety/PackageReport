@@ -20,6 +20,18 @@ test("migration validation accepts ordered unique files", () => {
   assert.equal(validateMigrationFiles(["001_first.sql", "002_second.sql"]), true);
 });
 
+test("fresh schema backfill uses timestamptz semantics", () => {
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "002_backfill_empty_workspaces.sql"), "utf8");
+  assert.match(migration, /NOW\(\),\s*\n\s*UPPER\(SUBSTRING/);
+  assert.doesNotMatch(migration, /EXTRACT\(EPOCH FROM NOW\(\)\)\s*\*\s*1000/);
+});
+
+test("fresh schema creates marketplace tables before extending them", () => {
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "013_template_marketplace.sql"), "utf8");
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS marketplace_templates/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS marketplace_reviews/);
+});
+
 test("production migration runner supports an explicit safe target", () => {
   const source = readFileSync(join(process.cwd(), "server", "db", "runMigrations.js"), "utf8");
   const vercelBuild = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
@@ -72,4 +84,10 @@ test("professional invitation migration is included in production deploys", () =
   assert.match(buildScript, /033_professional_invitations\.sql/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS professional_invitations/);
   assert.match(migration, /professional_invitations_pending_unique_idx/);
+});
+
+test("notification preferences migration exists before notification reads", () => {
+  const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "034_notification_preferences.sql"), "utf8");
+  assert.match(migration, /ALTER TABLE users/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_preferences JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
 });

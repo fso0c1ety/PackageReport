@@ -25,6 +25,7 @@ test("write endpoint enforces exact membership, record scope, fields, transactio
   assert.match(source, /COMMIT/);
   assert.match(source, /ROLLBACK/);
   assert.match(source, /INSERT INTO activity_logs/);
+  assert.match(source, /INSERT INTO activity_logs[\s\S]*new Date\(\)/);
   assert.match(source, /sendTableNotification/);
   assert.match(source, /broadcastTableInvalidation/);
   assert.match(source, /automationEngine\.runForRowChange/);

@@ -58,3 +58,12 @@ test("portal acceptance seed refuses Production even with otherwise valid creden
     /Refusing portal acceptance seed in Production/
   );
 });
+
+test("portal CI guard permits only the isolated localhost acceptance database", async () => {
+  const { assertPortalCiEnvironment } = await import("../scripts/portal-ci-guard.mjs");
+  const base = { CI: "true", PORTAL_ACCEPTANCE_CI: "1", VERCEL_ENV: "" };
+  assert.doesNotThrow(() => assertPortalCiEnvironment(base, "postgresql://postgres:local@127.0.0.1:5432/smart_manage_portal_acceptance"));
+  assert.throws(() => assertPortalCiEnvironment({ ...base, VERCEL_ENV: "preview" }, "postgresql://postgres:local@127.0.0.1:5432/smart_manage_portal_acceptance"), /refuses Vercel/);
+  assert.throws(() => assertPortalCiEnvironment(base, "postgresql://postgres:local@127.0.0.1:5432/other"), /smart_manage_portal_acceptance/);
+  assert.throws(() => assertPortalCiEnvironment({ ...base, CI: "false" }, "postgresql://postgres:local@127.0.0.1:5432/smart_manage_portal_acceptance"), /CI=true/);
+});

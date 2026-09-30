@@ -98,6 +98,7 @@ export async function GET(req) {
     if (portalType === "doctor") {
       if (entity === "Patients") return context.patientIds.has(String(row.id));
       if (["Appointments","Treatments"].includes(entity)) return hasUser(value(row, table, "Dentist"), user);
+      if (entity === "Documents") return context.patientIds.has(ids(value(row, table, "Patient"))[0]);
       if (entity === "Lab Requests") return context.patientIds.has(ids(value(row, table, "Patient"))[0]);
     }
     if (portalType === "patient") {
@@ -127,7 +128,13 @@ export async function GET(req) {
       .filter((row) => {
         const explicitScope = portalScopeField ? row.values?.[portalScopeField] : null;
         if (explicitScope != null && String(explicitScope) !== portalScopeValue) return false;
-        const related = rowMatchesRecordAccess(row, scopedBoard, user.id) || relationshipVisible(entity, row, table);
+        // Custom portal scopes are the authoritative record boundary. A broad
+        // board grant must not re-admit foreign rows after the relationship
+        // filter has scoped the portal to the current parent/patient.
+        const customScoped = config.recordScopes?.[entity]?.scope === "custom";
+        const related = customScoped
+          ? relationshipVisible(entity, row, table)
+          : rowMatchesRecordAccess(row, scopedBoard, user.id) || relationshipVisible(entity, row, table);
         if (!related) return false;
         if (portalType === "parent" && entity === "Documents") return ["approved","shared","parent","shareable"].includes(normalize(value(row, table, "Visibility") || value(row, table, "Status")));
         if (portalType === "parent" && entity === "Activities") return ["parent","shared","shareable","approved"].includes(normalize(value(row, table, "Visibility")));
@@ -311,7 +318,7 @@ export async function POST(req) {
     }
 
     const safeSubject = `${portalType}:${action}`;
-    await client.query("INSERT INTO activity_logs(id,recipients,subject,html,timestamp,table_id,task_id,status) VALUES($1,'[]'::jsonb,$2,$3,$4,$5,$6,'sent')", [randomUUID(), safeSubject, definition.sensitive ? null : `${user.name || user.email || portalType} performed ${action}`, Date.now(), table.id, resultId]);
+    await client.query("INSERT INTO activity_logs(id,recipients,subject,html,timestamp,table_id,task_id,status) VALUES($1,'[]'::jsonb,$2,$3,$4,$5,$6,'sent')", [randomUUID(), safeSubject, definition.sensitive ? null : `${user.name || user.email || portalType} performed ${action}`, new Date(), table.id, resultId]);
     await client.query("COMMIT");
     const eventId = randomUUID();
     after(() => broadcastTableInvalidation(table.id, eventType === "row_created" ? "INSERT" : "UPDATE"));
