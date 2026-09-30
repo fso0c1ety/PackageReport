@@ -49,6 +49,7 @@ const managerWorkspace = await manager.newPage();
 const driverTrips = await driver.newPage();
 const driverDocuments = await driver.newPage();
 for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) attach(page);
+collecting = true;
 await Promise.all([
   managerHome.goto('/home/'), managerWorkspace.goto(`/workspace/?id=${encodeURIComponent(workspaceId)}`),
   driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`),
@@ -57,7 +58,6 @@ await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace
 await new Promise((resolve) => setTimeout(resolve, 5000));
 result.realtimeHealthy = Boolean(await driverTrips.evaluate(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED')) || await managerHome.evaluate(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED'));
 const start = Date.now();
-collecting = true;
 await new Promise((resolve) => setTimeout(resolve, durationSeconds * 1000));
 for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) await page.close();
 await manager.close(); await driver.close(); await browser.close();
