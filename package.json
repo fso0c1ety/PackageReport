@@ -1,11 +1,11 @@
 {
   "name": "client",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Smart Manage universal work management platform",
   "author": "Aximo Studio",
   "private": true,
   "smartManage": {
-    "androidVersionCode": 10000
+    "androidVersionCode": 10001
   },
   "main": "electron/main.js",
   "scripts": {
