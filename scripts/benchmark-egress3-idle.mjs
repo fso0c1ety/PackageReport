@@ -22,8 +22,8 @@ const browser = await chromium.launch({ headless: true });
 const manager = await browser.newContext({ baseURL });
 const driver = await browser.newContext({ baseURL });
 let collecting = false;
-const attach = (context) => {
-  context.on('response', async (response) => {
+const attach = (page) => {
+  page.on('response', async (response) => {
     if (!collecting) return;
     const category = classify(response.url());
     try {
@@ -35,7 +35,6 @@ const attach = (context) => {
     } catch { /* response may be unavailable after connection close */ }
   });
 };
-attach(manager); attach(driver);
 const login = async (context, userEmail) => {
   const response = await context.request.post('/api/login/', { data: { email: userEmail, password }, headers: { Origin: baseURL } });
   if (!response.ok()) throw new Error(`login failed for ${userEmail}: ${response.status()}`);
@@ -49,6 +48,7 @@ const managerHome = await manager.newPage();
 const managerWorkspace = await manager.newPage();
 const driverTrips = await driver.newPage();
 const driverDocuments = await driver.newPage();
+for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) attach(page);
 await Promise.all([
   managerHome.goto('/home/'), managerWorkspace.goto(`/workspace/?id=${encodeURIComponent(workspaceId)}`),
   driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`),
