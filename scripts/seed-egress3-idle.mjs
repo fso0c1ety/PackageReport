@@ -9,6 +9,8 @@ const userId = "egress3-demo-manager";
 const driverId = "egress3-demo-driver";
 const workspaceId = "egress3-demo-workspace";
 const tableId = "egress3-demo-table";
+const fuelTableId = "egress3-demo-fuel";
+const expensesTableId = "egress3-demo-expenses";
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: false });
 await client.connect();
 try {
@@ -20,7 +22,17 @@ try {
   const columns = [{ id: "tripNumber", name: "Trip Number", type: "Text", order: 0 }, { id: "status", name: "Status", type: "Status", order: 1, options: [{ value: "Assigned" }, { value: "Delivered" }] }, { id: "driver", name: "Driver", type: "People", order: 2 }, { id: "pickup", name: "Pickup", type: "Text", order: 3 }, { id: "delivery", name: "Delivery", type: "Text", order: 4 }];
   await client.query("INSERT INTO tables (id,name,workspace_id,columns,invite_code) VALUES ($1,'Trips',$2,$3,'EGRESS3') ON CONFLICT (id) DO UPDATE SET name='Trips',columns=EXCLUDED.columns", [tableId, workspaceId, JSON.stringify(columns)]);
   await client.query("INSERT INTO board_member_access (table_id,user_id,board_role,record_access) VALUES ($1,$2,'owner','{\"scope\":\"all\"}'),($1,$3,'viewer','{\"scope\":\"assigned_to_me\",\"field\":\"_assignedDriverUserId\"}') ON CONFLICT DO NOTHING", [tableId, userId, driverId]);
+  const auxiliaryBoards = [
+    [fuelTableId, 'Fuel', [{ id: 'name', name: 'Name', type: 'Text', order: 0 }, { id: 'date', name: 'Date', type: 'Date', order: 1 }, { id: 'driver', name: 'Driver', type: 'People', order: 2 }, { id: 'trip', name: 'Trip', type: 'Text', order: 3 }, { id: 'liters', name: 'Liters', type: 'Number', order: 4 }, { id: 'pricePerLiter', name: 'Price per Liter', type: 'Number', order: 5 }, { id: 'total', name: 'Total', type: 'Number', order: 6 }, { id: 'odometer', name: 'Odometer', type: 'Number', order: 7 }, { id: 'receipt', name: 'Receipt', type: 'File', order: 8 }]],
+    [expensesTableId, 'Expenses', [{ id: 'name', name: 'Name', type: 'Text', order: 0 }, { id: 'date', name: 'Date', type: 'Date', order: 1 }, { id: 'driver', name: 'Driver', type: 'People', order: 2 }, { id: 'trip', name: 'Trip', type: 'Text', order: 3 }, { id: 'type', name: 'Type', type: 'Text', order: 4 }, { id: 'description', name: 'Description', type: 'Long Text', order: 5 }, { id: 'amount', name: 'Amount', type: 'Number', order: 6 }, { id: 'status', name: 'Status', type: 'Status', order: 7 }, { id: 'receipt', name: 'Receipt', type: 'File', order: 8 }]],
+  ];
+  for (const [auxId, auxName, auxColumns] of auxiliaryBoards) {
+    await client.query("INSERT INTO tables (id,name,workspace_id,columns,invite_code) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,columns=EXCLUDED.columns", [auxId, auxName, workspaceId, JSON.stringify(auxColumns), `EGRESS3-${auxName.toUpperCase()}`]);
+    await client.query("INSERT INTO board_member_access (table_id,user_id,board_role,record_access) VALUES ($1,$2,'owner','{\"scope\":\"all\"}'),($1,$3,'viewer','{\"scope\":\"assigned_to_me\",\"field\":\"_assignedDriverUserId\"}') ON CONFLICT DO NOTHING", [auxId, userId, driverId]);
+    await client.query("DELETE FROM rows WHERE table_id=$1", [auxId]);
+  }
   await client.query("DELETE FROM rows WHERE table_id=$1", [tableId]);
   for (let i = 0; i < 100; i++) await client.query("INSERT INTO rows (id,table_id,values,created_by) VALUES ($1,$2,$3,$4)", [`egress3-row-${i}`, tableId, JSON.stringify({ tripNumber: `TEST_EGRESS3_TRIP_${i}`, status: i % 2 ? "Assigned" : "Delivered", driver: [{ id: driverId, userId: driverId, name: "EGRESS3 Driver", email: driverEmail }], pickup: "Test Pickup", delivery: "Test Delivery", _workspaceId: workspaceId, _assignedDriverUserId: driverId }), userId]);
+  await client.query("INSERT INTO rows (id,table_id,values,created_by) VALUES ($1,$2,$3,$4),($5,$6,$7,$4)", ["egress3-fuel-row", fuelTableId, JSON.stringify({ name: "TEST_EGRESS3_FUEL", date: "2026-10-01", driver: [{ id: driverId, userId: driverId, name: "EGRESS3 Driver", email: driverEmail }], trip: "TEST_EGRESS3_TRIP_0", liters: 50, pricePerLiter: 1.5, total: 75, odometer: 1000, _workspaceId: workspaceId, _assignedDriverUserId: driverId }), userId, "egress3-expense-row", expensesTableId, JSON.stringify({ name: "TEST_EGRESS3_EXPENSE", date: "2026-10-01", driver: [{ id: driverId, userId: driverId, name: "EGRESS3 Driver", email: driverEmail }], trip: "TEST_EGRESS3_TRIP_0", type: "Toll", description: "Synthetic toll", amount: 20, status: "Approved", _workspaceId: workspaceId, _assignedDriverUserId: driverId })]);
   await client.query("COMMIT");
 } catch (error) { await client.query("ROLLBACK"); throw error; } finally { await client.end(); }

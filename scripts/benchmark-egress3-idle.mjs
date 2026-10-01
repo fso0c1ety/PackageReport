@@ -70,6 +70,14 @@ const driverTopic = await driver.request.get(`/api/tables/${encodeURIComponent(t
 if (!driverTopic.ok()) throw new Error(`driver realtime-topic preflight failed: status=${driverTopic.status()}`);
 const notificationTopic = await manager.request.get('/api/notifications/realtime-topic', { headers: managerAuth });
 if (!notificationTopic.ok()) throw new Error(`notification realtime-topic preflight failed: status=${notificationTopic.status()}`);
+const fuelRecordsResponse = await driver.request.get(`/api/logistics/driver/documents?workspaceId=${encodeURIComponent(workspaceId)}&category=fuel`, { headers: driverAuth });
+const fuelRecords = await fuelRecordsResponse.json().catch(() => ({}));
+const expenseRecordsResponse = await driver.request.get(`/api/logistics/driver/documents?workspaceId=${encodeURIComponent(workspaceId)}&category=expense`, { headers: driverAuth });
+const expenseRecords = await expenseRecordsResponse.json().catch(() => ({}));
+if (!fuelRecordsResponse.ok() || !fuelRecords.tableId || !expenseRecordsResponse.ok() || !expenseRecords.tableId) throw new Error(`driver documents preflight failed: fuel=${fuelRecordsResponse.status()} expense=${expenseRecordsResponse.status()}`);
+const fuelTopic = await driver.request.get(`/api/tables/${encodeURIComponent(fuelRecords.tableId)}/realtime-topic`, { headers: driverAuth });
+const expenseTopic = await driver.request.get(`/api/tables/${encodeURIComponent(expenseRecords.tableId)}/realtime-topic`, { headers: driverAuth });
+if (!fuelTopic.ok() || !expenseTopic.ok()) throw new Error(`driver document realtime-topic preflight failed: fuel=${fuelTopic.status()} expense=${expenseTopic.status()}`);
 const managerHome = await manager.newPage();
 const managerWorkspace = await manager.newPage();
 const driverTrips = await driver.newPage();
