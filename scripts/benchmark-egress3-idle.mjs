@@ -22,11 +22,14 @@ const browser = await chromium.launch({ headless: true });
 const manager = await browser.newContext({ baseURL });
 const driver = await browser.newContext({ baseURL });
 let collecting = false;
-const diagnostics = { consoleErrors: [], failedRequests: [] };
+const diagnostics = { consoleErrors: [], failedRequests: [], browserApiStatuses: [] };
 const attach = (page) => {
   page.on('response', async (response) => {
     if (!collecting) return;
     if (!response.url().includes('/api/')) return;
+    if (['/api/notifications/realtime-topic', '/api/logistics/driver/trips', '/api/tables/'].some((path) => response.url().includes(path)) && diagnostics.browserApiStatuses.length < 30) {
+      diagnostics.browserApiStatuses.push({ path: new URL(response.url()).pathname, status: response.status() });
+    }
     const category = classify(response.url());
     try {
       const body = await response.body();
@@ -42,6 +45,11 @@ const login = async (context, userEmail) => {
   if (!response.ok()) throw new Error(`login failed for ${userEmail}: ${response.status()}`);
   const payload = await response.json();
   if (!payload.token) throw new Error(`login returned no session token for ${userEmail}`);
+  await context.setExtraHTTPHeaders({ Authorization: `Bearer ${payload.token}` });
+  await context.addInitScript(({ token, user }) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  }, { token: payload.token, user: payload.user });
   return payload.token;
 };
 const managerToken = await login(manager, email);
@@ -76,6 +84,11 @@ await Promise.all([
   driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`),
 ]);
 await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace.waitForLoadState('networkidle'), driverTrips.waitForLoadState('networkidle'), driverDocuments.waitForLoadState('networkidle')]);
+const browserAuth = {
+  manager: await managerHome.evaluate(() => Boolean(localStorage.getItem('token') && localStorage.getItem('user'))),
+  driver: await driverTrips.evaluate(() => Boolean(localStorage.getItem('token') && localStorage.getItem('user'))),
+};
+if (!browserAuth.manager || !browserAuth.driver) throw new Error(`browser auth session missing: ${JSON.stringify(browserAuth)}`);
 await driverTrips.waitForFunction(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED'), null, { timeout: 30000 }).catch(() => {});
 await managerHome.waitForFunction(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED', null, { timeout: 30000 }).catch(() => {});
 result.driverRealtimeHealthy = Boolean(await driverTrips.evaluate(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED')));
@@ -84,7 +97,7 @@ result.realtimeHealthy = result.driverRealtimeHealthy && result.notificationReal
 if (!result.realtimeHealthy) {
   const driverTopicPayload = await driverTopic.json().catch(() => ({}));
   const notificationTopicPayload = await notificationTopic.json().catch(() => ({}));
-  result.preflight = { tripsStatus: tripsResponse.status(), tripCount: tripsPayload.trips.length, tripTableId, driverTopicStatus: driverTopic.status(), driverTopicPresent: Boolean(driverTopicPayload.topic), notificationTopicStatus: notificationTopic.status(), notificationTopicPresent: Boolean(notificationTopicPayload.topic), diagnostics };
+  result.preflight = { browserAuth, tripsStatus: tripsResponse.status(), tripCount: tripsPayload.trips.length, tripTableId, driverTopicStatus: driverTopic.status(), driverTopicPresent: Boolean(driverTopicPayload.topic), notificationTopicStatus: notificationTopic.status(), notificationTopicPresent: Boolean(notificationTopicPayload.topic), driverPageUrl: driverTrips.url(), managerPageUrl: managerHome.url(), portalRealtimeStatus: await driverTrips.evaluate(() => window.__smartManagePortalRealtimeStatus || null), notificationRealtimeStatus: await managerHome.evaluate(() => window.__smartManageNotificationRealtimeStatus || null), diagnostics };
   console.error(JSON.stringify(result.preflight));
   throw new Error('Healthy driver and notification realtime subscriptions required before idle collection');
 }
