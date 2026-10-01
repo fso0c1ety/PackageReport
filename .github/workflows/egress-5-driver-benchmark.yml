@@ -1,6 +1,9 @@
 name: EGRESS-5 Driver Payload Benchmark
 
 on:
+  push:
+    branches:
+      - incident/payload-egress-cleanup
   pull_request:
     paths:
       - 'src/app/api/logistics/driver/documents/route.js'
