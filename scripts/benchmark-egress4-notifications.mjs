@@ -26,6 +26,34 @@ for (const size of [1, 10, 50]) {
   const after = file && fs.existsSync(file) ? fs.readFileSync(file, "utf8").split("\n").filter(Boolean).length : before;
   results[size] = { queries: after - before, requests: 1, bytes: body.byteLength, runtimeMs: Math.round(performance.now() - started), status: response.status() };
 }
-console.log(JSON.stringify({ notifications: results }, null, 2));
+await db.query("DELETE FROM notifications WHERE recipient_id='egress4-user'");
+const matrixRows = [
+  ['egress4-matrix-allowed-row', { tableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', taskId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
+  ['egress4-matrix-denied-row', { tableId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', taskId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }],
+  ['egress4-matrix-allowed-board', { tableId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }],
+  ['egress4-matrix-denied-board', { tableId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
+  ['egress4-matrix-duplicate', { tableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', taskId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
+];
+for (const [id, data] of matrixRows) {
+  await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created_at) VALUES($1,'egress4-user','comment',$2::jsonb,FALSE,NOW())", [id, JSON.stringify(data)]);
+}
+await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created_at) VALUES('egress4-matrix-cross-user','egress4-user-b','comment',$1::jsonb,FALSE,NOW())", [JSON.stringify({ tableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' })]);
+const matrixResponse = await login.get('/api/notifications', { headers: { Authorization: `Bearer ${token}` } });
+const matrixBody = await matrixResponse.json();
+const exactVisibleIds = (Array.isArray(matrixBody) ? matrixBody : (matrixBody.notifications || [])).map((item) => String(item.id)).filter((id) => id.startsWith('egress4-matrix-'));
+const expectedVisibleIds = ['egress4-matrix-allowed-row', 'egress4-matrix-allowed-board', 'egress4-matrix-duplicate'];
+const permissionMatrix = {
+  exactVisibleIds,
+  expectedVisibleIds,
+  allowedRow: exactVisibleIds.includes('egress4-matrix-allowed-row'),
+  deniedRow: !exactVisibleIds.includes('egress4-matrix-denied-row'),
+  allowedBoard: exactVisibleIds.includes('egress4-matrix-allowed-board'),
+  deniedBoard: !exactVisibleIds.includes('egress4-matrix-denied-board'),
+  crossUser: !exactVisibleIds.includes('egress4-matrix-cross-user'),
+  crossWorkspace: !exactVisibleIds.includes('egress4-matrix-denied-board'),
+  repeatedTarget: exactVisibleIds.includes('egress4-matrix-duplicate'),
+  pass: JSON.stringify([...exactVisibleIds].sort()) === JSON.stringify([...expectedVisibleIds].sort()),
+};
+console.log(JSON.stringify({ notifications: results, permissionMatrix }, null, 2));
 await login.dispose();
 await db.end();

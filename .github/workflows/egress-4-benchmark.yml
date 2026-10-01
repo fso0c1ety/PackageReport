@@ -5,6 +5,8 @@ on:
       - 'src/app/api/notifications/route.js'
       - 'scripts/seed-egress4-benchmark.mjs'
       - 'scripts/benchmark-egress4-notifications.mjs'
+      - 'scripts/benchmark-egress4-realtime.mjs'
+      - 'src/app/TopBar.tsx'
       - 'scripts/egress4-pg-counter.cjs'
       - '.github/workflows/egress-4-benchmark.yml'
 jobs:
@@ -61,7 +63,7 @@ jobs:
       - run: npm run db:migrate
       - run: node scripts/seed-egress4-benchmark.mjs
       - name: Checkout measured ref
-        run: git checkout "${{ matrix.ref }}" && git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress4-notifications.mjs" > scripts/.benchmark-egress4-notifications.mjs && git show "${{ github.event.pull_request.head.sha }}:scripts/egress4-pg-counter.cjs" > scripts/.egress4-pg-counter.cjs
+        run: git checkout "${{ matrix.ref }}" && git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress4-notifications.mjs" > scripts/.benchmark-egress4-notifications.mjs && git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress4-realtime.mjs" > scripts/.benchmark-egress4-realtime.mjs && git show "${{ github.event.pull_request.head.sha }}:scripts/egress4-pg-counter.cjs" > scripts/.egress4-pg-counter.cjs
       - run: npm run build
       - run: node scripts/verify-local-realtime.mjs
       - name: Start server
@@ -70,7 +72,10 @@ jobs:
           nohup env NODE_OPTIONS="--require=$PWD/scripts/.egress4-pg-counter.cjs" EGRESS4_QUERY_FILE=/tmp/egress4-pg-queries.ndjson npx next start -p 3000 -H 127.0.0.1 >/tmp/egress4-server.log 2>&1 &
           for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
       - run: node scripts/.benchmark-egress4-notifications.mjs > egress4-${{ matrix.name }}.json
+      - run: node scripts/.benchmark-egress4-realtime.mjs > egress4-${{ matrix.name }}-realtime.json
       - uses: actions/upload-artifact@v4
         with:
           name: egress4-${{ matrix.name }}
-          path: egress4-${{ matrix.name }}.json
+          path: |
+            egress4-${{ matrix.name }}.json
+            egress4-${{ matrix.name }}-realtime.json
