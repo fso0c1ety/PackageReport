@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import fs from 'node:fs';
 
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
 const password = process.env.EGRESS4_PASSWORD;
@@ -15,16 +16,23 @@ await context.setExtraHTTPHeaders({ Authorization: `Bearer ${body.token}` });
 await context.addInitScript(({ token, user }) => {
   localStorage.setItem('token', token);
   localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('smart-manage-debug', 'true');
 }, { token: body.token, user: body.user });
 
 const page = await context.newPage();
 const responses = [];
+let debugRealtimeEvents = 0;
+page.on('console', (message) => {
+  if (message.type() === 'debug' && message.text().includes('NOTIFICATION_REALTIME_EVENT')) debugRealtimeEvents += 1;
+});
 page.on('response', (response) => {
   if (response.url().includes('/api/notifications')) responses.push(response);
 });
 await page.goto(`${baseUrl}/home/`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.localStorage.getItem('token'));
 await page.waitForFunction(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED', null, { timeout: 30000 });
+const initialEventCount = await page.evaluate(() => Number(window.__smartManageNotificationRealtimeEvents));
+const hasEventDiagnostic = Number.isFinite(initialEventCount);
 const topicResponse = await context.request.get(`${baseUrl}/api/notifications/realtime-topic`);
 if (!topicResponse.ok()) throw new Error(`topic failed: ${topicResponse.status()}`);
 const { topic } = await topicResponse.json();
@@ -41,18 +49,17 @@ await new Promise((resolve, reject) => {
 const results = {};
 for (const count of [1, 10, 50]) {
   responses.length = 0;
-  await page.evaluate(() => {
-    window.__smartManageNotificationRealtimeEvents = 0;
-    window.__smartManageNotificationRefreshCount = 0;
-  });
+  const beforeDebugEvents = debugRealtimeEvents;
+  const initialRefreshCount = await page.evaluate(() => Number(window.__smartManageNotificationRefreshCount || 0));
+  const queryFile = process.env.EGRESS4_QUERY_FILE;
+  const beforeQueries = queryFile && fs.existsSync(queryFile) ? fs.readFileSync(queryFile, 'utf8').split('\n').filter(Boolean).length : 0;
   const started = Date.now();
   for (let i = 0; i < count; i += 1) {
     const result = await sender.send({ type: 'broadcast', event: `notification:${topic}`, payload: { topic, notificationId: `egress4-burst-${count}-${i}` } });
     if (result !== 'ok') throw new Error(`broadcast failed: ${result}`);
   }
-  const hasEventDiagnostic = await page.evaluate(() => Object.prototype.hasOwnProperty.call(window, '__smartManageNotificationRealtimeEvents'));
   if (hasEventDiagnostic) {
-    await page.waitForFunction((expected) => Number(window.__smartManageNotificationRealtimeEvents || 0) >= expected, count, { timeout: 30000 });
+    await page.waitForFunction((expected) => Number(window.__smartManageNotificationRealtimeEvents || 0) >= expected, count + initialEventCount, { timeout: 30000 });
   } else {
     await page.waitForTimeout(3000);
   }
@@ -62,13 +69,16 @@ for (const count of [1, 10, 50]) {
     const buffer = await response.body().catch(() => null);
     if (buffer) bytes += buffer.length;
   }
+  const afterQueries = queryFile && fs.existsSync(queryFile) ? fs.readFileSync(queryFile, 'utf8').split('\n').filter(Boolean).length : beforeQueries;
+  const finalRefreshCount = await page.evaluate(() => Number(window.__smartManageNotificationRefreshCount || 0));
   results[count] = {
     eventsSent: count,
     eventsReceived: hasEventDiagnostic
-      ? await page.evaluate(() => Number(window.__smartManageNotificationRealtimeEvents || 0))
-      : responses.length,
-    refreshes: await page.evaluate(() => Number(window.__smartManageNotificationRefreshCount || 0)),
+      ? (await page.evaluate(() => Number(window.__smartManageNotificationRealtimeEvents || 0))) - initialEventCount
+      : debugRealtimeEvents - beforeDebugEvents,
+    refreshes: finalRefreshCount - initialRefreshCount,
     requests: responses.length,
+    queries: afterQueries - beforeQueries,
     bytes,
     runtimeMs: Date.now() - started,
   };
@@ -78,7 +88,17 @@ await Promise.race([
   new Promise((resolve) => setTimeout(resolve, 2000)),
 ]);
 await Promise.race([
+  supabase.removeChannel(sender),
+  new Promise((resolve) => setTimeout(resolve, 1000)),
+]);
+await Promise.race([
+  supabase.removeAllChannels(),
+  new Promise((resolve) => setTimeout(resolve, 1000)),
+]);
+supabase.realtime.disconnect();
+await Promise.race([
   context.close(),
   new Promise((resolve) => setTimeout(resolve, 3000)),
 ]);
 console.log(JSON.stringify({ realtime: results }));
+setTimeout(() => process.exit(0), 0);

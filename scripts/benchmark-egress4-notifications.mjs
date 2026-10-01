@@ -27,13 +27,17 @@ for (const size of [1, 10, 50]) {
   results[size] = { queries: after - before, requests: 1, bytes: body.byteLength, runtimeMs: Math.round(performance.now() - started), status: response.status() };
 }
 await db.query("DELETE FROM notifications WHERE recipient_id='egress4-user'");
+await db.query("INSERT INTO professional_invitations(id,workspace_id,table_id,inviter_id,recipient_id,status) VALUES('egress4-invite-pending','44444444-4444-4444-8444-444444444444','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','egress4-user-b','egress4-user','pending'),('egress4-invite-invalid','44444444-4444-4444-8444-444444444444','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','egress4-user-b','egress4-user','accepted') ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status");
 const matrixRows = [
   ['egress4-matrix-allowed-row', { tableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', taskId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
   ['egress4-matrix-denied-row', { tableId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', taskId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }],
   ['egress4-matrix-allowed-board', { tableId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }],
   ['egress4-matrix-denied-board', { tableId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
   ['egress4-matrix-duplicate', { tableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', taskId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
+  ['egress4-matrix-pending-invite', { invitationId: 'egress4-invite-pending' }],
+  ['egress4-matrix-invalid-invite', { invitationId: 'egress4-invite-invalid' }],
 ];
+await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created_at) VALUES('egress4-matrix-pending-invite','egress4-user','invite',$1::jsonb,FALSE,NOW()),('egress4-matrix-invalid-invite','egress4-user','invite',$2::jsonb,FALSE,NOW())", [JSON.stringify({ invitationId: 'egress4-invite-pending' }), JSON.stringify({ invitationId: 'egress4-invite-invalid' })]);
 for (const [id, data] of matrixRows) {
   await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created_at) VALUES($1,'egress4-user','comment',$2::jsonb,FALSE,NOW())", [id, JSON.stringify(data)]);
 }
@@ -41,7 +45,7 @@ await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created
 const matrixResponse = await login.get('/api/notifications', { headers: { Authorization: `Bearer ${token}` } });
 const matrixBody = await matrixResponse.json();
 const exactVisibleIds = (Array.isArray(matrixBody) ? matrixBody : (matrixBody.notifications || [])).map((item) => String(item.id)).filter((id) => id.startsWith('egress4-matrix-'));
-const expectedVisibleIds = ['egress4-matrix-allowed-row', 'egress4-matrix-allowed-board', 'egress4-matrix-duplicate'];
+const expectedVisibleIds = ['egress4-matrix-allowed-row', 'egress4-matrix-allowed-board', 'egress4-matrix-duplicate', 'egress4-matrix-pending-invite'];
 const permissionMatrix = {
   exactVisibleIds,
   expectedVisibleIds,
@@ -52,6 +56,8 @@ const permissionMatrix = {
   crossUser: !exactVisibleIds.includes('egress4-matrix-cross-user'),
   crossWorkspace: !exactVisibleIds.includes('egress4-matrix-denied-board'),
   repeatedTarget: exactVisibleIds.includes('egress4-matrix-duplicate'),
+  pendingInvitation: exactVisibleIds.includes('egress4-matrix-pending-invite'),
+  invalidInvitation: !exactVisibleIds.includes('egress4-matrix-invalid-invite'),
   pass: JSON.stringify([...exactVisibleIds].sort()) === JSON.stringify([...expectedVisibleIds].sort()),
 };
 console.log(JSON.stringify({ notifications: results, permissionMatrix }, null, 2));
