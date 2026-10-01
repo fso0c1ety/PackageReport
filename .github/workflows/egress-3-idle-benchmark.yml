@@ -37,8 +37,8 @@ jobs:
       DATABASE_SSL: 'false'
       E2E_BASE_URL: http://127.0.0.1:3000
       EGRESS3_DURATION_SECONDS: 600
-      EGRESS3_EMAIL: demo@smartmanage.com
-      EGRESS3_DRIVER_EMAIL: demo@smartmanage.com
+      EGRESS3_EMAIL: egress3-manager@example.test
+      EGRESS3_DRIVER_EMAIL: egress3-driver@example.test
       EGRESS3_WORKSPACE_ID: egress3-demo-workspace
     steps:
       - uses: actions/checkout@v4
