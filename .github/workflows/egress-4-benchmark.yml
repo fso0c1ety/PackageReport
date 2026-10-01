@@ -31,6 +31,7 @@ jobs:
       DATABASE_SSL: 'false'
       E2E_BASE_URL: http://127.0.0.1:3000
       NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+      EGRESS4_QUERY_FILE: /tmp/egress4-pg-queries.ndjson
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
