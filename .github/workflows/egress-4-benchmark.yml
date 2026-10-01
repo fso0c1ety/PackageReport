@@ -66,6 +66,7 @@ jobs:
         run: git checkout "${{ matrix.ref }}" && git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress4-notifications.mjs" > scripts/.benchmark-egress4-notifications.mjs && git show "${{ github.event.pull_request.head.sha }}:scripts/benchmark-egress4-realtime.mjs" > scripts/.benchmark-egress4-realtime.mjs && git show "${{ github.event.pull_request.head.sha }}:scripts/egress4-pg-counter.cjs" > scripts/.egress4-pg-counter.cjs
       - run: npm run build
       - run: node scripts/verify-local-realtime.mjs
+      - run: npx playwright install chromium
       - name: Start server
         run: |
           : > /tmp/egress4-pg-queries.ndjson
