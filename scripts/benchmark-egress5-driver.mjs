@@ -57,7 +57,7 @@ await db.connect();
 try {
   const hash = await bcrypt.hash(password, 4);
   await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW()),($5,$6,$7,$4,NOW()) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password", [driverId, 'EGRESS5 Driver A', 'egress5-driver-a@example.test', hash, otherDriverId, 'EGRESS5 Driver B', 'egress5-driver-b@example.test']);
-  await db.query('INSERT INTO workspaces(id,name,owner_id,is_demo) VALUES($1,$2,$3,TRUE) ON CONFLICT(id) DO NOTHING', [workspaceId, 'TEST_EGRESS5_DRIVER', driverId]);
+  await db.query('INSERT INTO workspaces(id,name,owner_id) VALUES($1,$2,$3) ON CONFLICT(id) DO NOTHING', [workspaceId, 'TEST_EGRESS5_DRIVER', driverId]);
   await db.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'driver','driver','{"scope":"all"}'::jsonb),($1,$3,'driver','driver','{"scope":"all"}'::jsonb) ON CONFLICT DO NOTHING`, [workspaceId, driverId, otherDriverId]);
   await db.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,\'fuel\',$4,$3::jsonb),($2,\'expenses\',$4,$3::jsonb),($5,\'trips\',$4,$3::jsonb) ON CONFLICT(id) DO UPDATE SET columns=EXCLUDED.columns', [fuelTableId, expenseTableId, JSON.stringify(columns), workspaceId, tripTableId]);
   const cookie = await login();
