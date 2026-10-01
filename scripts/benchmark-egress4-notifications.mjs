@@ -15,8 +15,8 @@ await db.connect();
 for (const size of [1, 10, 50]) {
   await db.query("DELETE FROM notifications WHERE recipient_id='egress4-user'");
   for (let i = 0; i < size; i++) {
-    const tableId = i % 3 === 0 ? "egress4-table-b" : "egress4-table-a";
-    const data = { tableId, ...(i % 2 ? { taskId: "egress4-row-a" } : {}) };
+    const tableId = i % 3 === 0 ? "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const data = { tableId, ...(i % 2 ? { taskId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" } : {}) };
     await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created_at) VALUES($1,'egress4-user','comment',$2::jsonb,FALSE,NOW())", [`egress4-notification-${i}`, JSON.stringify(data)]);
   }
   const before = file && fs.existsSync(file) ? fs.readFileSync(file, "utf8").split("\n").filter(Boolean).length : 0;

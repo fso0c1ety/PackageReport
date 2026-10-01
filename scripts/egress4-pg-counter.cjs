@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 const pg = require('pg');
 const original = pg.Client.prototype.query;
