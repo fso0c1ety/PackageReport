@@ -36,6 +36,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: 'false'
       E2E_BASE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
       EGRESS3_DURATION_SECONDS: 600
       EGRESS3_EMAIL: egress3-manager@example.test
       EGRESS3_DRIVER_EMAIL: egress3-driver@example.test
