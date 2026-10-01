@@ -82,7 +82,9 @@ result.driverRealtimeHealthy = Boolean(await driverTrips.evaluate(() => Object.v
 result.notificationRealtimeHealthy = Boolean(await managerHome.evaluate(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED'));
 result.realtimeHealthy = result.driverRealtimeHealthy && result.notificationRealtimeHealthy;
 if (!result.realtimeHealthy) {
-  result.preflight = { tripsStatus: tripsResponse.status(), tripCount: tripsPayload.trips.length, tripTableId, driverTopicStatus: driverTopic.status, notificationTopicStatus: notificationTopic.status, diagnostics };
+  const driverTopicPayload = await driverTopic.json().catch(() => ({}));
+  const notificationTopicPayload = await notificationTopic.json().catch(() => ({}));
+  result.preflight = { tripsStatus: tripsResponse.status(), tripCount: tripsPayload.trips.length, tripTableId, driverTopicStatus: driverTopic.status(), driverTopicPresent: Boolean(driverTopicPayload.topic), notificationTopicStatus: notificationTopic.status(), notificationTopicPresent: Boolean(notificationTopicPayload.topic), diagnostics };
   console.error(JSON.stringify(result.preflight));
   throw new Error('Healthy driver and notification realtime subscriptions required before idle collection');
 }
