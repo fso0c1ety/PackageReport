@@ -6,7 +6,7 @@ const password = process.env.EGRESS3_PASSWORD || process.env.SMART_MANAGE_PORTAL
 const durationSeconds = Number(process.env.EGRESS3_DURATION_SECONDS || 600);
 if (!password) throw new Error('EGRESS3_PASSWORD is required');
 
-const result = { durationSeconds, realtimeHealthy: false, total: { requests: 0, bytes: 0 }, categories: {
+const result = { durationSeconds, realtimeHealthy: false, driverRealtimeHealthy: false, notificationRealtimeHealthy: false, total: { requests: 0, bytes: 0 }, categories: {
   home: { requests: 0, bytes: 0 }, calendar: { requests: 0, bytes: 0 }, driverTrips: { requests: 0, bytes: 0 },
   driverDocuments: { requests: 0, bytes: 0 }, notifications: { requests: 0, bytes: 0 }, otherApi: { requests: 0, bytes: 0 },
 } };
@@ -22,6 +22,7 @@ const browser = await chromium.launch({ headless: true });
 const manager = await browser.newContext({ baseURL });
 const driver = await browser.newContext({ baseURL });
 let collecting = false;
+const diagnostics = { consoleErrors: [], failedRequests: [] };
 const attach = (page) => {
   page.on('response', async (response) => {
     if (!collecting) return;
@@ -45,23 +46,46 @@ await login(driver, process.env.EGRESS3_DRIVER_EMAIL || 'driver-a@smartmanage-de
 const workspaces = await manager.request.get('/api/workspaces');
 const workspaceData = await workspaces.json();
 const workspaceId = process.env.EGRESS3_WORKSPACE_ID || workspaceData.workspaces?.[0]?.id || workspaceData[0]?.id || 'egress3-demo-workspace';
+const tripsResponse = await driver.request.get(`/api/logistics/driver/trips?workspaceId=${encodeURIComponent(workspaceId)}`);
+const tripsPayload = await tripsResponse.json().catch(() => ({}));
+if (!tripsResponse.ok() || !Array.isArray(tripsPayload.trips) || tripsPayload.trips.length < 1) {
+  throw new Error(`driver trips preflight failed: status=${tripsResponse.status()} trips=${Array.isArray(tripsPayload.trips) ? tripsPayload.trips.length : 0}`);
+}
+const tripTableId = tripsPayload.trips[0].tableId || tripsPayload.trips[0].table_id;
+if (!tripTableId) throw new Error('driver trips preflight returned no tableId');
+const driverTopic = await driver.request.get(`/api/tables/${encodeURIComponent(tripTableId)}/realtime-topic`);
+if (!driverTopic.ok()) throw new Error(`driver realtime-topic preflight failed: status=${driverTopic.status()}`);
+const notificationTopic = await manager.request.get('/api/notifications/realtime-topic');
+if (!notificationTopic.ok()) throw new Error(`notification realtime-topic preflight failed: status=${notificationTopic.status()}`);
 const managerHome = await manager.newPage();
 const managerWorkspace = await manager.newPage();
 const driverTrips = await driver.newPage();
 const driverDocuments = await driver.newPage();
-for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) attach(page);
+for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) {
+  attach(page);
+  page.on('console', (message) => { if (message.type() === 'error' && diagnostics.consoleErrors.length < 20) diagnostics.consoleErrors.push(message.text()); });
+  page.on('requestfailed', (request) => { if (diagnostics.failedRequests.length < 20) diagnostics.failedRequests.push(`${request.method()} ${request.url()}`); });
+}
 await Promise.all([
   managerHome.goto('/home/'), managerWorkspace.goto(`/workspace/?id=${encodeURIComponent(workspaceId)}`),
   driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`),
 ]);
 await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace.waitForLoadState('networkidle'), driverTrips.waitForLoadState('networkidle'), driverDocuments.waitForLoadState('networkidle')]);
-await new Promise((resolve) => setTimeout(resolve, 5000));
-result.realtimeHealthy = Boolean(await driverTrips.evaluate(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED')) || await managerHome.evaluate(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED'));
-if (!result.realtimeHealthy) throw new Error('Healthy realtime subscription required before idle collection');
+await driverTrips.waitForFunction(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED'), null, { timeout: 30000 }).catch(() => {});
+await managerHome.waitForFunction(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED', null, { timeout: 30000 }).catch(() => {});
+result.driverRealtimeHealthy = Boolean(await driverTrips.evaluate(() => Object.values(window.__smartManagePortalRealtimeStatus || {}).some((status) => status === 'SUBSCRIBED')));
+result.notificationRealtimeHealthy = Boolean(await managerHome.evaluate(() => window.__smartManageNotificationRealtimeStatus === 'SUBSCRIBED'));
+result.realtimeHealthy = result.driverRealtimeHealthy && result.notificationRealtimeHealthy;
+if (!result.realtimeHealthy) {
+  result.preflight = { tripsStatus: tripsResponse.status(), tripCount: tripsPayload.trips.length, tripTableId, driverTopicStatus: driverTopic.status, notificationTopicStatus: notificationTopic.status, diagnostics };
+  console.error(JSON.stringify(result.preflight));
+  throw new Error('Healthy driver and notification realtime subscriptions required before idle collection');
+}
 const start = Date.now();
 collecting = true;
 await new Promise((resolve) => setTimeout(resolve, durationSeconds * 1000));
 for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) await page.close();
 await manager.close(); await driver.close(); await browser.close();
 result.elapsedSeconds = Math.round((Date.now() - start) / 1000);
+result.diagnostics = diagnostics;
 console.log(JSON.stringify(result, null, 2));
