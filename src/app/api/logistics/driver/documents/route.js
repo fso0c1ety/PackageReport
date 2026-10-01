@@ -52,9 +52,9 @@ export async function GET(req) {
   const access = await logisticsAccess(workspaceId, user.id);
   if (!access || access.role !== "driver") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const names = category === "fuel" ? ["fuel"] : ["expenses", "costs"];
-  const table = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, names])).rows[0];
+  const table = (await pool.query("SELECT id, columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, names])).rows[0];
   if (!table) return NextResponse.json({ records: [] });
-  const rows = (await pool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY created_at DESC", [table.id])).rows;
+  const rows = (await pool.query("SELECT id, values, created_at FROM rows WHERE table_id=$1 ORDER BY created_at DESC", [table.id])).rows;
   const matches = await Promise.all(rows.map(async (row) => ({ row, matches: await driverMatches(row, table.columns || [], workspaceId, user) })));
   const records = matches.filter(({ matches: isMatch }) => isMatch).map(({ row }) => ({
     id: row.id,
@@ -92,8 +92,8 @@ export async function POST(req) {
 
   const access = await logisticsAccess(workspaceId, user.id);
   if (!access || access.role !== "driver") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const tripTable = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) ORDER BY CASE WHEN LOWER(name)='trips' THEN 0 ELSE 1 END LIMIT 1", [workspaceId, ["trips", "loads"]])).rows[0];
-  const tripCandidate = tripTable && (await pool.query("SELECT * FROM rows WHERE id=$1 AND table_id=$2", [tripId, tripTable.id])).rows[0];
+  const tripTable = (await pool.query("SELECT id, columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) ORDER BY CASE WHEN LOWER(name)='trips' THEN 0 ELSE 1 END LIMIT 1", [workspaceId, ["trips", "loads"]])).rows[0];
+  const tripCandidate = tripTable && (await pool.query("SELECT id, table_id, values FROM rows WHERE id=$1 AND table_id=$2", [tripId, tripTable.id])).rows[0];
   const trip = tripCandidate && String(await resolveDriverUserId(tripCandidate.values, tripTable.columns || [], workspaceId) || "") === String(user.id) ? tripCandidate : null;
   if (!trip) return NextResponse.json({ error: "Trip not found or forbidden" }, { status: 404 });
 
@@ -112,7 +112,7 @@ export async function POST(req) {
     await pool.query("UPDATE rows SET values=$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(values), trip.id, tripTable.id]);
   } else {
     const tableNames = category === "fuel" ? ["fuel"] : ["expenses", "costs"];
-    targetTable = (await pool.query("SELECT * FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, tableNames])).rows[0];
+    targetTable = (await pool.query("SELECT id, columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, tableNames])).rows[0];
     if (!targetTable) return NextResponse.json({ error: `${category} board was not found` }, { status: 404 });
     targetRowId = randomUUID();
     eventType = "row_created";
