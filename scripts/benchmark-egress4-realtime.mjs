@@ -73,6 +73,12 @@ for (const count of [1, 10, 50]) {
     runtimeMs: Date.now() - started,
   };
 }
-await sender.unsubscribe();
-await context.close();
+await Promise.race([
+  sender.unsubscribe(),
+  new Promise((resolve) => setTimeout(resolve, 2000)),
+]);
+await Promise.race([
+  context.close(),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]);
 console.log(JSON.stringify({ realtime: results }));
