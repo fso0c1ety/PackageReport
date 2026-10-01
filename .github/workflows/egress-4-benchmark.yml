@@ -70,4 +70,6 @@ jobs:
           for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
       - run: node scripts/.benchmark-egress4-notifications.mjs > egress4-${{ matrix.name }}.json
       - uses: actions/upload-artifact@v4
-        with: { name: egress4-${{ matrix.name }}, path: egress4-${{ matrix.name }}.json }
+        with:
+          name: egress4-${{ matrix.name }}
+          path: egress4-${{ matrix.name }}.json
