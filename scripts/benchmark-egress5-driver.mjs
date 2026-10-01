@@ -10,6 +10,7 @@ const db = new Client({ connectionString: process.env.DATABASE_URL, ssl: false }
 const workspaceId = '55555555-5555-4555-8555-555555555555';
 const driverId = 'egress5-driver-a';
 const otherDriverId = 'egress5-driver-b';
+const managerId = 'egress5-manager';
 const fuelTableId = '55555555-5555-4555-8555-555555555551';
 const expenseTableId = '55555555-5555-4555-8555-555555555552';
 const tripTableId = '55555555-5555-4555-8555-555555555553';
@@ -58,14 +59,14 @@ const measurePost = async (category, cookie) => {
 await db.connect();
 try {
   const hash = await bcrypt.hash(password, 4);
-  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW()),($5,$6,$7,$4,NOW()) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password", [driverId, 'EGRESS5 Driver A', 'egress5-driver-a@example.test', hash, otherDriverId, 'EGRESS5 Driver B', 'egress5-driver-b@example.test']);
-  await db.query('INSERT INTO workspaces(id,name,owner_id) VALUES($1,$2,$3) ON CONFLICT(id) DO NOTHING', [workspaceId, 'TEST_EGRESS5_DRIVER', driverId]);
+  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW()),($5,$6,$7,$4,NOW()),($8,$9,$10,$4,NOW()) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password", [driverId, 'EGRESS5 Driver A', 'egress5-driver-a@example.test', hash, otherDriverId, 'EGRESS5 Driver B', 'egress5-driver-b@example.test', managerId, 'EGRESS5 Manager', 'egress5-manager@example.test']);
+  await db.query("INSERT INTO workspaces(id,name,owner_id,template_key) VALUES($1,$2,$3,'fleet_management') ON CONFLICT(id) DO UPDATE SET template_key='fleet_management',owner_id=EXCLUDED.owner_id", [workspaceId, 'TEST_EGRESS5_DRIVER', managerId]);
   await db.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'driver','driver','{"scope":"all"}'::jsonb),($1,$3,'driver','driver','{"scope":"all"}'::jsonb) ON CONFLICT DO NOTHING`, [workspaceId, driverId, otherDriverId]);
   await db.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,\'fuel\',$4,$3::jsonb),($2,\'expenses\',$4,$3::jsonb),($5,\'trips\',$4,$3::jsonb) ON CONFLICT(id) DO UPDATE SET columns=EXCLUDED.columns', [fuelTableId, expenseTableId, JSON.stringify(columns), workspaceId, tripTableId]);
   const cookie = await login();
   const result = { get: {}, post: {} };
   for (const count of [10, 100, 500]) { result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie); result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie); }
-  const trip = randomUUID(); await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4)', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
+  const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
   result.post.trip = await measurePost('trip', cookie); result.post.fuel = await measurePost('fuel', cookie); result.post.expense = await measurePost('expense', cookie);
   console.log(JSON.stringify(result, null, 2));
 } finally { await db.end(); }
