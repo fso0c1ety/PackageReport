@@ -36,19 +36,21 @@ const seedRows = async (tableId, count) => {
 const login = async () => {
   const response = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'egress5-driver-a@example.test', password }) });
   if (!response.ok) throw new Error(`login failed ${response.status}`);
-  return response.headers.get('set-cookie')?.split(';', 1)[0];
+  const body = await response.json();
+  if (!body.token) throw new Error('login did not return a session token');
+  return body.token;
 };
 const measureGet = async (category, tableId, count, cookie) => {
   await seedRows(tableId, count);
   const before = queryCount(); const started = performance.now();
-  const response = await fetch(`${baseUrl}/api/logistics/driver/documents?workspaceId=${workspaceId}&category=${category}`, { headers: { cookie } });
+  const response = await fetch(`${baseUrl}/api/logistics/driver/documents?workspaceId=${workspaceId}&category=${category}`, { headers: { Authorization: `Bearer ${cookie}` } });
   const text = await response.text(); const after = queryCount();
   const payload = JSON.parse(text);
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), records: payload.records?.map((row) => row.id) || [], fieldCount: 0 };
 };
 const measurePost = async (category, cookie) => {
   const before = queryCount(); const started = performance.now();
-  const response = await fetch(`${baseUrl}/api/logistics/driver/documents`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId, tripId: 'egress5-trip', category, file: { id: `egress5-${category}-file`, name: `${category}.pdf`, url: 'https://example.test/file.pdf', type: 'application/pdf', size: 100 } }) });
+  const response = await fetch(`${baseUrl}/api/logistics/driver/documents`, { method: 'POST', headers: { Authorization: `Bearer ${cookie}`, 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId, tripId: 'egress5-trip', category, file: { id: `egress5-${category}-file`, name: `${category}.pdf`, url: 'https://example.test/file.pdf', type: 'application/pdf', size: 100 } }) });
   const text = await response.text(); const after = queryCount();
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), response: JSON.parse(text) };
 };
