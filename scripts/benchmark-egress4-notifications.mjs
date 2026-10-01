@@ -34,8 +34,6 @@ const matrixRows = [
   ['egress4-matrix-allowed-board', { tableId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }],
   ['egress4-matrix-denied-board', { tableId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
   ['egress4-matrix-duplicate', { tableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', taskId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
-  ['egress4-matrix-pending-invite', { invitationId: 'egress4-invite-pending' }],
-  ['egress4-matrix-invalid-invite', { invitationId: 'egress4-invite-invalid' }],
 ];
 await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created_at) VALUES('egress4-matrix-pending-invite','egress4-user','invite',$1::jsonb,FALSE,NOW()),('egress4-matrix-invalid-invite','egress4-user','invite',$2::jsonb,FALSE,NOW())", [JSON.stringify({ invitationId: 'egress4-invite-pending' }), JSON.stringify({ invitationId: 'egress4-invite-invalid' })]);
 for (const [id, data] of matrixRows) {
