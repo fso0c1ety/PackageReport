@@ -27,7 +27,7 @@ const attach = (page) => {
   page.on('response', async (response) => {
     if (!collecting) return;
     if (!response.url().includes('/api/')) return;
-    if (['/api/notifications/realtime-topic', '/api/logistics/driver/trips', '/api/tables/'].some((path) => response.url().includes(path)) && diagnostics.browserApiStatuses.length < 30) {
+    if ((response.status() === 403 || ['/api/notifications/realtime-topic', '/api/logistics/driver/trips', '/api/tables/'].some((path) => response.url().includes(path))) && diagnostics.browserApiStatuses.length < 50) {
       diagnostics.browserApiStatuses.push({ path: new URL(response.url()).pathname, status: response.status() });
     }
     const category = classify(response.url());
@@ -74,7 +74,9 @@ const managerHome = await manager.newPage();
 const managerWorkspace = await manager.newPage();
 const driverTrips = await driver.newPage();
 const driverDocuments = await driver.newPage();
-for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) {
+const driverFuel = await driver.newPage();
+const driverExpenses = await driver.newPage();
+for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments, driverFuel, driverExpenses]) {
   attach(page);
   page.on('console', (message) => { if (message.type() === 'error' && diagnostics.consoleErrors.length < 20) diagnostics.consoleErrors.push(message.text()); });
   page.on('requestfailed', (request) => { if (diagnostics.failedRequests.length < 20) diagnostics.failedRequests.push(`${request.method()} ${request.url()}`); });
@@ -82,8 +84,9 @@ for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]
 await Promise.all([
   managerHome.goto('/home/'), managerWorkspace.goto(`/workspace/?id=${encodeURIComponent(workspaceId)}`),
   driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`),
+  driverFuel.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=fuel`), driverExpenses.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=expenses`),
 ]);
-await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace.waitForLoadState('networkidle'), driverTrips.waitForLoadState('networkidle'), driverDocuments.waitForLoadState('networkidle')]);
+await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace.waitForLoadState('networkidle'), driverTrips.waitForLoadState('networkidle'), driverDocuments.waitForLoadState('networkidle'), driverFuel.waitForLoadState('networkidle'), driverExpenses.waitForLoadState('networkidle')]);
 const browserAuth = {
   manager: await managerHome.evaluate(() => Boolean(localStorage.getItem('token') && localStorage.getItem('user'))),
   driver: await driverTrips.evaluate(() => Boolean(localStorage.getItem('token') && localStorage.getItem('user'))),
@@ -104,7 +107,7 @@ if (!result.realtimeHealthy) {
 const start = Date.now();
 collecting = true;
 await new Promise((resolve) => setTimeout(resolve, durationSeconds * 1000));
-for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments]) await page.close();
+for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments, driverFuel, driverExpenses]) await page.close();
 await manager.close(); await driver.close(); await browser.close();
 result.elapsedSeconds = Math.round((Date.now() - start) / 1000);
 result.diagnostics = diagnostics;
