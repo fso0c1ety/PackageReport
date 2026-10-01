@@ -40,22 +40,27 @@ const attach = (page) => {
 const login = async (context, userEmail) => {
   const response = await context.request.post('/api/login/', { data: { email: userEmail, password }, headers: { Origin: baseURL } });
   if (!response.ok()) throw new Error(`login failed for ${userEmail}: ${response.status()}`);
+  const payload = await response.json();
+  if (!payload.token) throw new Error(`login returned no session token for ${userEmail}`);
+  return payload.token;
 };
-await login(manager, email);
-await login(driver, process.env.EGRESS3_DRIVER_EMAIL || 'driver-a@smartmanage-demo.com');
+const managerToken = await login(manager, email);
+const driverToken = await login(driver, process.env.EGRESS3_DRIVER_EMAIL || 'driver-a@smartmanage-demo.com');
 const workspaces = await manager.request.get('/api/workspaces');
 const workspaceData = await workspaces.json();
 const workspaceId = process.env.EGRESS3_WORKSPACE_ID || workspaceData.workspaces?.[0]?.id || workspaceData[0]?.id || 'egress3-demo-workspace';
-const tripsResponse = await driver.request.get(`/api/logistics/driver/trips?workspaceId=${encodeURIComponent(workspaceId)}`);
+const driverAuth = { Authorization: `Bearer ${driverToken}` };
+const managerAuth = { Authorization: `Bearer ${managerToken}` };
+const tripsResponse = await driver.request.get(`/api/logistics/driver/trips?workspaceId=${encodeURIComponent(workspaceId)}`, { headers: driverAuth });
 const tripsPayload = await tripsResponse.json().catch(() => ({}));
 if (!tripsResponse.ok() || !Array.isArray(tripsPayload.trips) || tripsPayload.trips.length < 1) {
   throw new Error(`driver trips preflight failed: status=${tripsResponse.status()} trips=${Array.isArray(tripsPayload.trips) ? tripsPayload.trips.length : 0}`);
 }
 const tripTableId = tripsPayload.trips[0].tableId || tripsPayload.trips[0].table_id;
 if (!tripTableId) throw new Error('driver trips preflight returned no tableId');
-const driverTopic = await driver.request.get(`/api/tables/${encodeURIComponent(tripTableId)}/realtime-topic`);
+const driverTopic = await driver.request.get(`/api/tables/${encodeURIComponent(tripTableId)}/realtime-topic`, { headers: driverAuth });
 if (!driverTopic.ok()) throw new Error(`driver realtime-topic preflight failed: status=${driverTopic.status()}`);
-const notificationTopic = await manager.request.get('/api/notifications/realtime-topic');
+const notificationTopic = await manager.request.get('/api/notifications/realtime-topic', { headers: managerAuth });
 if (!notificationTopic.ok()) throw new Error(`notification realtime-topic preflight failed: status=${notificationTopic.status()}`);
 const managerHome = await manager.newPage();
 const managerWorkspace = await manager.newPage();
