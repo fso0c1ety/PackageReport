@@ -25,11 +25,11 @@ let collecting = false;
 const diagnostics = { consoleErrors: [], failedRequests: [], browserApiStatuses: [] };
 const attach = (page) => {
   page.on('response', async (response) => {
-    if (!collecting) return;
     if (!response.url().includes('/api/')) return;
-    if ((response.status() === 403 || ['/api/notifications/realtime-topic', '/api/logistics/driver/trips', '/api/tables/'].some((path) => response.url().includes(path))) && diagnostics.browserApiStatuses.length < 50) {
+    if (response.status() === 403 && diagnostics.browserApiStatuses.length < 50) {
       diagnostics.browserApiStatuses.push({ path: new URL(response.url()).pathname, status: response.status() });
     }
+    if (!collecting) return;
     const category = classify(response.url());
     try {
       const body = await response.body();
@@ -82,11 +82,11 @@ for (const page of [managerHome, managerWorkspace, driverTrips, driverDocuments,
   page.on('requestfailed', (request) => { if (diagnostics.failedRequests.length < 20) diagnostics.failedRequests.push(`${request.method()} ${request.url()}`); });
 }
 await Promise.all([
-  managerHome.goto('/home/'), managerWorkspace.goto(`/workspace/?id=${encodeURIComponent(workspaceId)}`),
-  driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`),
-  driverFuel.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=fuel`), driverExpenses.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=expenses`),
+  managerHome.goto('/home/', { waitUntil: 'domcontentloaded' }), managerWorkspace.goto(`/workspace/?id=${encodeURIComponent(workspaceId)}`, { waitUntil: 'domcontentloaded' }),
+  driverTrips.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}`, { waitUntil: 'domcontentloaded' }), driverDocuments.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=documents`, { waitUntil: 'domcontentloaded' }),
+  driverFuel.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=fuel`, { waitUntil: 'domcontentloaded' }), driverExpenses.goto(`/driver-trips/?id=${encodeURIComponent(workspaceId)}&section=expenses`, { waitUntil: 'domcontentloaded' }),
 ]);
-await Promise.all([managerHome.waitForLoadState('networkidle'), managerWorkspace.waitForLoadState('networkidle'), driverTrips.waitForLoadState('networkidle'), driverDocuments.waitForLoadState('networkidle'), driverFuel.waitForLoadState('networkidle'), driverExpenses.waitForLoadState('networkidle')]);
+await new Promise((resolve) => setTimeout(resolve, 5000));
 const browserAuth = {
   manager: await managerHome.evaluate(() => Boolean(localStorage.getItem('token') && localStorage.getItem('user'))),
   driver: await driverTrips.evaluate(() => Boolean(localStorage.getItem('token') && localStorage.getItem('user'))),
