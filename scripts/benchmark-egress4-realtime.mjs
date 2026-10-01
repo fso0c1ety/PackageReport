@@ -16,7 +16,7 @@ await context.setExtraHTTPHeaders({ Authorization: `Bearer ${body.token}` });
 await context.addInitScript(({ token, user }) => {
   localStorage.setItem('token', token);
   localStorage.setItem('user', JSON.stringify(user));
-  localStorage.setItem('smart-manage-debug', 'true');
+  localStorage.setItem('smart-manage-debug', '1');
 }, { token: body.token, user: body.user });
 
 const page = await context.newPage();
@@ -26,7 +26,8 @@ page.on('console', (message) => {
   if (message.text().includes('NOTIFICATION_REALTIME_EVENT')) debugRealtimeEvents += 1;
 });
 page.on('response', (response) => {
-  if (response.url().includes('/api/notifications')) responses.push(response);
+  const pathname = new URL(response.url()).pathname;
+  if (pathname === '/api/notifications' || pathname === '/api/notifications/') responses.push(response);
 });
 await page.goto(`${baseUrl}/home/`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.localStorage.getItem('token'));
@@ -50,6 +51,9 @@ const results = {};
 for (const count of [1, 10, 50]) {
   responses.length = 0;
   const beforeDebugEvents = debugRealtimeEvents;
+  const beforeDiagnosticEvents = hasEventDiagnostic
+    ? await page.evaluate(() => Number(window.__smartManageNotificationRealtimeEvents || 0))
+    : null;
   const initialRefreshCount = await page.evaluate(() => Number(window.__smartManageNotificationRefreshCount || 0));
   const queryFile = process.env.EGRESS4_QUERY_FILE;
   const beforeQueries = queryFile && fs.existsSync(queryFile) ? fs.readFileSync(queryFile, 'utf8').split('\n').filter(Boolean).length : 0;
@@ -59,7 +63,7 @@ for (const count of [1, 10, 50]) {
     if (result !== 'ok') throw new Error(`broadcast failed: ${result}`);
   }
   if (hasEventDiagnostic) {
-    await page.waitForFunction((expected) => Number(window.__smartManageNotificationRealtimeEvents || 0) >= expected, count + initialEventCount, { timeout: 30000 });
+    await page.waitForFunction((expected) => Number(window.__smartManageNotificationRealtimeEvents || 0) >= expected, beforeDiagnosticEvents + count, { timeout: 30000 });
   } else {
     await page.waitForTimeout(3000);
   }
@@ -71,11 +75,16 @@ for (const count of [1, 10, 50]) {
   }
   const afterQueries = queryFile && fs.existsSync(queryFile) ? fs.readFileSync(queryFile, 'utf8').split('\n').filter(Boolean).length : beforeQueries;
   const finalRefreshCount = await page.evaluate(() => Number(window.__smartManageNotificationRefreshCount || 0));
+  const afterDiagnosticEvents = hasEventDiagnostic
+    ? await page.evaluate(() => Number(window.__smartManageNotificationRealtimeEvents || 0))
+    : null;
+  const eventsReceived = hasEventDiagnostic
+    ? afterDiagnosticEvents - beforeDiagnosticEvents
+    : debugRealtimeEvents - beforeDebugEvents;
+  if (eventsReceived !== count) throw new Error(`REALTIME_EVENT_COUNT_MISMATCH sent=${count} received=${eventsReceived}`);
   results[count] = {
     eventsSent: count,
-    eventsReceived: hasEventDiagnostic
-      ? (await page.evaluate(() => Number(window.__smartManageNotificationRealtimeEvents || 0))) - initialEventCount
-      : debugRealtimeEvents - beforeDebugEvents,
+    eventsReceived,
     refreshes: finalRefreshCount - initialRefreshCount,
     requests: responses.length,
     queries: afterQueries - beforeQueries,
