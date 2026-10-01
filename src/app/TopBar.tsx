@@ -278,6 +278,11 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
         try {
             isFetchingNotificationsRef.current = true;
+            if (typeof window !== 'undefined') {
+              const diagnosticWindow = window as any;
+              diagnosticWindow.__smartManageNotificationRefreshCount =
+                Number(diagnosticWindow.__smartManageNotificationRefreshCount || 0) + 1;
+            }
             logNotificationDiagnostic('NOTIFICATION_FETCH_START');
             const res = await authenticatedFetch(getApiUrl('notifications'), {
                 suppressNativeErrorAlert: true,
@@ -389,7 +394,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             if (payload.topic !== topic || !payload.notificationId || cancelled) return;
             logNotificationDiagnostic('NOTIFICATION_REALTIME_EVENT');
             if (typeof window !== 'undefined') {
-              (window as any).__smartManageNotificationRealtime = {
+              const diagnosticWindow = window as any;
+              diagnosticWindow.__smartManageNotificationRealtimeEvents =
+                Number(diagnosticWindow.__smartManageNotificationRealtimeEvents || 0) + 1;
+              diagnosticWindow.__smartManageNotificationRealtime = {
                 receivedAt: Date.now(),
                 notificationId: String(payload.notificationId),
                 topic,
