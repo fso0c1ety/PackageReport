@@ -60,3 +60,30 @@ test('desktop navigation does not load mobile-only portal context', () => {
   assert.match(mobileNavigation, /if \(!isMobile\) \{\s*setPortalContext\(null\);\s*return;/);
   assert.match(mobileNavigation, /if \(!isMobile \|\| !dedicatedPortal\) return null/);
 });
+
+test('driver trips uses realtime as the healthy refresh source with conservative fallback', () => {
+  const driverTrips = fs.readFileSync('src/app/(dashboard)/driver-trips/page.tsx', 'utf8');
+  assert.match(driverTrips, /tripsRealtimeHealthyRef=useRef\(false\)/);
+  assert.match(driverTrips, /!tripsRealtimeHealthyRef\.current/);
+  assert.match(driverTrips, /status==="SUBSCRIBED"\)\{tripsRealtimeHealthyRef\.current=true\}/);
+  assert.match(driverTrips, /status==="CHANNEL_ERROR"\|\|status==="TIMED_OUT"/);
+  assert.match(driverTrips, /window\.addEventListener\("pageshow",refresh\)/);
+});
+
+test('calendar polling recovers on visibility and focus without changing its fallback interval', () => {
+  const sidebar = fs.readFileSync('src/app/Sidebar.tsx', 'utf8');
+  const reminders = sidebar.slice(sidebar.indexOf('calendar-events/reminders'), sidebar.indexOf('calendar-events/reminders') + 900);
+  assert.match(sidebar, /window\.setInterval\(checkCalendarReminders, 30000\)/);
+  assert.match(sidebar, /addEventListener\("visibilitychange", recover\)/);
+  assert.match(sidebar, /addEventListener\("focus", recover\)/);
+  assert.match(sidebar, /addEventListener\("pageshow", recover\)/);
+});
+
+test('notification fallback starts only after realtime is unavailable', () => {
+  const topBar = fs.readFileSync('src/app/TopBar.tsx', 'utf8');
+  assert.match(topBar, /if \(!response\.ok \|\| cancelled\) \{[\s\S]*startFallbackPolling\(\)/);
+  assert.match(topBar, /if \(!topic \|\| cancelled\) \{[\s\S]*startFallbackPolling\(\)/);
+  assert.match(topBar, /catch \{[\s\S]*startFallbackPolling\(\)/);
+  assert.doesNotMatch(topBar, /\n    startFallbackPolling\(\);\n    void setupRealtime\(\)/);
+  assert.match(topBar, /window\.addEventListener\('pageshow', handleVisibilityChange\)/);
+});

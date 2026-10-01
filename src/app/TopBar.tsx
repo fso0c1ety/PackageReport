@@ -370,9 +370,15 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           suppressNativeErrorAlert: true,
           responseCacheTtlMs: 60_000,
         });
-        if (!response.ok || cancelled) return;
+        if (!response.ok || cancelled) {
+          if (!cancelled) startFallbackPolling();
+          return;
+        }
         const { topic } = await response.json();
-        if (!topic || cancelled) return;
+        if (!topic || cancelled) {
+          if (!cancelled) startFallbackPolling();
+          return;
+        }
         // The server publishes on the user-scoped topic itself. The channel
         // name must be identical on both sides; the event name carries the
         // notification namespace and is validated below.
@@ -407,13 +413,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           }
         });
       } catch {
-        // Polling remains the safe reconciliation fallback when Realtime is unavailable.
+        if (!cancelled) startFallbackPolling();
       }
     };
-    startFallbackPolling();
     void setupRealtime();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleVisibilityChange);
+      window.addEventListener('pageshow', handleVisibilityChange);
     }
 
     return () => {
@@ -425,6 +432,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       }
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleVisibilityChange);
+        window.removeEventListener('pageshow', handleVisibilityChange);
       }
     };
   }, []);

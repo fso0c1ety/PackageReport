@@ -257,8 +257,12 @@ export default function Sidebar({
       }
     };
     void checkCalendarReminders();
+    const recover = () => { if (!document.hidden) void checkCalendarReminders(); };
     const interval = window.setInterval(checkCalendarReminders, 30000);
-    return () => { active = false; window.clearInterval(interval); };
+    document.addEventListener("visibilitychange", recover);
+    window.addEventListener("focus", recover);
+    window.addEventListener("pageshow", recover);
+    return () => { active = false; window.clearInterval(interval); document.removeEventListener("visibilitychange", recover); window.removeEventListener("focus", recover); window.removeEventListener("pageshow", recover); };
   }, [showNotification]);
 
   useEffect(() => {
