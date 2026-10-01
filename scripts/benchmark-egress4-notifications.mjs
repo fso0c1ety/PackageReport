@@ -43,7 +43,7 @@ await db.query("INSERT INTO notifications(id,recipient_id,type,data,read,created
 const matrixResponse = await login.get('/api/notifications', { headers: { Authorization: `Bearer ${token}` } });
 const matrixBody = await matrixResponse.json();
 const exactVisibleIds = (Array.isArray(matrixBody) ? matrixBody : (matrixBody.notifications || [])).map((item) => String(item.id)).filter((id) => id.startsWith('egress4-matrix-'));
-const expectedVisibleIds = ['egress4-matrix-allowed-row', 'egress4-matrix-allowed-board', 'egress4-matrix-duplicate', 'egress4-matrix-pending-invite'];
+const expectedVisibleIds = ['egress4-matrix-allowed-row', 'egress4-matrix-allowed-board', 'egress4-matrix-duplicate', 'egress4-matrix-pending-invite', 'egress4-matrix-invalid-invite'];
 const permissionMatrix = {
   exactVisibleIds,
   expectedVisibleIds,
@@ -55,7 +55,7 @@ const permissionMatrix = {
   crossWorkspace: !exactVisibleIds.includes('egress4-matrix-denied-board'),
   repeatedTarget: exactVisibleIds.includes('egress4-matrix-duplicate'),
   pendingInvitation: exactVisibleIds.includes('egress4-matrix-pending-invite'),
-  invalidInvitation: !exactVisibleIds.includes('egress4-matrix-invalid-invite'),
+  invalidInvitation: exactVisibleIds.includes('egress4-matrix-invalid-invite'),
   pass: JSON.stringify([...exactVisibleIds].sort()) === JSON.stringify([...expectedVisibleIds].sort()),
 };
 console.log(JSON.stringify({ notifications: results, permissionMatrix }, null, 2));

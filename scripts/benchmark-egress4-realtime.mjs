@@ -23,7 +23,7 @@ const page = await context.newPage();
 const responses = [];
 let debugRealtimeEvents = 0;
 page.on('console', (message) => {
-  if (message.type() === 'debug' && message.text().includes('NOTIFICATION_REALTIME_EVENT')) debugRealtimeEvents += 1;
+  if (message.text().includes('NOTIFICATION_REALTIME_EVENT')) debugRealtimeEvents += 1;
 });
 page.on('response', (response) => {
   if (response.url().includes('/api/notifications')) responses.push(response);
