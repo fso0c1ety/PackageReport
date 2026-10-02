@@ -14,7 +14,6 @@ const managerId = 'egress5-manager';
 const fuelTableId = '55555555-5555-4555-8555-555555555551';
 const expenseTableId = '55555555-5555-4555-8555-555555555552';
 const tripTableId = '55555555-5555-4555-8555-555555555553';
-let lastSeedIds = [];
 const columns = [
   { id: 'date', name: 'Date' }, { id: 'trip', name: 'Trip' }, { id: 'driver', name: 'Driver' },
   { id: 'receipt', name: 'Receipt' }, { id: 'name', name: 'Name' }, { id: 'amount', name: 'Amount' },
@@ -25,12 +24,10 @@ const queryCount = () => fs.existsSync(process.env.EGRESS5_QUERY_FILE || '') ? f
 const queryBytes = (from) => fs.existsSync(process.env.EGRESS5_QUERY_FILE || '') ? fs.readFileSync(process.env.EGRESS5_QUERY_FILE, 'utf8').trim().split(/\r?\n/).filter(Boolean).slice(from).reduce((sum, line) => sum + Number(JSON.parse(line).resultBytes || 0), 0) : 0;
 const seedRows = async (tableId, count) => {
   await db.query('DELETE FROM rows WHERE table_id=$1', [tableId]);
-  lastSeedIds = [];
   for (let offset = 0; offset < count; offset += 100) {
     const values = []; const params = [];
     for (let i = offset; i < Math.min(offset + 100, count); i++) {
       const id = randomUUID();
-      lastSeedIds.push(id);
       values.push(`($${params.length + 1},$${params.length + 2},$${params.length + 3}::jsonb,$${params.length + 4},NOW(),NOW())`);
       params.push(id, tableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: String(i % 5 ? driverId : otherDriverId), date: '2026-10-01', trip: [{ id: `trip-${i}`, label: `TRIP-${i}`, tableId: tripTableId }], driver: [{ id: i % 5 ? driverId : otherDriverId, name: 'Synthetic Driver', email: 'driver@example.test' }], receipt: [{ id: `file-${i}`, name: `receipt-${i}.pdf`, url: 'https://example.test/receipt.pdf', type: 'application/pdf', size: 1024 }], name: `Synthetic record ${i}`, amount: i * 3.5, description: 'Synthetic EGRESS-5 payload benchmark row', extra: 'unused metadata '.repeat(12) }), driverId);
     }
@@ -67,12 +64,6 @@ const measurePost = async (category, cookie) => {
   const text = await response.text(); const after = queryCount();
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), response: JSON.parse(text) };
 };
-const measurePermission = async (rowId, cookie) => {
-  const before = queryCount(); const started = performance.now();
-  const response = await fetch(`${baseUrl}/api/tables/${fuelTableId}/tasks/${rowId}`, { headers: { Authorization: `Bearer ${cookie}` } });
-  const text = await response.text(); const after = queryCount();
-  return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started) };
-};
 
 await db.connect();
 try {
@@ -84,13 +75,8 @@ try {
   const cookie = await login();
   await seedRows(fuelTableId, 10);
   await probeSelfTest(cookie);
-  const result = { get: {}, post: {}, permission: {} };
-  for (const count of [10, 100, 500]) {
-    result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie);
-    const permissionRowId = lastSeedIds[0];
-    result.permission[`row_${count}`] = await measurePermission(permissionRowId, cookie);
-    result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie);
-  }
+  const result = { get: {}, post: {} };
+  for (const count of [10, 100, 500]) { result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie); result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie); }
   const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
   result.post.trip = await measurePost('trip', cookie); result.post.fuel = await measurePost('fuel', cookie); result.post.expense = await measurePost('expense', cookie);
   console.log(JSON.stringify(result, null, 2));
