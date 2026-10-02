@@ -37,8 +37,8 @@ const seedRows = async (tableId, count) => {
     await db.query(`INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES ${values.join(',')}`, params);
   }
 };
-const login = async () => {
-  const response = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'egress5-driver-a@example.test', password }) });
+const login = async (email) => {
+  const response = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
   if (!response.ok) throw new Error(`login failed ${response.status}`);
   const body = await response.json();
   if (!body.token) throw new Error('login did not return a session token');
@@ -67,9 +67,9 @@ const measurePost = async (category, cookie) => {
   const text = await response.text(); const after = queryCount();
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), response: JSON.parse(text) };
 };
-const measurePermission = async (rowId, cookie) => {
+const measurePermission = async (rowId, cookie, userId) => {
   const before = queryCount(); const started = performance.now();
-  const response = await fetch(`${baseUrl}/api/egress5-benchmark/row-permission?userId=${encodeURIComponent(driverId)}&rowId=${encodeURIComponent(rowId)}&required=viewer&expectedTableId=${encodeURIComponent(fuelTableId)}`, { headers: { Authorization: `Bearer ${cookie}` } });
+  const response = await fetch(`${baseUrl}/api/egress5-benchmark/row-permission?userId=${encodeURIComponent(userId)}&rowId=${encodeURIComponent(rowId)}&required=viewer&expectedTableId=${encodeURIComponent(fuelTableId)}`, { headers: { Authorization: `Bearer ${cookie}` } });
   const text = await response.text(); const after = queryCount(); const payload = JSON.parse(text);
   if (!response.ok || after <= before) throw new Error(`requireRowPermission benchmark failed status=${response.status}`);
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), allowed: payload.allowed, rowId: payload.rowId, tableId: payload.tableId };
@@ -82,13 +82,14 @@ try {
   await db.query("INSERT INTO workspaces(id,name,owner_id,template_key) VALUES($1,$2,$3,'fleet_management') ON CONFLICT(id) DO UPDATE SET template_key='fleet_management',owner_id=EXCLUDED.owner_id", [workspaceId, 'TEST_EGRESS5_DRIVER', managerId]);
   await db.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'driver','driver','{"scope":"all"}'::jsonb),($1,$3,'driver','driver','{"scope":"all"}'::jsonb) ON CONFLICT DO NOTHING`, [workspaceId, driverId, otherDriverId]);
   await db.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,\'fuel\',$4,$3::jsonb),($2,\'expenses\',$4,$3::jsonb),($5,\'trips\',$4,$3::jsonb) ON CONFLICT(id) DO UPDATE SET columns=EXCLUDED.columns', [fuelTableId, expenseTableId, JSON.stringify(columns), workspaceId, tripTableId]);
-  const cookie = await login();
+  const cookie = await login('egress5-driver-a@example.test');
+  const managerCookie = await login('egress5-manager@example.test');
   await seedRows(fuelTableId, 10);
   await probeSelfTest(cookie);
   const result = { get: {}, post: {}, permission: {} };
   for (const count of [10, 100, 500]) {
     result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie);
-    result.permission[`row_${count}`] = await measurePermission(lastSeedIds[0], cookie);
+    result.permission[`row_${count}`] = await measurePermission(lastSeedIds[0], managerCookie, managerId);
     result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie);
   }
   const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
