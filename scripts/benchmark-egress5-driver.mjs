@@ -1,0 +1,150 @@
+import pg from 'pg';
+import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+
+const { Client } = pg;
+const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
+const password = process.env.EGRESS5_PASSWORD;
+const db = new Client({ connectionString: process.env.DATABASE_URL, ssl: false });
+const workspaceId = '55555555-5555-4555-8555-555555555555';
+const workspaceBId = '55555555-5555-4555-8555-555555555556';
+const driverId = 'egress5-driver-a';
+const otherDriverId = 'egress5-driver-b';
+const managerId = 'egress5-manager';
+const matrixUserId = 'egress5-matrix-user';
+const otherUserId = 'egress5-other-user';
+const adminId = 'egress5-admin';
+const editorId = 'egress5-editor';
+const viewerId = 'egress5-viewer';
+const fuelTableId = '55555555-5555-4555-8555-555555555551';
+const expenseTableId = '55555555-5555-4555-8555-555555555552';
+const tripTableId = '55555555-5555-4555-8555-555555555553';
+const tableBId = '55555555-5555-4555-8555-555555555554';
+let lastSeedIds = [];
+let permissionCookie = '';
+const columns = [
+  { id: 'date', name: 'Date' }, { id: 'trip', name: 'Trip' }, { id: 'driver', name: 'Driver' },
+  { id: 'receipt', name: 'Receipt' }, { id: 'name', name: 'Name' }, { id: 'amount', name: 'Amount' },
+  { id: 'description', name: 'Description' },
+];
+
+const queryCount = () => fs.existsSync(process.env.EGRESS5_QUERY_FILE || '') ? fs.readFileSync(process.env.EGRESS5_QUERY_FILE, 'utf8').trim().split(/\r?\n/).filter(Boolean).length : 0;
+const queryBytes = (from) => fs.existsSync(process.env.EGRESS5_QUERY_FILE || '') ? fs.readFileSync(process.env.EGRESS5_QUERY_FILE, 'utf8').trim().split(/\r?\n/).filter(Boolean).slice(from).reduce((sum, line) => sum + Number(JSON.parse(line).resultBytes || 0), 0) : 0;
+const seedRows = async (tableId, count) => {
+  await db.query('DELETE FROM rows WHERE table_id=$1', [tableId]);
+  lastSeedIds = [];
+  for (let offset = 0; offset < count; offset += 100) {
+    const values = []; const params = [];
+    for (let i = offset; i < Math.min(offset + 100, count); i++) {
+      const id = randomUUID();
+      lastSeedIds.push(id);
+      values.push(`($${params.length + 1},$${params.length + 2},$${params.length + 3}::jsonb,$${params.length + 4},NOW(),NOW())`);
+      params.push(id, tableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: String(i % 5 ? driverId : otherDriverId), date: '2026-10-01', trip: [{ id: `trip-${i}`, label: `TRIP-${i}`, tableId: tripTableId }], driver: [{ id: i % 5 ? driverId : otherDriverId, name: 'Synthetic Driver', email: 'driver@example.test' }], receipt: [{ id: `file-${i}`, name: `receipt-${i}.pdf`, url: 'https://example.test/receipt.pdf', type: 'application/pdf', size: 1024 }], name: `Synthetic record ${i}`, amount: i * 3.5, description: 'Synthetic EGRESS-5 payload benchmark row', extra: 'unused metadata '.repeat(12) }), driverId);
+    }
+    await db.query(`INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES ${values.join(',')}`, params);
+  }
+};
+const login = async (email) => {
+  const response = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
+  if (!response.ok) throw new Error(`login failed ${response.status}`);
+  const body = await response.json();
+  if (!body.token) throw new Error('login did not return a session token');
+  return body.token;
+};
+const probeSelfTest = async (token) => {
+  const before = queryCount();
+  const response = await fetch(`${baseUrl}/api/logistics/driver/documents?workspaceId=${workspaceId}&category=fuel`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`EGRESS5 probe self-test request failed (${response.status})`);
+  const after = queryCount();
+  if (after <= before) throw new Error('EGRESS5_DB_PROBE_NOT_OBSERVING_APPLICATION_QUERIES');
+  const records = fs.readFileSync(process.env.EGRESS5_QUERY_FILE, 'utf8').trim().split(/\r?\n/).filter(Boolean).slice(before).map((line) => JSON.parse(line));
+  if (!records.some((entry) => Number(entry.resultBytes) > 0) || !records.some((entry) => Number(entry.rows) >= 1)) throw new Error('EGRESS5_DB_PROBE_NOT_OBSERVING_APPLICATION_QUERIES');
+};
+const measureGet = async (category, tableId, count, cookie) => {
+  await seedRows(tableId, count);
+  const before = queryCount(); const started = performance.now();
+  const response = await fetch(`${baseUrl}/api/logistics/driver/documents?workspaceId=${workspaceId}&category=${category}`, { headers: { Authorization: `Bearer ${cookie}` } });
+  const text = await response.text(); const after = queryCount();
+  const payload = JSON.parse(text);
+  return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), records: payload.records?.map((row) => row.id) || [], fieldCount: 0 };
+};
+const measurePost = async (category, cookie) => {
+  const before = queryCount(); const started = performance.now();
+  const response = await fetch(`${baseUrl}/api/logistics/driver/documents`, { method: 'POST', headers: { Authorization: `Bearer ${cookie}`, 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId, tripId: 'egress5-trip', category, file: { id: `egress5-${category}-file`, name: `${category}.pdf`, url: 'https://example.test/file.pdf', type: 'application/pdf', size: 100 } }) });
+  const text = await response.text(); const after = queryCount();
+  return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), response: JSON.parse(text) };
+};
+const measurePermission = async (rowId, cookie, userId, expectedTableId = fuelTableId, required = 'viewer') => {
+  const before = queryCount(); const started = performance.now();
+  const response = await fetch(`${baseUrl}/api/egress5-benchmark/row-permission?userId=${encodeURIComponent(userId)}&rowId=${encodeURIComponent(rowId)}&required=${encodeURIComponent(required)}&expectedTableId=${encodeURIComponent(expectedTableId)}`, { headers: { Authorization: `Bearer ${cookie}` } });
+  const text = await response.text(); const after = queryCount(); const payload = JSON.parse(text);
+  if (!response.ok || after <= before) throw new Error(`requireRowPermission benchmark failed status=${response.status}`);
+  return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), allowed: payload.allowed, rowId: payload.rowId, tableId: payload.tableId };
+};
+const matrixPermission = async ({ name, userId, rowId, access, values, createdBy, expected, expectedTableId = fuelTableId, required = 'viewer' }) => {
+  await db.query('UPDATE board_member_access SET record_access=$1::jsonb WHERE table_id=$2 AND user_id=$3', [JSON.stringify(access), fuelTableId, userId]);
+  await db.query('UPDATE rows SET values=$1::jsonb,created_by=$2 WHERE id=$3', [JSON.stringify(values), createdBy, rowId]);
+  const result = await measurePermission(rowId, permissionCookie, userId, expectedTableId, required);
+  result.expectedAllowed = expected;
+  if (Boolean(result.allowed) !== expected) throw new Error(`AUTH_MATRIX_MISMATCH ${name}`);
+  return result;
+};
+
+await db.connect();
+try {
+  const hash = await bcrypt.hash(password, 4);
+  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW()),($5,$6,$7,$4,NOW()),($8,$9,$10,$4,NOW()) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password", [driverId, 'EGRESS5 Driver A', 'egress5-driver-a@example.test', hash, otherDriverId, 'EGRESS5 Driver B', 'egress5-driver-b@example.test', managerId, 'EGRESS5 Manager', 'egress5-manager@example.test']);
+  await db.query("INSERT INTO workspaces(id,name,owner_id,template_key) VALUES($1,$2,$3,'fleet_management') ON CONFLICT(id) DO UPDATE SET template_key='fleet_management',owner_id=EXCLUDED.owner_id", [workspaceId, 'TEST_EGRESS5_DRIVER', managerId]);
+  await db.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'driver','driver','{"scope":"all"}'::jsonb),($1,$3,'driver','driver','{"scope":"all"}'::jsonb) ON CONFLICT DO NOTHING`, [workspaceId, driverId, otherDriverId]);
+  await db.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,\'fuel\',$4,$3::jsonb),($2,\'expenses\',$4,$3::jsonb),($5,\'trips\',$4,$3::jsonb) ON CONFLICT(id) DO UPDATE SET columns=EXCLUDED.columns', [fuelTableId, expenseTableId, JSON.stringify(columns), workspaceId, tripTableId]);
+  const cookie = await login('egress5-driver-a@example.test');
+  const managerCookie = await login('egress5-manager@example.test');
+  permissionCookie = managerCookie;
+  await seedRows(fuelTableId, 10);
+  await probeSelfTest(cookie);
+  const result = { get: {}, post: {}, permission: {} };
+  for (const count of [10, 100, 500]) {
+    result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie);
+    result.permission[`row_${count}`] = await measurePermission(lastSeedIds[0], managerCookie, managerId);
+    result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie);
+  }
+  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,'EGRESS5 Matrix','egress5-matrix@example.test',$2,NOW()),($3,'EGRESS5 Other','egress5-other@example.test',$2,NOW()),($4,'EGRESS5 Admin','egress5-admin@example.test',$2,NOW()),($5,'EGRESS5 Editor','egress5-editor@example.test',$2,NOW()),($6,'EGRESS5 Viewer','egress5-viewer@example.test',$2,NOW()) ON CONFLICT(id) DO NOTHING", [matrixUserId, await bcrypt.hash(password, 4), otherUserId, adminId, editorId, viewerId]);
+  await db.query("INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,team_id,department_id,company_id) VALUES($1,$2,'member','member','{\"scope\":\"all\"}', 'team-a','dept-a','company-a') ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role='member',team_id='team-a',department_id='dept-a',company_id='company-a'", [workspaceId, matrixUserId]);
+  await db.query("INSERT INTO workspaces(id,name,owner_id,template_key) VALUES($1,'TEST_EGRESS5_WORKSPACE_B',$2,'fleet_management') ON CONFLICT(id) DO NOTHING", [workspaceBId, otherUserId]);
+  await db.query("INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,'fuel',$2,$3::jsonb) ON CONFLICT(id) DO NOTHING", [tableBId, workspaceBId, JSON.stringify(columns)]);
+  const crossWorkspaceRow = randomUUID();
+  await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4)', [crossWorkspaceRow, tableBId, JSON.stringify({ _workspaceId: workspaceBId }), otherUserId]);
+  await db.query("INSERT INTO board_member_access(table_id,user_id,board_role,record_access) VALUES($1,$2,'editor','{\"scope\":\"all_permitted\"}') ON CONFLICT(table_id,user_id) DO UPDATE SET board_role='editor',record_access=EXCLUDED.record_access", [fuelTableId, matrixUserId]);
+  await db.query("INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'admin','admin','{\"scope\":\"all\"}'),($1,$3,'member','member','{\"scope\":\"all\"}'),($1,$4,'viewer','member','{\"scope\":\"all\"}') ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role=EXCLUDED.workspace_role,role=EXCLUDED.role", [workspaceId, adminId, editorId, viewerId]);
+  await db.query("INSERT INTO board_member_access(table_id,user_id,board_role,record_access) VALUES($1,$2,'admin','{\"scope\":\"all_permitted\"}'),($1,$3,'editor','{\"scope\":\"all_permitted\"}'),($1,$4,'viewer','{\"scope\":\"all_permitted\"}') ON CONFLICT(table_id,user_id) DO UPDATE SET board_role=EXCLUDED.board_role,record_access=EXCLUDED.record_access", [fuelTableId, adminId, editorId, viewerId]);
+  const matrixRow = randomUUID();
+  await db.query('INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3::jsonb,$4,NOW(),NOW())', [matrixRow, fuelTableId, JSON.stringify({ _workspaceId: workspaceId }), matrixUserId]);
+  result.matrix = {};
+  result.matrix.owner = await matrixPermission({ name: 'owner', userId: managerId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: driverId, expected: true });
+  result.matrix.createdByOwn = await matrixPermission({ name: 'createdByOwn', userId: matrixUserId, rowId: matrixRow, access: { scope: 'created_by_me' }, values: { _workspaceId: workspaceId }, createdBy: matrixUserId, expected: true });
+  result.matrix.createdByOther = await matrixPermission({ name: 'createdByOther', userId: matrixUserId, rowId: matrixRow, access: { scope: 'created_by_me' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: false });
+  result.matrix.selected = await matrixPermission({ name: 'selected', userId: matrixUserId, rowId: matrixRow, access: { scope: 'selected_records', ids: [matrixRow] }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.unselected = await matrixPermission({ name: 'unselected', userId: matrixUserId, rowId: matrixRow, access: { scope: 'selected_records', ids: ['not-selected'] }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: false });
+  result.matrix.assigned = await matrixPermission({ name: 'assigned', userId: matrixUserId, rowId: matrixRow, access: { scope: 'assigned_to_me', field: '_assignedDriverUserId' }, values: { _workspaceId: workspaceId, _assignedDriverUserId: matrixUserId }, createdBy: otherUserId, expected: true });
+  result.matrix.notAssigned = await matrixPermission({ name: 'notAssigned', userId: matrixUserId, rowId: matrixRow, access: { scope: 'assigned_to_me', field: '_assignedDriverUserId' }, values: { _workspaceId: workspaceId, _assignedDriverUserId: otherUserId }, createdBy: otherUserId, expected: false });
+  result.matrix.myTeam = await matrixPermission({ name: 'myTeam', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_team', field: 'teamId' }, values: { _workspaceId: workspaceId, teamId: 'team-a' }, createdBy: otherUserId, expected: true });
+  result.matrix.otherTeam = await matrixPermission({ name: 'otherTeam', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_team', field: 'teamId' }, values: { _workspaceId: workspaceId, teamId: 'team-b' }, createdBy: otherUserId, expected: false });
+  result.matrix.expectedTableMismatch = await matrixPermission({ name: 'expectedTableMismatch', userId: matrixUserId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: false, expectedTableId: expenseTableId });
+  result.matrix.admin = await matrixPermission({ name: 'admin', userId: adminId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.editor = await matrixPermission({ name: 'editor', userId: editorId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.viewer = await matrixPermission({ name: 'viewer', userId: viewerId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.viewerDeniedEditor = await matrixPermission({ name: 'viewerDeniedEditor', userId: viewerId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: false, required: 'editor' });
+  result.matrix.myDepartment = await matrixPermission({ name: 'myDepartment', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_department', field: 'departmentId' }, values: { _workspaceId: workspaceId, departmentId: 'dept-a' }, createdBy: otherUserId, expected: true });
+  result.matrix.otherDepartment = await matrixPermission({ name: 'otherDepartment', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_department', field: 'departmentId' }, values: { _workspaceId: workspaceId, departmentId: 'dept-b' }, createdBy: otherUserId, expected: false });
+  result.matrix.myCompany = await matrixPermission({ name: 'myCompany', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_company', field: 'companyId' }, values: { _workspaceId: workspaceId, companyId: 'company-a' }, createdBy: otherUserId, expected: true });
+  result.matrix.otherCompany = await matrixPermission({ name: 'otherCompany', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_company', field: 'companyId' }, values: { _workspaceId: workspaceId, companyId: 'company-b' }, createdBy: otherUserId, expected: false });
+  result.matrix.customCurrentUser = await matrixPermission({ name: 'customCurrentUser', userId: matrixUserId, rowId: matrixRow, access: { scope: 'custom', field: 'assignee', rule: { field: 'assignee', value: '$current_user' } }, values: { _workspaceId: workspaceId, assignee: matrixUserId }, createdBy: otherUserId, expected: true });
+  result.matrix.customOtherUser = await matrixPermission({ name: 'customOtherUser', userId: matrixUserId, rowId: matrixRow, access: { scope: 'custom', field: 'assignee', rule: { field: 'assignee', value: '$current_user' } }, values: { _workspaceId: workspaceId, assignee: otherUserId }, createdBy: otherUserId, expected: false });
+  result.matrix.expectedTableCorrect = await matrixPermission({ name: 'expectedTableCorrect', userId: matrixUserId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true, expectedTableId: fuelTableId });
+  result.matrix.crossWorkspace = await matrixPermission({ name: 'crossWorkspace', userId: matrixUserId, rowId: crossWorkspaceRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceBId }, createdBy: otherUserId, expected: false, expectedTableId: tableBId });
+  result.matrix.unknown = await measurePermission(randomUUID(), permissionCookie, matrixUserId); result.matrix.unknown.expectedAllowed = false; if (Boolean(result.matrix.unknown.allowed) !== false) throw new Error('AUTH_MATRIX_MISMATCH unknown');
+  const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
+  result.post.trip = await measurePost('trip', cookie); result.post.fuel = await measurePost('fuel', cookie); result.post.expense = await measurePost('expense', cookie);
+  console.log(JSON.stringify(result, null, 2));
+} finally { await db.end(); }
