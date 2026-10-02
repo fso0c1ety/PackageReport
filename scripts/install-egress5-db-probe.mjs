@@ -31,7 +31,7 @@ if (EGRESS5_PROBE_FILE && pool?.query) {
 `;
 fs.writeFileSync(target, `import fs from "node:fs";\n${source.replace(marker, `${probe}${marker}`)}`);
 
-const routeDir = 'src/app/api/__egress5/row-permission';
+const routeDir = 'src/app/api/egress5-benchmark/row-permission';
 fs.mkdirSync(routeDir, { recursive: true });
 fs.writeFileSync(`${routeDir}/route.js`, `import { NextResponse } from "next/server";
 import { pool } from "../../_lib/server";

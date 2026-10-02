@@ -69,7 +69,7 @@ const measurePost = async (category, cookie) => {
 };
 const measurePermission = async (rowId, cookie) => {
   const before = queryCount(); const started = performance.now();
-  const response = await fetch(`${baseUrl}/api/__egress5/row-permission?userId=${encodeURIComponent(driverId)}&rowId=${encodeURIComponent(rowId)}&required=viewer&expectedTableId=${encodeURIComponent(fuelTableId)}`, { headers: { Authorization: `Bearer ${cookie}` } });
+  const response = await fetch(`${baseUrl}/api/egress5-benchmark/row-permission?userId=${encodeURIComponent(driverId)}&rowId=${encodeURIComponent(rowId)}&required=viewer&expectedTableId=${encodeURIComponent(fuelTableId)}`, { headers: { Authorization: `Bearer ${cookie}` } });
   const text = await response.text(); const after = queryCount(); const payload = JSON.parse(text);
   if (!response.ok || after <= before) throw new Error(`requireRowPermission benchmark failed status=${response.status}`);
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), allowed: payload.allowed, rowId: payload.rowId, tableId: payload.tableId };
