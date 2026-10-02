@@ -13,6 +13,9 @@ const otherDriverId = 'egress5-driver-b';
 const managerId = 'egress5-manager';
 const matrixUserId = 'egress5-matrix-user';
 const otherUserId = 'egress5-other-user';
+const adminId = 'egress5-admin';
+const editorId = 'egress5-editor';
+const viewerId = 'egress5-viewer';
 const fuelTableId = '55555555-5555-4555-8555-555555555551';
 const expenseTableId = '55555555-5555-4555-8555-555555555552';
 const tripTableId = '55555555-5555-4555-8555-555555555553';
@@ -78,7 +81,7 @@ const measurePermission = async (rowId, cookie, userId, expectedTableId = fuelTa
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), allowed: payload.allowed, rowId: payload.rowId, tableId: payload.tableId };
 };
 const matrixPermission = async ({ name, userId, rowId, access, values, createdBy, expected, expectedTableId = fuelTableId }) => {
-  await db.query('UPDATE board_member_access SET record_access=$1::jsonb,board_role=$2 WHERE table_id=$3 AND user_id=$4', [JSON.stringify(access), access.scope === 'all_permitted' ? 'viewer' : 'editor', fuelTableId, matrixUserId]);
+  await db.query('UPDATE board_member_access SET record_access=$1::jsonb WHERE table_id=$2 AND user_id=$3', [JSON.stringify(access), fuelTableId, userId]);
   await db.query('UPDATE rows SET values=$1::jsonb,created_by=$2 WHERE id=$3', [JSON.stringify(values), createdBy, rowId]);
   const result = await measurePermission(rowId, permissionCookie, userId, expectedTableId);
   result.expectedAllowed = expected;
@@ -104,9 +107,11 @@ try {
     result.permission[`row_${count}`] = await measurePermission(lastSeedIds[0], managerCookie, managerId);
     result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie);
   }
-  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,'EGRESS5 Matrix','egress5-matrix@example.test',$2,NOW()),($3,'EGRESS5 Other','egress5-other@example.test',$2,NOW()) ON CONFLICT(id) DO NOTHING", [matrixUserId, await bcrypt.hash(password, 4), otherUserId]);
+  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,'EGRESS5 Matrix','egress5-matrix@example.test',$2,NOW()),($3,'EGRESS5 Other','egress5-other@example.test',$2,NOW()),($4,'EGRESS5 Admin','egress5-admin@example.test',$2,NOW()),($5,'EGRESS5 Editor','egress5-editor@example.test',$2,NOW()),($6,'EGRESS5 Viewer','egress5-viewer@example.test',$2,NOW()) ON CONFLICT(id) DO NOTHING", [matrixUserId, await bcrypt.hash(password, 4), otherUserId, adminId, editorId, viewerId]);
   await db.query("INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,team_id,department_id,company_id) VALUES($1,$2,'member','member','{\"scope\":\"all\"}', 'team-a','dept-a','company-a') ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role='member',team_id='team-a',department_id='dept-a',company_id='company-a'", [workspaceId, matrixUserId]);
   await db.query("INSERT INTO board_member_access(table_id,user_id,board_role,record_access) VALUES($1,$2,'editor','{\"scope\":\"all_permitted\"}') ON CONFLICT(table_id,user_id) DO UPDATE SET board_role='editor',record_access=EXCLUDED.record_access", [fuelTableId, matrixUserId]);
+  await db.query("INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'admin','admin','{\"scope\":\"all\"}'),($1,$3,'member','member','{\"scope\":\"all\"}'),($1,$4,'viewer','member','{\"scope\":\"all\"}') ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role=EXCLUDED.workspace_role,role=EXCLUDED.role", [workspaceId, adminId, editorId, viewerId]);
+  await db.query("INSERT INTO board_member_access(table_id,user_id,board_role,record_access) VALUES($1,$2,'admin','{\"scope\":\"all_permitted\"}'),($1,$3,'editor','{\"scope\":\"all_permitted\"}'),($1,$4,'viewer','{\"scope\":\"all_permitted\"}') ON CONFLICT(table_id,user_id) DO UPDATE SET board_role=EXCLUDED.board_role,record_access=EXCLUDED.record_access", [fuelTableId, adminId, editorId, viewerId]);
   const matrixRow = randomUUID();
   await db.query('INSERT INTO rows(id,table_id,values,created_by,created_at,updated_at) VALUES($1,$2,$3::jsonb,$4,NOW(),NOW())', [matrixRow, fuelTableId, JSON.stringify({ _workspaceId: workspaceId }), matrixUserId]);
   result.matrix = {};
@@ -120,6 +125,16 @@ try {
   result.matrix.myTeam = await matrixPermission({ name: 'myTeam', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_team', field: 'teamId' }, values: { _workspaceId: workspaceId, teamId: 'team-a' }, createdBy: otherUserId, expected: true });
   result.matrix.otherTeam = await matrixPermission({ name: 'otherTeam', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_team', field: 'teamId' }, values: { _workspaceId: workspaceId, teamId: 'team-b' }, createdBy: otherUserId, expected: false });
   result.matrix.expectedTableMismatch = await matrixPermission({ name: 'expectedTableMismatch', userId: matrixUserId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: false, expectedTableId: expenseTableId });
+  result.matrix.admin = await matrixPermission({ name: 'admin', userId: adminId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.editor = await matrixPermission({ name: 'editor', userId: editorId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.viewer = await matrixPermission({ name: 'viewer', userId: viewerId, rowId: matrixRow, access: { scope: 'all_permitted' }, values: { _workspaceId: workspaceId }, createdBy: otherUserId, expected: true });
+  result.matrix.myDepartment = await matrixPermission({ name: 'myDepartment', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_department', field: 'departmentId' }, values: { _workspaceId: workspaceId, departmentId: 'dept-a' }, createdBy: otherUserId, expected: true });
+  result.matrix.otherDepartment = await matrixPermission({ name: 'otherDepartment', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_department', field: 'departmentId' }, values: { _workspaceId: workspaceId, departmentId: 'dept-b' }, createdBy: otherUserId, expected: false });
+  result.matrix.myCompany = await matrixPermission({ name: 'myCompany', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_company', field: 'companyId' }, values: { _workspaceId: workspaceId, companyId: 'company-a' }, createdBy: otherUserId, expected: true });
+  result.matrix.otherCompany = await matrixPermission({ name: 'otherCompany', userId: matrixUserId, rowId: matrixRow, access: { scope: 'my_company', field: 'companyId' }, values: { _workspaceId: workspaceId, companyId: 'company-b' }, createdBy: otherUserId, expected: false });
+  result.matrix.customCurrentUser = await matrixPermission({ name: 'customCurrentUser', userId: matrixUserId, rowId: matrixRow, access: { scope: 'custom', field: 'assignee', rule: { field: 'assignee', value: '$current_user' } }, values: { _workspaceId: workspaceId, assignee: matrixUserId }, createdBy: otherUserId, expected: true });
+  result.matrix.customOtherUser = await matrixPermission({ name: 'customOtherUser', userId: matrixUserId, rowId: matrixRow, access: { scope: 'custom', field: 'assignee', rule: { field: 'assignee', value: '$current_user' } }, values: { _workspaceId: workspaceId, assignee: otherUserId }, createdBy: otherUserId, expected: false });
+  result.matrix.unknown = await measurePermission(randomUUID(), permissionCookie, matrixUserId); result.matrix.unknown.expectedAllowed = false;
   const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
   result.post.trip = await measurePost('trip', cookie); result.post.fuel = await measurePost('fuel', cookie); result.post.expense = await measurePost('expense', cookie);
   console.log(JSON.stringify(result, null, 2));
