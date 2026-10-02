@@ -30,3 +30,16 @@ if (EGRESS5_PROBE_FILE && pool?.query) {
 
 `;
 fs.writeFileSync(target, `import fs from "node:fs";\n${source.replace(marker, `${probe}${marker}`)}`);
+
+const routeDir = 'src/app/api/__egress5/row-permission';
+fs.mkdirSync(routeDir, { recursive: true });
+fs.writeFileSync(`${routeDir}/route.js`, `import { NextResponse } from "next/server";
+import { pool } from "../../_lib/server";
+import { requireRowPermission } from "../../_lib/authorization";
+export async function GET(req) {
+  if (process.env.EGRESS5_BENCHMARK !== "1") return new NextResponse(null, { status: 404 });
+  const url = new URL(req.url);
+  const access = await requireRowPermission(pool, url.searchParams.get("userId"), url.searchParams.get("rowId"), url.searchParams.get("required") || "viewer", url.searchParams.get("expectedTableId") || null);
+  return NextResponse.json({ allowed: Boolean(access), rowId: access?.row?.id || null, tableId: access?.row?.table_id || null });
+}
+`);

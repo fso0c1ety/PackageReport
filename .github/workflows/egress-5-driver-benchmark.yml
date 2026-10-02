@@ -8,6 +8,7 @@ on:
     paths:
       - 'src/app/api/logistics/driver/documents/route.js'
       - 'scripts/benchmark-egress5-driver.mjs'
+      - 'scripts/install-egress5-db-probe.mjs'
       - 'scripts/egress5-pg-payload.cjs'
       - '.github/workflows/egress-5-driver-benchmark.yml'
 
@@ -42,6 +43,7 @@ jobs:
       EGRESS5_PASSWORD: Egress5CiOnlyPasswordA1!
       JWT_SECRET: Egress5CiOnlyPasswordA1!
       EGRESS5_QUERY_FILE: /tmp/egress5-pg-payload.ndjson
+      EGRESS5_BENCHMARK: '1'
     steps:
       - uses: actions/checkout@v4
         with:
