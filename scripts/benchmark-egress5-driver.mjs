@@ -11,10 +11,13 @@ const workspaceId = '55555555-5555-4555-8555-555555555555';
 const driverId = 'egress5-driver-a';
 const otherDriverId = 'egress5-driver-b';
 const managerId = 'egress5-manager';
+const matrixUserId = 'egress5-matrix-user';
+const otherUserId = 'egress5-other-user';
 const fuelTableId = '55555555-5555-4555-8555-555555555551';
 const expenseTableId = '55555555-5555-4555-8555-555555555552';
 const tripTableId = '55555555-5555-4555-8555-555555555553';
 let lastSeedIds = [];
+let permissionCookie = '';
 const columns = [
   { id: 'date', name: 'Date' }, { id: 'trip', name: 'Trip' }, { id: 'driver', name: 'Driver' },
   { id: 'receipt', name: 'Receipt' }, { id: 'name', name: 'Name' }, { id: 'amount', name: 'Amount' },
@@ -74,6 +77,14 @@ const measurePermission = async (rowId, cookie, userId) => {
   if (!response.ok || after <= before) throw new Error(`requireRowPermission benchmark failed status=${response.status}`);
   return { status: response.status, queries: after - before, dbResultBytes: queryBytes(before), httpBytes: Buffer.byteLength(text), runtimeMs: Math.round(performance.now() - started), allowed: payload.allowed, rowId: payload.rowId, tableId: payload.tableId };
 };
+const matrixPermission = async (name, rowId, access, values, createdBy, expected) => {
+  await db.query('UPDATE board_member_access SET record_access=$1::jsonb,board_role=$2 WHERE table_id=$3 AND user_id=$4', [JSON.stringify(access), access.scope === 'all_permitted' ? 'viewer' : 'editor', fuelTableId, matrixUserId]);
+  await db.query('UPDATE rows SET values=$1::jsonb,created_by=$2 WHERE id=$3', [JSON.stringify(values), createdBy, rowId]);
+  const result = await measurePermission(rowId, permissionCookie, matrixUserId);
+  result.expectedAllowed = expected;
+  if (Boolean(result.allowed) !== expected) throw new Error(`AUTH_MATRIX_MISMATCH ${name}`);
+  return result;
+};
 
 await db.connect();
 try {
@@ -84,6 +95,7 @@ try {
   await db.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,\'fuel\',$4,$3::jsonb),($2,\'expenses\',$4,$3::jsonb),($5,\'trips\',$4,$3::jsonb) ON CONFLICT(id) DO UPDATE SET columns=EXCLUDED.columns', [fuelTableId, expenseTableId, JSON.stringify(columns), workspaceId, tripTableId]);
   const cookie = await login('egress5-driver-a@example.test');
   const managerCookie = await login('egress5-manager@example.test');
+  permissionCookie = managerCookie;
   await seedRows(fuelTableId, 10);
   await probeSelfTest(cookie);
   const result = { get: {}, post: {}, permission: {} };
@@ -92,6 +104,22 @@ try {
     result.permission[`row_${count}`] = await measurePermission(lastSeedIds[0], managerCookie, managerId);
     result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie);
   }
+  await db.query("INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,'EGRESS5 Matrix','egress5-matrix@example.test',$2,NOW()),($3,'EGRESS5 Other','egress5-other@example.test',$2,NOW()) ON CONFLICT(id) DO NOTHING", [matrixUserId, await bcrypt.hash(password, 4), otherUserId]);
+  await db.query("INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,team_id,department_id,company_id) VALUES($1,$2,'member','member','{\"scope\":\"all\"}', 'team-a','dept-a','company-a') ON CONFLICT(workspace_id,user_id) DO UPDATE SET workspace_role='member',team_id='team-a',department_id='dept-a',company_id='company-a'", [workspaceId, matrixUserId]);
+  await db.query("INSERT INTO board_member_access(table_id,user_id,board_role,record_access) VALUES($1,$2,'editor','{\"scope\":\"all_permitted\"}') ON CONFLICT(table_id,user_id) DO UPDATE SET board_role='editor',record_access=EXCLUDED.record_access", [fuelTableId, matrixUserId]);
+  const matrixRow = lastSeedIds[0];
+  result.matrix = {};
+  result.matrix.owner = await matrixPermission('owner', matrixRow, { scope: 'all_permitted' }, { _workspaceId: workspaceId }, driverId, true);
+  result.matrix.createdByOwn = await matrixPermission('createdByOwn', matrixRow, { scope: 'created_by_me' }, { _workspaceId: workspaceId }, matrixUserId, true);
+  result.matrix.createdByOther = await matrixPermission('createdByOther', matrixRow, { scope: 'created_by_me' }, { _workspaceId: workspaceId }, otherUserId, false);
+  result.matrix.selected = await matrixPermission('selected', matrixRow, { scope: 'selected_records', ids: [matrixRow] }, { _workspaceId: workspaceId }, otherUserId, true);
+  result.matrix.unselected = await matrixPermission('unselected', matrixRow, { scope: 'selected_records', ids: ['not-selected'] }, { _workspaceId: workspaceId }, otherUserId, false);
+  result.matrix.assigned = await matrixPermission('assigned', matrixRow, { scope: 'assigned_to_me', field: '_assignedDriverUserId' }, { _workspaceId: workspaceId, _assignedDriverUserId: matrixUserId }, otherUserId, true);
+  result.matrix.notAssigned = await matrixPermission('notAssigned', matrixRow, { scope: 'assigned_to_me', field: '_assignedDriverUserId' }, { _workspaceId: workspaceId, _assignedDriverUserId: otherUserId }, otherUserId, false);
+  result.matrix.myTeam = await matrixPermission('myTeam', matrixRow, { scope: 'my_team', field: 'teamId' }, { _workspaceId: workspaceId, teamId: 'team-a' }, otherUserId, true);
+  result.matrix.otherTeam = await matrixPermission('otherTeam', matrixRow, { scope: 'my_team', field: 'teamId' }, { _workspaceId: workspaceId, teamId: 'team-b' }, otherUserId, false);
+  result.matrix.expectedTableMismatch = await measurePermission(matrixRow, managerCookie, matrixUserId);
+  result.matrix.expectedTableMismatch.expectedAllowed = false;
   const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
   result.post.trip = await measurePost('trip', cookie); result.post.fuel = await measurePost('fuel', cookie); result.post.expense = await measurePost('expense', cookie);
   console.log(JSON.stringify(result, null, 2));
