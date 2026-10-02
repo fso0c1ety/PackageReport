@@ -41,6 +41,15 @@ const login = async () => {
   if (!body.token) throw new Error('login did not return a session token');
   return body.token;
 };
+const probeSelfTest = async (token) => {
+  const before = queryCount();
+  const response = await fetch(`${baseUrl}/api/logistics/driver/documents?workspaceId=${workspaceId}&category=fuel`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`EGRESS5 probe self-test request failed (${response.status})`);
+  const after = queryCount();
+  if (after <= before) throw new Error('EGRESS5_DB_PROBE_NOT_OBSERVING_APPLICATION_QUERIES');
+  const records = fs.readFileSync(process.env.EGRESS5_QUERY_FILE, 'utf8').trim().split(/\r?\n/).filter(Boolean).slice(before).map((line) => JSON.parse(line));
+  if (!records.some((entry) => Number(entry.resultBytes) > 0) || !records.some((entry) => Number(entry.rows) >= 1)) throw new Error('EGRESS5_DB_PROBE_NOT_OBSERVING_APPLICATION_QUERIES');
+};
 const measureGet = async (category, tableId, count, cookie) => {
   await seedRows(tableId, count);
   const before = queryCount(); const started = performance.now();
@@ -64,6 +73,8 @@ try {
   await db.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access) VALUES($1,$2,'driver','driver','{"scope":"all"}'::jsonb),($1,$3,'driver','driver','{"scope":"all"}'::jsonb) ON CONFLICT DO NOTHING`, [workspaceId, driverId, otherDriverId]);
   await db.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,\'fuel\',$4,$3::jsonb),($2,\'expenses\',$4,$3::jsonb),($5,\'trips\',$4,$3::jsonb) ON CONFLICT(id) DO UPDATE SET columns=EXCLUDED.columns', [fuelTableId, expenseTableId, JSON.stringify(columns), workspaceId, tripTableId]);
   const cookie = await login();
+  await seedRows(fuelTableId, 10);
+  await probeSelfTest(cookie);
   const result = { get: {}, post: {} };
   for (const count of [10, 100, 500]) { result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie); result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie); }
   const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);

@@ -54,7 +54,7 @@ jobs:
       - name: Preserve benchmark harness
         run: |
           cp scripts/benchmark-egress5-driver.mjs /tmp/benchmark-egress5-driver.mjs
-          cp scripts/egress5-pg-payload.cjs /tmp/egress5-pg-payload.cjs
+          cp scripts/install-egress5-db-probe.mjs /tmp/install-egress5-db-probe.mjs
       - name: Configure disposable migrations
         shell: bash
         run: echo "MIGRATION_TARGET=000_legacy_base_schema.sql,001_core_saas_schema.sql,003_legacy_automation_and_table_defaults.sql,005_billing_subscriptions.sql,008_enable_rows_realtime.sql,009_extended_user_profiles.sql,010_universal_board_engine.sql,018_driver_profile_fields.sql,019_logistics_driver_portal.sql,020_account_security.sql,021_tenant_file_security.sql,022_universal_roles_and_portals.sql,031_notification_delivery_idempotency.sql,033_professional_invitations.sql,034_notification_preferences.sql,035_calendar_events_baseline.sql" >> "$GITHUB_ENV"
@@ -64,13 +64,14 @@ jobs:
         run: |
           git checkout "${{ matrix.ref }}"
           cp /tmp/benchmark-egress5-driver.mjs scripts/.benchmark-egress5-driver.mjs
-          cp /tmp/egress5-pg-payload.cjs scripts/.egress5-pg-payload.cjs
+          cp /tmp/install-egress5-db-probe.mjs scripts/.install-egress5-db-probe.mjs
+          node scripts/.install-egress5-db-probe.mjs
       - run: npm run build
       - name: Start application
         shell: bash
         run: |
           : > "$EGRESS5_QUERY_FILE"
-          nohup env NODE_OPTIONS="--require=$PWD/scripts/.egress5-pg-payload.cjs" npx next start -p 3000 -H 127.0.0.1 >/tmp/egress5-server.log 2>&1 &
+          nohup env EGRESS5_DB_PROBE=1 EGRESS5_QUERY_FILE=/tmp/egress5-pg-payload.ndjson npx next start -p 3000 -H 127.0.0.1 >/tmp/egress5-server.log 2>&1 &
           for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
       - name: Run benchmark
         run: node scripts/.benchmark-egress5-driver.mjs > egress5-${{ matrix.name }}.json
