@@ -84,10 +84,13 @@ try {
   const cookie = await login();
   await seedRows(fuelTableId, 10);
   await probeSelfTest(cookie);
-  const permissionRowId = lastSeedIds[0];
   const result = { get: {}, post: {}, permission: {} };
-  for (const count of [10, 100, 500]) { result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie); result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie); }
-  result.permission.small = await measurePermission(permissionRowId, cookie);
+  for (const count of [10, 100, 500]) {
+    result.get[`fuel_${count}`] = await measureGet('fuel', fuelTableId, count, cookie);
+    const permissionRowId = lastSeedIds[0];
+    result.permission[`row_${count}`] = await measurePermission(permissionRowId, cookie);
+    result.get[`expense_${count}`] = await measureGet('expense', expenseTableId, count, cookie);
+  }
   const trip = 'egress5-trip'; await db.query('INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO UPDATE SET values=EXCLUDED.values', [trip, tripTableId, JSON.stringify({ _workspaceId: workspaceId, _assignedDriverUserId: driverId, name: 'egress5-trip' }), driverId]);
   result.post.trip = await measurePost('trip', cookie); result.post.fuel = await measurePost('fuel', cookie); result.post.expense = await measurePost('expense', cookie);
   console.log(JSON.stringify(result, null, 2));
