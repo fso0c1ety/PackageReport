@@ -152,7 +152,7 @@ export async function requireBoardPermission(pool, userId, tableId, required = "
 
 export async function requireRowPermission(pool, userId, rowId, required = "viewer", expectedTableId = null) {
   if (!userId || !rowId) return null;
-  const result = await pool.query("SELECT * FROM rows WHERE id=$1", [rowId]);
+  const result = await pool.query("SELECT id, table_id, created_by, values FROM rows WHERE id=$1", [rowId]);
   const row = result.rows[0];
   if (!row || (expectedTableId && String(row.table_id) !== String(expectedTableId))) return null;
   const board = await requireBoardPermission(pool, userId, row.table_id, required);
