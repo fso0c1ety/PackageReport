@@ -52,3 +52,19 @@ test("ready and partial portals read readiness from active membership", () => {
   assert.match(read("src/portal-engine/readiness.ts"), /portalType: "teacher", status: "READY"/);
   assert.match(read("src/portal-engine/readiness.ts"), /portalType: "driver", status: "PARTIAL"/);
 });
+
+test("readiness gating does not add polling, realtime subscriptions or portal-context call sites", () => {
+  const diffFiles = [
+    "src/app/(dashboard)/portal/[portalType]/page.tsx",
+    "src/app/ClientLayout.tsx",
+    "src/app/MobileBottomNavigation.tsx",
+  ];
+  for (const file of diffFiles) {
+    const source = read(file);
+    assert.doesNotMatch(source, /setInterval\(/, `${file} must not add polling`);
+    assert.doesNotMatch(source, /supabase\.channel\(/, `${file} must not add realtime subscriptions`);
+  }
+  const page = read("src/app/(dashboard)/portal/[portalType]/page.tsx");
+  assert.equal((page.match(/portal-context/g) || []).length, 1);
+  assert.match(page, /authenticatedFetch/);
+});
