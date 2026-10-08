@@ -768,7 +768,8 @@ export async function authenticatedFetch(url: string, options: AuthenticatedFetc
   const executeRequest = async () => {
     let response;
     try {
-    response = await fetch(requestUrl, {
+    const firstRequestUrl = canUseElectronProxyFallback ? toElectronProxyUrl(requestUrl) : requestUrl;
+    response = await fetch(firstRequestUrl, {
       ...requestOptions,
       headers,
     });

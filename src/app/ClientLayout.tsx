@@ -86,11 +86,14 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  // Static Electron exports use /driver-trips.html while web uses
+  // /driver-trips/. Treat both forms as the same logical route.
+  const normalizedPathname = (pathname.replace(/\/+$/, "") || "/").replace(/\.html$/i, "") || "/";
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [driverCheckComplete, setDriverCheckComplete] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     // If we are in ClientLayout, it means we are inside (dashboard).
@@ -102,6 +105,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     ensureNativeHistoryRouting();
 
     const continueWithSession = async () => {
+      setLoadError(null);
       let token = localStorage.getItem('token');
       if (!token && isNativeStaticRuntime()) {
         const restoreOutcome = await restoreNativeSession();
@@ -174,7 +178,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         setDriverCheckComplete(true);
         setLoading(false);
       })
-        .catch(() => { if (!cancelled) { setDriverCheckComplete(true); setLoading(false); } });
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError('Nuk mund të ngarkohej portali. Kontrolloni lidhjen dhe provoni përsëri.');
+          setDriverCheckComplete(true);
+          setLoading(false);
+        }
+      });
     };
     void continueWithSession();
     return () => {
@@ -200,6 +210,20 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <ThemeRegistry>
         <Box sx={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', bgcolor: 'background.default', color: 'white' }}>
           Loading...
+        </Box>
+      </ThemeRegistry>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ThemeRegistry>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100vh', justifyContent: 'center', alignItems: 'center', bgcolor: 'background.default', color: 'text.primary', p: 3, textAlign: 'center' }}>
+          <Box>{loadError}</Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <button type="button" onClick={() => window.location.reload()}>Provo përsëri</button>
+            <button type="button" onClick={() => redirectToAppRoute('/login', true)}>Kthehu te Login</button>
+          </Box>
         </Box>
       </ThemeRegistry>
     );
