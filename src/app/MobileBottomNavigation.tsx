@@ -33,6 +33,7 @@ export default function MobileBottomNavigation() {
 
   const dedicatedPortal = portalContext?.portalType && portalContext.portalType !== "standard";
   if (!isMobile || !dedicatedPortal) return null;
+  if (["SHELL", "DISABLED"].includes(portalContext?.portalReadiness?.status)) return null;
 
   const portalBase = portalContext?.landingRoute || `/portal/${String(portalContext?.portalType || "standard").replaceAll("_", "-")}`;
   const iconFor = (item: string) => item.includes("calendar") ? <CalendarMonthRoundedIcon /> : item.includes("document") ? <FolderRoundedIcon /> : item.includes("profile") || item.includes("setting") ? <SettingsRoundedIcon /> : item.includes("trip") || item.includes("delivery") ? <LocalShippingRoundedIcon /> : <HomeRoundedIcon />;
