@@ -218,7 +218,8 @@ async function writeMembership(user, workspaceId, portalType) {
   const membership = selectPortalMembership(memberships, { workspaceId, portalType });
   if (!membership || membership.portalType !== portalType) return null;
   const config = resolvePortalConfig(membership);
-  return config?.portalType === portalType ? { membership, config } : null;
+  const readiness = getPortalReadiness(portalType, config);
+  return config?.portalType === portalType ? { membership, config, readiness } : { membership, config, readiness };
 }
 
 export async function POST(req) {
@@ -232,6 +233,9 @@ export async function POST(req) {
   if (!workspaceId || !portalType || !definition) return NextResponse.json({ error: "Write action is not allowed" }, { status: 400 });
   const access = await writeMembership(user, workspaceId, portalType);
   if (!access) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isPortalOpenable(access.readiness)) {
+    return NextResponse.json({ error: "Ky portal nuk është ende i disponueshëm.", code: "PORTAL_NOT_READY", portalReadiness: access.readiness, safeRoute: access.readiness.safeRoute }, { status: 409 });
+  }
 
   const tableNames = access.config.entityScopes[definition.entity] || [definition.entity];
   const table = (await pool.query("SELECT id,name,columns,workspace_id FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, tableNames.map(normalize)])).rows[0];

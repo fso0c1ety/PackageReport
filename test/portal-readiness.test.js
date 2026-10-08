@@ -24,10 +24,15 @@ test("readiness gating preserves memberships and does not grant permissions", ()
 test("direct shell portal navigation has a safe fallback", () => {
   const page = read("src/app/(dashboard)/portal/[portalType]/page.tsx");
   const sidebar = read("src/app/Sidebar.tsx");
+  const layout = read("src/app/ClientLayout.tsx");
+  assert.match(page, /const readiness = membership\.portalReadiness/);
   assert.match(page, /nuk është ende i disponueshëm/);
   assert.match(page, /href="\/home"/);
+  assert.match(page, /Provo përsëri/);
   assert.match(sidebar, /portalReadiness/);
   assert.match(sidebar, /Kthehu te Workspace/);
+  assert.match(layout, /readinessStatus === "SHELL"/);
+  assert.match(layout, /replace\(\/\\\.html\$\/i, ""\)/);
 });
 
 test("functional portal API exposes readiness without bypassing membership", () => {
@@ -35,4 +40,15 @@ test("functional portal API exposes readiness without bypassing membership", () 
   assert.match(route, /selectPortalMembership\(memberships, \{ workspaceId, portalType \}\)/);
   assert.match(route, /isPortalOpenable\(readiness\)/);
   assert.match(route, /portalReadiness: readiness/);
+  assert.match(route, /access\.readiness/);
+  assert.match(route, /PORTAL_NOT_READY/);
+});
+
+test("ready and partial portals read readiness from active membership", () => {
+  const page = read("src/app/(dashboard)/portal/[portalType]/page.tsx");
+  assert.match(page, /const membership = data\.active/);
+  assert.match(page, /membership\.portalReadiness/);
+  assert.match(page, /setContext\(membership\)/);
+  assert.match(read("src/portal-engine/readiness.ts"), /portalType: "teacher", status: "READY"/);
+  assert.match(read("src/portal-engine/readiness.ts"), /portalType: "driver", status: "PARTIAL"/);
 });

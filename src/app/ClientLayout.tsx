@@ -86,7 +86,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) { // e
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  const normalizedPathname = (pathname.replace(/\/+$/, "") || "/").replace(/\.html$/i, "") || "/";
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -158,6 +158,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         // membership list themselves. Do not let a different active role (for
         // example Driver in another workspace) redirect a multi-role user away.
         if (requestedPortalType) {
+          setDriverCheckComplete(true);
+          setLoading(false);
+          return;
+        }
+        const readinessStatus = membership?.portalReadiness?.status;
+        if (readinessStatus === "SHELL" || readinessStatus === "DISABLED") {
           setDriverCheckComplete(true);
           setLoading(false);
           return;
