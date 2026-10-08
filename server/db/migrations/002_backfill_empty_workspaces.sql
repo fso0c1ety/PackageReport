@@ -19,7 +19,7 @@ SELECT
     ),
     jsonb_build_object('id', gen_random_uuid()::text, 'name', 'Date', 'type', 'Date', 'order', 2)
   ),
-  EXTRACT(EPOCH FROM NOW()) * 1000,
+  NOW(),
   UPPER(SUBSTRING(md5(random()::text || w.id) FROM 1 FOR 6))
 FROM workspaces w
 WHERE NOT EXISTS (
