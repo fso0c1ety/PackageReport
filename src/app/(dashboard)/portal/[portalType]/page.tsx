@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, Box, CircularProgress } from "@mui/material";
+import { Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { authenticatedFetch, getApiUrl } from "../../../apiUrl";
 import PortalShell from "../../../components/portal/PortalShell";
 import { useParams, usePathname } from "next/navigation";
@@ -22,11 +22,14 @@ export default function DedicatedPortalPage() {
       if (!response.ok) return setError(data?.error || "Unable to load portal");
       const membership = data.active;
       if (!membership || membership.portalType !== requested) return setError("This portal is not assigned to your account.");
+      if (!data.portalReadiness || ["SHELL", "DISABLED"].includes(data.portalReadiness.status)) {
+        return setError(`${data.portalReadiness?.label || "Ky portal"} nuk është ende i disponueshëm. ${data.portalReadiness?.reason || "Zgjidhni një portal tjetër."}`);
+      }
       setContext(membership);
     })();
   }, [portalType]);
 
-  if (error) return <Alert severity="error">{error}</Alert>;
+  if (error) return <Stack spacing={2} sx={{ maxWidth: 640, mx: "auto", mt: 6 }}><Box sx={{ p: 2, borderRadius: 2, bgcolor: "warning.light", color: "warning.contrastText" }}><Typography>{error}</Typography></Box><Button variant="contained" href="/home">Kthehu te Workspace</Button></Stack>;
   if (!context) return <Box sx={{ minHeight: 360, display: "grid", placeItems: "center" }}><CircularProgress /></Box>;
   return <PortalShell membership={context} config={context.portalConfig} />;
 }

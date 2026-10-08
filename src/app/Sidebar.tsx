@@ -537,7 +537,10 @@ export default function Sidebar({
         <Box sx={{ flex: normalWorkspaceSidebar ? "none" : 1, minHeight: normalWorkspaceSidebar ? "auto" : 0, overflowY: normalWorkspaceSidebar ? "visible" : "auto", overscrollBehavior: "contain", px: 2.1, pb: 2 }}>
           <InlineHeader label={portalContext?.portalConfig?.name || (driverPortal ? "Driver Portal" : dedicatedPortal ? `${String(portalContext.portalType).replaceAll("_", " ")} Portal` : "Navigation")} />
           <Box sx={{ display: "grid", gap: 0.75 }}>
-            {dedicatedPortal ? <>
+            {dedicatedPortal && ["SHELL", "DISABLED"].includes(portalContext?.portalReadiness?.status) ? <>
+              <Box sx={{ mb: 1, p: 1.5, borderRadius: 2, bgcolor: "warning.light", color: "warning.contrastText" }}>Ky portal nuk është ende i disponueshëm.</Box>
+              <SidebarItem icon={<HomeIcon fontSize="small" />} label="Kthehu te Workspace" href="/home" onClick={onClose} />
+            </> : dedicatedPortal ? <>
               {Array.isArray(portalContext?.portalConfig?.navigation) && portalContext.portalConfig.navigation.map((item: any) => {
                 if (item.feature === "expenses" && !workspaceModules.includes("finance")) return null;
                 if (item.feature === "fuel" && !workspaceModules.includes("fleet")) return null;

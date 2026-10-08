@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { listUserMemberships, normalizePortalType, PORTAL_ROUTES, selectPortalMembership } from "../_lib/universalRoles";
-import { resolvePortalConfig } from "../../../portal-engine/registry";
+import { resolvePortalConfig, getPortalReadiness } from "../../../portal-engine/registry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,11 @@ export async function GET(req) {
     if ((requestedWorkspaceId || requestedPortalType) && !active) {
       return NextResponse.json({ error: "Portal is not assigned to this account" }, { status: 403 });
     }
-    const withConfig = (membership) => membership ? { ...membership, portalConfig: resolvePortalConfig(membership) } : null;
+    const withConfig = (membership) => {
+      if (!membership) return null;
+      const portalConfig = resolvePortalConfig(membership);
+      return { ...membership, portalConfig, portalReadiness: getPortalReadiness(membership.portalType, portalConfig) };
+    };
     return NextResponse.json({ active: withConfig(active), memberships: memberships.map(withConfig) });
   } catch (error) {
     console.error("[PORTAL CONTEXT][GET]", error);
@@ -46,6 +50,10 @@ export async function PATCH(req) {
   `, [workspaceId, String(user.id), portalType, PORTAL_ROUTES[portalType]]);
   if (!result.rows[0]) return NextResponse.json({ error: "Portal is not assigned to this account" }, { status: 403 });
   const memberships = await listUserMemberships(pool, user.id);
-  const withConfig = (membership) => membership ? { ...membership, portalConfig: resolvePortalConfig(membership) } : null;
+  const withConfig = (membership) => {
+    if (!membership) return null;
+    const portalConfig = resolvePortalConfig(membership);
+    return { ...membership, portalConfig, portalReadiness: getPortalReadiness(membership.portalType, portalConfig) };
+  };
   return NextResponse.json({ active: withConfig(memberships.find((membership) => String(membership.workspaceId) === workspaceId) || null), memberships: memberships.map(withConfig) });
 }

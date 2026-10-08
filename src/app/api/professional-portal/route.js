@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireBoardPermission, rowMatchesRecordAccess } from "../_lib/authorization";
 import { listUserMemberships, selectPortalMembership } from "../_lib/universalRoles";
-import { resolvePortalConfig } from "../../../portal-engine/registry";
+import { resolvePortalConfig, getPortalReadiness, isPortalOpenable } from "../../../portal-engine/registry";
 import { portalWriteAction, portalWriteActionOptions } from "../../../portal-engine/writeActions";
 import { portalRecordCapability, validPortalCapability } from "../_lib/portalCapability";
 import { portalRecordDisplay, presentPortalValue, relationTargetId } from "../../../portal-engine/presentation.mjs";
@@ -38,7 +38,10 @@ export async function GET(req) {
   const membership = selectPortalMembership(memberships, { workspaceId, portalType });
   if (!membership) return NextResponse.json({ error: "Portal is not assigned to this account" }, { status: 403 });
   const config = resolvePortalConfig(membership);
-  if (!config || config.portalType !== membership.portalType) return NextResponse.json({ error: "Portal configuration is unavailable" }, { status: 404 });
+  const readiness = getPortalReadiness(membership.portalType, config);
+  if (!config || config.portalType !== membership.portalType || !isPortalOpenable(readiness)) {
+    return NextResponse.json({ error: "Ky portal nuk është ende i disponueshëm.", code: "PORTAL_NOT_READY", portalReadiness: readiness, safeRoute: readiness.safeRoute }, { status: 409 });
+  }
 
   const requestedEntities = Object.keys(config.entityScopes);
   const relationshipTables = (await pool.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1", [workspaceId])).rows;
@@ -193,7 +196,7 @@ export async function GET(req) {
     }
     timeline.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
   }
-  return NextResponse.json({ membership: { workspaceId, workspaceName: membership.workspaceName, portalType: membership.portalType }, config: { id: config.id, name: config.name, widgets: config.widgets, navigation: config.navigation, featureFlags: config.featureFlags, writeActions: portalWriteActionOptions(portalType) }, entities, timeline: timeline.slice(0, 100) });
+  return NextResponse.json({ membership: { workspaceId, workspaceName: membership.workspaceName, portalType: membership.portalType }, portalReadiness: readiness, config: { id: config.id, name: config.name, widgets: config.widgets, navigation: config.navigation, featureFlags: config.featureFlags, writeActions: portalWriteActionOptions(portalType) }, entities, timeline: timeline.slice(0, 100) });
 }
 
 function sanitizeWriteValues(definition, input) {

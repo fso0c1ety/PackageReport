@@ -1,6 +1,7 @@
 import { driverPortalConfig } from "./configs/driver";
 import { clientPortalConfig, doctorPortalConfig, parentPortalConfig, patientPortalConfig, teacherPortalConfig } from "./configs/professionals";
 import type { PortalConfig, PortalMembershipContext } from "./types";
+import { getPortalReadiness, isPortalOpenable } from "./readiness";
 
 const registry: PortalConfig[] = [driverPortalConfig, teacherPortalConfig, parentPortalConfig, doctorPortalConfig, patientPortalConfig, clientPortalConfig];
 
@@ -22,3 +23,5 @@ export function portalRoute(config: PortalConfig, workspaceId?: string) {
   const separator = config.defaultRoute.includes("?") ? "&" : "?";
   return `${config.defaultRoute}${separator}id=${encodeURIComponent(workspaceId)}`;
 }
+
+export { getPortalReadiness, isPortalOpenable };
