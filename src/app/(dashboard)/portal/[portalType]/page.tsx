@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { authenticatedFetch, getApiUrl } from "../../../apiUrl";
 import PortalShell from "../../../components/portal/PortalShell";
+import { parsePortalContextResponse } from "../../../portalContextResponse";
 import { useParams, usePathname } from "next/navigation";
 
 export default function DedicatedPortalPage() {
@@ -26,13 +27,9 @@ export default function DedicatedPortalPage() {
       }
       const data = await response.json().catch(() => null);
       if (!response.ok) return setError(data?.error || "Unable to load portal");
-      const membership = data.active;
-      if (!membership || membership.portalType !== requested) return setError("This portal is not assigned to your account.");
-      const readiness = membership.portalReadiness;
-      if (!readiness || ["SHELL", "DISABLED"].includes(readiness.status)) {
-        return setError(`${readiness?.label || "Ky portal"} nuk është ende i disponueshëm. ${readiness?.reason || "Zgjidhni një portal tjetër."}`);
-      }
-      setContext(membership);
+      const result = parsePortalContextResponse(data, requested);
+      if (result.error) return setError(result.error);
+      setContext(result.membership);
     })();
   }, [portalType, reload]);
 
