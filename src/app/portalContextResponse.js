@@ -9,7 +9,7 @@ export function parsePortalContextResponse(data, requestedPortalType) {
     return { error: "Ky portal nuk është i caktuar për llogarinë tuaj." };
   }
   const readiness = data.active.portalReadiness;
-  if (!readiness || ["SHELL", "DISABLED"].includes(readiness.status)) {
+  if (!readiness || !["READY", "PARTIAL"].includes(readiness.status)) {
     return { error: `${readiness?.label || "Ky portal"} nuk është ende i disponueshëm. ${readiness?.reason || "Zgjidhni një portal tjetër."}` };
   }
   return { membership: data.active };

@@ -229,15 +229,22 @@ export async function POST(req) {
   const workspaceId = String(body.workspaceId || "");
   const portalType = String(body.portalType || "");
   const action = String(body.action || "");
-  const definition = portalWriteAction(portalType, action);
-  if (!workspaceId || !portalType || !definition) return NextResponse.json({ error: "Write action is not allowed" }, { status: 400 });
+  if (!workspaceId || !portalType) return NextResponse.json({ error: "workspaceId and portalType are required" }, { status: 400 });
   const access = await writeMembership(user, workspaceId, portalType);
   if (!access) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!isPortalOpenable(access.readiness)) {
     return NextResponse.json({ error: "Ky portal nuk është ende i disponueshëm.", code: "PORTAL_NOT_READY", portalReadiness: access.readiness, safeRoute: access.readiness.safeRoute }, { status: 409 });
   }
+  const definition = portalWriteAction(portalType, action);
+  if (!definition) return NextResponse.json({ error: "Write action is not allowed" }, { status: 400 });
 
-  const tableNames = access.config.entityScopes[definition.entity] || [definition.entity];
+  const entityScopes = access.config && typeof access.config.entityScopes === "object" && !Array.isArray(access.config.entityScopes)
+    ? access.config.entityScopes
+    : null;
+  if (!access.config || access.config.portalType !== portalType || !entityScopes) {
+    return NextResponse.json({ error: "Portal configuration is unavailable", code: "PORTAL_NOT_READY", portalReadiness: access.readiness, safeRoute: access.readiness.safeRoute }, { status: 409 });
+  }
+  const tableNames = entityScopes[definition.entity] || [definition.entity];
   const table = (await pool.query("SELECT id,name,columns,workspace_id FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, tableNames.map(normalize)])).rows[0];
   if (!table) return NextResponse.json({ error: "Entity is unavailable" }, { status: 404 });
   const board = await requireBoardPermission(pool, user.id, table.id, definition.mode === "update" ? "editor" : "viewer");
@@ -304,7 +311,7 @@ export async function POST(req) {
       persistedValues = { ...oldValues, ...patch };
       await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(patch), recordId, table.id]);
     } else if (definition.mode === "create") {
-      const subjectNames = access.config.entityScopes[definition.subjectEntity] || [definition.subjectEntity];
+      const subjectNames = entityScopes[definition.subjectEntity] || [definition.subjectEntity];
       const subjectTable = (await client.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, subjectNames.map(normalize)])).rows[0];
       const subject = subjectTable && (await client.query("SELECT id,table_id,values,created_by,created_at,updated_at FROM rows WHERE id=$1 AND table_id=$2", [subjectId, subjectTable.id])).rows[0];
       const subjectCapability = subject && validPortalCapability(body.writeToken,user.id,workspaceId,portalType,definition.subjectEntity,subjectId);

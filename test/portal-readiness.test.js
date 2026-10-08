@@ -23,6 +23,24 @@ test("portal context parser accepts READY and PARTIAL active memberships", async
   assert.equal(parsePortalContextResponse(driver, "driver").membership, driver.active);
 });
 
+test("portal context parser rejects unknown, SHELL, DISABLED and missing readiness", async () => {
+  const { parsePortalContextResponse } = await responseParser();
+  for (const status of ["SHELL", "DISABLED", "EXPERIMENTAL", "", undefined]) {
+    const active = { portalType: "teacher", portalReadiness: status === undefined ? undefined : { status } };
+    assert.ok(parsePortalContextResponse({ active }, "teacher").error, `status ${String(status)} must fail closed`);
+  }
+});
+
+test("POST contract checks readiness before action and guards null or mismatched config", () => {
+  const route = read("src/app/api/professional-portal/route.js");
+  const readinessOffset = route.indexOf("if (!isPortalOpenable(access.readiness))");
+  const actionOffset = route.indexOf("const definition = portalWriteAction(portalType, action)");
+  assert.ok(readinessOffset >= 0 && actionOffset > readinessOffset, "readiness must be checked before action validation");
+  assert.match(route, /access\.config && typeof access\.config\.entityScopes === "object"/);
+  assert.match(route, /access\.config\.portalType !== portalType/);
+  assert.match(route, /code: "PORTAL_NOT_READY"/);
+});
+
 test("readiness manifest distinguishes supported, partial and shell portals", () => {
   const source = read("src/portal-engine/readiness.ts");
   for (const status of ["READY", "PARTIAL", "SHELL", "DISABLED"]) assert.match(source, new RegExp(`"${status}"`));
