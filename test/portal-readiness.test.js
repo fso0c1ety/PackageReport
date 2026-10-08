@@ -45,7 +45,7 @@ test("direct shell portal navigation has a safe fallback", () => {
   const sidebar = read("src/app/Sidebar.tsx");
   const layout = read("src/app/ClientLayout.tsx");
   assert.match(page, /parsePortalContextResponse\(data, requested\)/);
-  assert.match(page, /nuk është ende i disponueshëm/);
+  assert.match(read("src/app/portalContextResponse.js"), /nuk është ende i disponueshëm/);
   assert.match(page, /href="\/home"/);
   assert.match(page, /Provo përsëri/);
   assert.match(sidebar, /portalReadiness/);
@@ -66,7 +66,7 @@ test("functional portal API exposes readiness without bypassing membership", () 
 test("ready and partial portals read readiness from active membership", () => {
   const page = read("src/app/(dashboard)/portal/[portalType]/page.tsx");
   assert.match(page, /parsePortalContextResponse\(data, requested\)/);
-  assert.match(page, /setContext\(membership\)/);
+  assert.match(page, /setContext\(result\.membership\)/);
   assert.match(read("src/portal-engine/readiness.ts"), /portalType: "teacher", status: "READY"/);
   assert.match(read("src/portal-engine/readiness.ts"), /portalType: "driver", status: "PARTIAL"/);
 });
