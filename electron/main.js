@@ -497,7 +497,9 @@ app.whenReady().then(() => {
             status: 502,
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Origin": "app://localhost",
+              "Access-Control-Allow-Credentials": "true",
+              "Vary": "Origin",
             },
           },
         );
