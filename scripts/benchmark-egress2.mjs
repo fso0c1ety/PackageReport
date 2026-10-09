@@ -6,6 +6,7 @@ const { Pool } = pg;
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
 const password = process.env.EGRESS2_PASSWORD || 'Egress2CiOnlyPasswordA1!';
 const marker = `TEST_EGRESS2_${process.env.EGRESS2_RUN_ID || randomUUID()}`;
+const scenario = process.env.EGRESS2_SCENARIO || 'pagination';
 const sizes = [100, 1000, 5000, 10000];
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
 
@@ -84,9 +85,12 @@ async function measure(tableId, cookie, size) {
     const rows = Array.isArray(page) ? page : page.rows || [];
     if (!rows.length) break;
     offset += rows.length;
-    if (process.env.EGRESS2_MODE === 'initial') break;
+    if (scenario === 'initial' || scenario === 'idle') break;
   }
-  return { size, requests, rows: offset, firstPageBytes: firstPageBytes[0] || 0, automaticBytes: bytes, durationMs: Math.round(performance.now() - started) };
+  if (scenario === 'idle') {
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+  }
+  return { scenario, size, requests, rows: offset, firstPageBytes: firstPageBytes[0] || 0, responseBytes: bytes, idleMs: scenario === 'idle' ? 10_000 : 0, durationMs: Math.round(performance.now() - started) };
 }
 
 const seeded = await seed();
@@ -94,6 +98,6 @@ const email = `${marker.toLowerCase()}@example.test`;
 const cookie = await login(email);
 const results = [];
 for (let index = 0; index < sizes.length; index += 1) results.push(await measure(seeded.tableIds[index], cookie, sizes[index]));
-console.log(JSON.stringify({ marker, results }, null, 2));
+console.log(JSON.stringify({ marker, scenario, results }, null, 2));
 await pool.query('DELETE FROM workspaces WHERE id=$1', [seeded.workspaceId]);
 await pool.end();

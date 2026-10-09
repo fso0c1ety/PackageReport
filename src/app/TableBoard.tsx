@@ -3347,6 +3347,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!tableId) return;
   let cancelled = false;
   setLoading(true);
+  kanbanCountsRequestRef.current = null;
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
@@ -3455,7 +3456,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   retryLoadTableRef.current = () => { void loadTable(); };
 
   void loadTable();
-  return () => { cancelled = true; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; };
+  return () => { cancelled = true; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; kanbanCountsRequestRef.current = null; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
 
   useEffect(() => {

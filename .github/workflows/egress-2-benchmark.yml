@@ -42,20 +42,27 @@ jobs:
         shell: bash
         run: |
           git checkout "${{ github.event.pull_request.base.sha }}"
+          cp /tmp/benchmark-egress2.mjs scripts/.benchmark-egress2.mjs
           export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
           npm run db:migrate
           npm run build
-          nohup npx next start -p 3000 -H 127.0.0.1 >/tmp/egress2-base.log 2>&1 & next_pid=$!
-          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
-          node /tmp/benchmark-egress2.mjs | tee /tmp/egress2-base.json
-          kill "$next_pid" || true
+          for scenario in initial pagination idle; do
+            nohup npx next start -p 3000 -H 127.0.0.1 ">/tmp/egress2-base-${scenario}.log" 2>&1 & next_pid=$!
+            for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+            EGRESS2_SCENARIO="$scenario" node scripts/.benchmark-egress2.mjs | tee "/tmp/egress2-base-${scenario}.json"
+            kill "$next_pid" || true
+          done
       - name: Head benchmark
         shell: bash
         run: |
           git checkout "${{ github.event.pull_request.head.sha }}"
+          cp /tmp/benchmark-egress2.mjs scripts/.benchmark-egress2.mjs
           export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
           npm run db:migrate
           npm run build
-          nohup npx next start -p 3000 -H 127.0.0.1 >/tmp/egress2-head.log 2>&1 & next_pid=$!
-          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
-          EGRESS2_MODE=initial node /tmp/benchmark-egress2.mjs | tee /tmp/egress2-head.json
+          for scenario in initial pagination idle; do
+            nohup npx next start -p 3000 -H 127.0.0.1 ">/tmp/egress2-head-${scenario}.log" 2>&1 & next_pid=$!
+            for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+            EGRESS2_SCENARIO="$scenario" node scripts/.benchmark-egress2.mjs | tee "/tmp/egress2-head-${scenario}.json"
+            kill "$next_pid" || true
+          done
