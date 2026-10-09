@@ -7,6 +7,7 @@ on:
       - "src/app/(dashboard)/workspace/page.tsx"
       - "src/app/api/tables/**"
       - "e2e/kanban-pagination.spec.ts"
+      - "scripts/bootstrap-kanban-postgres.mjs"
       - "playwright.config.ts"
       - "supabase/**"
       - ".github/workflows/kanban-postgres-e2e.yml"
@@ -64,6 +65,8 @@ jobs:
           targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v '^002_backfill_empty_workspaces[.]sql$' | paste -sd, -)"
           test -n "$targets"
           echo "MIGRATION_TARGET=$targets" >> "$GITHUB_ENV"
+      - name: Bootstrap verified local migration prerequisites
+        run: node scripts/bootstrap-kanban-postgres.mjs
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
@@ -75,4 +78,8 @@ jobs:
           nohup npx next start -p 3000 -H 127.0.0.1 > /tmp/kanban-e2e-server.log 2>&1 &
           for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
           curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null
-      - run: npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1
+      - name: Run Kanban Playwright suite
+        run: |
+          output="$(npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 2>&1)" || { printf '%s\n' "$output"; exit 1; }
+          printf '%s\n' "$output"
+          echo "$output" | grep -Eq '[1-9][0-9]* passed'

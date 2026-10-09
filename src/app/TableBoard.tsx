@@ -11070,7 +11070,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   minWidth: 24,
   textAlign: 'center'
   }}>
-  <Typography sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
+      <Typography data-testid={`kanban-count-${opt.value}`} sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
   {hasActiveFilters ? colTasks.length : (kanbanStatusCounts[opt.value] ?? colTasks.length)}
   </Typography>
   </Box>
@@ -11112,7 +11112,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return (
   <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={userPermission === 'read' || hasActiveFilters}>
   {(providedTask, snapshotTask) => (
-  <Paper
+  <Paper data-testid={`kanban-card-${task.id}`}
   ref={providedTask.innerRef}
   {...providedTask.draggableProps}
   {...providedTask.dragHandleProps}

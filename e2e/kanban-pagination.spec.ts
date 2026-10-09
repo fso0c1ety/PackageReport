@@ -88,6 +88,10 @@ async function loadedTasks(page: Page, marker: string) {
   return page.getByText(new RegExp(`^${marker} Task \\d{4}$`)).count();
 }
 
+async function statusCount(page: Page, status: string) {
+  return Number(await page.getByTestId(`kanban-count-${status}`).innerText());
+}
+
 test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   test.setTimeout(240_000);
   test.skip(!password || !isolated || !databaseUrl, "Requires the isolated Kanban PostgreSQL workflow");
@@ -108,25 +112,36 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
-        await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBeLessThanOrEqual(Math.min(100, size));
+        await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(Math.min(100, size));
+        await expect.poll(() => statusCount(page, "Open"), { timeout: 30_000 }).toBe(Math.ceil(size / 2));
+        await expect.poll(() => statusCount(page, "Done"), { timeout: 30_000 }).toBe(Math.floor(size / 2));
         const initialRequests = taskRequests.length;
         expect(initialRequests).toBeGreaterThan(0);
 
         if (size === 101) {
           let failedOnce = false;
+          let failedRequests = 0;
+          let successfulRetryRequests = 0;
           await page.route(`**/api/tables/${fixture.tableId}/tasks**`, async route => {
-            if (!failedOnce) { failedOnce = true; await route.abort("connectionreset"); return; }
+            if (!failedOnce) { failedOnce = true; failedRequests += 1; await route.abort("connectionreset"); return; }
+            successfulRetryRequests += 1;
             await route.continue();
           });
           await page.getByRole("button", { name: "Load more" }).first().click();
-          await expect(page.getByText(/Failed|could not be loaded|error/i).first()).toBeVisible({ timeout: 10_000 }).catch(() => undefined);
+          await expect(page.getByRole("button", { name: "Retry" }).first()).toBeVisible({ timeout: 10_000 });
           await page.getByRole("button", { name: "Retry" }).first().click();
+          await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(size);
+          expect(failedRequests).toBe(1);
+          expect(successfulRetryRequests).toBe(1);
           await page.unroute(`**/api/tables/${fixture.tableId}/tasks**`);
         }
 
         while (await page.getByRole("button", { name: "Load more" }).count()) {
+          const before = await loadedTasks(page, fixture.marker);
+          const column = page.locator('[data-rbd-droppable-id^="kanban:"]').first();
+          await column.evaluate((element) => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event("scroll", { bubbles: true })); });
           await page.getByRole("button", { name: "Load more" }).first().click();
-          await page.waitForTimeout(100);
+          await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBeGreaterThan(before);
         }
         await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 60_000 }).toBe(size);
         expect(taskRequests.length - initialRequests).toBe(Math.ceil(Math.max(0, size - 100) / 100));
