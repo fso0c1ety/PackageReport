@@ -58,6 +58,12 @@ jobs:
           echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "SMART_MANAGE_DEMO_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "JWT_SECRET=$password" >> "$GITHUB_ENV"
+      - name: Exclude historical migration 002 from Kanban fixture bootstrap
+        shell: bash
+        run: |
+          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v '^002_backfill_empty_workspaces[.]sql$' | paste -sd, -)"
+          test -n "$targets"
+          echo "MIGRATION_TARGET=$targets" >> "$GITHUB_ENV"
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
