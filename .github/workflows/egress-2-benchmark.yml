@@ -6,6 +6,7 @@ on:
       - 'src/app/TableBoard.tsx'
       - 'scripts/benchmark-egress2.mjs'
       - '.github/workflows/egress-2-benchmark.yml'
+  workflow_dispatch:
 
 jobs:
   benchmark:
