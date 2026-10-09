@@ -82,7 +82,7 @@ async function chooseKanban(page: Page, boardName: string) {
   await expect(newTask).toBeVisible({ timeout: 30_000 });
   await newTask.locator("xpath=preceding-sibling::button[1]").click();
   await page.getByRole("menu").getByText("Kanban", { exact: true }).click();
-  await expect(page.locator('[data-rbd-droppable-id^="kanban:"]').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-rfd-droppable-id^="kanban:"]').first()).toBeVisible({ timeout: 30_000 });
 }
 
 async function loadedTasks(page: Page, marker: string) {
@@ -139,7 +139,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
 
         while (await page.getByRole("button", { name: "Load more" }).count()) {
           const before = await loadedTasks(page, fixture.marker);
-          const column = page.locator('[data-rbd-droppable-id^="kanban:"]').first();
+          const column = page.locator('[data-rfd-droppable-id^="kanban:"]').first();
           await column.evaluate((element) => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event("scroll", { bubbles: true })); });
           await page.getByRole("button", { name: "Load more" }).first().click();
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBeGreaterThan(before);
