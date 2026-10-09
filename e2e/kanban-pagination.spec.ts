@@ -81,7 +81,9 @@ async function chooseKanban(page: Page, boardName: string) {
   const newTask = page.getByRole("button", { name: "New task" });
   await expect(newTask).toBeVisible({ timeout: 30_000 });
   await newTask.locator("xpath=preceding-sibling::button[1]").click();
-  await page.getByRole("menu").getByText("Kanban", { exact: true }).click();
+  const viewMenu = page.getByRole("menu");
+  await viewMenu.getByText("Kanban", { exact: true }).click();
+  await expect(viewMenu).toBeHidden({ timeout: 5_000 });
   await expect(page.locator('[data-rfd-droppable-id^="kanban:"]').first()).toBeVisible({ timeout: 30_000 });
 }
 
