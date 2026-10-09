@@ -74,7 +74,7 @@ async function measure(tableId, cookie, size) {
   const firstPageBytes = [];
   const started = performance.now();
   while (offset < size) {
-    const limit = offset === 0 ? 100 : 500;
+    const limit = 100;
     const response = await fetch(`${baseUrl}/api/tables/${tableId}/tasks?limit=${limit}&offset=${offset}`, { headers: { cookie } });
     if (!response.ok) throw new Error(`tasks failed (${response.status})`);
     const text = await response.text();

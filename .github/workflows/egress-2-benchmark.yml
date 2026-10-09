@@ -39,31 +39,65 @@ jobs:
       - run: npm ci
       - name: Preserve benchmark harness across checkouts
         run: cp scripts/benchmark-egress2.mjs /tmp/benchmark-egress2.mjs
+      - name: Resolve comparable BASE and HEAD commits
+        env:
+          EGRESS2_EVENT: ${{ github.event_name }}
+          EGRESS2_BASE_SHA_INPUT: ${{ github.event.pull_request.base.sha || '' }}
+          EGRESS2_HEAD_SHA_INPUT: ${{ github.event.pull_request.head.sha || github.sha }}
+          EGRESS2_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          if [[ "$EGRESS2_EVENT" == "pull_request" ]]; then
+            base_sha="$EGRESS2_BASE_SHA_INPUT"
+            head_sha="$EGRESS2_HEAD_SHA_INPUT"
+          else
+            git fetch origin "$EGRESS2_DEFAULT_BRANCH" --no-tags
+            base_sha="$(git rev-parse "origin/$EGRESS2_DEFAULT_BRANCH")"
+            head_sha="$EGRESS2_HEAD_SHA_INPUT"
+          fi
+          [[ -n "$base_sha" && -n "$head_sha" ]] || { echo "BASE/HEAD commit resolution failed" >&2; exit 1; }
+          git cat-file -e "$base_sha^{commit}" || { echo "BASE is not a commit: $base_sha" >&2; exit 1; }
+          git cat-file -e "$head_sha^{commit}" || { echo "HEAD is not a commit: $head_sha" >&2; exit 1; }
+          echo "EGRESS2_BASE_SHA=$base_sha" >> "$GITHUB_ENV"
+          echo "EGRESS2_HEAD_SHA=$head_sha" >> "$GITHUB_ENV"
+          echo "EGRESS-2 BASE=$base_sha HEAD=$head_sha"
       - name: Baseline benchmark
         shell: bash
         run: |
-          git checkout "${{ github.event.pull_request.base.sha }}"
+          git checkout "$EGRESS2_BASE_SHA"
           cp /tmp/benchmark-egress2.mjs scripts/.benchmark-egress2.mjs
           export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
           npm run db:migrate
           npm run build
           for scenario in initial pagination idle; do
-            nohup npx next start -p 3000 -H 127.0.0.1 ">/tmp/egress2-base-${scenario}.log" 2>&1 & next_pid=$!
-            for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+            nohup npx next start -p 3000 -H 127.0.0.1 >"/tmp/egress2-base-${scenario}.log" 2>&1 & next_pid=$!
+            ready=false
+            for attempt in $(seq 1 60); do
+              if curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null; then ready=true; break; fi
+              kill -0 "$next_pid" 2>/dev/null || break
+              sleep 2
+            done
+            [[ "$ready" == true ]] || { cat "/tmp/egress2-base-${scenario}.log"; kill "$next_pid" 2>/dev/null || true; wait "$next_pid" 2>/dev/null || true; exit 1; }
             EGRESS2_SCENARIO="$scenario" node scripts/.benchmark-egress2.mjs | tee "/tmp/egress2-base-${scenario}.json"
-            kill "$next_pid" || true
+            kill "$next_pid" 2>/dev/null || true; wait "$next_pid" 2>/dev/null || true
           done
       - name: Head benchmark
         shell: bash
         run: |
-          git checkout "${{ github.event.pull_request.head.sha }}"
+          git checkout "$EGRESS2_HEAD_SHA"
           cp /tmp/benchmark-egress2.mjs scripts/.benchmark-egress2.mjs
           export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
           npm run db:migrate
           npm run build
           for scenario in initial pagination idle; do
-            nohup npx next start -p 3000 -H 127.0.0.1 ">/tmp/egress2-head-${scenario}.log" 2>&1 & next_pid=$!
-            for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+            nohup npx next start -p 3000 -H 127.0.0.1 >"/tmp/egress2-head-${scenario}.log" 2>&1 & next_pid=$!
+            ready=false
+            for attempt in $(seq 1 60); do
+              if curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null; then ready=true; break; fi
+              kill -0 "$next_pid" 2>/dev/null || break
+              sleep 2
+            done
+            [[ "$ready" == true ]] || { cat "/tmp/egress2-head-${scenario}.log"; kill "$next_pid" 2>/dev/null || true; wait "$next_pid" 2>/dev/null || true; exit 1; }
             EGRESS2_SCENARIO="$scenario" node scripts/.benchmark-egress2.mjs | tee "/tmp/egress2-head-${scenario}.json"
-            kill "$next_pid" || true
+            kill "$next_pid" 2>/dev/null || true; wait "$next_pid" 2>/dev/null || true
           done
