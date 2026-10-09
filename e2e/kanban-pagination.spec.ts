@@ -78,10 +78,11 @@ async function seedBoard(userId: string, size: number) {
 
 async function chooseKanban(page: Page, boardName: string) {
   await page.getByText(boardName, { exact: true }).click();
-  await expect(page.getByText("Kanban", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   const newTask = page.getByRole("button", { name: "New task" });
+  await expect(newTask).toBeVisible({ timeout: 30_000 });
   await newTask.locator("xpath=preceding-sibling::button[1]").click();
   await page.getByRole("menu").getByText("Kanban", { exact: true }).click();
+  await expect(page.locator('[data-rbd-droppable-id^="kanban:"]').first()).toBeVisible({ timeout: 30_000 });
 }
 
 async function loadedTasks(page: Page, marker: string) {
