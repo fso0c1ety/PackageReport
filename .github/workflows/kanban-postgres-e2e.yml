@@ -19,19 +19,19 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: smart_manage_kanban_e2e
+          POSTGRES_DB: smart_manage_portal_acceptance
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: kanban-ci-local-only
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U postgres -d smart_manage_kanban_e2e"
+          --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       CI: true
       PORTAL_ACCEPTANCE_CI: "1"
       KANBAN_E2E_ISOLATED: "1"
       VERCEL_ENV: ""
-      DATABASE_URL: postgresql://postgres:kanban-ci-local-only@127.0.0.1:5432/smart_manage_kanban_e2e
+      DATABASE_URL: postgresql://postgres:kanban-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: "false"
       E2E_BASE_URL: http://127.0.0.1:3000
     steps:
