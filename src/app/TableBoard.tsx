@@ -1750,6 +1750,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
   const loadMoreRowsRef = React.useRef<(() => Promise<void>) | null>(null);
   const retryLoadTableRef = React.useRef<(() => void) | null>(null);
+  const kanbanCountsRequestRef = React.useRef<string | null>(null);
   const totalRowsRef = React.useRef(0);
   const nextRowsOffsetRef = React.useRef(0);
   const loadingMoreRowsRef = React.useRef(false);
@@ -3389,8 +3390,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!tableRes.ok) throw new Error("Failed to fetch table info");
   const table = await tableRes.json();
   const tableColumns = table.columns || [];
-  const statusColumnId = tableColumns.find((column: Column) => column.type === 'Status')?.id;
-  const firstRowsRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0${statusColumnId ? `&statusColumnId=${encodeURIComponent(statusColumnId)}` : ''}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
+  const firstRowsRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
   if (!firstRowsRes.ok) throw new Error(`Failed to fetch table tasks (${firstRowsRes.status})`);
 
   const firstPage = await firstRowsRes.json();
@@ -3411,7 +3411,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   totalRowsRef.current = totalRows;
   nextRowsOffsetRef.current = firstRows.length;
   setHasMoreRows(firstRows.length < totalRows);
-  setKanbanStatusCounts(Array.isArray(firstPage) ? {} : firstPage.statusCounts || {});
+  setKanbanStatusCounts({});
   setKanbanLoadError(null);
   if (firstRows.length > 0) {
   setRows(firstRows);
@@ -3457,6 +3457,19 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   void loadTable();
   return () => { cancelled = true; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
+
+  useEffect(() => {
+  if (workspaceView !== 'kanban' || !tableId) return;
+  const statusColumnId = columns.find((column) => column.type === 'Status')?.id;
+  if (!statusColumnId) return;
+  const requestKey = `${tableId}:${statusColumnId}`;
+  if (kanbanCountsRequestRef.current === requestKey) return;
+  kanbanCountsRequestRef.current = requestKey;
+  void authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=1&offset=0&statusColumnId=${encodeURIComponent(statusColumnId)}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true })
+    .then((response) => response.ok ? response.json() : null)
+    .then((data) => { if (data?.statusCounts) setKanbanStatusCounts(data.statusCounts); })
+    .catch(() => { kanbanCountsRequestRef.current = null; });
+  }, [workspaceView, tableId, columns]);
 
   useEffect(() => {
     const container = tableContainerRef.current;
@@ -4623,6 +4636,15 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   && dismissedTaskIdRef.current !== mergedRow.id) {
   setReviewTaskSynced(mergedRow);
   }
+  }
+  if (col.type === 'Status' && String(previousValue || '') !== String(newValue || '')) {
+  const fromStatus = String(previousValue || '');
+  const toStatus = String(newValue || '');
+  setKanbanStatusCounts((current) => ({
+  ...current,
+  ...(fromStatus ? { [fromStatus]: Math.max(0, (current[fromStatus] || 0) - 1) } : {}),
+  ...(toStatus ? { [toStatus]: (current[toStatus] || 0) + 1 } : {}),
+  }));
   }
   if (cellSaveVersionsRef.current[saveKey] === saveVersion) {
   pendingCellValuesRef.current.delete(saveKey);
