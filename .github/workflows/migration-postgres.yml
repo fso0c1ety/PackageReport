@@ -36,4 +36,5 @@ jobs:
       - name: Run isolated PostgreSQL migration integration test
         env:
           DATABASE_URL: postgresql://smart_manage_test:smart_manage_test@localhost:5432/smart_manage_test
+          SMART_MANAGE_POSTGRES_INTEGRATION: "1"
         run: node --test test/migration-002-postgres.integration.js

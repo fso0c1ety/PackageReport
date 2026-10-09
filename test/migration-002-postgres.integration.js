@@ -4,19 +4,34 @@ const { Client } = require("pg");
 const { checksum } = require("../server/db/migrationUtils");
 const { executionSql } = require("../server/db/migrationExecution");
 
+const integrationEnabled = process.env.SMART_MANAGE_POSTGRES_INTEGRATION === "1";
+const integrationTest = integrationEnabled ? test : test.skip;
+
+function assertIntegrationEnvironment() {
+  if (!integrationEnabled) return;
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) throw new Error("SMART_MANAGE_POSTGRES_INTEGRATION requires DATABASE_URL");
+  const url = new URL(rawUrl);
+  const databaseName = decodeURIComponent(url.pathname.replace(/^\//, ""));
+  if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname) || databaseName !== "smart_manage_test") {
+    throw new Error("PostgreSQL integration is restricted to localhost database smart_manage_test");
+  }
+}
+
 const migration = require("node:fs").readFileSync("server/db/migrations/002_backfill_empty_workspaces.sql", "utf8");
 const historicalChecksum = checksum(migration);
 
-async function freshDatabase() {
-  const admin = new Client({ connectionString: process.env.DATABASE_URL });
-  await admin.connect();
-  await admin.query("DROP SCHEMA public CASCADE");
-  await admin.query("CREATE SCHEMA public");
-  await admin.end();
+async function assertFreshDatabase() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  const existing = await client.query("SELECT to_regclass('public.schema_migrations') AS migration_table");
+  await client.end();
+  assert.equal(existing.rows[0].migration_table, null, "integration database must start empty");
 }
 
-test("PostgreSQL 16 fresh bootstrap executes migration 002 as TIMESTAMPTZ", async () => {
-  await freshDatabase();
+integrationTest("PostgreSQL 16 fresh bootstrap executes migration 002 as TIMESTAMPTZ", async () => {
+  assertIntegrationEnvironment();
+  await assertFreshDatabase();
   process.env.MIGRATION_TARGET = "000_legacy_base_schema.sql";
   const { runMigrations } = require("../server/db/runMigrations");
   await runMigrations();
@@ -40,7 +55,8 @@ test("PostgreSQL 16 fresh bootstrap executes migration 002 as TIMESTAMPTZ", asyn
   assert.equal(stored.rows[0].checksum, historicalChecksum);
 });
 
-test("PostgreSQL 16 rerun accepts historical checksum and leaves rows unchanged", async () => {
+integrationTest("PostgreSQL 16 rerun accepts historical checksum and leaves rows unchanged", async () => {
+  assertIntegrationEnvironment();
   const { runMigrations } = require("../server/db/runMigrations");
   const beforeClient = new Client({ connectionString: process.env.DATABASE_URL });
   await beforeClient.connect();
@@ -57,7 +73,8 @@ test("PostgreSQL 16 rerun accepts historical checksum and leaves rows unchanged"
   assert.deepEqual(appliedAfter.rows, appliedBefore.rows);
 });
 
-test("executionSql only transforms the exact known migration expression", () => {
+integrationTest("executionSql only transforms the exact known migration expression", () => {
+  assertIntegrationEnvironment();
   assert.match(executionSql("002_backfill_empty_workspaces.sql", migration), /NOW\(\),/);
   assert.throws(() => executionSql("002_backfill_empty_workspaces.sql", "SELECT 1"), /did not match exactly once/);
   assert.equal(executionSql("001_core_saas_schema.sql", "SELECT 1"), "SELECT 1");
