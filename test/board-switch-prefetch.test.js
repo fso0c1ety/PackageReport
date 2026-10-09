@@ -21,11 +21,20 @@ test('workspace coalesces repeated hover/focus prefetches per board', () => {
 test('TableBoard keeps initial board transfer bounded and loads later pages on demand', () => {
   assert.match(board, /consumeCachedResponse: true/);
   assert.ok(board.includes('tasks?limit=100&offset=0'));
-  assert.ok(board.includes('tasks?limit=500&offset=${offset}'));
+  assert.ok(board.includes('tasks?limit=100&offset=${offset}'));
   assert.match(board, /loadMoreRowsRef\.current = async/);
   assert.match(board, /container\.scrollHeight - \(container\.scrollTop \+ container\.clientHeight\) < 600/);
   assert.match(board, /nextRowsOffsetRef\.current >= totalRowsRef\.current/);
   assert.doesNotMatch(board, /while \(!cancelled && offset < totalRows\)/);
+});
+
+test('Kanban columns progressively load more tasks without idle requests and show server totals', () => {
+  assert.match(board, /onScroll=\{\(event\) => \{/);
+  assert.match(board, /loadMoreRowsRef\.current\?\.\(\)/);
+  assert.match(board, /Load more/);
+  assert.match(board, /statusCounts/);
+  assert.match(board, /statusColumnId/);
+  assert.match(board, /loadingMoreRowsRef\.current/);
 });
 
 test('People selector merges authoritative current-workspace teammates', () => {
