@@ -1745,11 +1745,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const invoiceLogoInputRef = React.useRef<HTMLInputElement | null>(null);
   const invoiceStampInputRef = React.useRef<HTMLInputElement | null>(null);
   const [columnDragPreviewIds, setColumnDragPreviewIds] = useState<string[] | null>(null);
+  const [kanbanStatusCounts, setKanbanStatusCounts] = useState<Record<string, number>>({});
+  const [kanbanLoadError, setKanbanLoadError] = useState<string | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
   const loadMoreRowsRef = React.useRef<(() => Promise<void>) | null>(null);
+  const retryLoadTableRef = React.useRef<(() => void) | null>(null);
+  const kanbanCountsRequestRef = React.useRef<string | null>(null);
   const totalRowsRef = React.useRef(0);
   const nextRowsOffsetRef = React.useRef(0);
   const loadingMoreRowsRef = React.useRef(false);
+  const [hasMoreRows, setHasMoreRows] = useState(false);
   const [mobileTableHeight, setMobileTableHeight] = useState<number | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
   const columnDragOriginTopRef = React.useRef<number | null>(null);
@@ -3342,6 +3347,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!tableId) return;
   let cancelled = false;
   setLoading(true);
+  kanbanCountsRequestRef.current = null;
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
@@ -3374,21 +3380,22 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
 
   const loadTable = async () => {
+  setLoading(true);
+  setKanbanLoadError(null);
   try {
-  const [tableRes, firstRowsRes] = await Promise.all([
-  authenticatedFetch(getApiUrl(`/tables/${tableId}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
-  authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true }),
-  ]);
+  const tableRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
   if (tableRes.status === 403) {
   showNotification("You cant access this you are not the owner", "error");
   throw new Error("Forbidden");
   }
   if (!tableRes.ok) throw new Error("Failed to fetch table info");
+  const table = await tableRes.json();
+  const tableColumns = table.columns || [];
+  const firstRowsRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
   if (!firstRowsRes.ok) throw new Error(`Failed to fetch table tasks (${firstRowsRes.status})`);
 
-  const [table, firstPage] = await Promise.all([tableRes.json(), firstRowsRes.json()]);
+  const firstPage = await firstRowsRes.json();
   if (cancelled) return;
-  const tableColumns = table.columns || [];
   setBoardTitle(table.name);
   setColumns(tableColumns);
   setDocContent(table.docContent || "");
@@ -3404,6 +3411,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const totalRows = Array.isArray(firstPage) ? firstRows.length : Number(firstPage.total || 0);
   totalRowsRef.current = totalRows;
   nextRowsOffsetRef.current = firstRows.length;
+  setHasMoreRows(firstRows.length < totalRows);
+  setKanbanStatusCounts({});
+  setKanbanLoadError(null);
   if (firstRows.length > 0) {
   setRows(firstRows);
   } else if (totalRows === 0) {
@@ -3416,7 +3426,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   loadingMoreRowsRef.current = true;
   const offset = nextRowsOffsetRef.current;
   try {
-    const pageRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=500&offset=${offset}`));
+    const pageRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=${offset}`));
     if (!pageRes.ok) throw new Error(`Failed to fetch more table tasks (${pageRes.status})`);
     const page = await pageRes.json();
     const pageRows = normalizeRows(Array.isArray(page) ? page : page.rows || []);
@@ -3426,6 +3436,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
       return [...current.filter((row) => row.id !== 'placeholder'), ...pageRows.filter((row) => !existingIds.has(row.id))];
     });
     nextRowsOffsetRef.current += pageRows.length;
+    setHasMoreRows(nextRowsOffsetRef.current < totalRowsRef.current);
+    setKanbanLoadError(null);
+  } catch (error) {
+    setKanbanLoadError(error instanceof Error ? error.message : "Failed to load more tasks");
   } finally {
     loadingMoreRowsRef.current = false;
   }
@@ -3434,14 +3448,29 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!cancelled) {
   console.error("Failed to fetch table data", err);
   setRows([]);
-  setLoading(false);
+    setLoading(false);
+    setKanbanLoadError(err instanceof Error ? err.message : "Failed to load tasks");
   }
   }
   };
+  retryLoadTableRef.current = () => { void loadTable(); };
 
   void loadTable();
-  return () => { cancelled = true; loadMoreRowsRef.current = null; };
+  return () => { cancelled = true; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; kanbanCountsRequestRef.current = null; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
+
+  useEffect(() => {
+  if (workspaceView !== 'kanban' || !tableId) return;
+  const statusColumnId = columns.find((column) => column.type === 'Status')?.id;
+  if (!statusColumnId) return;
+  const requestKey = `${tableId}:${statusColumnId}`;
+  if (kanbanCountsRequestRef.current === requestKey) return;
+  kanbanCountsRequestRef.current = requestKey;
+  void authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=1&offset=0&statusColumnId=${encodeURIComponent(statusColumnId)}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true })
+    .then((response) => response.ok ? response.json() : null)
+    .then((data) => { if (data?.statusCounts) setKanbanStatusCounts(data.statusCounts); })
+    .catch(() => { kanbanCountsRequestRef.current = null; });
+  }, [workspaceView, tableId, columns]);
 
   useEffect(() => {
     const container = tableContainerRef.current;
@@ -4141,6 +4170,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const movedTask = currentRows.find((row) => row.id === movedTaskId);
 
   if (!movedTask) return;
+  if (hasMoreRows && sourceStatus === destinationStatus) {
+  showNotification('Load all tasks before reordering within a Kanban column.', 'info');
+  return;
+  }
 
   const updatedMovedTask: Row = {
   ...movedTask,
@@ -4171,14 +4204,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   nextRows.splice(Math.max(0, insertIndex), 0, updatedMovedTask);
-  const orderedNextRows = withSequentialRowOrder(nextRows);
+  const orderedNextRows = hasMoreRows ? nextRows : withSequentialRowOrder(nextRows);
   const orderedMovedTask = orderedNextRows.find((row) => row.id === movedTaskId) || updatedMovedTask;
   setRows(orderedNextRows);
   rowsRef.current = orderedNextRows;
   broadcastTableChange('row-order', {
   orderedTaskIds: orderedNextRows.map((row) => row.id).filter((id) => id !== 'placeholder'),
   });
-  await persistRowOrder(orderedNextRows).catch(err => {
+  if (!hasMoreRows) await persistRowOrder(orderedNextRows).catch(err => {
   console.error("Failed to persist kanban task order", err);
   setRows(currentRows);
   rowsRef.current = currentRows;
@@ -4198,6 +4231,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!response.ok) {
   throw new Error(`Failed to persist kanban task status (${response.status})`);
   }
+  setKanbanStatusCounts((current) => ({
+  ...current,
+  [sourceStatus]: Math.max(0, (current[sourceStatus] || 0) - 1),
+  [destinationStatus]: (current[destinationStatus] || 0) + 1,
+  }));
   } catch (err) {
   console.error("Failed to persist kanban task status during drag and drop", err);
   setRows(currentRows);
@@ -4599,6 +4637,15 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   && dismissedTaskIdRef.current !== mergedRow.id) {
   setReviewTaskSynced(mergedRow);
   }
+  }
+  if (col.type === 'Status' && String(previousValue || '') !== String(newValue || '')) {
+  const fromStatus = String(previousValue || '');
+  const toStatus = String(newValue || '');
+  setKanbanStatusCounts((current) => ({
+  ...current,
+  ...(fromStatus ? { [fromStatus]: Math.max(0, (current[fromStatus] || 0) - 1) } : {}),
+  ...(toStatus ? { [toStatus]: (current[toStatus] || 0) + 1 } : {}),
+  }));
   }
   if (cellSaveVersionsRef.current[saveKey] === saveVersion) {
   pendingCellValuesRef.current.delete(saveKey);
@@ -10312,6 +10359,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   method: "DELETE",
   });
   if (deleteResponse.ok) {
+  const deletedStatus = String(row.values?.[kanbanStatusColumn?.id || ''] || '');
+  if (deletedStatus) setKanbanStatusCounts((current) => ({ ...current, [deletedStatus]: Math.max(0, (current[deletedStatus] || 0) - 1) }));
   broadcastTableChange('row-change', { eventType: 'DELETE', rowId: row.id });
   }
   }
@@ -10955,6 +11004,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return (
   <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
   <Stack alignItems="center" spacing={2}>
+  {kanbanLoadError && (
+  <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => retryLoadTableRef.current?.()}>Retry</Button>}>
+  The board could not be loaded. Please try again.
+  </Alert>
+  )}
   <Box sx={{ bgcolor: theme.palette.background.default, p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 400 }}>
   <Typography variant="h6" sx={{ mb: 1, color: theme.palette.text.primary }}>No Status Column</Typography>
   <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
@@ -11016,8 +11070,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   minWidth: 24,
   textAlign: 'center'
   }}>
-  <Typography sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
-  {colTasks.length}
+      <Typography data-testid={`kanban-count-${opt.value}`} sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
+  {hasActiveFilters ? colTasks.length : (kanbanStatusCounts[opt.value] ?? colTasks.length)}
   </Typography>
   </Box>
   </Box>
@@ -11027,6 +11081,12 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <Box
   ref={provided.innerRef}
   {...provided.droppableProps}
+  onScroll={(event) => {
+    const target = event.currentTarget;
+    if (target.scrollHeight - (target.scrollTop + target.clientHeight) < 180) {
+      void loadMoreRowsRef.current?.();
+    }
+  }}
   sx={{
   flex: 1,
   overflowY: 'auto',
@@ -11052,7 +11112,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   return (
   <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={userPermission === 'read' || hasActiveFilters}>
   {(providedTask, snapshotTask) => (
-  <Paper
+  <Paper data-testid={`kanban-card-${task.id}`}
   ref={providedTask.innerRef}
   {...providedTask.draggableProps}
   {...providedTask.dragHandleProps}
@@ -11178,6 +11238,26 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   {provided.placeholder}
 
+  {hasMoreRows && (
+  <Button
+  size="small"
+  disabled={loadingMoreRowsRef.current}
+  onClick={() => { void loadMoreRowsRef.current?.(); }}
+  sx={{ textTransform: 'none', color: theme.palette.primary.main, justifyContent: 'center' }}
+  >
+  Load more
+  </Button>
+  )}
+
+  {kanbanLoadError && (
+  <Stack spacing={0.5} sx={{ px: 0.75, py: 0.5 }}>
+  <Typography variant="caption" color="error">{kanbanLoadError}</Typography>
+  <Button size="small" onClick={() => { setKanbanLoadError(null); void loadMoreRowsRef.current?.(); }} sx={{ textTransform: 'none' }}>
+  Retry
+  </Button>
+  </Stack>
+  )}
+
   {userPermission !== 'read' && (
   <Button
   startIcon={<AddIcon sx={{ fontSize: 18 }} />}
@@ -11206,6 +11286,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (res.ok) {
   const createdTask = await res.json();
   setRows(prev => [...prev, createdTask]);
+  setKanbanStatusCounts((current) => ({ ...current, [opt.value]: (current[opt.value] || 0) + 1 }));
   openReviewTask(createdTask);
   } else {
   console.error(`Failed to create task (${res.status})`);

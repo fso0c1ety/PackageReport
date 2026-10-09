@@ -1,0 +1,115 @@
+name: Kanban PostgreSQL E2E
+
+on:
+  pull_request:
+    paths:
+      - "src/app/TableBoard.tsx"
+      - "src/app/(dashboard)/workspace/page.tsx"
+      - "src/app/api/tables/**"
+      - "e2e/kanban-pagination.spec.ts"
+      - "scripts/bootstrap-kanban-postgres.mjs"
+      - "playwright.config.ts"
+      - "supabase/**"
+      - ".github/workflows/kanban-postgres-e2e.yml"
+
+jobs:
+  kanban-postgres-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_portal_acceptance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: kanban-ci-local-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CI: true
+      PORTAL_ACCEPTANCE_CI: "1"
+      KANBAN_E2E_ISOLATED: "1"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:kanban-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: "false"
+      E2E_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+      - name: Start isolated local Supabase services
+        shell: bash
+        run: |
+          supabase start
+          supabase status -o env > /tmp/supabase-status.env
+          sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"' | xargs -I{} echo "NEXT_PUBLIC_SUPABASE_URL={}" >> "$GITHUB_ENV"
+          sed -n 's/^ANON_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"' | xargs -I{} echo "NEXT_PUBLIC_SUPABASE_ANON_KEY={}" >> "$GITHUB_ENV"
+          sed -n 's/^SERVICE_ROLE_KEY=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"' | xargs -I{} echo "SUPABASE_SERVICE_ROLE_KEY={}" >> "$GITHUB_ENV"
+      - name: Generate isolated credentials
+        shell: bash
+        run: |
+          password="CiKanbanE2E$(node -e "process.stdout.write(String(Date.now()))")A1!"
+          echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "SMART_MANAGE_DEMO_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$password" >> "$GITHUB_ENV"
+      - name: Apply base schema migrations 000 and 001
+        shell: bash
+        run: |
+          MIGRATION_TARGET=000_legacy_base_schema.sql,001_core_saas_schema.sql npm run db:migrate
+      - name: Apply calendar baseline prerequisite 035
+        shell: bash
+        run: |
+          MIGRATION_TARGET=035_calendar_events_baseline.sql npm run db:migrate
+      - name: Bootstrap verified local migration prerequisites
+        run: node scripts/bootstrap-kanban-postgres.mjs
+      - name: Apply remaining migrations except historical 002
+        shell: bash
+        run: |
+          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v -E '^(000_legacy_base_schema|001_core_saas_schema|002_backfill_empty_workspaces|035_calendar_events_baseline)[.]sql$' | paste -sd, -)"
+          test -n "$targets"
+          MIGRATION_TARGET="$targets" npm run db:migrate
+      - name: Verify base migration records are retained
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const url = process.env.DATABASE_URL || '';
+          const parsed = new URL(url);
+          if (!['localhost', '127.0.0.1', '::1'].includes(parsed.hostname) || !/kanban|acceptance|test/i.test(parsed.pathname)) throw new Error('Non-local database refused');
+          const client = new pg.Client({ connectionString: url, ssl: false });
+          await client.connect();
+          const result = await client.query("SELECT filename, checksum FROM schema_migrations WHERE filename IN ('000_legacy_base_schema.sql','001_core_saas_schema.sql','035_calendar_events_baseline.sql') ORDER BY filename");
+          await client.end();
+          if (result.rowCount !== 3) throw new Error(`Expected prerequisite migration records, got ${result.rowCount}`);
+          const expectedFiles = ['000_legacy_base_schema.sql','001_core_saas_schema.sql','035_calendar_events_baseline.sql'];
+          const crypto = await import('node:crypto');
+          const fs = await import('node:fs/promises');
+          for (const file of expectedFiles) {
+            const expected = crypto.createHash('sha256').update(await fs.readFile(`server/db/migrations/${file}`)).digest('hex');
+            const actual = result.rows.find((row) => row.filename === file)?.checksum;
+            if (actual !== expected) throw new Error(`Checksum mismatch for ${file}`);
+          }
+          console.log(JSON.stringify(result.rows));
+          NODE
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start application server
+        shell: bash
+        run: |
+          nohup npx next start -p 3000 -H 127.0.0.1 > /tmp/kanban-e2e-server.log 2>&1 &
+          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+          curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null
+      - name: Run Kanban Playwright suite
+        run: |
+          output="$(npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 2>&1)" || { printf '%s\n' "$output"; exit 1; }
+          printf '%s\n' "$output"
+          echo "$output" | grep -Eq '[1-9][0-9]* passed'
