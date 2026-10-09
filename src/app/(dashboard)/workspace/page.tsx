@@ -180,10 +180,16 @@ function WorkspaceContent() {
     if (!tableId) return;
     const existing = prefetchesRef.current.get(tableId);
     if (existing) return;
-    const request = Promise.all([
-      authenticatedFetch(getApiUrl(`tables/${tableId}`), { responseCacheTtlMs: 60_000 }),
-      authenticatedFetch(getApiUrl(`tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000 }),
-    ]).then(() => undefined);
+    const request = authenticatedFetch(getApiUrl(`tables/${tableId}`), { responseCacheTtlMs: 60_000 })
+      .then(async (tableResponse) => {
+        if (!tableResponse.ok) throw new Error(`Failed to prefetch table (${tableResponse.status})`);
+        const table = await tableResponse.json();
+        const statusColumnId = Array.isArray(table.columns)
+          ? table.columns.find((column: any) => column.type === 'Status')?.id
+          : undefined;
+        return authenticatedFetch(getApiUrl(`tables/${tableId}/tasks?limit=100&offset=0${statusColumnId ? `&statusColumnId=${encodeURIComponent(statusColumnId)}` : ''}`), { responseCacheTtlMs: 60_000 });
+      })
+      .then(() => undefined);
     prefetchesRef.current.set(tableId, request);
     void request.catch(() => {
       if (prefetchesRef.current.get(tableId) === request) prefetchesRef.current.delete(tableId);

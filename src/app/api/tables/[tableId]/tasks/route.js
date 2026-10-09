@@ -548,6 +548,12 @@ export async function GET(req, { params }) {
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
+    if (statusColumnId) {
+      const statusColumn = (Array.isArray(table.columns) ? table.columns : []).find((column) => String(column.id) === statusColumnId);
+      if (!statusColumn || statusColumn.type !== "Status") {
+        return NextResponse.json({ error: "Invalid status column" }, { status: 400 });
+      }
+    }
 
     const queryStart = Date.now();
     let result;

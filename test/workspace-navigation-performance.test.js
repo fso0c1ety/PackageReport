@@ -50,4 +50,6 @@ test('task pagination can return authorized Kanban status totals in the same res
   assert.match(tasksRouteSource, /statusCounts/);
   assert.match(tasksRouteSource, /const statusExpression/);
   assert.match(tasksRouteSource, /smart_manage_row_visible/);
+  assert.match(tasksRouteSource, /Invalid status column/);
+  assert.match(tasksRouteSource, /statusColumn\.type !== "Status"/);
 });

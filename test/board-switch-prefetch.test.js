@@ -35,6 +35,14 @@ test('Kanban columns progressively load more tasks without idle requests and sho
   assert.match(board, /statusCounts/);
   assert.match(board, /statusColumnId/);
   assert.match(board, /loadingMoreRowsRef\.current/);
+  assert.match(board, /retryLoadTableRef\.current/);
+  assert.match(board, /Load all tasks before reordering/);
+});
+
+test('workspace prefetch uses the same status-aware first-page cache key as TableBoard', () => {
+  const workspace = fs.readFileSync('src/app/(dashboard)/workspace/page.tsx', 'utf8');
+  assert.match(workspace, /statusColumnId/);
+  assert.match(workspace, /tasks\?limit=100&offset=0\$\{statusColumnId/);
 });
 
 test('People selector merges authoritative current-workspace teammates', () => {
