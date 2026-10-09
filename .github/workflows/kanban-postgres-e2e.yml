@@ -59,15 +59,33 @@ jobs:
           echo "SMART_MANAGE_PORTAL_TEST_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "SMART_MANAGE_DEMO_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "JWT_SECRET=$password" >> "$GITHUB_ENV"
-      - name: Exclude historical migration 002 from Kanban fixture bootstrap
+      - name: Apply base schema migrations 000 and 001
         shell: bash
         run: |
-          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v '^002_backfill_empty_workspaces[.]sql$' | paste -sd, -)"
-          test -n "$targets"
-          echo "MIGRATION_TARGET=$targets" >> "$GITHUB_ENV"
+          MIGRATION_TARGET=000_legacy_base_schema.sql,001_core_saas_schema.sql npm run db:migrate
       - name: Bootstrap verified local migration prerequisites
         run: node scripts/bootstrap-kanban-postgres.mjs
-      - run: npm run db:migrate
+      - name: Apply remaining migrations except historical 002
+        shell: bash
+        run: |
+          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v -E '^(000_legacy_base_schema|001_core_saas_schema|002_backfill_empty_workspaces)[.]sql$' | paste -sd, -)"
+          test -n "$targets"
+          MIGRATION_TARGET="$targets" npm run db:migrate
+      - name: Verify base migration records are retained
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const url = process.env.DATABASE_URL || '';
+          const parsed = new URL(url);
+          if (!['localhost', '127.0.0.1', '::1'].includes(parsed.hostname) || !/kanban|acceptance|test/i.test(parsed.pathname)) throw new Error('Non-local database refused');
+          const client = new pg.Client({ connectionString: url, ssl: false });
+          await client.connect();
+          const result = await client.query("SELECT filename FROM schema_migrations WHERE filename IN ('000_legacy_base_schema.sql','001_core_saas_schema.sql') ORDER BY filename");
+          await client.end();
+          if (result.rowCount !== 2) throw new Error(`Expected base migration records, got ${result.rowCount}`);
+          console.log(JSON.stringify(result.rows));
+          NODE
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
       - run: npm run build
