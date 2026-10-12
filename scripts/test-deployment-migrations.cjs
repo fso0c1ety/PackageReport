@@ -51,7 +51,9 @@ async function main() {
     const after = (await client.query('SELECT * FROM schema_migrations ORDER BY filename')).rows;
     assert.deepEqual(after, before);
     assert.deepEqual((await client.query("SELECT * FROM marketplace_templates WHERE id='safety-template'")).rows, dataBefore);
-    assert.deepEqual(after.map(r => r.filename), files);
+    // Compare membership in the runner's JavaScript sort order; PostgreSQL
+    // locale collation can place 031a before 031_ in an ORDER BY result.
+    assert.deepEqual(after.map(r => r.filename).sort(), files);
     for (const row of after) assert.equal(row.checksum, checksum(fs.readFileSync(`server/db/migrations/${row.filename}`, 'utf8')));
     console.log(JSON.stringify({ scenario, migrations: after.length, checksumsPreserved: true, dataPreserved: true, rerun: 'PASS' }));
   } finally { await client.end(); }
