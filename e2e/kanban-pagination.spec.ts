@@ -126,12 +126,27 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           let failedOnce = false;
           let failedRequests = 0;
           let successfulRetryRequests = 0;
+          const paginationPath = `/api/tables/${fixture.tableId}/tasks`;
+          const failedRequest = new Promise<void>((resolve, reject) => {
+            const onFailed = (request: any) => {
+              if (!request.url().includes(`${paginationPath}?limit=100&offset=100`)) return;
+              if (request.failure()?.errorText) resolve();
+            };
+            page.on("requestfailed", onFailed);
+            setTimeout(() => {
+              page.off("requestfailed", onFailed);
+              reject(new Error("Expected the offset=100 pagination request to fail"));
+            }, 10_000);
+          });
           await page.route(`**/api/tables/${fixture.tableId}/tasks**`, async route => {
-            if (!failedOnce) { failedOnce = true; failedRequests += 1; await route.abort("connectionreset"); return; }
+            const requestUrl = new URL(route.request().url());
+            const isFirstPaginationPage = requestUrl.pathname === paginationPath && requestUrl.searchParams.get("offset") === "100";
+            if (isFirstPaginationPage && !failedOnce) { failedOnce = true; failedRequests += 1; await route.abort("connectionreset"); return; }
             successfulRetryRequests += 1;
             await route.continue();
           });
           await page.getByRole("button", { name: "Load more" }).first().click();
+          await failedRequest;
           await expect(page.getByRole("button", { name: "Retry" }).first()).toBeVisible({ timeout: 10_000 });
           await page.getByRole("button", { name: "Retry" }).first().click();
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(size);
