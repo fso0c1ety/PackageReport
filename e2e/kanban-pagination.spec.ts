@@ -100,16 +100,14 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   test.setTimeout(240_000);
   test.skip(!password || !isolated || !databaseUrl, "Requires the isolated Kanban PostgreSQL workflow");
 
-  test("loads every fixture size on demand and measures browser idle traffic", async ({ browser, baseURL }) => {
+  for (const size of sizes) {
+    test(`${size} tasks: progressive pagination, retry and idle traffic`, async ({ browser, baseURL }) => {
     test.skip(test.info().project.name !== "desktop-1440", "Focused desktop functional flow");
     assertLocalDatabase(databaseUrl);
     const { context, userId } = await login(browser, baseURL!);
-    const pages: Page[] = [];
+    const fixture = await seedBoard(userId, size);
+    const page = await context.newPage();
     try {
-      for (const size of sizes) {
-        const fixture = await seedBoard(userId, size);
-        const page = await context.newPage();
-        pages.push(page);
         const taskRequests: string[] = [];
         const taskEvents: string[] = [];
         const taskUrl = (url: string) => {
@@ -196,18 +194,18 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         const beforeIdle = taskRequests.length;
         await page.waitForTimeout(10_000);
         expect(taskRequests.length).toBe(beforeIdle);
+        console.log(`[kanban-e2e] size=${size} loaded=${await loadedTasks(page, fixture.marker)} requests=${taskRequests.length} idle-new-requests=${taskRequests.length - beforeIdle}`);
 
         if (size === 101) {
           await page.getByText(fixture.boardName, { exact: true }).click();
           await expect(page.getByText(`${fixture.marker} Task 0101`, { exact: true })).toBeVisible();
         }
-        await fixture.client.query("DELETE FROM workspaces WHERE id=$1", [fixture.workspaceId]);
-        await fixture.client.end();
-        await page.close();
-      }
     } finally {
-      for (const page of pages) await page.close().catch(() => undefined);
+      await fixture.client.query("DELETE FROM workspaces WHERE id=$1", [fixture.workspaceId]).catch(() => undefined);
+      await fixture.client.end().catch(() => undefined);
+      await page.close().catch(() => undefined);
       await context.close();
     }
-  });
+    });
+  }
 });

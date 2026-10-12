@@ -109,7 +109,12 @@ jobs:
           for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
           curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null
       - name: Run Kanban Playwright suite
+        shell: bash
         run: |
-          output="$(npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 2>&1)" || { printf '%s\n' "$output"; exit 1; }
-          printf '%s\n' "$output"
-          echo "$output" | grep -Eq '[1-9][0-9]* passed'
+          set -o pipefail
+          npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 2>&1 | tee /tmp/kanban-playwright.log
+          playwright_status=${PIPESTATUS[0]}
+          if [ "$playwright_status" -ne 0 ]; then
+            exit "$playwright_status"
+          fi
+          grep -Eq '[1-9][0-9]* passed' /tmp/kanban-playwright.log
