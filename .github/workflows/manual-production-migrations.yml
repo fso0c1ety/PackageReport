@@ -35,7 +35,16 @@ jobs:
             const rule = environment.protection_rules?.find(r => r.type === 'required_reviewers');
             if (!Array.isArray(rule?.reviewers) || !rule.reviewers.length || !rule.reviewers.every(r => ['User','Team'].includes(r.type) && Number.isInteger(r.reviewer?.id)) || rule.prevent_self_review !== true || environment.can_admins_bypass !== false) throw new Error('Production reviewer/self-review/bypass protection missing');
             const {data:branch} = await github.rest.repos.getBranch({...repo,branch:'main'});
-            if (branch.protected !== true) throw new Error('Main branch must be protected');
+            if (branch.protected !== true) throw new Error('BLOCKED: Main branch must be protected');
+            const required = ['test','portal-acceptance','kanban-postgres-e2e','clean-install','local-safety','benchmark'];
+            const checks = branch.protection?.required_status_checks;
+            let contexts = [...(Array.isArray(checks?.contexts) ? checks.contexts : []), ...(Array.isArray(checks?.checks) ? checks.checks.map(c => c.context) : [])];
+            if (!required.every(name => contexts.includes(name))) {
+              const {data:rules} = await github.request('GET /repos/{owner}/{repo}/rules/branches/{branch}', {...repo,branch:'main'});
+              if (!Array.isArray(rules)) throw new Error('BLOCKED: Effective rules response malformed');
+              contexts = contexts.concat(rules.filter(r => r.type === 'required_status_checks').flatMap(r => Array.isArray(r.parameters?.required_status_checks) ? r.parameters.required_status_checks.map(c => c.context) : []));
+            }
+            if (!required.every(name => contexts.includes(name))) throw new Error('BLOCKED: Required status checks are missing or incomplete');
   migrate:
     needs: protection-preflight
     environment: production

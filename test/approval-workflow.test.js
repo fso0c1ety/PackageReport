@@ -11,10 +11,12 @@ for(let i=0;i<lines.length;i++) if(lines[i]==='          script: |') {
 const sha='a'.repeat(40);
 const env={id:42,name:'Production',can_admins_bypass:false,protection_rules:[{type:'required_reviewers',prevent_self_review:true,reviewers:[{type:'User',reviewer:{id:2,login:'reviewer'}}]}]};
 const context={repo:{owner:'test',repo:'isolated'},ref:'refs/heads/main',sha,actor:'initiator',runId:12};
-function run(index,{environment=env,branch={protected:true},reviews=[{state:'approved',user:{id:2,login:'reviewer'},environments:[{id:42,name:'Production'}]}],status,errorStage='environment',actor='initiator',runAttempt=1,triggeringActor='initiator'}={}) {
+const requiredContexts=['test','portal-acceptance','kanban-postgres-e2e','clean-install','local-safety','benchmark'];
+const protectedBranch={protected:true,protection:{required_status_checks:{contexts:requiredContexts}}};
+function run(index,{environment=env,branch=protectedBranch,rules=[],reviews=[{state:'approved',user:{id:2,login:'reviewer'},environments:[{id:42,name:'Production'}]}],status,errorStage='environment',actor='initiator',runAttempt=1,triggeringActor='initiator'}={}) {
   const calls=[];
   const failure=()=>{const error=new Error('permission denied');error.status=status;throw error;};
-  const github={rest:{actions:{getWorkflowRun:async()=>{if(status&&errorStage==='run')failure();return {data:{run_attempt:runAttempt,actor:{login:'initiator'},triggering_actor:{login:triggeringActor}}};}},repos:{getEnvironment:async()=>{calls.push('environment');if(status&&errorStage==='environment')failure();return {data:environment};},getBranch:async()=>{calls.push('branch');if(status&&errorStage==='branch')failure();return {data:branch};}}},request:async()=>{calls.push('approvals');if(status&&errorStage==='approvals')failure();return {data:reviews};}};
+  const github={rest:{actions:{getWorkflowRun:async()=>{if(status&&errorStage==='run')failure();return {data:{run_attempt:runAttempt,actor:{login:'initiator'},triggering_actor:{login:triggeringActor}}};}},repos:{getEnvironment:async()=>{calls.push('environment');if(status&&errorStage==='environment')failure();return {data:environment};},getBranch:async()=>{calls.push('branch');if(status&&errorStage==='branch')failure();return {data:branch};}}},request:async(route)=>{if(route.includes('rules/branches')){if(status&&errorStage==='rules')failure();return {data:rules};}calls.push('approvals');if(status&&errorStage==='approvals')failure();return {data:reviews};}};
   return vm.runInNewContext(`(async()=>{${scripts[index]}})()`,{github,context:{...context,actor},process:{env:{ENABLED:'1',APPROVED_SHA:sha}}});
 }
 test('preflight accepts documented GitHub environment response with protections',async()=>{await run(0);});
@@ -43,4 +45,22 @@ test('credentials occur only in final migration step after approval gate',()=>{
   assert.equal(before.includes('secrets.'),false);
   assert.match(workflow,/needs: protection-preflight/);
   assert.match(workflow,/environment: production/);
+});
+test('missing branch protection and status checks explicitly report BLOCKED',async()=>{
+  await assert.rejects(()=>run(0,{branch:{protected:false}}),/BLOCKED/);
+  await assert.rejects(()=>run(0,{branch:{protected:true}}),/BLOCKED.*status checks/);
+  await assert.rejects(()=>run(0,{branch:{protected:true,protection:{required_status_checks:{contexts:['test']}}}}),/BLOCKED.*status checks/);
+});
+test('effective Rulesets satisfy required checks with documented context fields',async()=>{
+  await run(0,{branch:{protected:true},rules:[{type:'required_status_checks',parameters:{required_status_checks:requiredContexts.map(context=>({context,integration_id:1}))}}]});
+});
+for(const status of [403,404]) test(`missing permissions on Rulesets HTTP ${status} fail closed`,async()=>{
+  await assert.rejects(()=>run(0,{branch:{protected:true},status,errorStage:'rules'}));
+});
+test('matching environment name with wrong ID is refused',async()=>{
+  await assert.rejects(()=>run(1,{reviews:[{state:'approved',user:{id:2,login:'reviewer'},environments:[{id:43,name:'Production'}]}]}));
+});
+test('empty login and missing environment ID are refused',async()=>{
+  await assert.rejects(()=>run(1,{reviews:[{state:'approved',user:{id:2,login:''},environments:[{id:42,name:'Production'}]}]}));
+  await assert.rejects(()=>run(1,{reviews:[{state:'approved',user:{id:2,login:'reviewer'},environments:[{name:'Production'}]}]}));
 });
