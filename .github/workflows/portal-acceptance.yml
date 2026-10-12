@@ -70,7 +70,22 @@ jobs:
             echo "SMART_MANAGE_DEMO_PASSWORD=$password"
             echo "JWT_SECRET=$password"
           } >> "$GITHUB_ENV"
-      - run: npm run db:migrate
+      - name: Apply base schema migrations 000 and 001
+        shell: bash
+        run: |
+          MIGRATION_TARGET=000_legacy_base_schema.sql,001_core_saas_schema.sql npm run db:migrate
+      - name: Apply calendar baseline prerequisite 035
+        shell: bash
+        run: |
+          MIGRATION_TARGET=035_calendar_events_baseline.sql npm run db:migrate
+      - name: Bootstrap isolated marketplace prerequisites
+        run: node scripts/bootstrap-portal-acceptance.mjs
+      - name: Apply remaining migrations without historical 002 or prerequisites
+        shell: bash
+        run: |
+          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v -E '^(000_legacy_base_schema|001_core_saas_schema|035_calendar_events_baseline)[.]sql$' | paste -sd, -)"
+          test -n "$targets"
+          MIGRATION_TARGET="$targets" npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
       - name: Verify local Supabase Realtime
