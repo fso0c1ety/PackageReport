@@ -84,6 +84,7 @@ async function chooseKanban(page: Page, boardName: string) {
   const viewMenu = page.getByRole("menu");
   await viewMenu.getByText("Kanban", { exact: true }).click();
   await expect(viewMenu).toBeHidden({ timeout: 5_000 });
+  await expect(page.locator(".MuiPopover-root.MuiMenu-root")).toHaveCount(0, { timeout: 5_000 });
   await expect(page.locator('[data-rfd-droppable-id^="kanban:"]').first()).toBeVisible({ timeout: 30_000 });
 }
 
