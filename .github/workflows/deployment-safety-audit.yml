@@ -1,0 +1,36 @@
+name: Isolated Deployment Migration Safety
+on:
+  push:
+    branches: [audit/production-deployment-safety]
+jobs:
+  migration-scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [fresh, existing, partial-013, partial-032, production-target-fresh]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_safety_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: safety-local-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_safety_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:safety-local-only@127.0.0.1:5432/smart_manage_safety_test
+      DEPLOYMENT_SAFETY_TEST: '1'
+      SAFETY_SCENARIO: ${{ matrix.scenario }}
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/test-deployment-migrations.cjs
