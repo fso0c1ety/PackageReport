@@ -115,7 +115,8 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
-            return parsed.pathname === `/api/tables/${fixture.tableId}/tasks` ? parsed : null;
+            const pathname = parsed.pathname.replace(/\/+$/, "");
+            return pathname === `/api/tables/${fixture.tableId}/tasks` ? parsed : null;
           } catch {
             return null;
           }
@@ -155,7 +156,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           const failedRequest = new Promise<void>((resolve, reject) => {
             const onFailed = (request: import("@playwright/test").Request) => {
               const parsed = new URL(request.url());
-              if (parsed.pathname !== paginationPath || parsed.searchParams.get("offset") !== "100") return;
+              if (parsed.pathname.replace(/\/+$/, "") !== paginationPath || parsed.searchParams.get("offset") !== "100") return;
               if (request.failure()?.errorText) resolve();
             };
             page.on("requestfailed", onFailed);
@@ -166,7 +167,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           });
           await page.route(`**/api/tables/${fixture.tableId}/tasks**`, async route => {
             const requestUrl = new URL(route.request().url());
-            const isFirstPaginationPage = requestUrl.pathname === paginationPath && requestUrl.searchParams.get("offset") === "100";
+            const isFirstPaginationPage = requestUrl.pathname.replace(/\/+$/, "") === paginationPath && requestUrl.searchParams.get("offset") === "100";
             if (isFirstPaginationPage && !failedOnce) { failedOnce = true; failedRequests += 1; await route.abort("connectionreset"); return; }
             successfulRetryRequests += 1;
             await route.continue();
