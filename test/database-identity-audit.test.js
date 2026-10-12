@@ -8,6 +8,6 @@ test('CLI performs only offline reads and crypto, without database or network mo
   const vm=require('node:vm');const fs=require('node:fs');const output=[];const moduleObject={exports:{}};
   const offlineRequire=name=>{assert.ok(['node:fs','node:crypto'].includes(name),`Unexpected connection-capable import: ${name}`);return name==='node:fs'?{readFileSync:()=>JSON.stringify(identities)}:require(name);};
   offlineRequire.main=moduleObject;
-  vm.runInNewContext(fs.readFileSync('scripts/database-identity-audit.cjs','utf8'),{require:offlineRequire,module:moduleObject,process:{argv:['node','script','fictional.json'],env:{IDENTITY_AUDIT_KEY:'k'.repeat(32)}},console:{log:text=>output.push(text),error:text=>output.push(text)}});
+  vm.runInNewContext(fs.readFileSync('scripts/database-identity-audit.cjs','utf8'),{URL,require:offlineRequire,module:moduleObject,process:{argv:['node','script','fictional.json'],env:{IDENTITY_AUDIT_KEY:'k'.repeat(32)}},console:{log:text=>output.push(text),error:text=>output.push(text)}});
   const report=JSON.parse(output[0]);assert.equal(report.liveDatabaseIdentityVerified,false);assert.equal(report.mode,'offline-config-only');assert.equal(output.join('').includes('DO_NOT_PRINT'),false);assert.equal(output.join('').includes('postgresql:'),false);
 });
