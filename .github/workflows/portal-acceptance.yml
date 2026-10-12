@@ -12,6 +12,7 @@ on:
       - "supabase/config.toml"
       - "e2e/portal-*.spec.ts"
       - ".github/workflows/portal-acceptance.yml"
+      - "server/db/migrations/**"
 
 jobs:
   portal-acceptance:
@@ -34,8 +35,11 @@ jobs:
       DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: "false"
       E2E_BASE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -70,22 +74,8 @@ jobs:
             echo "SMART_MANAGE_DEMO_PASSWORD=$password"
             echo "JWT_SECRET=$password"
           } >> "$GITHUB_ENV"
-      - name: Apply base schema migrations 000 and 001
-        shell: bash
-        run: |
-          MIGRATION_TARGET=000_legacy_base_schema.sql,001_core_saas_schema.sql npm run db:migrate
-      - name: Apply calendar baseline prerequisite 035
-        shell: bash
-        run: |
-          MIGRATION_TARGET=035_calendar_events_baseline.sql npm run db:migrate
-      - name: Bootstrap isolated marketplace prerequisites
-        run: node scripts/bootstrap-portal-acceptance.mjs
-      - name: Apply remaining migrations without historical 002 or prerequisites
-        shell: bash
-        run: |
-          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | grep -v -E '^(000_legacy_base_schema|001_core_saas_schema|035_calendar_events_baseline)[.]sql$' | paste -sd, -)"
-          test -n "$targets"
-          MIGRATION_TARGET="$targets" npm run db:migrate
+      - name: Apply complete normal migration chain without bootstrap
+        run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
       - name: Verify local Supabase Realtime

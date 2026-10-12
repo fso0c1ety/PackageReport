@@ -9,6 +9,8 @@ on:
       - "server/db/migrationUtils.js"
       - "test/migration-marketplace-postgres.integration.js"
       - ".github/workflows/migration-clean-install.yml"
+      - ".github/workflows/portal-acceptance.yml"
+      - ".github/workflows/quality.yml"
 
 jobs:
   clean-install:
@@ -30,6 +32,8 @@ jobs:
       SMART_MANAGE_MARKETPLACE_INTEGRATION: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
