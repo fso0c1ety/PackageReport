@@ -15,6 +15,7 @@ on:
 jobs:
   kanban-postgres-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     services:
       postgres:
         image: postgres:16
@@ -111,10 +112,22 @@ jobs:
       - name: Run Kanban Playwright suite
         shell: bash
         run: |
+          echo "KANBAN_E2E_START $(date -u +%Y-%m-%dT%H:%M:%SZ) fixtures=50,100,101,500,1100"
           set -o pipefail
           npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 2>&1 | tee /tmp/kanban-playwright.log
           playwright_status=${PIPESTATUS[0]}
+          echo "KANBAN_E2E_END $(date -u +%Y-%m-%dT%H:%M:%SZ) status=${playwright_status}"
           if [ "$playwright_status" -ne 0 ]; then
             exit "$playwright_status"
           fi
           grep -Eq '[1-9][0-9]* passed' /tmp/kanban-playwright.log
+      - name: Upload Kanban Playwright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kanban-playwright-diagnostics
+          if-no-files-found: warn
+          path: |
+            test-results/
+            playwright-report/
+            /tmp/kanban-playwright.log
