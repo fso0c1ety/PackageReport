@@ -560,7 +560,7 @@ export async function GET(req, { params }) {
     let countResult;
     let statusCounts = null;
     if (table.legacy_authorization) {
-      const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
+      const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC", [tableId]);
       const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
       result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
       countResult = { rows: [{ total: visibleRows.length }] };
@@ -579,7 +579,7 @@ export async function GET(req, { params }) {
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
         result = await readPool.query(
-          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
@@ -590,7 +590,7 @@ export async function GET(req, { params }) {
         countResult = { rows: [{ total }] };
       } else {
         result = await readPool.query(
-          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
+          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC`,
           visibilityParams
         );
         countResult = { rows: [{ total: 0 }] };

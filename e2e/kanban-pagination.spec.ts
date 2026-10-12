@@ -149,7 +149,9 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         if (size === 101) {
           let failedOnce = false;
           let failedRequests = 0;
+          let blockedBeforeRetry = 0;
           let successfulRetryRequests = 0;
+          let retryTriggered = false;
           const paginationPath = `/api/tables/${fixture.tableId}/tasks`;
           const failedRequest = new Promise<void>((resolve, reject) => {
             const onFailed = (request: import("@playwright/test").Request) => {
@@ -166,18 +168,24 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           await page.route(`**/api/tables/${fixture.tableId}/tasks**`, async route => {
             const requestUrl = new URL(route.request().url());
             const isFirstPaginationPage = requestUrl.pathname.replace(/\/+$/, "") === paginationPath && requestUrl.searchParams.get("offset") === "100";
-            if (isFirstPaginationPage && !failedOnce) { failedOnce = true; failedRequests += 1; await route.abort("connectionreset"); return; }
-            successfulRetryRequests += 1;
+            if (isFirstPaginationPage && !retryTriggered) {
+              if (!failedOnce) { failedOnce = true; failedRequests += 1; }
+              else blockedBeforeRetry += 1;
+              await route.abort("connectionreset");
+              return;
+            }
+            if (isFirstPaginationPage) successfulRetryRequests += 1;
             await route.continue();
           });
           await page.getByRole("button", { name: "Load more" }).first().click();
           await failedRequest;
           await expect(page.getByRole("button", { name: "Retry" }).first()).toBeVisible({ timeout: 10_000 });
+          retryTriggered = true;
           await page.getByRole("button", { name: "Retry" }).first().click();
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(size);
           expect(failedRequests).toBe(1);
           expect(successfulRetryRequests).toBe(1);
-          console.log(`[kanban-e2e] size=${size} task-events=${JSON.stringify(taskEvents)}`);
+          console.log(`[kanban-e2e] size=${size} failed-pagination=${failedRequests} blocked-before-retry=${blockedBeforeRetry} successful-retry=${successfulRetryRequests} task-events=${JSON.stringify(taskEvents)}`);
           await page.unroute(`**/api/tables/${fixture.tableId}/tasks**`);
         }
 
