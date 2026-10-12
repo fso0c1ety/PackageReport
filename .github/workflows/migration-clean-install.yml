@@ -7,6 +7,7 @@ on:
       - "server/db/runMigrations.js"
       - "server/db/migrationExecution.js"
       - "server/db/migrationUtils.js"
+      - "test/migration-marketplace-postgres.integration.js"
       - ".github/workflows/migration-clean-install.yml"
 
 jobs:
@@ -34,10 +35,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify PostgreSQL 16 starts completely empty
+        run: MIGRATION_TEST_PHASE=empty node --test test/migration-marketplace-postgres.integration.js
       - name: Run the complete migration chain on an empty database
         run: npm run db:migrate
       - name: Verify migration order and schema
-        run: node --test test/migrations.test.js test/migration-marketplace-postgres.integration.js
+        run: MIGRATION_TEST_PHASE=migrated node --test test/migrations.test.js test/migration-marketplace-postgres.integration.js
       - name: Rerun the complete migration chain
         run: npm run db:migrate
       - name: Verify existing database remains stable
