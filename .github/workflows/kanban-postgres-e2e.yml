@@ -35,6 +35,11 @@ jobs:
       DATABASE_URL: postgresql://postgres:kanban-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: "false"
       E2E_BASE_URL: http://127.0.0.1:3000
+      # The Kanban application server is the isolated local API for this job.
+      # Setting this at build time prevents the normal LAN-dev 4000 -> 3000
+      # fallback from being counted as a second request in the main E2E flow.
+      # Production and preview builds do not inherit this CI-only value.
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
