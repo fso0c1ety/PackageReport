@@ -111,8 +111,33 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         const page = await context.newPage();
         pages.push(page);
         const taskRequests: string[] = [];
+        const taskEvents: string[] = [];
+        const taskUrl = (url: string) => {
+          try {
+            const parsed = new URL(url);
+            return parsed.pathname === `/api/tables/${fixture.tableId}/tasks` ? parsed : null;
+          } catch {
+            return null;
+          }
+        };
         page.on("request", request => {
-          if (request.method() === "GET" && request.url().includes(`/tables/${fixture.tableId}/tasks`)) taskRequests.push(request.url());
+          const parsed = taskUrl(request.url());
+          if (request.method() === "GET" && parsed) {
+            taskRequests.push(request.url());
+            taskEvents.push(`request ${parsed.toString()}`);
+          }
+        });
+        page.on("requestfailed", request => {
+          const parsed = taskUrl(request.url());
+          if (parsed) taskEvents.push(`requestfailed ${parsed.toString()} ${request.failure()?.errorText || "unknown"}`);
+        });
+        page.on("requestfinished", request => {
+          const parsed = taskUrl(request.url());
+          if (parsed) taskEvents.push(`requestfinished ${parsed.toString()}`);
+        });
+        page.on("response", response => {
+          const parsed = taskUrl(response.url());
+          if (parsed) taskEvents.push(`response ${response.status()} ${parsed.toString()}`);
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
@@ -128,14 +153,15 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           let successfulRetryRequests = 0;
           const paginationPath = `/api/tables/${fixture.tableId}/tasks`;
           const failedRequest = new Promise<void>((resolve, reject) => {
-            const onFailed = (request: any) => {
-              if (!request.url().includes(`${paginationPath}?limit=100&offset=100`)) return;
+            const onFailed = (request: import("@playwright/test").Request) => {
+              const parsed = new URL(request.url());
+              if (parsed.pathname !== paginationPath || parsed.searchParams.get("offset") !== "100") return;
               if (request.failure()?.errorText) resolve();
             };
             page.on("requestfailed", onFailed);
             setTimeout(() => {
               page.off("requestfailed", onFailed);
-              reject(new Error("Expected the offset=100 pagination request to fail"));
+              reject(new Error(`Expected the offset=100 pagination request to fail; events=${JSON.stringify(taskEvents)}`));
             }, 10_000);
           });
           await page.route(`**/api/tables/${fixture.tableId}/tasks**`, async route => {
@@ -152,6 +178,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(size);
           expect(failedRequests).toBe(1);
           expect(successfulRetryRequests).toBe(1);
+          console.log(`[kanban-e2e] size=${size} task-events=${JSON.stringify(taskEvents)}`);
           await page.unroute(`**/api/tables/${fixture.tableId}/tasks**`);
         }
 
