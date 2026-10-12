@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireBoardPermission, rowMatchesRecordAccess } from "../_lib/authorization";
 import { listUserMemberships, selectPortalMembership } from "../_lib/universalRoles";
-import { resolvePortalConfig } from "../../../portal-engine/registry";
+import { resolvePortalConfig, getPortalReadiness, isPortalOpenable } from "../../../portal-engine/registry";
 import { portalWriteAction, portalWriteActionOptions } from "../../../portal-engine/writeActions";
 import { portalRecordCapability, validPortalCapability } from "../_lib/portalCapability";
 import { portalRecordDisplay, presentPortalValue, relationTargetId } from "../../../portal-engine/presentation.mjs";
@@ -38,7 +38,10 @@ export async function GET(req) {
   const membership = selectPortalMembership(memberships, { workspaceId, portalType });
   if (!membership) return NextResponse.json({ error: "Portal is not assigned to this account" }, { status: 403 });
   const config = resolvePortalConfig(membership);
-  if (!config || config.portalType !== membership.portalType) return NextResponse.json({ error: "Portal configuration is unavailable" }, { status: 404 });
+  const readiness = getPortalReadiness(membership.portalType, config);
+  if (!config || config.portalType !== membership.portalType || !isPortalOpenable(readiness)) {
+    return NextResponse.json({ error: "Ky portal nuk është ende i disponueshëm.", code: "PORTAL_NOT_READY", portalReadiness: readiness, safeRoute: readiness.safeRoute }, { status: 409 });
+  }
 
   const requestedEntities = Object.keys(config.entityScopes);
   const relationshipTables = (await pool.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1", [workspaceId])).rows;
@@ -193,7 +196,7 @@ export async function GET(req) {
     }
     timeline.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
   }
-  return NextResponse.json({ membership: { workspaceId, workspaceName: membership.workspaceName, portalType: membership.portalType }, config: { id: config.id, name: config.name, widgets: config.widgets, navigation: config.navigation, featureFlags: config.featureFlags, writeActions: portalWriteActionOptions(portalType) }, entities, timeline: timeline.slice(0, 100) });
+  return NextResponse.json({ membership: { workspaceId, workspaceName: membership.workspaceName, portalType: membership.portalType }, portalReadiness: readiness, config: { id: config.id, name: config.name, widgets: config.widgets, navigation: config.navigation, featureFlags: config.featureFlags, writeActions: portalWriteActionOptions(portalType) }, entities, timeline: timeline.slice(0, 100) });
 }
 
 function sanitizeWriteValues(definition, input) {
@@ -215,7 +218,8 @@ async function writeMembership(user, workspaceId, portalType) {
   const membership = selectPortalMembership(memberships, { workspaceId, portalType });
   if (!membership || membership.portalType !== portalType) return null;
   const config = resolvePortalConfig(membership);
-  return config?.portalType === portalType ? { membership, config } : null;
+  const readiness = getPortalReadiness(portalType, config);
+  return config?.portalType === portalType ? { membership, config, readiness } : { membership, config, readiness };
 }
 
 export async function POST(req) {
@@ -225,12 +229,22 @@ export async function POST(req) {
   const workspaceId = String(body.workspaceId || "");
   const portalType = String(body.portalType || "");
   const action = String(body.action || "");
-  const definition = portalWriteAction(portalType, action);
-  if (!workspaceId || !portalType || !definition) return NextResponse.json({ error: "Write action is not allowed" }, { status: 400 });
+  if (!workspaceId || !portalType) return NextResponse.json({ error: "workspaceId and portalType are required" }, { status: 400 });
   const access = await writeMembership(user, workspaceId, portalType);
   if (!access) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isPortalOpenable(access.readiness)) {
+    return NextResponse.json({ error: "Ky portal nuk është ende i disponueshëm.", code: "PORTAL_NOT_READY", portalReadiness: access.readiness, safeRoute: access.readiness.safeRoute }, { status: 409 });
+  }
+  const definition = portalWriteAction(portalType, action);
+  if (!definition) return NextResponse.json({ error: "Write action is not allowed" }, { status: 400 });
 
-  const tableNames = access.config.entityScopes[definition.entity] || [definition.entity];
+  const entityScopes = access.config && typeof access.config.entityScopes === "object" && !Array.isArray(access.config.entityScopes)
+    ? access.config.entityScopes
+    : null;
+  if (!access.config || access.config.portalType !== portalType || !entityScopes) {
+    return NextResponse.json({ error: "Portal configuration is unavailable", code: "PORTAL_NOT_READY", portalReadiness: access.readiness, safeRoute: access.readiness.safeRoute }, { status: 409 });
+  }
+  const tableNames = entityScopes[definition.entity] || [definition.entity];
   const table = (await pool.query("SELECT id,name,columns,workspace_id FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, tableNames.map(normalize)])).rows[0];
   if (!table) return NextResponse.json({ error: "Entity is unavailable" }, { status: 404 });
   const board = await requireBoardPermission(pool, user.id, table.id, definition.mode === "update" ? "editor" : "viewer");
@@ -297,7 +311,7 @@ export async function POST(req) {
       persistedValues = { ...oldValues, ...patch };
       await client.query("UPDATE rows SET values=values||$1::jsonb,updated_at=NOW() WHERE id=$2 AND table_id=$3", [JSON.stringify(patch), recordId, table.id]);
     } else if (definition.mode === "create") {
-      const subjectNames = access.config.entityScopes[definition.subjectEntity] || [definition.subjectEntity];
+      const subjectNames = entityScopes[definition.subjectEntity] || [definition.subjectEntity];
       const subjectTable = (await client.query("SELECT id,name,columns FROM tables WHERE workspace_id=$1 AND LOWER(name)=ANY($2) LIMIT 1", [workspaceId, subjectNames.map(normalize)])).rows[0];
       const subject = subjectTable && (await client.query("SELECT id,table_id,values,created_by,created_at,updated_at FROM rows WHERE id=$1 AND table_id=$2", [subjectId, subjectTable.id])).rows[0];
       const subjectCapability = subject && validPortalCapability(body.writeToken,user.id,workspaceId,portalType,definition.subjectEntity,subjectId);

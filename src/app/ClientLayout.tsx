@@ -166,6 +166,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           setLoading(false);
           return;
         }
+        const readinessStatus = membership?.portalReadiness?.status;
+        if (readinessStatus === "SHELL" || readinessStatus === "DISABLED") {
+          setDriverCheckComplete(true);
+          setLoading(false);
+          return;
+        }
         const allowedDriverPath = normalizedPathname === "/driver-trips" || normalizedPathname === "/calendar" || normalizedPathname === "/settings";
         if (workspaceId && portalType === "driver" && !allowedDriverPath) {
           redirectToAppRoute(`/driver-trips?id=${encodeURIComponent(workspaceId)}`, true);
