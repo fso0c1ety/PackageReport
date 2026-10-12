@@ -61,8 +61,11 @@ test("marketplace base migration is ordered before historical marketplace altera
 test("historical scheduler migration leaves calendar changes to a forward migration", () => {
   const historical = readFileSync(join(process.cwd(), "server", "db", "migrations", "032_scheduled_automation_runtime.sql"), "utf8");
   const forward = readFileSync(join(process.cwd(), "server", "db", "migrations", "035_calendar_events_baseline.sql"), "utf8");
+  const prerequisite = readFileSync(join(process.cwd(), "server", "db", "migrations", "031a_calendar_events_base.sql"), "utf8");
   assert.doesNotMatch(historical, /CREATE TABLE IF NOT EXISTS calendar_events/);
   assert.match(forward, /CREATE TABLE IF NOT EXISTS calendar_events/);
+  assert.match(prerequisite, /CREATE TABLE IF NOT EXISTS calendar_events/);
+  assert.ok(["031a_calendar_events_base.sql", "032_scheduled_automation_runtime.sql", "035_calendar_events_baseline.sql"].sort().indexOf("031a_calendar_events_base.sql") < 1);
   assert.match(forward, /calendar_events_user_start_idx/);
 });
 
