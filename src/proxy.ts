@@ -6,10 +6,10 @@ const ALLOWED_ORIGINS = new Set([
   'app://localhost',
   'https://package-report.vercel.app',
   'https://smartmanage.dev',
+  'https://www.smartmanage.dev',
 ]);
 
-const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+const BASE_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
@@ -17,10 +17,12 @@ const CORS_HEADERS: Record<string, string> = {
 
 export function proxy(req: NextRequest) {
   const origin = req.headers.get('origin');
-  const headers = { ...CORS_HEADERS };
+  const headers = { ...BASE_CORS_HEADERS };
 
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Credentials'] = 'true';
+    headers.Vary = 'Origin';
   }
 
   if (req.method === 'OPTIONS') {
