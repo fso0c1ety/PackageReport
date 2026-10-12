@@ -1,7 +1,7 @@
 name: Quality and E2E
 on:
   push: { branches: [main] }
-  pull_request: { branches: [main, feat/portal-readiness-gating] }
+  pull_request: { branches: [main, feat/portal-readiness-gating, audit/final-integration-114-118] }
   workflow_dispatch:
 jobs:
   test:

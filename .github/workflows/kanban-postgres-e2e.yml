@@ -10,6 +10,7 @@ on:
       - "scripts/bootstrap-kanban-postgres.mjs"
       - "playwright.config.ts"
       - "supabase/**"
+      - "scripts/vercel-build.js"
       - ".github/workflows/kanban-postgres-e2e.yml"
 
 jobs:

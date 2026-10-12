@@ -1,0 +1,76 @@
+name: Approved manual production migrations
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Reviewed full 40-character commit SHA, matching workflow main commit'
+        required: true
+      ledger_hash:
+        description: 'SHA256 of independently reviewed existing migration ledger'
+        required: true
+      plan_hash:
+        description: 'SHA256 of independently reviewed exact pending migration plan'
+        required: true
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+jobs:
+  protection-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          ENABLED: ${{ vars.MANUAL_MIGRATIONS_ENABLED }}
+          APPROVED_SHA: ${{ inputs.commit_sha }}
+        with:
+          script: |
+            if (context.ref !== 'refs/heads/main' || process.env.ENABLED !== '1') throw new Error('Manual migration activation/main gate missing');
+            if (!/^[a-f0-9]{40}$/.test(process.env.APPROVED_SHA) || process.env.APPROVED_SHA !== context.sha) throw new Error('Reviewed SHA must match workflow SHA');
+            const repo = context.repo;
+            const {data:environment} = await github.rest.repos.getEnvironment({...repo,environment_name:'production'});
+            const rule = environment.protection_rules?.find(r => r.type === 'required_reviewers');
+            if (!rule?.reviewers?.length || rule.prevent_self_review !== true || environment.can_admins_bypass !== false) throw new Error('Production reviewer/self-review/bypass protection missing');
+            const {data:branch} = await github.rest.repos.getBranch({...repo,branch:'main'});
+            if (!branch.protected) throw new Error('Main branch must be protected');
+  migrate:
+    needs: protection-preflight
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify independent approval for this run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data:reviews} = await github.request('GET /repos/{owner}/{repo}/actions/runs/{run_id}/approvals', {...context.repo,run_id:context.runId});
+            if (!reviews.some(r => r.state === 'approved' && r.user?.login !== context.actor && r.environments?.some(e => e.name === 'production'))) throw new Error('Independent production approval not recorded');
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Execute approved migration plan
+        run: node scripts/manual-migrations.cjs
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}
+          DATABASE_CA_CERT: ${{ secrets.PRODUCTION_DATABASE_CA_CERT }}
+          EXPECTED_DB_HOST: ${{ vars.PRODUCTION_DB_HOST }}
+          EXPECTED_DB_PORT: ${{ vars.PRODUCTION_DB_PORT }}
+          EXPECTED_DB_NAME: ${{ vars.PRODUCTION_DB_NAME }}
+          EXPECTED_DB_USER: ${{ vars.PRODUCTION_DB_USER }}
+          MANUAL_MIGRATIONS_ENABLED: ${{ vars.MANUAL_MIGRATIONS_ENABLED }}
+          MIGRATION_EXECUTION_APPROVED: '1'
+          APPROVED_SHA: ${{ inputs.commit_sha }}
+          CHECKED_OUT_SHA: ${{ inputs.commit_sha }}
+          EXPECTED_LEDGER_HASH: ${{ inputs.ledger_hash }}
+          EXPECTED_PLAN_HASH: ${{ inputs.plan_hash }}

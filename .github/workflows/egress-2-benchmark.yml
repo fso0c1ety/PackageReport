@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/app/TableBoard.tsx'
       - 'scripts/benchmark-egress2.mjs'
+      - 'scripts/vercel-build.js'
       - '.github/workflows/egress-2-benchmark.yml'
   workflow_dispatch:
 

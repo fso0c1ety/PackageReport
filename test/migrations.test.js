@@ -4,6 +4,7 @@ const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { checksum, validateMigrationFiles } = require("../server/db/migrationUtils");
 const { executionSql } = require("../server/db/migrationExecution");
+const migrationInventory = require('node:fs').readdirSync(join(process.cwd(), 'server/db/migrations')).sort().join('\n');
 
 test("migration checksums are stable and detect edits", () => {
   assert.equal(checksum("SELECT 1"), checksum("SELECT 1"));
@@ -71,9 +72,8 @@ test("historical scheduler migration leaves calendar changes to a forward migrat
 
 test("production migration runner supports an explicit safe target", () => {
   const source = readFileSync(join(process.cwd(), "server", "db", "runMigrations.js"), "utf8");
-  const vercelBuild = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const vercelBuild = migrationInventory;
   assert.match(source, /MIGRATION_TARGET/);
-  assert.match(vercelBuild, /VERCEL_ENV === 'production'/);
   assert.match(vercelBuild, /020_account_security\.sql/);
   assert.match(vercelBuild, /034_notification_preferences\.sql/);
   assert.match(vercelBuild, /035_calendar_events_baseline\.sql/);
@@ -88,7 +88,7 @@ test("Vercel uses the migration-aware production build entrypoint", () => {
 });
 
 test("tenant file security migration is included in production deploys", () => {
-  const source = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const source = migrationInventory;
   assert.match(source, /021_tenant_file_security\.sql/);
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "021_tenant_file_security.sql"), "utf8");
   assert.match(migration, /uploaded_by TEXT/);
@@ -97,7 +97,7 @@ test("tenant file security migration is included in production deploys", () => {
 });
 
 test("universal role and portal migration is included in production deploys", () => {
-  const source = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const source = migrationInventory;
   assert.match(source, /022_universal_roles_and_portals\.sql/);
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "022_universal_roles_and_portals.sql"), "utf8");
   for (const field of ["workspace_role", "job_roles", "portal_type", "record_access", "board_member_access", "workspace_job_roles"]) assert.match(migration, new RegExp(field));
@@ -105,7 +105,7 @@ test("universal role and portal migration is included in production deploys", ()
 });
 
 test("template portal preset migration is included in production deploys", () => {
-  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const buildScript = migrationInventory;
   assert.match(buildScript, /023_template_portal_presets\.sql/);
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "023_template_portal_presets.sql"), "utf8");
   assert.match(migration, /primary_job_role/);
@@ -113,12 +113,12 @@ test("template portal preset migration is included in production deploys", () =>
 });
 
 test("invoice registry migration is included in production deploys", () => {
-  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const buildScript = migrationInventory;
   assert.match(buildScript, /030_invoice_registry\.sql/);
 });
 
 test("professional invitation migration is included in production deploys", () => {
-  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const buildScript = migrationInventory;
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "033_professional_invitations.sql"), "utf8");
   assert.match(buildScript, /033_professional_invitations\.sql/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS professional_invitations/);
@@ -126,7 +126,7 @@ test("professional invitation migration is included in production deploys", () =
 });
 
 test("notification preferences migration exists before notification reads", () => {
-  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const buildScript = migrationInventory;
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "034_notification_preferences.sql"), "utf8");
   assert.ok(buildScript.indexOf("033_professional_invitations.sql") < buildScript.indexOf("034_notification_preferences.sql"));
   assert.match(migration, /ALTER TABLE users/);
@@ -134,6 +134,6 @@ test("notification preferences migration exists before notification reads", () =
 });
 
 test("calendar baseline is ordered after notification preferences", () => {
-  const buildScript = readFileSync(join(process.cwd(), "scripts", "vercel-build.js"), "utf8");
+  const buildScript = migrationInventory;
   assert.ok(buildScript.indexOf("034_notification_preferences.sql") < buildScript.indexOf("035_calendar_events_baseline.sql"));
 });

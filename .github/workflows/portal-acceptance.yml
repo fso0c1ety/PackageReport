@@ -13,6 +13,7 @@ on:
       - "e2e/portal-*.spec.ts"
       - ".github/workflows/portal-acceptance.yml"
       - "server/db/migrations/**"
+      - "scripts/vercel-build.js"
 
 jobs:
   portal-acceptance:
