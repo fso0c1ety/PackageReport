@@ -183,17 +183,22 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           retryTriggered = true;
           await page.getByRole("button", { name: "Retry" }).first().click();
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(size);
+          console.log(`[kanban-e2e] size=${size} failed-pagination=${failedRequests} blocked-before-retry=${blockedBeforeRetry} successful-retry=${successfulRetryRequests} task-events=${JSON.stringify(taskEvents)}`);
           expect(failedRequests).toBe(1);
           expect(successfulRetryRequests).toBe(1);
-          console.log(`[kanban-e2e] size=${size} failed-pagination=${failedRequests} blocked-before-retry=${blockedBeforeRetry} successful-retry=${successfulRetryRequests} task-events=${JSON.stringify(taskEvents)}`);
           await page.unroute(`**/api/tables/${fixture.tableId}/tasks**`);
         }
 
+        let firstPagination = true;
         while (await page.getByRole("button", { name: "Load more" }).count()) {
           const before = await loadedTasks(page, fixture.marker);
-          const column = page.locator('[data-rfd-droppable-id^="kanban:"]').first();
-          await column.evaluate((element) => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event("scroll", { bubbles: true })); });
-          await page.getByRole("button", { name: "Load more" }).first().click();
+          if (firstPagination) {
+            await page.getByRole("button", { name: "Load more" }).first().click();
+            firstPagination = false;
+          } else {
+            const column = page.locator('[data-rfd-droppable-id^="kanban:"]').first();
+            await column.evaluate((element) => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event("scroll", { bubbles: true })); });
+          }
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBeGreaterThan(before);
         }
         await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 60_000 }).toBe(size);
