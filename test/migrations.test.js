@@ -46,6 +46,18 @@ test("historical marketplace migration is not rewritten", () => {
   assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS marketplace_reviews/);
 });
 
+test("marketplace base migration is ordered before historical marketplace alterations", () => {
+  const files = require("node:fs").readdirSync(join(process.cwd(), "server", "db", "migrations"));
+  assert.ok(files.includes("012a_marketplace_base.sql"));
+  assert.ok(files.indexOf("012a_marketplace_base.sql") < files.indexOf("013_template_marketplace.sql"));
+  const base = readFileSync(join(process.cwd(), "server", "db", "migrations", "012a_marketplace_base.sql"), "utf8");
+  assert.match(base, /CREATE TABLE IF NOT EXISTS marketplace_templates/);
+  assert.match(base, /CREATE TABLE IF NOT EXISTS marketplace_reviews/);
+  assert.match(base, /REFERENCES users\(id\)/);
+  assert.match(base, /REFERENCES marketplace_templates\(id\)/);
+  assert.equal(validateMigrationFiles(files.sort()), true);
+});
+
 test("historical scheduler migration leaves calendar changes to a forward migration", () => {
   const historical = readFileSync(join(process.cwd(), "server", "db", "migrations", "032_scheduled_automation_runtime.sql"), "utf8");
   const forward = readFileSync(join(process.cwd(), "server", "db", "migrations", "035_calendar_events_baseline.sql"), "utf8");
