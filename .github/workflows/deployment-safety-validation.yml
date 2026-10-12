@@ -4,7 +4,7 @@ on:
     paths:
       - 'scripts/vercel-build.js'
       - 'scripts/manual-migrations.cjs'
-      - 'scripts/test-manual-migrations.cjs'
+      - 'scripts/validate-manual-migrations.cjs'
       - 'test/*migration*'
       - 'test/vercel-build-safety.test.js'
       - '.github/workflows/manual-production-migrations.yml'
@@ -42,4 +42,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --test test/vercel-build-safety.test.js test/manual-migrations.test.js
-      - run: node scripts/test-manual-migrations.cjs
+      - run: node scripts/validate-manual-migrations.cjs
