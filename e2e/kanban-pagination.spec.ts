@@ -110,6 +110,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     try {
         const taskRequests: string[] = [];
         const taskEvents: string[] = [];
+        let successfulPaginationResponses = 0;
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
@@ -136,7 +137,13 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         });
         page.on("response", response => {
           const parsed = taskUrl(response.url());
-          if (parsed) taskEvents.push(`response ${response.status()} ${parsed.toString()}`);
+          if (parsed) {
+            const offset = Number(parsed.searchParams.get("offset") || "0");
+            if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
+              successfulPaginationResponses += 1;
+            }
+            taskEvents.push(`response ${response.status()} ${parsed.toString()}`);
+          }
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
@@ -202,7 +209,10 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBeGreaterThan(before);
         }
         await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 60_000 }).toBe(size);
-        expect(taskRequests.length - initialRequests).toBe(Math.ceil(Math.max(0, size - 100) / 100));
+        // A failed attempt and its retry are two browser requests but only one
+        // successful pagination response. Count responses for the logical page
+        // metric, while retaining taskRequests for transport diagnostics.
+        expect(successfulPaginationResponses).toBe(Math.ceil(Math.max(0, size - 100) / 100));
 
         const beforeIdle = taskRequests.length;
         await page.waitForTimeout(10_000);
