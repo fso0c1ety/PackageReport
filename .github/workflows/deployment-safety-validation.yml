@@ -22,7 +22,7 @@ jobs:
           POSTGRES_PASSWORD: manual-local-only
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U postgres -d smart_manage_manual_test'
+          --health-cmd "pg_isready -U postgres -d smart_manage_manual_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       DATABASE_URL: postgresql://postgres:manual-local-only@127.0.0.1:5432/smart_manage_manual_test

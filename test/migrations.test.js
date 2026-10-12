@@ -82,12 +82,12 @@ test("production migration runner supports an explicit safe target", () => {
   assert.match(source, /client\.release\(\)/);
 });
 
-test("Vercel uses the migration-aware production build entrypoint", () => {
+test("Vercel uses the build-only entrypoint", () => {
   const config = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"));
   assert.equal(config.buildCommand, "npm run vercel-build");
 });
 
-test("tenant file security migration is included in production deploys", () => {
+test("manual migration inventory includes tenant file security", () => {
   const source = migrationInventory;
   assert.match(source, /021_tenant_file_security\.sql/);
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "021_tenant_file_security.sql"), "utf8");
@@ -96,7 +96,7 @@ test("tenant file security migration is included in production deploys", () => {
   assert.match(migration, /row_id TEXT/);
 });
 
-test("universal role and portal migration is included in production deploys", () => {
+test("manual migration inventory includes universal roles and portals", () => {
   const source = migrationInventory;
   assert.match(source, /022_universal_roles_and_portals\.sql/);
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "022_universal_roles_and_portals.sql"), "utf8");
@@ -104,7 +104,7 @@ test("universal role and portal migration is included in production deploys", ()
   assert.match(migration, /smart_manage_row_visible/);
 });
 
-test("template portal preset migration is included in production deploys", () => {
+test("manual migration inventory includes template portal presets", () => {
   const buildScript = migrationInventory;
   assert.match(buildScript, /023_template_portal_presets\.sql/);
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "023_template_portal_presets.sql"), "utf8");
@@ -112,12 +112,12 @@ test("template portal preset migration is included in production deploys", () =>
   assert.match(migration, /permitted_portals/);
 });
 
-test("invoice registry migration is included in production deploys", () => {
+test("manual migration inventory includes invoice registry", () => {
   const buildScript = migrationInventory;
   assert.match(buildScript, /030_invoice_registry\.sql/);
 });
 
-test("professional invitation migration is included in production deploys", () => {
+test("manual migration inventory includes professional invitations", () => {
   const buildScript = migrationInventory;
   const migration = readFileSync(join(process.cwd(), "server", "db", "migrations", "033_professional_invitations.sql"), "utf8");
   assert.match(buildScript, /033_professional_invitations\.sql/);
