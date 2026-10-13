@@ -26,6 +26,8 @@ if (!enabled) {
     'scheduler_locks', 'trip_status_history', 'workspace_job_roles', 'workspace_modules',
     'workspace_portal_overrides',
   ];
+  const tablePrivileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'];
+  const backendPrivileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
 
   test.before(async () => {
     await client.connect();
@@ -61,7 +63,7 @@ if (!enabled) {
       const rls = await client.query('SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass', [`public.${table}`]);
       assert.equal(rls.rows[0].relrowsecurity, true, `${table} must have RLS enabled`);
       for (const role of ['anon', 'authenticated']) {
-        for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+        for (const privilege of tablePrivileges) {
           const privileges = await client.query(`
             SELECT COALESCE(bool_or(a.grantee = r.oid AND a.privilege_type = $2), false) AS allowed
             FROM pg_roles r
@@ -72,16 +74,18 @@ if (!enabled) {
             WHERE r.rolname = $3
           `, [`public.${table}`, privilege, role]);
           assert.equal(privileges.rows[0].allowed, false, `${role} must not have direct ${privilege} grant on ${table}`);
+          const effective = await client.query('SELECT has_table_privilege($1, $2, $3) AS allowed', [role, `public.${table}`, privilege]);
+          assert.equal(effective.rows[0].allowed, false, `${role} must not effectively have ${privilege} on ${table}`);
         }
       }
       const publicPrivileges = await client.query(`
-        SELECT COALESCE(bool_or(grantee = 0 AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')), false) AS allowed
+        SELECT COALESCE(bool_or(grantee = 0 AND privilege_type = ANY($2::text[])), false) AS allowed
         FROM aclexplode(COALESCE(
           (SELECT relacl FROM pg_class WHERE oid = $1::regclass),
           acldefault('r', (SELECT relowner FROM pg_class WHERE oid = $1::regclass))
         ))
-      `, [`public.${table}`]);
-      assert.equal(publicPrivileges.rows[0].allowed, false, `PUBLIC must not have table DML on ${table}`);
+      `, [`public.${table}`, tablePrivileges]);
+      assert.equal(publicPrivileges.rows[0].allowed, false, `PUBLIC must not have table privileges on ${table}`);
     }
   });
 
@@ -91,7 +95,7 @@ if (!enabled) {
       assert.ok(exists.rows[0].name, `${table} must exist in the isolated schema`);
       await client.query('SET ROLE service_role');
       try {
-        for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+        for (const privilege of backendPrivileges) {
           const privileges = await client.query('SELECT has_table_privilege(current_user, $1, $2) AS allowed', [`public.${table}`, privilege]);
           assert.equal(privileges.rows[0].allowed, true, `service_role must retain ${privilege} on ${table}`);
         }

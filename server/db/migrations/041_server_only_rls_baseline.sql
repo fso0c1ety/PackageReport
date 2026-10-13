@@ -26,6 +26,7 @@ BEGIN
       IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
         EXECUTE format('REVOKE ALL ON TABLE public.%I FROM authenticated', table_name);
       END IF;
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', table_name);
     END IF;
   END LOOP;
 END $$;

@@ -73,8 +73,8 @@ async function main() {
     `);
     if (!afterMigrations) {
       for (const table of ['automation_action_usage','enterprise_audit_logs','integration_webhooks','nexus_credit_usage','portal_comments']) {
-        await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO anon, authenticated`);
-        await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO PUBLIC`);
+        await client.query(`GRANT ALL PRIVILEGES ON TABLE public."${table}" TO anon, authenticated`);
+        await client.query(`GRANT ALL PRIVILEGES ON TABLE public."${table}" TO PUBLIC`);
       }
     } else {
       for (const table of tables) {
