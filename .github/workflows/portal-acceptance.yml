@@ -1,22 +1,11 @@
 name: Portal Acceptance
 
 on:
-  pull_request:
-    paths:
-      - "src/portal-engine/**"
-      - "src/app/api/professional-portal/**"
-      - "scripts/seed-portal-acceptance.mjs"
-      - "scripts/seed-marketing-demo.mjs"
-      - "scripts/portal-ci-guard.mjs"
-      - "scripts/verify-local-realtime.mjs"
-      - "supabase/config.toml"
-      - "e2e/portal-*.spec.ts"
-      - ".github/workflows/portal-acceptance.yml"
-      - "server/db/migrations/**"
-      - "scripts/vercel-build.js"
+  workflow_call:
 
 jobs:
-  portal-acceptance:
+  suite-portal-acceptance:
+    name: suite-portal-acceptance
     runs-on: ubuntu-latest
     services:
       postgres:

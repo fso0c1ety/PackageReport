@@ -1,0 +1,183 @@
+name: Required check orchestrator
+
+on:
+  push:
+    branches: [feat/required-check-gates-orchestrated]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  deployments: read
+
+jobs:
+  policy:
+    name: policy-detector
+    runs-on: ubuntu-latest
+    outputs:
+      heavy: ${{ steps.detect.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch and verify base/head locally
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.after || github.sha }}
+        run: |
+          set -euo pipefail
+          test "${#BASE_SHA}" -eq 40 && test "${#HEAD_SHA}" -eq 40
+          git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
+      - id: detect
+        uses: actions/github-script@v7
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.after || github.sha }}
+        with:
+          script: |
+            const {execFileSync} = require('node:child_process');
+            const Module = require('node:module');
+            const base = process.env.BASE_SHA;
+            const head = process.env.HEAD_SHA;
+            if (!/^[a-f0-9]{40}$/.test(base) || !/^[a-f0-9]{40}$/.test(head)) throw new Error('BLOCKED: base/head SHA missing');
+            let files;
+            const raw = execFileSync('git', ['diff', '--name-status', '--find-renames=50%', '-z', `${base}^{commit}`, `${head}^{commit}`, '--'], {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
+            const tokens = raw.split('\0').filter(Boolean);
+            files = [];
+            for (let i = 0; i < tokens.length;) {
+              const status = tokens[i++];
+              if (status.startsWith('R') || status.startsWith('C')) {
+                const previous = tokens[i++]; const filename = tokens[i++];
+                files.push({filename, previous_filename: previous, status: 'renamed'});
+              } else {
+                const kind = {A: 'added', M: 'modified', D: 'deleted'}[status];
+                if (!kind) throw new Error(`BLOCKED: unsupported Git status ${status}`);
+                files.push({filename: tokens[i++], status: kind});
+              }
+            }
+            if (!files.length) throw new Error('BLOCKED: local Git diff is empty or unavailable');
+            let trustedSource;
+            try {
+              trustedSource = execFileSync('git', ['show', `${base}:scripts/required-check-detector.cjs`], {encoding: 'utf8'});
+            } catch {
+              core.warning('Trusted detector is absent in base; fail-closed bootstrap requires every suite');
+              core.setOutput('heavy', 'true');
+              return;
+            }
+            const trustedModule = new Module(`${process.env.RUNNER_TEMP}/trusted-detector.cjs`);
+            trustedModule.filename = `${process.env.RUNNER_TEMP}/trusted-detector.cjs`;
+            trustedModule._compile(trustedSource, trustedModule.filename);
+            const result = trustedModule.exports.detect({base, head, files});
+            core.setOutput('heavy', String(result.heavy));
+
+  suite-test:
+    needs: policy
+    if: ${{ always() && needs.policy.result == 'success' }}
+    uses: ./.github/workflows/quality.yml
+
+  suite-portal-acceptance:
+    needs: policy
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
+    uses: ./.github/workflows/portal-acceptance.yml
+
+  suite-kanban-postgres-e2e:
+    needs: policy
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
+    uses: ./.github/workflows/kanban-postgres-e2e.yml
+
+  suite-clean-install:
+    needs: policy
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
+    uses: ./.github/workflows/migration-clean-install.yml
+
+  suite-local-safety:
+    needs: policy
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
+    uses: ./.github/workflows/deployment-safety-validation.yml
+
+  suite-benchmark:
+    needs: policy
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
+    uses: ./.github/workflows/egress-2-benchmark.yml
+
+  test:
+    name: test
+    needs: [policy, suite-test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: if [ "${{ needs.policy.result }}" != success ] || [ "${{ needs.suite-test.result }}" != success ]; then exit 1; fi
+
+  portal-acceptance:
+    name: portal-acceptance
+    needs: [policy, suite-portal-acceptance]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-portal-acceptance.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  kanban-postgres-e2e:
+    name: kanban-postgres-e2e
+    needs: [policy, suite-kanban-postgres-e2e]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-kanban-postgres-e2e.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  clean-install:
+    name: clean-install
+    needs: [policy, suite-clean-install]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-clean-install.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  local-safety:
+    name: local-safety
+    needs: [policy, suite-local-safety]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-local-safety.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  benchmark:
+    name: benchmark
+    needs: [policy, suite-benchmark]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-benchmark.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi

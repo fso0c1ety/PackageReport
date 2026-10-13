@@ -1,16 +1,12 @@
 name: EGRESS-2 Board Transfer Benchmark
 
 on:
-  pull_request:
-    paths:
-      - 'src/app/TableBoard.tsx'
-      - 'scripts/benchmark-egress2.mjs'
-      - 'scripts/vercel-build.js'
-      - '.github/workflows/egress-2-benchmark.yml'
+  workflow_call:
   workflow_dispatch:
 
 jobs:
-  benchmark:
+  suite-benchmark:
+    name: suite-benchmark
     runs-on: ubuntu-latest
     services:
       postgres:

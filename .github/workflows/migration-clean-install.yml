@@ -1,20 +1,11 @@
 name: PostgreSQL Clean Migration Install
 
 on:
-  pull_request:
-    paths:
-      - "server/db/migrations/**"
-      - "server/db/runMigrations.js"
-      - "server/db/migrationExecution.js"
-      - "server/db/migrationUtils.js"
-      - "scripts/vercel-build.js"
-      - "test/migration-marketplace-postgres.integration.js"
-      - ".github/workflows/migration-clean-install.yml"
-      - ".github/workflows/portal-acceptance.yml"
-      - ".github/workflows/quality.yml"
+  workflow_call:
 
 jobs:
-  clean-install:
+  suite-clean-install:
+    name: suite-clean-install
     runs-on: ubuntu-latest
     services:
       postgres:
