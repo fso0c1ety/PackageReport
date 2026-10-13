@@ -1,7 +1,7 @@
 name: EGRESS-2 Board Transfer Benchmark
 
 on:
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 
 jobs:

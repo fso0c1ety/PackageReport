@@ -1,7 +1,7 @@
 name: PostgreSQL Clean Migration Install
 
 on:
-  pull_request:
+  workflow_call:
 
 jobs:
   suite-clean-install:

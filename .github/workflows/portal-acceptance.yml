@@ -1,7 +1,7 @@
 name: Portal Acceptance
 
 on:
-  pull_request:
+  workflow_call:
 
 jobs:
   suite-portal-acceptance:
