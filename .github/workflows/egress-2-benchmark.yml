@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/app/TableBoard.tsx'
       - 'scripts/benchmark-egress2.mjs'
+      - 'scripts/vercel-build.js'
       - '.github/workflows/egress-2-benchmark.yml'
   workflow_dispatch:
 
@@ -23,6 +24,8 @@ jobs:
           --health-cmd "pg_isready -U postgres -d smart_manage_portal_acceptance"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
+      # API benchmark never executes Electron; avoid an unrelated binary download.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       DATABASE_URL: postgresql://postgres:portal-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: 'false'
       E2E_BASE_URL: http://127.0.0.1:3000
