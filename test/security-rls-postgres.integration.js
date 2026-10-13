@@ -41,11 +41,16 @@ if (!enabled) {
       END $$;
     `);
     await client.query('ALTER ROLE service_role BYPASSRLS');
+    const missing = [];
     for (const table of serverOnly) {
       const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
-      if (!exists.rows[0].name) continue;
+      if (!exists.rows[0].name) {
+        missing.push(table);
+        continue;
+      }
       await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO service_role`);
     }
+    assert.deepEqual(missing, [], `required security tables are missing: ${missing.join(', ')}`);
   });
 
   test.after(async () => { await client.end(); });
@@ -53,7 +58,7 @@ if (!enabled) {
   test('server-only tables have RLS and no anon/authenticated table privileges', async () => {
     for (const table of serverOnly) {
       const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
-      if (!exists.rows[0].name) continue;
+      assert.ok(exists.rows[0].name, `${table} must exist in the isolated schema`);
       const rls = await client.query('SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass', [`public.${table}`]);
       assert.equal(rls.rows[0].relrowsecurity, true, `${table} must have RLS enabled`);
       for (const role of ['anon', 'authenticated']) {
@@ -62,13 +67,15 @@ if (!enabled) {
           assert.equal(privileges.rows[0].allowed, false, `${role} must not ${privilege} ${table}`);
         }
       }
+      const publicPrivileges = await client.query('SELECT has_table_privilege($1, $2, $3) AS allowed', ['public', `public.${table}`, 'SELECT']);
+      assert.equal(publicPrivileges.rows[0].allowed, false, `PUBLIC must not SELECT ${table}`);
     }
   });
 
   test('service_role remains able to read protected tables', async () => {
     for (const table of serverOnly) {
       const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
-      if (!exists.rows[0].name) continue;
+      assert.ok(exists.rows[0].name, `${table} must exist in the isolated schema`);
       await client.query('SET ROLE service_role');
       try {
         for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
