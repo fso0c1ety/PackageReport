@@ -48,7 +48,6 @@ if (!enabled) {
         missing.push(table);
         continue;
       }
-      await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO service_role`);
     }
     assert.deepEqual(missing, [], `required security tables are missing: ${missing.join(', ')}`);
   });
@@ -67,8 +66,14 @@ if (!enabled) {
           assert.equal(privileges.rows[0].allowed, false, `${role} must not ${privilege} ${table}`);
         }
       }
-      const publicPrivileges = await client.query('SELECT has_table_privilege($1, $2, $3) AS allowed', ['public', `public.${table}`, 'SELECT']);
-      assert.equal(publicPrivileges.rows[0].allowed, false, `PUBLIC must not SELECT ${table}`);
+      const publicPrivileges = await client.query(`
+        SELECT COALESCE(bool_or(grantee = 0 AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')), false) AS allowed
+        FROM aclexplode(COALESCE(
+          (SELECT relacl FROM pg_class WHERE oid = $1::regclass),
+          acldefault('r', (SELECT relowner FROM pg_class WHERE oid = $1::regclass))
+        ))
+      `, [`public.${table}`]);
+      assert.equal(publicPrivileges.rows[0].allowed, false, `PUBLIC must not have table DML on ${table}`);
     }
   });
 
@@ -91,15 +96,19 @@ if (!enabled) {
 
   test('public handle_new_user functions are not executable by API roles', async () => {
     const functions = await client.query(`
-      SELECT p.oid::regprocedure::text AS signature
+      SELECT p.oid::regprocedure::text AS signature, p.prosecdef
       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
       WHERE n.nspname='public' AND p.proname='handle_new_user'
     `);
-    for (const { signature } of functions.rows) {
+    assert.ok(functions.rows.length > 0, 'fixture must contain handle_new_user for authorization coverage');
+    for (const { signature, prosecdef } of functions.rows) {
+      assert.equal(prosecdef, true, `${signature} must remain SECURITY DEFINER`);
       for (const role of ['anon', 'authenticated']) {
         const result = await client.query('SELECT has_function_privilege($1, $2, $3) AS allowed', [role, signature, 'EXECUTE']);
         assert.equal(result.rows[0].allowed, false, `${role} must not execute ${signature}`);
       }
+      const backend = await client.query('SELECT has_function_privilege($1, $2, $3) AS allowed', ['service_role', signature, 'EXECUTE']);
+      assert.equal(backend.rows[0].allowed, true, `service_role must execute ${signature}`);
     }
   });
 }

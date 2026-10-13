@@ -38,7 +38,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Prepare audited schema fixture and initial grants
+        run: node scripts/security-schema-fixture.cjs
       - name: Apply isolated migration chain
         run: npm run db:migrate
+      - name: Grant isolated backend role after migrations
+        run: node scripts/security-schema-fixture.cjs --after-migrations
       - name: Run real PostgreSQL role checks
         run: node --test test/security-rls-postgres.integration.js
