@@ -1,6 +1,8 @@
 name: Required check gates
 
 on:
+  push:
+    branches: [feat/required-check-gates]
   pull_request:
   workflow_run:
     workflows: [Quality and E2E, Portal Acceptance, Kanban PostgreSQL E2E, PostgreSQL Clean Migration Install, Deployment safety validation, EGRESS-2 Board Transfer Benchmark]
@@ -26,7 +28,7 @@ jobs:
           script: |
             const event = context.payload;
             const sha = event.workflow_run?.head_sha || event.pull_request?.head.sha || context.sha;
-            const base = event.pull_request?.base.sha || event.workflow_run?.pull_requests?.[0]?.base?.sha;
+            const base = event.pull_request?.base.sha || event.workflow_run?.pull_requests?.[0]?.base?.sha || event.before;
             if (!/^[a-f0-9]{40}$/.test(sha) || !base) core.setFailed('BLOCKED: verified base/head SHA unavailable');
             else {
               const result = await github.rest.repos.compareCommitsWithBasehead({owner: context.repo.owner, repo: context.repo.repo, basehead: `${base}...${sha}`});
