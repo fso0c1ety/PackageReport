@@ -62,8 +62,16 @@ if (!enabled) {
       assert.equal(rls.rows[0].relrowsecurity, true, `${table} must have RLS enabled`);
       for (const role of ['anon', 'authenticated']) {
         for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
-          const privileges = await client.query('SELECT has_table_privilege($1, $2, $3) AS allowed', [role, `public.${table}`, privilege]);
-          assert.equal(privileges.rows[0].allowed, false, `${role} must not ${privilege} ${table}`);
+          const privileges = await client.query(`
+            SELECT COALESCE(bool_or(a.grantee = r.oid AND a.privilege_type = $2), false) AS allowed
+            FROM pg_roles r
+            LEFT JOIN LATERAL aclexplode(COALESCE(
+              (SELECT relacl FROM pg_class WHERE oid = $1::regclass),
+              acldefault('r', (SELECT relowner FROM pg_class WHERE oid = $1::regclass))
+            )) a ON true
+            WHERE r.rolname = $3
+          `, [`public.${table}`, privilege, role]);
+          assert.equal(privileges.rows[0].allowed, false, `${role} must not have direct ${privilege} grant on ${table}`);
         }
       }
       const publicPrivileges = await client.query(`
