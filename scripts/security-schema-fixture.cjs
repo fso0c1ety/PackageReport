@@ -18,10 +18,11 @@ const tables = [
 ];
 
 async function main() {
+  const afterMigrations = process.argv.includes('--after-migrations');
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    await client.query(`
+    if (!afterMigrations) await client.query(`
       DO $$ DECLARE role_name text;
       BEGIN
         FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
@@ -70,11 +71,12 @@ async function main() {
       SET search_path = public
       AS $$ BEGIN RETURN NEW; END $$;
     `);
-    for (const table of ['automation_action_usage','enterprise_audit_logs','integration_webhooks','nexus_credit_usage','portal_comments']) {
-      await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO anon, authenticated`);
-      await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO PUBLIC`);
-    }
-    if (process.argv.includes('--after-migrations')) {
+    if (!afterMigrations) {
+      for (const table of ['automation_action_usage','enterprise_audit_logs','integration_webhooks','nexus_credit_usage','portal_comments']) {
+        await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO anon, authenticated`);
+        await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO PUBLIC`);
+      }
+    } else {
       for (const table of tables) {
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO service_role`);
       }
