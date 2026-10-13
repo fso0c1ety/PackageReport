@@ -1,0 +1,32 @@
+name: Required checks policy validation
+
+on:
+  push:
+    branches: [audit/required-checks-final-plan]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-validation:
+    name: policy-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Unit policy scenarios
+        run: node --test test/required-checks-policy.test.cjs
+      - name: Lint policy files
+        run: npx eslint scripts/required-checks-policy.cjs test/required-checks-policy.test.cjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Diff check
+        run: git diff --check HEAD^ HEAD
