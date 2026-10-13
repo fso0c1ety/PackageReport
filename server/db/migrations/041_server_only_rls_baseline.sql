@@ -19,8 +19,13 @@ BEGIN
     'calendar_events'
   ] LOOP
     IF to_regclass(format('public.%I', table_name)) IS NOT NULL THEN
-      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon, authenticated', table_name);
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', table_name);
+      END IF;
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM authenticated', table_name);
+      END IF;
     END IF;
   END LOOP;
 END $$;
@@ -37,6 +42,12 @@ BEGIN
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'handle_new_user'
   LOOP
-    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', routine.signature);
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', routine.signature);
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM anon', routine.signature);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM authenticated', routine.signature);
+    END IF;
   END LOOP;
 END $$;
