@@ -23,9 +23,17 @@ if (!enabled) {
 
   test.before(async () => {
     await client.connect();
-    for (const role of ['anon', 'authenticated', 'service_role']) {
-      await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=$1) THEN CREATE ROLE ${role} NOLOGIN; END IF; END $$`, [role]);
-    }
+    await client.query(`
+      DO $$
+      DECLARE role_name text;
+      BEGIN
+        FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+            EXECUTE format('CREATE ROLE %I NOLOGIN', role_name);
+          END IF;
+        END LOOP;
+      END $$;
+    `);
     await client.query('ALTER ROLE service_role BYPASSRLS');
     for (const table of serverOnly) {
       const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
