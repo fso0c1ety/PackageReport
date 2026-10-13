@@ -19,6 +19,12 @@ if (!enabled) {
     'password_reset_tokens', 'email_verification_tokens', 'account_activation_tokens',
     'auth_sessions', 'authentication_audit_events', 'invoices', 'subscriptions',
     'marketplace_templates', 'marketplace_reviews', 'marketplace_reports', 'calendar_events',
+    'automation_action_usage', 'background_job_audit', 'board_member_access',
+    'demo_request_events', 'demo_requests', 'enterprise_audit_logs', 'enterprise_inquiries',
+    'file_audit_log', 'integration_webhooks', 'invoice_sequences', 'nexus_credit_usage',
+    'platform_staff_roles', 'portal_comments', 'portal_definitions', 'professional_invitations',
+    'scheduler_locks', 'trip_status_history', 'workspace_job_roles', 'workspace_modules',
+    'workspace_portal_overrides',
   ];
 
   test.before(async () => {
