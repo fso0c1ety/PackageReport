@@ -43,35 +43,35 @@ jobs:
   test:
     name: test
     needs: policy
-    if: always() && needs.policy.result == 'success'
+    if: ${{ always() && needs.policy.result == 'success' }}
     uses: ./.github/workflows/quality.yml
 
   portal-acceptance:
     name: portal-acceptance
     needs: policy
-    if: always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true'
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
     uses: ./.github/workflows/portal-acceptance.yml
 
   kanban-postgres-e2e:
     name: kanban-postgres-e2e
     needs: policy
-    if: always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true'
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
     uses: ./.github/workflows/kanban-postgres-e2e.yml
 
   clean-install:
     name: clean-install
     needs: policy
-    if: always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true'
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
     uses: ./.github/workflows/migration-clean-install.yml
 
   local-safety:
     name: local-safety
     needs: policy
-    if: always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true'
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
     uses: ./.github/workflows/deployment-safety-validation.yml
 
   benchmark:
     name: benchmark
     needs: policy
-    if: always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true'
+    if: ${{ always() && needs.policy.result == 'success' && needs.policy.outputs.heavy == 'true' }}
     uses: ./.github/workflows/egress-2-benchmark.yml
