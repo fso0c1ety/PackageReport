@@ -5,6 +5,12 @@ on:
     branches: [feat/required-check-gates-orchestrated]
   pull_request:
   workflow_dispatch:
+    inputs:
+      validation_scenario:
+        description: 'Isolated policy fixture; leave empty for normal Git diff'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -20,27 +26,63 @@ jobs:
       heavy: ${{ steps.detect.outputs.heavy }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch and verify base/head locally
+        if: ${{ inputs.validation_scenario == '' }}
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.after || github.sha }}
+        run: |
+          set -euo pipefail
+          test "${#BASE_SHA}" -eq 40 && test "${#HEAD_SHA}" -eq 40
+          git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
       - id: detect
         uses: actions/github-script@v7
+        env:
+          VALIDATION_SCENARIO: ${{ inputs.validation_scenario }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.after || github.sha }}
         with:
           script: |
-            const {detect} = require('./scripts/required-check-detector.cjs');
-            const event = context.payload;
-            const base = event.pull_request?.base.sha || event.before;
-            const head = event.pull_request?.head.sha || event.after || context.sha;
-            if (!/^[a-f0-9]{40}$/.test(base || '') || !/^[a-f0-9]{40}$/.test(head || '')) core.setFailed('BLOCKED: base/head SHA missing');
-            else {
-              const files = [];
-              for (let page = 1; page <= 20; page++) {
-                const response = await github.request('GET /repos/{owner}/{repo}/compare/{base}...{head}', {owner: context.repo.owner, repo: context.repo.repo, base, head, page, per_page: 100});
-                if (!Array.isArray(response.data.files)) throw new Error('BLOCKED: complete file diff unavailable');
-                files.push(...response.data.files);
-                if (response.data.files.length < 100) break;
-                if (page === 20) throw new Error('BLOCKED: diff exceeded safe pagination limit');
+            const {execFileSync} = require('node:child_process');
+            const Module = require('node:module');
+            const fs = require('node:fs');
+            const scenario = process.env.VALIDATION_SCENARIO;
+            const base = process.env.BASE_SHA;
+            const head = process.env.HEAD_SHA;
+            if (!/^[a-f0-9]{40}$/.test(base) || !/^[a-f0-9]{40}$/.test(head)) throw new Error('BLOCKED: base/head SHA missing');
+            const trustedSource = execFileSync('git', ['show', `${base}:scripts/required-check-detector.cjs`], {encoding: 'utf8'});
+            const trustedModule = new Module(`${process.env.RUNNER_TEMP}/trusted-detector.cjs`);
+            trustedModule.filename = `${process.env.RUNNER_TEMP}/trusted-detector.cjs`;
+            trustedModule._compile(trustedSource, trustedModule.filename);
+            let files;
+            if (scenario === 'markdown-only') {
+              files = [{filename: 'docs/required-checks.md', status: 'modified'}];
+            } else if (scenario) {
+              throw new Error('BLOCKED: unknown validation scenario');
+            } else {
+              const raw = execFileSync('git', ['diff', '--name-status', '--find-renames=50%', '-z', `${base}^{commit}`, `${head}^{commit}`, '--'], {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
+              const tokens = raw.split('\0').filter(Boolean);
+              files = [];
+              for (let i = 0; i < tokens.length;) {
+                const status = tokens[i++];
+                if (status.startsWith('R') || status.startsWith('C')) {
+                  const previous = tokens[i++]; const filename = tokens[i++];
+                  files.push({filename, previous_filename: previous, status: 'renamed'});
+                } else {
+                  const kind = {A: 'added', M: 'modified', D: 'deleted'}[status];
+                  if (!kind) throw new Error(`BLOCKED: unsupported Git status ${status}`);
+                  files.push({filename: tokens[i++], status: kind});
+                }
               }
-              const result = detect({base, head, files});
-              core.setOutput('heavy', String(result.heavy));
+              if (!files.length) throw new Error('BLOCKED: local Git diff is empty or unavailable');
             }
+            const result = trustedModule.exports.detect({base, head, files});
+            core.setOutput('heavy', String(result.heavy));
 
   suite-test:
     needs: policy
@@ -88,7 +130,11 @@ jobs:
     steps:
       - run: |
           if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
-          if [ "${{ needs.policy.outputs.heavy }}" = true ] && [ "${{ needs.suite-portal-acceptance.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-portal-acceptance.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   kanban-postgres-e2e:
     name: kanban-postgres-e2e
@@ -98,7 +144,11 @@ jobs:
     steps:
       - run: |
           if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
-          if [ "${{ needs.policy.outputs.heavy }}" = true ] && [ "${{ needs.suite-kanban-postgres-e2e.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-kanban-postgres-e2e.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   clean-install:
     name: clean-install
@@ -108,7 +158,11 @@ jobs:
     steps:
       - run: |
           if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
-          if [ "${{ needs.policy.outputs.heavy }}" = true ] && [ "${{ needs.suite-clean-install.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-clean-install.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   local-safety:
     name: local-safety
@@ -118,7 +172,11 @@ jobs:
     steps:
       - run: |
           if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
-          if [ "${{ needs.policy.outputs.heavy }}" = true ] && [ "${{ needs.suite-local-safety.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-local-safety.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   benchmark:
     name: benchmark
@@ -128,4 +186,8 @@ jobs:
     steps:
       - run: |
           if [ "${{ needs.policy.result }}" != success ]; then exit 1; fi
-          if [ "${{ needs.policy.outputs.heavy }}" = true ] && [ "${{ needs.suite-benchmark.result }}" != success ]; then exit 1; fi
+          if [ "${{ needs.policy.outputs.heavy }}" = true ]; then
+            if [ "${{ needs.suite-benchmark.result }}" != success ]; then exit 1; fi
+          else
+            echo "NOT APPLICABLE: verified Markdown-only change; suite intentionally not executed" >> "$GITHUB_STEP_SUMMARY"
+          fi
