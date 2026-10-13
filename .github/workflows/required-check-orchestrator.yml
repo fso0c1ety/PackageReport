@@ -4,13 +4,6 @@ on:
   push:
     branches: [feat/required-check-gates-orchestrated]
   pull_request:
-  workflow_dispatch:
-    inputs:
-      validation_scenario:
-        description: 'Isolated policy fixture; leave empty for normal Git diff'
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -29,7 +22,6 @@ jobs:
         with:
           fetch-depth: 0
       - name: Fetch and verify base/head locally
-        if: ${{ inputs.validation_scenario == '' }}
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
@@ -50,37 +42,36 @@ jobs:
           script: |
             const {execFileSync} = require('node:child_process');
             const Module = require('node:module');
-            const fs = require('node:fs');
-            const scenario = process.env.VALIDATION_SCENARIO;
             const base = process.env.BASE_SHA;
             const head = process.env.HEAD_SHA;
             if (!/^[a-f0-9]{40}$/.test(base) || !/^[a-f0-9]{40}$/.test(head)) throw new Error('BLOCKED: base/head SHA missing');
-            const trustedSource = execFileSync('git', ['show', `${base}:scripts/required-check-detector.cjs`], {encoding: 'utf8'});
+            let files;
+            const raw = execFileSync('git', ['diff', '--name-status', '--find-renames=50%', '-z', `${base}^{commit}`, `${head}^{commit}`, '--'], {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
+            const tokens = raw.split('\0').filter(Boolean);
+            files = [];
+            for (let i = 0; i < tokens.length;) {
+              const status = tokens[i++];
+              if (status.startsWith('R') || status.startsWith('C')) {
+                const previous = tokens[i++]; const filename = tokens[i++];
+                files.push({filename, previous_filename: previous, status: 'renamed'});
+              } else {
+                const kind = {A: 'added', M: 'modified', D: 'deleted'}[status];
+                if (!kind) throw new Error(`BLOCKED: unsupported Git status ${status}`);
+                files.push({filename: tokens[i++], status: kind});
+              }
+            }
+            if (!files.length) throw new Error('BLOCKED: local Git diff is empty or unavailable');
+            let trustedSource;
+            try {
+              trustedSource = execFileSync('git', ['show', `${base}:scripts/required-check-detector.cjs`], {encoding: 'utf8'});
+            } catch {
+              core.warning('Trusted detector is absent in base; fail-closed bootstrap requires every suite');
+              core.setOutput('heavy', 'true');
+              return;
+            }
             const trustedModule = new Module(`${process.env.RUNNER_TEMP}/trusted-detector.cjs`);
             trustedModule.filename = `${process.env.RUNNER_TEMP}/trusted-detector.cjs`;
             trustedModule._compile(trustedSource, trustedModule.filename);
-            let files;
-            if (scenario === 'markdown-only') {
-              files = [{filename: 'docs/required-checks.md', status: 'modified'}];
-            } else if (scenario) {
-              throw new Error('BLOCKED: unknown validation scenario');
-            } else {
-              const raw = execFileSync('git', ['diff', '--name-status', '--find-renames=50%', '-z', `${base}^{commit}`, `${head}^{commit}`, '--'], {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
-              const tokens = raw.split('\0').filter(Boolean);
-              files = [];
-              for (let i = 0; i < tokens.length;) {
-                const status = tokens[i++];
-                if (status.startsWith('R') || status.startsWith('C')) {
-                  const previous = tokens[i++]; const filename = tokens[i++];
-                  files.push({filename, previous_filename: previous, status: 'renamed'});
-                } else {
-                  const kind = {A: 'added', M: 'modified', D: 'deleted'}[status];
-                  if (!kind) throw new Error(`BLOCKED: unsupported Git status ${status}`);
-                  files.push({filename: tokens[i++], status: kind});
-                }
-              }
-              if (!files.length) throw new Error('BLOCKED: local Git diff is empty or unavailable');
-            }
             const result = trustedModule.exports.detect({base, head, files});
             core.setOutput('heavy', String(result.heavy));
 
