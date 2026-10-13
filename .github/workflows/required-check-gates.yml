@@ -1,0 +1,113 @@
+name: Required check gates
+
+on:
+  pull_request:
+  workflow_run:
+    workflows: [Quality and E2E, Portal Acceptance, Kanban PostgreSQL E2E, PostgreSQL Clean Migration Install, Deployment safety validation, EGRESS-2 Board Transfer Benchmark]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  policy:
+    name: gate-policy
+    runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.context.outputs.files }}
+      sha: ${{ steps.context.outputs.sha }}
+    steps:
+      - id: context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const event = context.payload;
+            const sha = event.workflow_run?.head_sha || event.pull_request?.head.sha || context.sha;
+            const base = event.pull_request?.base.sha || event.workflow_run?.pull_requests?.[0]?.base?.sha;
+            if (!/^[a-f0-9]{40}$/.test(sha) || !base) core.setFailed('BLOCKED: verified base/head SHA unavailable');
+            else {
+              const result = await github.rest.repos.compareCommitsWithBasehead({owner: context.repo.owner, repo: context.repo.repo, basehead: `${base}...${sha}`});
+              if (result.data.status === 'diverged' || result.data.files == null) core.setFailed('BLOCKED: complete Git diff unavailable');
+              else { core.setOutput('files', JSON.stringify(result.data.files.map(f => f.filename))); core.setOutput('sha', sha); }
+            }
+
+  test:
+    name: test
+    needs: policy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env:
+          FILES: ${{ needs.policy.outputs.files }}
+          SHA: ${{ needs.policy.outputs.sha }}
+        with:
+          script: |
+            const {evaluateGate} = require('./scripts/required-check-gate.cjs');
+            const checks = (await github.rest.checks.listForRef({owner: context.repo.owner, repo: context.repo.repo, ref: process.env.SHA})).data.check_runs;
+            evaluateGate('test', JSON.parse(process.env.FILES || 'null'), checks);
+
+  portal-acceptance:
+    name: portal-acceptance
+    needs: policy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env: { FILES: ${{ needs.policy.outputs.files }}, SHA: ${{ needs.policy.outputs.sha }} }
+        with:
+          script: |
+            const {evaluateGate} = require('./scripts/required-check-gate.cjs'); const checks=(await github.rest.checks.listForRef({owner:context.repo.owner,repo:context.repo.repo,ref:process.env.SHA})).data.check_runs; evaluateGate('portal-acceptance',JSON.parse(process.env.FILES||'null'),checks);
+  kanban-postgres-e2e:
+    name: kanban-postgres-e2e
+    needs: policy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env: { FILES: ${{ needs.policy.outputs.files }}, SHA: ${{ needs.policy.outputs.sha }} }
+        with:
+          script: |
+            const {evaluateGate}=require('./scripts/required-check-gate.cjs'); const checks=(await github.rest.checks.listForRef({owner:context.repo.owner,repo:context.repo.repo,ref:process.env.SHA})).data.check_runs; evaluateGate('kanban-postgres-e2e',JSON.parse(process.env.FILES||'null'),checks);
+  clean-install:
+    name: clean-install
+    needs: policy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env: { FILES: ${{ needs.policy.outputs.files }}, SHA: ${{ needs.policy.outputs.sha }} }
+        with:
+          script: |
+            const {evaluateGate}=require('./scripts/required-check-gate.cjs'); const checks=(await github.rest.checks.listForRef({owner:context.repo.owner,repo:context.repo.repo,ref:process.env.SHA})).data.check_runs; evaluateGate('clean-install',JSON.parse(process.env.FILES||'null'),checks);
+  local-safety:
+    name: local-safety
+    needs: policy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env: { FILES: ${{ needs.policy.outputs.files }}, SHA: ${{ needs.policy.outputs.sha }} }
+        with:
+          script: |
+            const {evaluateGate}=require('./scripts/required-check-gate.cjs'); const checks=(await github.rest.checks.listForRef({owner:context.repo.owner,repo:context.repo.repo,ref:process.env.SHA})).data.check_runs; evaluateGate('local-safety',JSON.parse(process.env.FILES||'null'),checks);
+  benchmark:
+    name: benchmark
+    needs: policy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env: { FILES: ${{ needs.policy.outputs.files }}, SHA: ${{ needs.policy.outputs.sha }} }
+        with:
+          script: |
+            const {evaluateGate}=require('./scripts/required-check-gate.cjs'); const checks=(await github.rest.checks.listForRef({owner:context.repo.owner,repo:context.repo.repo,ref:process.env.SHA})).data.check_runs; evaluateGate('benchmark',JSON.parse(process.env.FILES||'null'),checks);

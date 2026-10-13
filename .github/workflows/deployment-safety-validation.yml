@@ -1,20 +1,13 @@
 name: Deployment safety validation
 on:
   pull_request:
-    paths:
-      - 'scripts/vercel-build.js'
-      - 'scripts/manual-migrations.cjs'
-      - 'scripts/validate-manual-migrations.cjs'
-      - 'test/*migration*'
-      - 'test/vercel-build-safety.test.js'
-      - '.github/workflows/manual-production-migrations.yml'
-      - '.github/workflows/deployment-safety-validation.yml'
 permissions:
   contents: read
   actions: read
   deployments: read
 jobs:
-  local-safety:
+  suite-local-safety:
+    name: suite-local-safety
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:

@@ -2,19 +2,10 @@ name: Kanban PostgreSQL E2E
 
 on:
   pull_request:
-    paths:
-      - "src/app/TableBoard.tsx"
-      - "src/app/(dashboard)/workspace/page.tsx"
-      - "src/app/api/tables/**"
-      - "e2e/kanban-pagination.spec.ts"
-      - "scripts/bootstrap-kanban-postgres.mjs"
-      - "playwright.config.ts"
-      - "supabase/**"
-      - "scripts/vercel-build.js"
-      - ".github/workflows/kanban-postgres-e2e.yml"
 
 jobs:
-  kanban-postgres-e2e:
+  suite-kanban-postgres-e2e:
+    name: suite-kanban-postgres-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 75
     services:

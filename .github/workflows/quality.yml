@@ -1,10 +1,11 @@
 name: Quality and E2E
 on:
   push: { branches: [main] }
-  pull_request: { branches: [main, feat/portal-readiness-gating, audit/final-integration-114-118] }
+  pull_request:
   workflow_dispatch:
 jobs:
-  test:
+  suite-test:
+    name: suite-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
