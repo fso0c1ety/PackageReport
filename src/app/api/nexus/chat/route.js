@@ -86,7 +86,7 @@ export async function POST(req) {
     const contextText = JSON.stringify(context).slice(0, 50000);
     const systemPrompt = `${body?.systemPrompt || "You are Nexus Brain."}\nCapability: ${capability}. Use only the authorized workspace context below. Never reveal another workspace or claim a write occurred.\nWORKSPACE_CONTEXT:${contextText}`;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
-    const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       console.warn("[NEXUS][POST] Missing OPENAI_API_KEY, using graceful fallback.");
