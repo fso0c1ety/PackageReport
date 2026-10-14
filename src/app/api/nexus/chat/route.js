@@ -6,18 +6,6 @@ import { assertNexusCreditsAvailable, estimateNexusCredits, recordNexusCredits, 
 
 export const runtime = "nodejs";
 
-async function ensureAiSchema() {
-  await pool.query(`
-    ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE;
-    CREATE TABLE IF NOT EXISTS ai_action_logs (
-      id TEXT PRIMARY KEY,user_id TEXT NOT NULL,workspace_id TEXT NOT NULL,table_id TEXT,
-      capability TEXT NOT NULL,input_summary TEXT,status TEXT NOT NULL DEFAULT 'success',
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS ai_action_logs_workspace_created_idx ON ai_action_logs(workspace_id,created_at DESC)
-  `);
-}
-
 function buildFallbackCompletion(payload) {
   return {
     id: "nexus-fallback",
@@ -35,6 +23,10 @@ function buildFallbackCompletion(payload) {
       },
     ],
   };
+}
+
+function isMissingNexusSchemaError(error) {
+  return error?.code === "42P01" || error?.code === "42703";
 }
 
 function buildGracefulPayload(input = "") {
@@ -66,14 +58,13 @@ export async function POST(req) {
   let input = "";
 
   try {
-    await ensureAiSchema();
     const body = await req.json();
     input = body?.input || "";
     const workspaceId = String(body?.workspaceId || "");
     const capability = aiContext.normalizeCapability(body?.capability);
     const creditsToConsume = estimateNexusCredits({ input, messages: body?.messages });
     if (!workspaceId) return NextResponse.json({ error: "Workspace context is required" }, { status: 400 });
-    const access = await pool.query("SELECT * FROM workspaces WHERE id=$1 AND (owner_id=$2 OR EXISTS(SELECT 1 FROM tables t WHERE t.workspace_id=$1 AND COALESCE(t.shared_users,'[]'::jsonb) @> $3::jsonb))", [workspaceId, String(user.id), JSON.stringify([{ userId: String(user.id) }])]);
+    const access = await pool.query("SELECT id,owner_id,ai_enabled,name,template_key FROM workspaces WHERE id=$1 AND (owner_id=$2 OR EXISTS(SELECT 1 FROM tables t WHERE t.workspace_id=$1 AND COALESCE(t.shared_users,'[]'::jsonb) @> $3::jsonb))", [workspaceId, String(user.id), JSON.stringify([{ userId: String(user.id) }])]);
     if (!access.rows[0]) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (access.rows[0].ai_enabled === false) return NextResponse.json({ error: "AI is disabled for this workspace" }, { status: 403 });
     const ownerId = await resolveBillingOwnerId(user.id, { workspaceId });
@@ -150,6 +141,9 @@ export async function POST(req) {
     await pool.query("INSERT INTO ai_action_logs(id,user_id,workspace_id,capability,input_summary,status,metadata) VALUES($1,$2,$3,$4,$5,'provider_fallback',$6::jsonb)", [randomUUID(), String(user.id), workspaceId, capability, input.slice(0,500), JSON.stringify({ boardCount: context.boards.length, rowCount: context.rows.length, providerUnavailable: true })]);
     return NextResponse.json(buildFallbackCompletion(providerFallback));
   } catch (err) {
+    if (isMissingNexusSchemaError(err)) {
+      return NextResponse.json({ error: "Nexus is not configured on this server", code: "NEXUS_SCHEMA_NOT_READY" }, { status: 503 });
+    }
     console.error("[NEXUS][POST] Error:", err);
     return NextResponse.json(buildFallbackCompletion(buildGracefulPayload(input)));
   }
