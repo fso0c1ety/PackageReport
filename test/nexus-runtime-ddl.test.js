@@ -29,4 +29,5 @@ test("Calendar and public approvals rely on versioned migrations instead of requ
   assert.match(calendarMigration, /reminder_sent_at/);
   assert.match(approvalsMigration, /CREATE TABLE IF NOT EXISTS portal_approvals/);
   assert.match(approvalsMigration, /public_share_approvals/);
+  assert.doesNotMatch(calendarRoute, /SELECT \*|RETURNING \*/i);
 });
