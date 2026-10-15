@@ -84,6 +84,27 @@ export async function seedPortalAcceptance({connectionString=process.env.DATABAS
     const groups=await link("daycare","Groups",["teacherA","teacherB"],(id,account,row,table,i)=>({[col(table,"Name")?.id]:groupNames[i],[col(table,"Educator")?.id]:person(id,account),_classTeacherUserId:id})); await link("daycare","Parents",["parentA","parentB"],(id)=>({_linkedUserId:id})); const children=await link("daycare","Children",["parentA","parentB"],(id,_,row,table,i)=>({_linkedParentUserId:id,_classTeacherUserId:ids[i===0?"teacherA":"teacherB"],[col(table,"Full Name")?.id]:childNames[i],[col(table,"Group")?.id]:[{tableId:groups.table.id,rowId:groups.records[i]?.id,label:groupNames[i],tableName:"Groups"}]})); for(const name of ["Attendance","Documents","Payments"]) await link("daycare",name,["parentA","parentB"],(id,_,row,table,i)=>({_linkedParentUserId:id,_classTeacherUserId:ids[i===0?"teacherA":"teacherB"],[col(table,"Child")?.id]:[{tableId:children.table.id,rowId:children.records[i]?.id,label:childNames[i],tableName:"Children"}]})); await link("daycare","Meals",["parentA","parentB"],(id,_,row,table,i)=>({_linkedParentUserId:id,educatorUserId:ids[i===0?"teacherA":"teacherB"],[col(table,"Assigned Groups")?.id]:[{tableId:groups.table.id,rowId:groups.records[i]?.id,label:groupNames[i],tableName:"Groups"}]}));
     const mealsTable=(await boards(client,manifest.workspaces.daycare.workspaceId)).find((item)=>item.name==="Meals"); for(const [i,meal] of (await rows(client,mealsTable)).entries()) { const owner=i%2===0?"parentA":"parentB"; const group=i%2; await patchRow(client,meal,{_linkedParentUserId:ids[owner],educatorUserId:ids[group===0?"teacherA":"teacherB"],[col(mealsTable,"Assigned Groups")?.id]:[{tableId:groups.table.id,rowId:groups.records[group]?.id,label:groupNames[group],tableName:"Groups"}]}); }
     await link("daycare","Activities",["parentA","parentB"],(id,_,row,table,i)=>({_linkedParentUserId:id,_classTeacherUserId:ids[i===0?"teacherA":"teacherB"],[col(table,"Group")?.id]:[{tableId:groups.table.id,rowId:groups.records[i]?.id,label:groupNames[i],tableName:"Groups"}],[col(table,"Children")?.id]:[{tableId:children.table.id,rowId:children.records[i]?.id,label:childNames[i],tableName:"Children"}]}));
+    // In isolated acceptance fixtures, old template Parent relations must not
+    // contradict the linked account metadata or randomly share another family.
+    // All children in a fixture group belong to its matching parent account.
+    if (env.PORTAL_ACCEPTANCE_CI === "1") {
+      const parentsTable=(await boards(client,manifest.workspaces.daycare.workspaceId)).find((item)=>item.name==="Parents");
+      const parentRows=await rows(client,parentsTable);
+      const currentChildren=await rows(client,children.table);
+      const parentColumn=col(children.table,"Parent");
+      const groupColumn=col(children.table,"Group");
+      if (!parentColumn || !groupColumn) throw new Error("Acceptance child relation columns missing");
+      for (const [i,row] of currentChildren.entries()) {
+        const index=i%2;
+        const parentKey=index===0?"parentA":"parentB";
+        const teacherKey=index===0?"teacherA":"teacherB";
+        const parentRow=parentRows.find((item)=>item.values?._linkedUserId===ids[parentKey]);
+        if (!parentRow || !groups.records[index]) throw new Error("Acceptance family relation fixture missing");
+        await patchRow(client,row,{_linkedParentUserId:ids[parentKey],_classTeacherUserId:ids[teacherKey],
+          [parentColumn.id]:[{tableId:parentsTable.id,rowId:parentRow.id,tableName:"Parents"}],
+          [groupColumn.id]:[{tableId:groups.table.id,rowId:groups.records[index].id,tableName:"Groups",label:groupNames[index]}]});
+      }
+    }
     const patientNames=["Elira Krasniqi","Arben Hoxha"];
     const patients=await link("dental","Patients",["patientA","patientB"],(id,_,row,table,i)=>({_linkedUserId:id,_linkedPatientUserId:id,_assignedDoctorUserId:ids[i===0?"doctorA":"doctorB"],[col(table,"Name")?.id]:patientNames[i]})); for(const name of ["Appointments","Treatments"]) await link("dental",name,["doctorA","doctorB"],(id,account,row,table,i)=>({[col(table,"Dentist")?.id]:person(id,account),[col(table,"Patient")?.id]:[{tableId:patients.table.id,rowId:patients.records[i]?.id,label:patientNames[i],tableName:"Patients"}],_assignedDoctorUserId:id,_linkedPatientUserId:ids[i===0?"patientA":"patientB"]})); for(const name of ["Lab Requests","Documents","Dental Billing"]) await link("dental",name,["patientA","patientB"],(id,_,row,table,i)=>({[col(table,"Patient")?.id]:[{tableId:patients.table.id,rowId:patients.records[i]?.id,label:patientNames[i],tableName:"Patients"}],_linkedPatientUserId:id,_assignedDoctorUserId:ids[i===0?"doctorA":"doctorB"],...(name==="Documents"?{[col(table,"Visibility")?.id]:"Shared",[col(table,"Status")?.id]:"Shared"}:{})}));
     const clients=await link("freight","Clients",["clientA","clientB"],(id)=>({_linkedUserId:id})); for(const name of ["Loads","Invoices","Documents"]) await link("freight",name,["clientA","clientB"],(id,_,row,table,i)=>({clientCompanyId:clients.records[i]?.id})); for(const key of ["clientA","clientB"]) await client.query("UPDATE workspace_members SET company_id=$1 WHERE workspace_id=$2 AND user_id=$3",[clients.records[key==="clientA"?0:1]?.id,manifest.workspaces.freight.workspaceId,ids[key]]);

@@ -1,21 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-const FALLBACK_SUPABASE_URL = 'https://gxzvlsukjodbarlcjyys.supabase.co';
-const FALLBACK_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_rU2ecIwaUTFj5hckh96xRw_h9OmumL4';
-
 const configuredSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const configuredSupabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabaseUrl = configuredSupabaseUrl || FALLBACK_SUPABASE_URL;
-const supabaseAnonKey = configuredSupabaseKey || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
+const disabledChannel = {
+  on() { return this; },
+  subscribe(callback?: (status: string) => void) {
+    callback?.('CHANNEL_ERROR');
+    return this;
+  },
+};
 
-if (process.env.NODE_ENV !== 'production' && (!configuredSupabaseUrl || !configuredSupabaseKey)) {
-  console.warn(
-    '[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or a Supabase public key env var (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY). ' +
-      'Falling back to the public project defaults so Realtime and calls still work in packaged builds.'
-  );
+const disabledClient = {
+  channel() { return disabledChannel; },
+  removeChannel() { return Promise.resolve('ok'); },
+};
+
+if (!configuredSupabaseUrl || !configuredSupabaseKey) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[Supabase] Explicit NEXT_PUBLIC_SUPABASE_URL and publishable key are required; Realtime is disabled.');
+  }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = (configuredSupabaseUrl && configuredSupabaseKey
+  ? createClient(configuredSupabaseUrl, configuredSupabaseKey)
+  : disabledClient) as ReturnType<typeof createClient>;

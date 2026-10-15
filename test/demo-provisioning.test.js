@@ -15,7 +15,7 @@ test("demo provisioning migration defines retry-safe lifecycle state", () => {
   assert.match(sql, /smart_manage_demo_write_guard/);
   assert.match(sql, /demo_expires_at<=NOW\(\)/);
   assert.match(sql, /revoked/);
-  assert.match(read("scripts","vercel-build.js"), /028_demo_provisioning_flow\.sql/);
+  assert.match(read('server','db','migrations','028_demo_provisioning_flow.sql'), /CREATE TABLE IF NOT EXISTS demo_request_events/);
 });
 
 test("template recommendation uses catalog-backed explicit mappings", () => {

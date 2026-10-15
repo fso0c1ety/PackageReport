@@ -1,0 +1,36 @@
+name: Required checks policy fixtures
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Fixture scenario'
+        required: true
+        type: choice
+        options: [markdown-only, negative-gate-results]
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-markdown-policy:
+    if: inputs.scenario == 'markdown-only'
+    name: fixture-markdown-policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node --test test/required-check-detector.test.cjs test/required-check-gate.test.cjs
+      - run: echo 'Fixture only; it cannot satisfy production required checks.' >> "$GITHUB_STEP_SUMMARY"
+
+  fixture-negative-gates:
+    if: inputs.scenario == 'negative-gate-results'
+    name: fixture-negative-gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node --test test/required-check-gate.test.cjs
+      - run: echo 'Negative fixture only; production gate names are not emitted.' >> "$GITHUB_STEP_SUMMARY"

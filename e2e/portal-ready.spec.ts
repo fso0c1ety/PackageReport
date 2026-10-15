@@ -62,13 +62,23 @@ test.describe("final professional portal READY acceptance",()=>{
       const parentChildIds=new Set(entity(parentInitial.payload,"Children").records.map((row:any)=>row.id));
       const child=entity(initial.payload,"Children").records.find((row:any)=>parentChildIds.has(row.id));
       expect(child).toBeTruthy();
-      const group=entity(initial.payload,"Groups").records[0];
+      const parentBInitial=await portal(parentB,baseURL!,"parent");
+      const managerTablesData=await managerTables(manager,baseURL!,initial.workspaceId);
+      const childrenTable=managerTablesData.find((table:any)=>table.name==="Children");
+      const rawChildren=await managerRows(manager,baseURL!,childrenTable.id);
+      const groupColumn=childrenTable.columns.find((column:any)=>column.name==="Group");
+      expect(groupColumn).toBeTruthy();
+      const groupIds=(row:any):string[] => (row.values[groupColumn.id]||[]).map((relation:any)=>String(relation.rowId||relation.recordId||relation.id||relation));
+      const ownGroups=new Set(groupIds(rawChildren.find((row:any)=>row.id===child.id)));
+      const otherChildren=new Set(entity(parentBInitial.payload,"Children").records.map((row:any)=>row.id));
+      const otherGroups=new Set(rawChildren.filter((row:any)=>otherChildren.has(row.id)).flatMap(groupIds));
+      const originalGroup=entity(initial.payload,"Groups").records[0];
+      console.log('[portal-group-diagnostic]', JSON.stringify({originalGroupId:originalGroup?.id,originalVisibleToParentB:otherGroups.has(originalGroup?.id),children:rawChildren.map((row:any)=>({id:row.id,parent:row.values._linkedParentUserId,teacher:row.values._classTeacherUserId,groups:groupIds(row)}))}));
+      const group=entity(initial.payload,"Groups").records.find((row:any)=>ownGroups.has(row.id)&&!otherGroups.has(row.id));
       expect(group).toBeTruthy();
 
       expect(action(initial.payload,"sleep:start")).toBeTruthy();
       expect((await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"sleep:start",record:child})).status()).toBe(200);
-      const managerTablesData=await managerTables(manager,baseURL!,initial.workspaceId);
-      const childrenTable=managerTablesData.find((table:any)=>table.name==="Children");
       let managerChildren=await managerRows(manager,baseURL!,childrenTable.id);
       let rawChild=managerChildren.find((row:any)=>row.id===child.id);
       const openSleep=rawChild.values._sleepEvents?.[0];
@@ -89,6 +99,7 @@ test.describe("final professional portal READY acceptance",()=>{
       const activity=await write(teacher.request,baseURL!,{workspaceId:initial.workspaceId,portalType:"teacher",action:"activity:create",subject:group,values:{Title:"Watercolour garden",Type:"Creative",Description:"Children explored colour mixing and painted flowers", "Date / Time":new Date().toISOString(),Visibility:"Parent"}});
       expect(activity.status()).toBe(200);
       const activityId=(await activity.json()).recordId;
+      expect(entity((await portal(parent,baseURL!,"parent")).payload,"Activities").records.some((row:any)=>row.id===activityId)).toBe(true);
 
       const photoUpload=await upload(teacher.request,baseURL!,{workspaceId:initial.workspaceId,rowId:child.id,portalType:"teacher",portalAction:"photo:create",writeToken:child.writeToken,name:"daily-photo.png",mimeType:"image/png",buffer:png});
       expect(photoUpload.status(),await photoUpload.text()).toBe(200);

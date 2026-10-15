@@ -1,0 +1,126 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { Client } = require('pg');
+
+const enabled = process.env.SMART_MANAGE_SECURITY_INTEGRATION === '1';
+const connectionString = process.env.DATABASE_URL;
+
+if (!enabled) {
+  test('security PostgreSQL integration requires explicit opt-in', { skip: 'SMART_MANAGE_SECURITY_INTEGRATION=1 is required' }, () => {});
+} else {
+  if (!connectionString) throw new Error('DATABASE_URL is required for security integration');
+  const forbidden = /supabase\.(co|com)|smart_manage_prod|production/i;
+  if (forbidden.test(connectionString) || !/(localhost|127\.0\.0\.1|::1)/i.test(connectionString)) {
+    throw new Error('Security integration accepts only a local PostgreSQL target');
+  }
+
+  const client = new Client({ connectionString });
+  const serverOnly = [
+    'password_reset_tokens', 'email_verification_tokens', 'account_activation_tokens',
+    'auth_sessions', 'authentication_audit_events', 'invoices', 'subscriptions',
+    'marketplace_templates', 'marketplace_reviews', 'marketplace_reports', 'calendar_events',
+    'automation_action_usage', 'background_job_audit', 'board_member_access',
+    'demo_request_events', 'demo_requests', 'enterprise_audit_logs', 'enterprise_inquiries',
+    'file_audit_log', 'integration_webhooks', 'invoice_sequences', 'nexus_credit_usage',
+    'platform_staff_roles', 'portal_comments', 'portal_definitions', 'professional_invitations',
+    'scheduler_locks', 'trip_status_history', 'workspace_job_roles', 'workspace_modules',
+    'workspace_portal_overrides',
+  ];
+  const tablePrivileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'];
+  const backendPrivileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+
+  test.before(async () => {
+    await client.connect();
+    await client.query(`
+      DO $$
+      DECLARE role_name text;
+      BEGIN
+        FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+            EXECUTE format('CREATE ROLE %I NOLOGIN', role_name);
+          END IF;
+        END LOOP;
+      END $$;
+    `);
+    await client.query('ALTER ROLE service_role BYPASSRLS');
+    const missing = [];
+    for (const table of serverOnly) {
+      const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
+      if (!exists.rows[0].name) {
+        missing.push(table);
+        continue;
+      }
+    }
+    assert.deepEqual(missing, [], `required security tables are missing: ${missing.join(', ')}`);
+  });
+
+  test.after(async () => { await client.end(); });
+
+  test('server-only tables have RLS and no anon/authenticated table privileges', async () => {
+    for (const table of serverOnly) {
+      const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
+      assert.ok(exists.rows[0].name, `${table} must exist in the isolated schema`);
+      const rls = await client.query('SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass', [`public.${table}`]);
+      assert.equal(rls.rows[0].relrowsecurity, true, `${table} must have RLS enabled`);
+      for (const role of ['anon', 'authenticated']) {
+        for (const privilege of tablePrivileges) {
+          const privileges = await client.query(`
+            SELECT COALESCE(bool_or(a.grantee = r.oid AND a.privilege_type = $2), false) AS allowed
+            FROM pg_roles r
+            LEFT JOIN LATERAL aclexplode(COALESCE(
+              (SELECT relacl FROM pg_class WHERE oid = $1::regclass),
+              acldefault('r', (SELECT relowner FROM pg_class WHERE oid = $1::regclass))
+            )) a ON true
+            WHERE r.rolname = $3
+          `, [`public.${table}`, privilege, role]);
+          assert.equal(privileges.rows[0].allowed, false, `${role} must not have direct ${privilege} grant on ${table}`);
+          const effective = await client.query('SELECT has_table_privilege($1, $2, $3) AS allowed', [role, `public.${table}`, privilege]);
+          assert.equal(effective.rows[0].allowed, false, `${role} must not effectively have ${privilege} on ${table}`);
+        }
+      }
+      const publicPrivileges = await client.query(`
+        SELECT COALESCE(bool_or(grantee = 0 AND privilege_type = ANY($2::text[])), false) AS allowed
+        FROM aclexplode(COALESCE(
+          (SELECT relacl FROM pg_class WHERE oid = $1::regclass),
+          acldefault('r', (SELECT relowner FROM pg_class WHERE oid = $1::regclass))
+        ))
+      `, [`public.${table}`, tablePrivileges]);
+      assert.equal(publicPrivileges.rows[0].allowed, false, `PUBLIC must not have table privileges on ${table}`);
+    }
+  });
+
+  test('service_role remains able to read protected tables', async () => {
+    for (const table of serverOnly) {
+      const exists = await client.query('SELECT to_regclass($1) AS name', [`public.${table}`]);
+      assert.ok(exists.rows[0].name, `${table} must exist in the isolated schema`);
+      await client.query('SET ROLE service_role');
+      try {
+        for (const privilege of backendPrivileges) {
+          const privileges = await client.query('SELECT has_table_privilege(current_user, $1, $2) AS allowed', [`public.${table}`, privilege]);
+          assert.equal(privileges.rows[0].allowed, true, `service_role must retain ${privilege} on ${table}`);
+        }
+        await client.query(`SELECT 1 FROM public."${table}" LIMIT 1`);
+      } finally {
+        await client.query('RESET ROLE');
+      }
+    }
+  });
+
+  test('public handle_new_user functions are not executable by API roles', async () => {
+    const functions = await client.query(`
+      SELECT p.oid::regprocedure::text AS signature, p.prosecdef
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='public' AND p.proname='handle_new_user'
+    `);
+    assert.ok(functions.rows.length > 0, 'fixture must contain handle_new_user for authorization coverage');
+    for (const { signature, prosecdef } of functions.rows) {
+      assert.equal(prosecdef, true, `${signature} must remain SECURITY DEFINER`);
+      for (const role of ['anon', 'authenticated']) {
+        const result = await client.query('SELECT has_function_privilege($1, $2, $3) AS allowed', [role, signature, 'EXECUTE']);
+        assert.equal(result.rows[0].allowed, false, `${role} must not execute ${signature}`);
+      }
+      const backend = await client.query('SELECT has_function_privilege($1, $2, $3) AS allowed', ['service_role', signature, 'EXECUTE']);
+      assert.equal(backend.rows[0].allowed, true, `service_role must execute ${signature}`);
+    }
+  });
+}

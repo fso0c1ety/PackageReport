@@ -1,0 +1,33 @@
+name: Approval security review validation
+on:
+  push:
+    branches: [audit/final-approval-security]
+permissions:
+  contents: read
+jobs:
+  approval-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify exact tested commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Mock-only approvals and offline identity tests
+        run: node --test test/approval-workflow.test.js test/database-identity-audit.test.js
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Diff whitespace validation
+        run: git diff --check "$GITHUB_SHA^" "$GITHUB_SHA"
+      - name: Record immutable test SHA
+        run: echo "Validated commit $GITHUB_SHA using mocks only; production activation remains BLOCKED pending settings verification." >> "$GITHUB_STEP_SUMMARY"

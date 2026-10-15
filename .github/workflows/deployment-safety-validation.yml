@@ -1,0 +1,55 @@
+name: Deployment safety validation
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+jobs:
+  suite-local-safety:
+    name: suite-local-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_manual_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: manual-local-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_manual_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:manual-local-only@127.0.0.1:5432/smart_manage_manual_test
+      EXPECTED_DB_HOST: 127.0.0.1
+      EXPECTED_DB_PORT: '5432'
+      EXPECTED_DB_NAME: smart_manage_manual_test
+      EXPECTED_DB_USER: postgres
+      MIGRATION_LOCAL_TEST: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify GITHUB_TOKEN read-only metadata permissions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const environment = await github.rest.repos.getEnvironment({...context.repo,environment_name:'production'});
+              const rules = await github.request('GET /repos/{owner}/{repo}/rules/branches/{branch}',{...context.repo,branch:'main'});
+              if (environment.status !== 200 || rules.status !== 200 || !Array.isArray(rules.data)) throw new Error('Metadata response invalid');
+              core.info('GITHUB_TOKEN: getEnvironment HTTP 200; effective Rulesets HTTP 200. Read-only permissions verified.');
+              await core.summary.addRaw('Token metadata reads PASS. This verifies permissions only, not production approval or configuration.').write();
+            } catch (error) {
+              core.setFailed(`BLOCKED: GITHUB_TOKEN metadata read unavailable (HTTP ${error.status || 'unknown'}). No privilege escalation or production execution attempted.`);
+            }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --test test/vercel-build-safety.test.js test/manual-migrations.test.js test/approval-workflow.test.js test/database-identity-audit.test.js
+      - run: node scripts/validate-manual-migrations.cjs

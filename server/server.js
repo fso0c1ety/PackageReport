@@ -116,6 +116,9 @@ attachSocketServer(io, {
 // --- Legacy Database Schema Migrations ---
 let startupMigrationPromise = Promise.resolve();
 if (process.env.RUN_STARTUP_MIGRATIONS === 'true') {
+  if (String(process.env.NODE_ENV || '').toLowerCase() === 'production' || String(process.env.VERCEL_ENV || '').toLowerCase() === 'production') {
+    throw new Error('RUN_STARTUP_MIGRATIONS is disabled in production; use the approved manual migration workflow');
+  }
 startupMigrationPromise = (async () => {
   try {
     await db.query(`
