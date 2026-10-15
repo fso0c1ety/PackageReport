@@ -11,6 +11,14 @@ on:
       plan_hash:
         description: 'SHA256 of independently reviewed exact pending migration plan'
         required: true
+      reconciliation_manifest:
+        description: 'Optional independently reviewed preserve-unknown-history JSON; never credentials or customer data'
+        required: false
+        default: ''
+      reconciliation_hash:
+        description: 'SHA256 of canonical reconciliation JSON; required only for explicitly reviewed forward repair mode'
+        required: false
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -85,6 +93,9 @@ jobs:
           EXPECTED_DB_USER: ${{ vars.PRODUCTION_DB_USER }}
           MANUAL_MIGRATIONS_ENABLED: ${{ vars.MANUAL_MIGRATIONS_ENABLED }}
           MIGRATION_EXECUTION_APPROVED: '1'
+          RECONCILIATION_MANIFEST: ${{ inputs.reconciliation_manifest }}
+          EXPECTED_RECONCILIATION_HASH: ${{ inputs.reconciliation_hash }}
+          RECONCILED_REPAIR_APPROVED: ${{ inputs.reconciliation_manifest != '' && '1' || '0' }}
           APPROVED_SHA: ${{ inputs.commit_sha }}
           CHECKED_OUT_SHA: ${{ inputs.commit_sha }}
           EXPECTED_LEDGER_HASH: ${{ inputs.ledger_hash }}
