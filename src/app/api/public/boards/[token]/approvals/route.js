@@ -4,17 +4,8 @@ import { pool } from "../../../../_lib/server";
 import { rateLimit, requestIp } from "../../../../_lib/security";
 import { ensurePublicShareSecuritySchema, hasPublicShareUnlock } from "../../../../_lib/publicShareSecurity";
 
-async function ensureSchema() {
-  await pool.query("ALTER TABLE tables ADD COLUMN IF NOT EXISTS public_share_approvals BOOLEAN NOT NULL DEFAULT FALSE");
-  await pool.query(`CREATE TABLE IF NOT EXISTS portal_approvals(
-    id TEXT PRIMARY KEY, table_id TEXT NOT NULL, row_id TEXT NOT NULL,
-    client_name TEXT NOT NULL, decision TEXT NOT NULL CHECK(decision IN ('approved','changes_requested')),
-    note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-}
-
 async function loadBoard(token) {
   await ensurePublicShareSecuritySchema(pool);
-  await ensureSchema();
   const result = await pool.query("SELECT id,public_share_approvals,public_share_password_hash,public_share_expires_at FROM tables WHERE public_share_enabled=TRUE AND public_share_token=$1", [token]);
   return result.rows[0];
 }

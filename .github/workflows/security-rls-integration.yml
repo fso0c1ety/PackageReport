@@ -7,6 +7,9 @@ on:
       - 'server/db/migrations/**'
       - 'test/security-rls-postgres.integration.js'
       - 'src/lib/supabase.ts'
+      - 'src/app/api/nexus/chat/route.js'
+      - 'src/app/api/calendar-events/route.js'
+      - 'src/app/api/public/boards/\[token\]/approvals/route.js'
       - '.github/workflows/security-rls-integration.yml'
 
 permissions:

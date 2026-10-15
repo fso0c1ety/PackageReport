@@ -2,12 +2,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { checksum, validateMigrationFiles } = require('../server/db/migrationUtils');
 const { executionSql } = require('../server/db/migrationExecution');
+const { validateReconciledPlan, schemaEvidenceHash } = require('./reconciled-repair-plan.cjs');
 
 function config(env) {
   if (env.MIGRATION_EXECUTION_APPROVED !== '1' || env.MANUAL_MIGRATIONS_ENABLED !== '1') throw new Error('Migration approval/configuration missing');
   if (!/^[a-f0-9]{40}$/.test(env.APPROVED_SHA || '') || env.APPROVED_SHA !== env.CHECKED_OUT_SHA) throw new Error('Commit verification failed');
   if (!/^[a-f0-9]{64}$/.test(env.EXPECTED_PLAN_HASH || '') || !/^[a-f0-9]{64}$/.test(env.EXPECTED_LEDGER_HASH || '')) throw new Error('Approved plan/ledger hashes required');
   if (env.MIGRATION_TARGET) throw new Error('Manual runner requires complete dependency order');
+  if (env.RECONCILIATION_MANIFEST) {
+    if (env.RECONCILED_REPAIR_APPROVED !== '1' || !/^[a-f0-9]{64}$/.test(env.EXPECTED_RECONCILIATION_HASH || '')) throw new Error('Explicit reconciliation approval/hash required');
+    const manifest = JSON.parse(env.RECONCILIATION_MANIFEST);
+    if (checksum(JSON.stringify(manifest)) !== env.EXPECTED_RECONCILIATION_HASH || manifest.releaseSha !== env.APPROVED_SHA) throw new Error('Reconciliation input mismatch');
+  } else if (env.RECONCILED_REPAIR_APPROVED === '1') throw new Error('Reconciliation manifest required');
   let url;
   try { url = new URL(env.DATABASE_URL); } catch { throw new Error('Database configuration invalid'); }
   if (!env.EXPECTED_DB_HOST || !env.EXPECTED_DB_NAME || !env.EXPECTED_DB_USER || !env.EXPECTED_DB_PORT) throw new Error('Destination identity missing');
@@ -43,6 +49,31 @@ async function apply(client, env) {
     const exists = await client.query("SELECT to_regclass('public.schema_migrations') AS ledger");
     if (!exists.rows[0]?.ledger) throw new Error('Existing migration ledger required; fresh production provisioning is a separate approval');
     const before = (await client.query('SELECT filename, checksum FROM public.schema_migrations')).rows;
+    if (env.RECONCILIATION_MANIFEST) {
+      if (ledgerHash(before) !== env.EXPECTED_LEDGER_HASH) throw new Error('Approved ledger mismatch');
+      await client.query('BEGIN');
+      let reconciliationStage = 'evidence';
+      try {
+        await client.query("SET LOCAL lock_timeout='10s'");
+        await client.query("SET LOCAL statement_timeout='5min'");
+        const manifest = JSON.parse(env.RECONCILIATION_MANIFEST);
+        const plan = validateReconciledPlan(files, before, manifest, env, await schemaEvidenceHash(client));
+        for (const file of plan) {
+          reconciliationStage = file.filename;
+          await client.query(executionSql(file.filename, file.sql));
+          await client.query('INSERT INTO public.schema_migrations(filename,checksum,execution_ms) VALUES($1,$2,$3)', [file.filename,file.checksum,0]);
+        }
+        const after = (await client.query('SELECT filename, checksum FROM public.schema_migrations')).rows;
+        reconciliationStage = 'ledger-verification';
+        const expected = [...before,...plan.map(({filename,checksum})=>({filename,checksum}))];
+        if (after.length !== expected.length || ledgerHash(after)!==ledgerHash(expected)) throw new Error('Reconciled ledger preservation failed');
+        await client.query('COMMIT');
+        return { applied:plan.map(f=>f.filename), preservedHistoricalEntries:before.length, preservedNullChecksums:before.filter(r=>r.checksum===null).length, reconciliationHash:env.EXPECTED_RECONCILIATION_HASH };
+      } catch {
+        await client.query('ROLLBACK');
+        throw new Error(`Reconciled repairs refused/rolled back at ${reconciliationStage}; historical ledger preserved`);
+      }
+    }
     for (const row of before) {
       const file = files.find(f => f.filename === row.filename);
       if (!file || !row.checksum || row.checksum !== file.checksum) throw new Error('Historical migration ledger mismatch');
