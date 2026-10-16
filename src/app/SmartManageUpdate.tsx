@@ -60,7 +60,7 @@ function titleFor(type: UpdateType, state: DisplayState) {
 }
 
 export default function SmartManageUpdate() {
-  const activePlatform = useMemo(platform, []);
+  const activePlatform = useMemo(() => platform(), []);
   const [policy, setPolicy] = useState<PlatformPolicy | null>(null);
   const [updateType, setUpdateType] = useState<UpdateType>("OPTIONAL");
   const [displayState, setDisplayState] = useState<DisplayState>("available");
