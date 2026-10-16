@@ -3461,6 +3461,20 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   useEffect(() => {
   if (workspaceView !== 'kanban' || !tableId) return;
+  let active = true;
+  const preloadKanbanRows = async () => {
+    while (active && loadMoreRowsRef.current) {
+      const before = nextRowsOffsetRef.current;
+      await loadMoreRowsRef.current();
+      if (!active || nextRowsOffsetRef.current <= before || nextRowsOffsetRef.current >= totalRowsRef.current) break;
+    }
+  };
+  void preloadKanbanRows();
+  return () => { active = false; };
+  }, [workspaceView, tableId]);
+
+  useEffect(() => {
+  if (workspaceView !== 'kanban' || !tableId) return;
   const statusColumnId = columns.find((column) => column.type === 'Status')?.id;
   if (!statusColumnId) return;
   const requestKey = `${tableId}:${statusColumnId}`;

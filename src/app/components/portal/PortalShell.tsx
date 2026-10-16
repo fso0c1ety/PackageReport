@@ -101,7 +101,7 @@ export default function PortalShell({ membership, config }: Props) {
     if (!activeAction || !data?.entities) return [];
     const entityName = activeAction.mode === "create" ? activeAction.subjectEntity : activeAction.entity;
     return data.entities.find((entity:any) => entity.entity === entityName)?.records || [];
-  }, [activeAction, data?.entities]);
+  }, [activeAction, data]);
   const openAction = (action:any) => { setActiveAction(action); setTargetId(""); setFormValues({}); setSelectedFile(null); setWriteMessage(""); };
   const submitAction = async () => {
     if (!activeAction || !targetId) return;

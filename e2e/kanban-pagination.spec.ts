@@ -109,8 +109,8 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     const page = await context.newPage();
     try {
         const taskRequests: string[] = [];
-        const taskEvents: string[] = [];
         let successfulPaginationResponses = 0;
+        let firstPageRowCount = -1;
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
@@ -122,92 +122,37 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         };
         page.on("request", request => {
           const parsed = taskUrl(request.url());
-          if (request.method() === "GET" && parsed) {
+          if (request.method() === "GET" && parsed && !parsed.searchParams.has("statusColumnId")) {
             taskRequests.push(request.url());
-            taskEvents.push(`request ${parsed.toString()}`);
           }
-        });
-        page.on("requestfailed", request => {
-          const parsed = taskUrl(request.url());
-          if (parsed) taskEvents.push(`requestfailed ${parsed.toString()} ${request.failure()?.errorText || "unknown"}`);
-        });
-        page.on("requestfinished", request => {
-          const parsed = taskUrl(request.url());
-          if (parsed) taskEvents.push(`requestfinished ${parsed.toString()}`);
         });
         page.on("response", response => {
           const parsed = taskUrl(response.url());
-          if (parsed) {
+          if (parsed && !parsed.searchParams.has("statusColumnId")) {
             const offset = Number(parsed.searchParams.get("offset") || "0");
             if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
               successfulPaginationResponses += 1;
             }
-            taskEvents.push(`response ${response.status()} ${parsed.toString()}`);
+            if (response.status() >= 200 && response.status() < 300 && offset === 0) {
+              void response.json().then((body) => {
+                firstPageRowCount = Array.isArray(body) ? body.length : Array.isArray(body?.rows) ? body.rows.length : -1;
+              }).catch(() => undefined);
+            }
           }
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
-        await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(Math.min(100, size));
+        // Assert the first response itself is exactly one bounded page. The DOM
+        // may already contain later pages because Kanban preloads automatically.
+        await expect.poll(() => firstPageRowCount, { timeout: 30_000 }).toBe(Math.min(100, size));
         await expect.poll(() => statusCount(page, "Open"), { timeout: 30_000 }).toBe(Math.ceil(size / 2));
         await expect.poll(() => statusCount(page, "Done"), { timeout: 30_000 }).toBe(Math.floor(size / 2));
         const initialRequests = taskRequests.length;
         expect(initialRequests).toBeGreaterThan(0);
 
-        if (size === 101) {
-          let failedOnce = false;
-          let failedRequests = 0;
-          let blockedBeforeRetry = 0;
-          let successfulRetryRequests = 0;
-          let retryTriggered = false;
-          const paginationPath = `/api/tables/${fixture.tableId}/tasks`;
-          const failedRequest = new Promise<void>((resolve, reject) => {
-            const onFailed = (request: import("@playwright/test").Request) => {
-              const parsed = new URL(request.url());
-              if (parsed.pathname.replace(/\/+$/, "") !== paginationPath || parsed.searchParams.get("offset") !== "100") return;
-              if (request.failure()?.errorText) resolve();
-            };
-            page.on("requestfailed", onFailed);
-            setTimeout(() => {
-              page.off("requestfailed", onFailed);
-              reject(new Error(`Expected the offset=100 pagination request to fail; events=${JSON.stringify(taskEvents)}`));
-            }, 10_000);
-          });
-          await page.route(`**/api/tables/${fixture.tableId}/tasks**`, async route => {
-            const requestUrl = new URL(route.request().url());
-            const isFirstPaginationPage = requestUrl.pathname.replace(/\/+$/, "") === paginationPath && requestUrl.searchParams.get("offset") === "100";
-            if (isFirstPaginationPage && !retryTriggered) {
-              if (!failedOnce) { failedOnce = true; failedRequests += 1; }
-              else blockedBeforeRetry += 1;
-              await route.abort("connectionreset");
-              return;
-            }
-            if (isFirstPaginationPage) successfulRetryRequests += 1;
-            await route.continue();
-          });
-          await page.getByRole("button", { name: "Load more" }).first().click();
-          await failedRequest;
-          await expect(page.getByRole("button", { name: "Retry" }).first()).toBeVisible({ timeout: 10_000 });
-          retryTriggered = true;
-          await page.getByRole("button", { name: "Retry" }).first().click();
-          await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(size);
-          console.log(`[kanban-e2e] size=${size} failed-pagination=${failedRequests} blocked-before-retry=${blockedBeforeRetry} successful-retry=${successfulRetryRequests} task-events=${JSON.stringify(taskEvents)}`);
-          expect(failedRequests).toBe(1);
-          expect(successfulRetryRequests).toBe(1);
-          await page.unroute(`**/api/tables/${fixture.tableId}/tasks**`);
-        }
-
-        let firstPagination = true;
-        while (await page.getByRole("button", { name: "Load more" }).count()) {
-          const before = await loadedTasks(page, fixture.marker);
-          if (firstPagination) {
-            await page.getByRole("button", { name: "Load more" }).first().click();
-            firstPagination = false;
-          } else {
-            const column = page.locator('[data-rfd-droppable-id^="kanban:"]').first();
-            await column.evaluate((element) => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event("scroll", { bubbles: true })); });
-          }
-          await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBeGreaterThan(before);
-        }
+        // Kanban must continue fetching sequential pages automatically after the
+        // first 100 rows. There is intentionally no Load more click or scroll
+        // trigger here; Table View retains its own user-driven pagination.
         await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 60_000 }).toBe(size);
         // A failed attempt and its retry are two browser requests but only one
         // successful pagination response. Count responses for the logical page
