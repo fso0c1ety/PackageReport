@@ -18,14 +18,14 @@ test('workspace coalesces repeated hover/focus prefetches per board', () => {
   assert.match(workspace, /prefetchesRef\.current\.set\(tableId, request\)/);
 });
 
-test('TableBoard keeps initial board transfer bounded and auto-loads later pages up to the safe cap', () => {
+test('TableBoard keeps initial board transfer bounded and auto-loads later Kanban pages', () => {
   assert.match(board, /consumeCachedResponse: true/);
   assert.ok(board.includes('tasks?limit=100&offset=0'));
   assert.ok(board.includes('tasks?limit=100&offset=${offset}'));
   assert.match(board, /loadMoreRowsRef\.current = async/);
   assert.match(board, /container\.scrollHeight - \(container\.scrollTop \+ container\.clientHeight\) < 600/);
-  assert.match(board, /Math\.min\(totalRowsRef\.current, autoLoadLimit\)/);
-  assert.match(board, /while \(!cancelled && !autoLoadStopped && nextRowsOffsetRef\.current < autoLoadLimit\)/);
+  assert.match(board, /workspaceView !== 'kanban'/);
+  assert.match(board, /while \(active && loadMoreRowsRef\.current\)/);
 });
 
 test('Kanban columns progressively load more tasks without idle requests and show server totals', () => {
