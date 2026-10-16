@@ -122,13 +122,13 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         };
         page.on("request", request => {
           const parsed = taskUrl(request.url());
-          if (request.method() === "GET" && parsed) {
+          if (request.method() === "GET" && parsed && !parsed.searchParams.has("statusColumnId")) {
             taskRequests.push(request.url());
           }
         });
         page.on("response", response => {
           const parsed = taskUrl(response.url());
-          if (parsed) {
+          if (parsed && !parsed.searchParams.has("statusColumnId")) {
             const offset = Number(parsed.searchParams.get("offset") || "0");
             if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
               successfulPaginationResponses += 1;
