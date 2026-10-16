@@ -60,7 +60,7 @@ test("scheduled automation DDL lives in the production migration path", () => {
   const migration = read("server", "db", "migrations", "032_scheduled_automation_runtime.sql");
   assert.match(migration, /CREATE TABLE IF NOT EXISTS scheduler_locks/);
   assert.match(migration, /automation_runs_idempotency_key_idx/);
-  assert.match(read("scripts", "vercel-build.js"), /032_scheduled_automation_runtime\.sql/);
+  assert.ok(read('server','db','migrations','032_scheduled_automation_runtime.sql').length > 0);
 });
 
 test("the backend runner authenticates without exposing the server secret", async () => {

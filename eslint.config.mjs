@@ -37,7 +37,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["**/*.js"],
+    files: ["**/*.{js,cjs}"],
     rules: {
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-require-imports": "off",

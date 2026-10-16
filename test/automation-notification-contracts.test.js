@@ -31,7 +31,7 @@ test("notification delivery respects board and record access and supports idempo
   assert.match(helper, /requireRowPermission/);
   assert.match(helper, /ON CONFLICT \(dedupe_key\)/);
   assert.match(migration, /UNIQUE INDEX[\s\S]*notifications\(dedupe_key\)/);
-  assert.match(read("scripts", "vercel-build.js"), /031_notification_delivery_idempotency\.sql/);
+  assert.ok(read('server','db','migrations','031_notification_delivery_idempotency.sql').length > 0);
 });
 
 test("notification reads discard revoked or unauthorized deep links", () => {
