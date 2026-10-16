@@ -535,6 +535,7 @@ export async function GET(req, { params }) {
     const { tableId } = await params;
     const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get("limit") || "", 10);
     const requestedOffset = Number.parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
+    const statusColumnId = String(req.nextUrl.searchParams.get("statusColumnId") || "");
     const paginated = Number.isFinite(requestedLimit) && requestedLimit > 0;
     const limit = paginated ? Math.min(requestedLimit, 500) : null;
     const offset = paginated && Number.isFinite(requestedOffset) && requestedOffset > 0
@@ -547,15 +548,29 @@ export async function GET(req, { params }) {
     if (!table) {
       return NextResponse.json({ error: "Table not found or forbidden" }, { status: 404 });
     }
+    if (statusColumnId) {
+      const statusColumn = (Array.isArray(table.columns) ? table.columns : []).find((column) => String(column.id) === statusColumnId);
+      if (!statusColumn || statusColumn.type !== "Status") {
+        return NextResponse.json({ error: "Invalid status column" }, { status: 400 });
+      }
+    }
 
     const queryStart = Date.now();
     let result;
     let countResult;
+    let statusCounts = null;
     if (table.legacy_authorization) {
-      const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC", [tableId]);
+      const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC", [tableId]);
       const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
       result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
       countResult = { rows: [{ total: visibleRows.length }] };
+      if (statusColumnId) {
+        statusCounts = Object.fromEntries(visibleRows.reduce((counts, row) => {
+          const status = String(row.values?.[statusColumnId] || "");
+          counts.set(status, (counts.get(status) || 0) + 1);
+          return counts;
+        }, new Map()));
+      }
     } else {
       const visibility = recordAccessQueryContext(table, user.id);
       const unrestrictedRows = (visibility.access?.scope ?? "all_permitted") === "all_permitted";
@@ -564,7 +579,7 @@ export async function GET(req, { params }) {
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
         result = await readPool.query(
-          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
@@ -575,10 +590,19 @@ export async function GET(req, { params }) {
         countResult = { rows: [{ total }] };
       } else {
         result = await readPool.query(
-          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC`,
+          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC`,
           visibilityParams
         );
         countResult = { rows: [{ total: 0 }] };
+      }
+      if (statusColumnId) {
+        const statusExpression = `values->>$${unrestrictedRows ? 2 : visibilityParams.length + 1}`;
+        const statusParams = unrestrictedRows ? [tableId, statusColumnId] : [...visibilityParams, statusColumnId];
+        const statusResult = await readPool.query(
+          `SELECT ${statusExpression} AS status, COUNT(*)::int AS count FROM rows WHERE ${visibleWhere} GROUP BY 1`,
+          statusParams,
+        );
+        statusCounts = Object.fromEntries(statusResult.rows.map((row) => [String(row.status || ""), row.count]));
       }
     }
 
@@ -610,6 +634,7 @@ export async function GET(req, { params }) {
         offset,
         limit,
         hasMore: offset + result.rows.length < (countResult.rows[0]?.total || 0),
+        ...(statusCounts ? { statusCounts } : {}),
       }
       : result.rows;
 

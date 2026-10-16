@@ -44,3 +44,12 @@ test('paginated task loading derives the visible total without a duplicate count
   assert.match(tasksRouteSource, /result\.rows\.map\(\(\{ __visible_total: _visibleTotal, \.\.\.row \}\) => row\)/);
   assert.doesNotMatch(tasksRouteSource, /\[result, countResult\] = await Promise\.all/);
 });
+
+test('task pagination can return authorized Kanban status totals in the same response', () => {
+  assert.match(tasksRouteSource, /statusColumnId/);
+  assert.match(tasksRouteSource, /statusCounts/);
+  assert.match(tasksRouteSource, /const statusExpression/);
+  assert.match(tasksRouteSource, /smart_manage_row_visible/);
+  assert.match(tasksRouteSource, /Invalid status column/);
+  assert.match(tasksRouteSource, /statusColumn\.type !== "Status"/);
+});

@@ -46,9 +46,8 @@ test("demo password and workspace guards fail closed", async () => {
   assert.doesNotThrow(() => demoSeeder.assertWorkspaceMayBeSeeded({ is_demo: true }));
 });
 
-test("production deploy includes migration 027", () => {
-  const build = readFileSync(join(root, "scripts", "vercel-build.js"), "utf8");
-  assert.match(build, /027_demo_requests_and_demo_workspaces\.sql/);
+test("manual migration inventory includes demo migration 027", () => {
+  assert.ok(require('../scripts/manual-migrations.cjs').inventory().some(file => file.filename === '027_demo_requests_and_demo_workspaces.sql'));
 });
 
 test("demo database target verification fails closed and never logs credentials", async () => {

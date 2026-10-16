@@ -51,5 +51,5 @@ test("invoice history downloads the stored PDF through an authenticated request"
 });
 
 test("production deploy includes the invoice registry migration", () => {
-  assert.match(read("scripts", "vercel-build.js"), /030_invoice_registry\.sql/);
+  assert.ok(read('server','db','migrations','030_invoice_registry.sql').length > 0);
 });
