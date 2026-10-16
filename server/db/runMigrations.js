@@ -3,6 +3,7 @@ const path = require("path");
 const db = require("../db");
 const logger = require("../utils/logger");
 const { checksum, validateMigrationFiles } = require("./migrationUtils");
+const { executionSql } = require("./migrationExecution");
 
 function migrationFiles() {
   const dir = path.join(__dirname, "migrations");
@@ -52,7 +53,7 @@ async function runMigrations() {
     const startedAt = Date.now();
     await client.query("BEGIN");
     try {
-      await client.query(sql);
+      await client.query(executionSql(file, sql));
       await client.query(
         "INSERT INTO schema_migrations (filename, checksum, execution_ms) VALUES ($1, $2, $3)",
         [file, sqlChecksum, Date.now() - startedAt],
