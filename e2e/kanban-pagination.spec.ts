@@ -110,6 +110,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     try {
         const taskRequests: string[] = [];
         let successfulPaginationResponses = 0;
+        let firstPageRowCount = -1;
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
@@ -132,11 +133,18 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
             if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
               successfulPaginationResponses += 1;
             }
+            if (response.status() >= 200 && response.status() < 300 && offset === 0) {
+              void response.json().then((body) => {
+                firstPageRowCount = Array.isArray(body) ? body.length : Array.isArray(body?.rows) ? body.rows.length : -1;
+              }).catch(() => undefined);
+            }
           }
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
-        await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 30_000 }).toBe(Math.min(100, size));
+        // Assert the first response itself is exactly one bounded page. The DOM
+        // may already contain later pages because Kanban preloads automatically.
+        await expect.poll(() => firstPageRowCount, { timeout: 30_000 }).toBe(Math.min(100, size));
         await expect.poll(() => statusCount(page, "Open"), { timeout: 30_000 }).toBe(Math.ceil(size / 2));
         await expect.poll(() => statusCount(page, "Done"), { timeout: 30_000 }).toBe(Math.floor(size / 2));
         const initialRequests = taskRequests.length;
