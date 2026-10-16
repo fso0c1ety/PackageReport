@@ -3409,11 +3409,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   const firstRows = normalizeRows(Array.isArray(firstPage) ? firstPage : firstPage.rows || []);
   const totalRows = Array.isArray(firstPage) ? firstRows.length : Number(firstPage.total || 0);
-  const autoLoadLimit = Math.min(totalRows, 500);
-  let autoLoadStopped = false;
   totalRowsRef.current = totalRows;
   nextRowsOffsetRef.current = firstRows.length;
-  setHasMoreRows(firstRows.length < autoLoadLimit);
+  setHasMoreRows(firstRows.length < totalRows);
   setKanbanStatusCounts({});
   setKanbanLoadError(null);
   if (firstRows.length > 0) {
@@ -3424,7 +3422,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   setLoading(false);
 
   loadMoreRowsRef.current = async () => {
-  if (cancelled || autoLoadStopped || loadingMoreRowsRef.current || nextRowsOffsetRef.current >= Math.min(totalRowsRef.current, autoLoadLimit)) return;
+  if (cancelled || loadingMoreRowsRef.current || nextRowsOffsetRef.current >= totalRowsRef.current) return;
   loadingMoreRowsRef.current = true;
   const offset = nextRowsOffsetRef.current;
   try {
@@ -3438,22 +3436,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
       return [...current.filter((row) => row.id !== 'placeholder'), ...pageRows.filter((row) => !existingIds.has(row.id))];
     });
     nextRowsOffsetRef.current += pageRows.length;
-    setHasMoreRows(nextRowsOffsetRef.current < Math.min(totalRowsRef.current, autoLoadLimit));
+    setHasMoreRows(nextRowsOffsetRef.current < totalRowsRef.current);
     setKanbanLoadError(null);
   } catch (error) {
-    autoLoadStopped = true;
     setKanbanLoadError(error instanceof Error ? error.message : "Failed to load more tasks");
   } finally {
     loadingMoreRowsRef.current = false;
   }
   };
-  void (async () => {
-    while (!cancelled && !autoLoadStopped && nextRowsOffsetRef.current < autoLoadLimit) {
-      const before = nextRowsOffsetRef.current;
-      await loadMoreRowsRef.current?.();
-      if (nextRowsOffsetRef.current <= before) break;
-    }
-  })();
   } catch (err) {
   if (!cancelled) {
   console.error("Failed to fetch table data", err);
@@ -3468,6 +3458,20 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   void loadTable();
   return () => { cancelled = true; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; kanbanCountsRequestRef.current = null; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
+
+  useEffect(() => {
+  if (workspaceView !== 'kanban' || !tableId) return;
+  let active = true;
+  const preloadKanbanRows = async () => {
+    while (active && loadMoreRowsRef.current) {
+      const before = nextRowsOffsetRef.current;
+      await loadMoreRowsRef.current();
+      if (!active || nextRowsOffsetRef.current <= before || nextRowsOffsetRef.current >= totalRowsRef.current) break;
+    }
+  };
+  void preloadKanbanRows();
+  return () => { active = false; };
+  }, [workspaceView, tableId]);
 
   useEffect(() => {
   if (workspaceView !== 'kanban' || !tableId) return;
