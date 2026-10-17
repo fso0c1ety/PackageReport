@@ -64,10 +64,12 @@ async function login(email) {
   if (!response.ok) throw new Error(`login failed (${response.status})`);
   const cookie = response.headers.get('set-cookie');
   if (!cookie) throw new Error('login did not return a session cookie');
-  return cookie.split(';', 1)[0];
+  const payload = await response.json();
+  if (!payload.token) throw new Error('login did not return a session token');
+  return { cookie: cookie.split(';', 1)[0], token: payload.token };
 }
 
-async function measure(tableId, cookie, size) {
+async function measure(tableId, session, size) {
   let offset = 0;
   let requests = 0;
   let bytes = 0;
@@ -75,7 +77,7 @@ async function measure(tableId, cookie, size) {
   const started = performance.now();
   while (offset < size) {
     const limit = 100;
-    const response = await fetch(`${baseUrl}/api/tables/${tableId}/tasks?limit=${limit}&offset=${offset}`, { headers: { cookie } });
+    const response = await fetch(`${baseUrl}/api/tables/${tableId}/tasks?limit=${limit}&offset=${offset}`, { headers: { cookie: session.cookie, authorization: `Bearer ${session.token}` } });
     if (!response.ok) throw new Error(`tasks failed (${response.status})`);
     const text = await response.text();
     requests += 1;
