@@ -90,6 +90,11 @@ jobs:
         env:
           EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
           EGRESS_IDLE_SECONDS: 5,15,30
+      - name: Run real Kanban UI pagination measurements
+        run: npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1
+        env:
+          SMART_MANAGE_PORTAL_TEST_PASSWORD: EgressPhase2LocalOnlyA1!
+          KANBAN_E2E_ISOLATED: '1'
       - name: Cleanup synthetic tenants
         if: always()
         run: node scripts/cleanup-egress-phase2-tenants.mjs
