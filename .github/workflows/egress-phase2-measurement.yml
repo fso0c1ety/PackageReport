@@ -34,7 +34,12 @@ jobs:
       DATABASE_SSL: 'false'
       E2E_BASE_URL: http://127.0.0.1:3000
       EGRESS2_PASSWORD: Egress2Phase2LocalOnlyA1!
+      EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
       JWT_SECRET: Egress2Phase2LocalOnlyA1!
+      CI: 'true'
+      PORTAL_ACCEPTANCE_CI: '1'
+      SMART_MANAGE_PORTAL_TEST_PASSWORD: EgressPhase2LocalOnlyA1!
+      SMART_MANAGE_DEMO_PASSWORD: EgressPhase2LocalOnlyA1!
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,8 +51,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Prepare isolated schema
         run: |
-          export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
           npm run db:migrate
+      - name: Enable local pg_stat_statements when available
+        shell: bash
+        run: |
+          PGPASSWORD=phase2-local-only psql "$DATABASE_URL" -v ON_ERROR_STOP=0 -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements' || true
       - name: Build and start isolated app
         shell: bash
         run: |
@@ -65,8 +73,6 @@ jobs:
           done
       - name: Seed two isolated synthetic tenants
         run: node scripts/seed-egress-phase2-tenants.mjs
-        env:
-          EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
       - name: Run Playwright application measurements
         run: node scripts/measure-egress-playwright.mjs
         env:
