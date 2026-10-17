@@ -61,6 +61,18 @@ jobs:
           for scenario in initial pagination idle; do
             EGRESS2_SCENARIO="$scenario" node scripts/benchmark-egress2.mjs >"artifacts/egress-phase2/raw/egress2-$scenario.json"
           done
+      - name: Seed two isolated synthetic tenants
+        run: node scripts/seed-egress-phase2-tenants.mjs
+        env:
+          EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
+      - name: Run Playwright application measurements
+        run: node scripts/measure-egress-playwright.mjs
+        env:
+          EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
+          EGRESS_IDLE_SECONDS: 5,15,30
+      - name: Cleanup synthetic tenants
+        if: always()
+        run: node scripts/cleanup-egress-phase2-tenants.mjs
       - name: Aggregate measured CSV and JSON
         run: node scripts/benchmark-egress-phase2.mjs
       - name: Upload isolated measurements
