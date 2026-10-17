@@ -3,6 +3,11 @@ name: Egress Phase 2 Measurement
 on:
   workflow_dispatch:
   workflow_call:
+  pull_request:
+    paths:
+      - 'scripts/benchmark-egress-phase2.mjs'
+      - '.github/workflows/egress-phase2-measurement.yml'
+      - 'scripts/benchmark-egress2.mjs'
 
 permissions:
   contents: read
