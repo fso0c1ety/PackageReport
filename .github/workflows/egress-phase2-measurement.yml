@@ -49,13 +49,25 @@ jobs:
       - run: npm ci
       - name: Install Chromium for real Playwright measurement
         run: npx playwright install --with-deps chromium
+      - name: Enable pg_stat_statements before migrations
+        shell: bash
+        run: |
+          container="$(docker ps --filter ancestor=postgres:16 --format '{{.ID}}' | head -n 1)"
+          test -n "$container"
+          docker exec "$container" psql -U postgres -d smart_manage_egress_phase2 -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'"
+          docker restart "$container"
+          for attempt in $(seq 1 30); do
+            PGPASSWORD=phase2-local-only pg_isready -h 127.0.0.1 -p 5432 -U postgres -d smart_manage_egress_phase2 && break
+            sleep 2
+          done
       - name: Prepare isolated schema
         run: |
           npm run db:migrate
       - name: Enable local pg_stat_statements when available
         shell: bash
         run: |
-          PGPASSWORD=phase2-local-only psql "$DATABASE_URL" -v ON_ERROR_STOP=0 -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements' || true
+          PGPASSWORD=phase2-local-only psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements'
+          test "$(PGPASSWORD=phase2-local-only psql "$DATABASE_URL" -Atc "SELECT count(*) FROM pg_available_extensions WHERE name='pg_stat_statements'")" = "1"
       - name: Build and start isolated app
         shell: bash
         run: |

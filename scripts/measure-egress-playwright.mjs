@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 const baseURL = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
 const password = process.env.EGRESS_MEASURE_PASSWORD;
 const emails = (process.env.EGRESS_MEASURE_EMAILS || '').split(',').map((value) => value.trim()).filter(Boolean);
+const tableIds = (process.env.EGRESS_MEASURE_TABLE_IDS || '').split(',').map((value) => value.trim()).filter(Boolean);
 const idleSeconds = (process.env.EGRESS_IDLE_SECONDS || '5,15').split(',').map(Number).filter((value) => value > 0);
 const outputDir = process.env.EGRESS_PHASE2_OUTPUT_DIR || 'artifacts/egress-phase2/playwright';
 if (!password || !emails.length) throw new Error('EGRESS_MEASURE_PASSWORD and EGRESS_MEASURE_EMAILS are required');
