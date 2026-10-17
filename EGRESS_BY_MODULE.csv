@@ -1,0 +1,11 @@
+Module,Page_or_Function,API_Endpoint,Requests,DB_Queries,Egress_MB,Idle_MB_per_min,Tenant,Cause,Optimization,Priority,Measurement_Status
+Kanban,Board open,/api/tables/{tableId}/tasks,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Paginated rows plus status counts,Instrument request/response bytes and deduplicate, P0,Static candidate only
+Table view,Table open,/api/tables/{tableId}/tasks,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Rows/columns and pagination,Measure page size and explicit projection, P0,Static candidate only
+Notifications,Top bar,/api/notifications,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,user/workspace,Realtime fallback refresh,Measure healthy/unhealthy Realtime, P0,Static candidate only
+Driver,Trips and documents,/api/logistics/driver/*,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,15s fallback when Realtime unhealthy,Measure hidden-tab behavior, P1,Static candidate only
+Workspace,Home/workspace,/api/workspaces and /api/tables,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Prefetch and refresh,Measure cache/dedup hit rate, P1,Static candidate only
+Chat,Task chat,/api/tables/{tableId}/chat,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Polling fallback,Measure active/idle sessions, P0,Static candidate only
+Files,Upload/download,/api/upload and signed URLs,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Payload size,Measure fixture bytes and Storage transfer, P1,Static candidate only
+Search,Command palette,/api/search,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Debounced search requests,Measure query/result bytes, P2,Static candidate only
+Billing,Billing pages,/api/billing/*,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Provider/API responses,Measure only isolated test accounts, P2,Static candidate only
+Portals,Portal activities,/api/professional-portal and portal routes,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Role-scoped records,Measure per READY portal fixture, P1,Static candidate only
