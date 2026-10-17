@@ -1,4 +1,4 @@
 import pg from 'pg';
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
 const marker = `EGRESS_PHASE2_${process.env.GITHUB_RUN_ID || ''}`;
-try { const result = await pool.query('DELETE FROM workspaces WHERE name LIKE $1', [`${marker}%`]); console.log(JSON.stringify({ deletedSyntheticWorkspaces: result.rowCount })); } finally { await pool.end(); }
+try { const workspaces = await pool.query('DELETE FROM workspaces WHERE name LIKE $1 RETURNING owner_id', [`${marker}%`]); const ownerIds = workspaces.rows.map((row) => row.owner_id).filter(Boolean); let users = 0; if (ownerIds.length) { const result = await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [ownerIds]); users = result.rowCount; } console.log(JSON.stringify({ deletedSyntheticWorkspaces: workspaces.rowCount, deletedSyntheticUsers: users, remainingSyntheticUsers: (await pool.query('SELECT count(*) FROM users WHERE email LIKE $1', [`${marker.toLowerCase()}%`])).rows[0].count })); } finally { await pool.end(); }

@@ -42,6 +42,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install Chromium for real Playwright measurement
+        run: npx playwright install --with-deps chromium
       - name: Prepare isolated schema
         run: |
           export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
@@ -75,6 +77,18 @@ jobs:
         run: node scripts/cleanup-egress-phase2-tenants.mjs
       - name: Aggregate measured CSV and JSON
         run: node scripts/benchmark-egress-phase2.mjs
+      - name: Require numeric measurement artifacts
+        shell: bash
+        run: |
+          required=(
+            artifacts/egress-phase2/playwright/PLAYWRIGHT_EGRESS_RESULTS.json
+            artifacts/egress-phase2/DB_QUERY_DELTAS.csv
+            artifacts/egress-phase2/TOP20_NETWORK_CONSUMERS.csv
+            artifacts/egress-phase2/TENANT_USAGE_MEASUREMENTS.csv
+          )
+          for file in "${required[@]}"; do
+            test -s "$file" || { echo "Missing required measurement artifact: $file" >&2; exit 1; }
+          done
       - name: Upload isolated measurements
         uses: actions/upload-artifact@v4
         with:
