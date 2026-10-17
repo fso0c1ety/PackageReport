@@ -1,0 +1,66 @@
+name: Egress Phase 2 Measurement
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  measure-isolated:
+    name: isolated numeric egress measurement
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_manage_egress_phase2
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: phase2-local-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_egress_phase2"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      DATABASE_URL: postgresql://postgres:phase2-local-only@127.0.0.1:5432/smart_manage_egress_phase2
+      DATABASE_SSL: 'false'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      EGRESS2_PASSWORD: Egress2Phase2LocalOnlyA1!
+      JWT_SECRET: Egress2Phase2LocalOnlyA1!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prepare isolated schema
+        run: |
+          export MIGRATION_TARGET="000_legacy_base_schema.sql,001_core_saas_schema.sql"
+          npm run db:migrate
+      - name: Build and start isolated app
+        shell: bash
+        run: |
+          npm run build
+          nohup npx next start -p 3000 -H 127.0.0.1 >/tmp/egress-phase2-next.log 2>&1 &
+          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/login/ >/dev/null && exit 0; sleep 2; done
+          cat /tmp/egress-phase2-next.log
+          exit 1
+      - name: Measure existing EGRESS-2 scenarios
+        shell: bash
+        run: |
+          mkdir -p artifacts/egress-phase2/raw
+          for scenario in initial pagination idle; do
+            EGRESS2_SCENARIO="$scenario" node scripts/benchmark-egress2.mjs >"artifacts/egress-phase2/raw/egress2-$scenario.json"
+          done
+      - name: Aggregate measured CSV and JSON
+        run: node scripts/benchmark-egress-phase2.mjs
+      - name: Upload isolated measurements
+        uses: actions/upload-artifact@v4
+        with:
+          name: egress-phase2-measurements-${{ github.sha }}
+          path: artifacts/egress-phase2
+          if-no-files-found: error
