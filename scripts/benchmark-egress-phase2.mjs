@@ -22,8 +22,9 @@ for (const file of files) {
       responseBytes: result.responseBytes ?? 0,
       responseMB: ((result.responseBytes ?? 0) / 1024 / 1024).toFixed(6),
       idleMs: result.idleMs ?? 0,
+      idleResponseBytes: result.idleResponseBytes ?? 0,
       durationMs: result.durationMs ?? 0,
-      classification: 'measured browser/API response bytes; not Supabase billed egress',
+      classification: 'measured API response bytes; initial request excluded from idle bytes; not Supabase billed egress',
     });
   }
 }
