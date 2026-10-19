@@ -1,9 +1,13 @@
-# Candidate: narrow pagination before row materialization
+# Inline the verified created_by_me predicate
 
-The tasks query previously carried all row columns through the window count and sort. The candidate selects page IDs, sort keys and exact visible totals first, then joins the limited page back to rows. The join also retains table_id. The existing visibility predicate, parameter positions, OFFSET, exact total, stable ordering and response fields remain unchanged. Historical migration 022 and RLS are unchanged. No new indexes are proposed before plan evidence.
+For the explicit created_by_me scope, migration 022 returns row_created_by=current_user_id directly. Tasks reads now execute the equivalent parameterized SQL predicate while retaining table_id filtering and prior board authorization. Other restricted scopes continue to use smart_manage_row_visible. Owner/admin resolution remains in recordAccessQueryContext. No RLS, historical SQL, indexes or response contracts change.
 
-The benchmark uses PostgreSQL 17 with 20,000 wide synthetic records split across two boards, eight record scopes and two offsets. It captures ten sequential query timings, p50/p95 and EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) for BASE and HEAD and requires identical results. Query counts remain one per page. SQL board boundaries are asserted; this is not a replacement for authenticated cross-tenant API tests.
+The earlier narrow-page join candidate was rejected by real PostgreSQL measurements: p50 regressed up to 14.87%, with buffer hits rising from 794 to 1094. It is removed.
 
-BASE is f21e6d3 (current origin/main at branch creation). Results are pending CI; no latency improvement is claimed yet. Current local task-read unit tests pass. Other table-list/search/my-work queries were inspected and retain their existing visibility predicate; they are not optimized by this candidate. Task-by-ID and repeated membership reads remain outside this change.
+The PostgreSQL 17 benchmark uses 20,000 synthetic records across two boards, eight scopes, two offsets, ten samples per query and EXPLAIN (ANALYZE, BUFFERS). It requires identical ordered results and totals. This validates SQL board boundaries; authenticated cross-tenant API tests remain a separate requirement. BASE is f21e6d3. Final candidate measurements are pending CI.
 
-Rollback: revert the application commit. No migration, index removal or data restoration is needed. A possible extra primary-key join cost is measured rather than assumed beneficial. The candidate must not be merged if latency or correctness regresses.
+Local task-read tests passed. Regression tests verify the board/user predicates and unchanged pagination; broader permission tests cover role definitions. SQL counts remain one per page. No claim is made about Supabase billed egress.
+
+Rollback: revert the application commit. No SQL rollback, data restoration or migration is required.
+
+Remaining scope: task-by-ID repetition, membership-query deduplication and search/table-list/my-work plans are not optimized here. They retain existing authorization. No global authorization cache is introduced.

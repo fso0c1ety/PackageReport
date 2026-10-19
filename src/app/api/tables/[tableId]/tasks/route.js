@@ -574,19 +574,15 @@ export async function GET(req, { params }) {
     } else {
       const visibility = recordAccessQueryContext(table, user.id);
       const unrestrictedRows = (visibility.access?.scope ?? "all_permitted") === "all_permitted";
-      const visibilityParams = unrestrictedRows ? [tableId] : [tableId, JSON.stringify(visibility.columns), visibility.userId,
+      const visibilityParams = unrestrictedRows ? [tableId] : visibility.access?.scope === "created_by_me" ? [tableId, visibility.userId] : [tableId, JSON.stringify(visibility.columns), visibility.userId,
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
-      const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
+      const visibleWhere = unrestrictedRows ? "table_id=$1"
+        : visibility.access?.scope === "created_by_me"
+          ? "table_id=$1 AND created_by::text=$2::text"
+          : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
       if (paginated) {
         result = await readPool.query(
-          `SELECT task.*, page.__visible_total FROM (
-            SELECT id, (values->>'order')::int AS sort_order, created_at,
-              COUNT(*) OVER()::int AS __visible_total
-            FROM rows WHERE ${visibleWhere}
-            ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC
-            LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}
-          ) page JOIN rows task ON task.id=page.id AND task.table_id=$1
-          ORDER BY page.sort_order ASC NULLS FIRST, page.created_at DESC, page.id ASC`,
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
           [...visibilityParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
