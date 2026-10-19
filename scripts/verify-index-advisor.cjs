@@ -32,6 +32,8 @@ async function main() {
     for(const name of ['045_uploaded_files_workspace_fk_index.sql','046_guarded_duplicate_indexes.sql'])await db.query(read('migrations/'+name));
     assert.deepEqual(await schemaState(),securityBefore);
     const after=await measure();for(const key of Object.keys(queries))assert.deepEqual(after[key].rows,before[key].rows);
+    const usedIndexes=plan=>[...(plan['Index Name']?[plan['Index Name']]:[]),...(plan.Plans||[]).flatMap(usedIndexes)];
+    for(const [scenario,survivor] of [['rowLookup','rows_table_id_scheduled_idx'],['boardLookup','idx_tables_workspace_id'],['fileRowLookup','uploaded_files_row_id_idx'],['fileBoardLookup','idx_uploaded_files_table_id'],['fileWorkspaceLookup','uploaded_files_workspace_id_idx']])assert(usedIndexes(after[scenario].plan.Plan).includes(survivor),`Retained index not used: ${survivor}`);
     for(const [old,keep] of pairs){assert.equal((await db.query('SELECT to_regclass($1) old,to_regclass($2) keep',[old,keep])).rows[0].old,null);assert((await db.query('SELECT to_regclass($1) keep',[keep])).rows[0].keep);}
     const sizesAfter=(await db.query("SELECT sum(pg_relation_size(indexrelid))::text bytes FROM pg_index WHERE indrelid IN ('rows'::regclass,'tables'::regclass,'uploaded_files'::regclass)")).rows[0];
     await db.query(read('rollbacks/046_guarded_duplicate_indexes.down.sql'));await db.query(read('rollbacks/045_uploaded_files_workspace_fk_index.down.sql'));

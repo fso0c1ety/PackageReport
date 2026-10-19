@@ -1,6 +1,8 @@
 -- Refuse drift, dependencies, constraint-backed or non-equivalent candidates.
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '60s';
+-- Stabilize the catalog validation against concurrent index changes.
+LOCK TABLE public.rows, public.tables, public.uploaded_files IN ACCESS EXCLUSIVE MODE;
 DO $$
 DECLARE pair RECORD; old_oid OID; keep_oid OID; equivalent BOOLEAN;
 BEGIN
