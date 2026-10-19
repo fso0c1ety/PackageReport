@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   ensureUserNotificationColumns,
-  ensureExtendedUserProfileColumns,
   getAuthenticatedUser,
   pool,
 } from "../../_lib/server";
@@ -16,7 +15,6 @@ export async function GET(req) {
 
   try {
     await ensureUserNotificationColumns();
-    await ensureExtendedUserProfileColumns();
 
     const result = await pool.query(
       `
@@ -62,7 +60,6 @@ export async function PUT(req) {
 
   try {
     await ensureUserNotificationColumns();
-    await ensureExtendedUserProfileColumns();
 
     const {
       name = null,
