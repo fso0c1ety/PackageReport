@@ -1,0 +1,63 @@
+name: Notification volume Chromium BASE HEAD
+on: [pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: notification_volume_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:synthetic-only@127.0.0.1:5432/notification_volume_test
+      DATABASE_SSL: 'false'
+      VOLUME_PASSWORD: SyntheticVolumePasswordA1!
+      JWT_SECRET: SyntheticVolumeJWTLocalOnlyA1!
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PORTAL_ACCEPTANCE_CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Enable isolated statistics and migrate
+        shell: bash
+        run: |
+          container="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -n1)"
+          docker exec "$container" psql -U postgres -d notification_volume_test -c "ALTER SYSTEM SET shared_preload_libraries='pg_stat_statements'"
+          docker restart "$container"
+          for n in $(seq 1 30); do pg_isready -h 127.0.0.1 -U postgres && break; sleep 1; done
+          PGPASSWORD=synthetic-only psql "$DATABASE_URL" -c 'CREATE EXTENSION pg_stat_statements'
+          npm run db:migrate
+      - name: Measure real baseline and head
+        shell: bash
+        run: |
+          cp src/app/api/notifications/route.js /tmp/head-notifications-route.js
+          git show f21e6d3:src/app/api/notifications/route.js > src/app/api/notifications/route.js
+          for mode in BASE HEAD; do
+            if [[ "$mode" = HEAD ]]; then cp /tmp/head-notifications-route.js src/app/api/notifications/route.js; fi
+            npm run build
+            node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1 > /tmp/notification-volume-server.log 2>&1 & app_pid=$!
+            for n in $(seq 1 60); do curl -sf http://127.0.0.1:3000/login/ >/dev/null && break; sleep 2; done
+            VOLUME_MODE="$mode" node scripts/benchmark-notification-volume.mjs
+            kill "$app_pid"
+            wait "$app_pid" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notification-volume-base-head
+          path: /tmp/notification-volume-results
+          if-no-files-found: error
