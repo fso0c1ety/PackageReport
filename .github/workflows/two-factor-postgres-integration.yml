@@ -38,4 +38,4 @@ jobs:
       - name: Apply complete isolated migration chain
         run: node server/db/runMigrations.js
       - name: Verify real OTP PostgreSQL behavior
-        run: node --experimental-default-type=module --experimental-specifier-resolution=node scripts/integration/otp-postgres.mjs
+        run: npx --yes tsx scripts/integration/otp-postgres.mjs
