@@ -98,7 +98,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.5",
     "nodemon": "^3.1.14",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "tsx": "4.23.15"
   },
   "build": {
     "appId": "com.packagereport.desktop",
