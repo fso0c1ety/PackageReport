@@ -5,7 +5,7 @@ permissions:
 jobs:
   measure:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:17
@@ -46,15 +46,19 @@ jobs:
         run: |
           cp src/app/api/notifications/route.js /tmp/head-notifications-route.js
           git show f21e6d3:src/app/api/notifications/route.js > src/app/api/notifications/route.js
+          for repetition in 1 2 3; do
           for mode in BASE HEAD; do
+            if [[ "$mode" = BASE ]]; then git show f21e6d34c9301397f6930406797d2bca4f5b4719:src/app/api/notifications/route.js > src/app/api/notifications/route.js; fi
             if [[ "$mode" = HEAD ]]; then cp /tmp/head-notifications-route.js src/app/api/notifications/route.js; fi
             npm run build
             node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1 > /tmp/notification-volume-server.log 2>&1 & app_pid=$!
             for n in $(seq 1 60); do curl -sf http://127.0.0.1:3000/login/ >/dev/null && break; sleep 2; done
-            VOLUME_MODE="$mode" node scripts/benchmark-notification-volume.mjs
+            VOLUME_MODE="$mode" VOLUME_REPETITION="$repetition" VOLUME_SAMPLES=100 VOLUME_WARMUP=20 node scripts/benchmark-notification-volume.mjs
             kill "$app_pid"
             wait "$app_pid" || true
           done
+          done
+          node scripts/summarize-notification-repetitions.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

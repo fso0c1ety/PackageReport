@@ -9,6 +9,11 @@ assert(['127.0.0.1','localhost'].includes(url.hostname) && url.pathname.includes
 const db = new pg.Client({ connectionString: url.toString(), ssl:false });
 await db.connect();
 const mode=process.env.VOLUME_MODE; assert(['BASE','HEAD'].includes(mode));
+const samplesPerTenant=Number(process.env.VOLUME_SAMPLES || 100);
+const warmupRequests=Number(process.env.VOLUME_WARMUP || 20);
+const repetition=Number(process.env.VOLUME_REPETITION || 1);
+assert(Number.isSafeInteger(samplesPerTenant) && samplesPerTenant >= 100);
+assert(Number.isSafeInteger(warmupRequests) && warmupRequests >= 1);
 const fixturePath='/tmp/notification-volume-fixtures.json';
 const password=process.env.VOLUME_PASSWORD; assert(password);
 let fixtures;
@@ -35,16 +40,16 @@ try {
     const pendingSizes=new Set();
     page.on('response',response=>{if(new URL(response.url()).pathname==='/api/notifications/') {requests++;const job=response.finished().then(()=>response.request().sizes()).then(size=>{transferred+=size.responseBodySize+size.responseHeadersSize;}).catch(()=>{transferKnown=false;});pendingSizes.add(job);void job.finally(()=>pendingSizes.delete(job));}});
     // Warm module schema detection before measuring request-local repetition.
-    await page.evaluate(async()=>{await (await fetch('/api/notifications/')).arrayBuffer();});
+    for(let i=0;i<warmupRequests;i++) await page.evaluate(async()=>{const response=await fetch('/api/notifications/');if(response.status!==200)throw new Error('Warmup failed');await response.arrayBuffer();});
     await Promise.all([...pendingSizes]);requests=0;transferred=0;
     const snap=async()=> (await db.query("SELECT COALESCE(sum(calls),0)::text calls, COALESCE(sum(rows),0)::text rows FROM pg_stat_statements WHERE query NOT LIKE '%pg_stat_statements%'")).rows[0];
     const before=await snap();
-    for(let i=0;i<10;i++) { const sample=await page.evaluate(async()=>{const start=performance.now(); const response=await fetch('/api/notifications/');const text=await response.text();return {status:response.status,bytes:new TextEncoder().encode(text).length,body:JSON.parse(text),ms:performance.now()-start};});assert.equal(sample.status,200);assert.equal(sample.body.length,20);assert(sample.body.every(n=>n.recipient_id===fixture.user));samples.push(sample.ms);bytes+=sample.bytes;}
+    for(let i=0;i<samplesPerTenant;i++) { const sample=await page.evaluate(async()=>{const start=performance.now(); const response=await fetch('/api/notifications/');const text=await response.text();return {status:response.status,bytes:new TextEncoder().encode(text).length,body:JSON.parse(text),ms:performance.now()-start};});assert.equal(sample.status,200);assert.equal(sample.body.length,20);assert(sample.body.every(n=>n.recipient_id===fixture.user));samples.push(sample.ms);bytes+=sample.bytes;}
     await Promise.all([...pendingSizes]);const after=await snap();const idleStart=requests;await page.waitForTimeout(15000);
     const denied=await page.evaluate(async id=>(await fetch(`/api/tables/${id}/tasks/?limit=1&offset=0`)).status,fixtures[1-t].table);assert([403,404].includes(denied));
-    samples.sort((a,b)=>a-b);results.push({tenant:t+1,mode,requests,responseBytes:bytes,browserTransferredBytes:transferKnown?transferred:'UNKNOWN',p50Ms:samples[4],p95Ms:samples[9],dbCalls:Number(after.calls)-Number(before.calls),dbRows:Number(after.rows)-Number(before.rows),idle15sRequests:requests-idleStart,isolation:'PASS',scope:'notifications API from authenticated Chromium; login-page idle only'});
+    const ordered=[...samples].sort((a,b)=>a-b);results.push({tenant:t+1,mode,repetition,warmupRequests,samplesMs:samples,requests,responseBytes:bytes,browserTransferredBytes:transferKnown?transferred:'UNKNOWN',p50Ms:ordered[Math.ceil(ordered.length*.5)-1],p95Ms:ordered[Math.ceil(ordered.length*.95)-1],dbCalls:Number(after.calls)-Number(before.calls),dbRows:Number(after.rows)-Number(before.rows),idle15sRequests:requests-idleStart,isolation:'PASS',scope:'notifications API from authenticated Chromium; login-page idle only; global isolated DB counters'});
     await context.close();
   }
-  await fs.mkdir('/tmp/notification-volume-results',{recursive:true});await fs.writeFile(`/tmp/notification-volume-results/${mode}.json`,JSON.stringify({results,billedEgress:'UNKNOWN',postgresWireBytes:'UNKNOWN'},null,2));
-  const columns=Object.keys(results[0]);await fs.writeFile(`/tmp/notification-volume-results/${mode}.csv`,[columns.join(','),...results.map(r=>columns.map(k=>JSON.stringify(r[k])).join(','))].join('\n'));
+  await fs.mkdir('/tmp/notification-volume-results',{recursive:true});await fs.writeFile(`/tmp/notification-volume-results/${mode}-${repetition}.json`,JSON.stringify({results,billedEgress:'UNKNOWN',postgresWireBytes:'UNKNOWN',gcAttribution:'UNKNOWN',poolAttribution:'UNKNOWN',tailLatencyConclusion:'INCONCLUSIVE until independent repetitions are compared'},null,2));
+  const columns=Object.keys(results[0]).filter(key=>key!=='samplesMs');await fs.writeFile(`/tmp/notification-volume-results/${mode}-${repetition}.csv`,[columns.join(','),...results.map(r=>columns.map(k=>JSON.stringify(r[k])).join(','))].join('\n'));
 } finally {await browser.close(); if(mode==='HEAD')for(const f of fixtures){await db.query('DELETE FROM notifications WHERE recipient_id=$1',[f.user]);await db.query('DELETE FROM workspaces WHERE id=$1',[f.workspace]);await db.query('DELETE FROM users WHERE id=$1',[f.user]);}await db.end();}
