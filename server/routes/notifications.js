@@ -10,18 +10,25 @@ function createNotificationsRouter({ db, logger }) {
         FROM notifications n LEFT JOIN users u ON n.sender_id = u.id
         WHERE n.recipient_id = $1 ORDER BY n.read ASC, n.created_at DESC LIMIT 50
       `, [req.user.id]);
-      const notifications = await Promise.all(result.rows.map(async (notification) => {
-        const data = notification.data || {};
+      const tableIds = [...new Set(result.rows.map((notification) => notification.data)
+        .filter((data) => !data?.workspaceId && typeof data?.tableId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId))
+        .map((data) => data.tableId))];
+      const workspaceByTable = new Map();
+      if (tableIds.length) {
+        try {
+          const tables = await db.query("SELECT id, workspace_id FROM tables WHERE id::text = ANY($1::text[])", [tableIds]);
+          for (const table of tables.rows) workspaceByTable.set(String(table.id), table.workspace_id);
+        } catch (error) {
+          logger.warn("notification_workspace_enrichment_failed", { error: error.message });
+        }
+      }
+      const notifications = result.rows.map((notification) => {
+        const data = { ...(notification.data || {}) };
         if (!data.workspaceId && data.tableId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.tableId)) {
-          try {
-            const table = await db.query("SELECT workspace_id FROM tables WHERE id = $1", [data.tableId]);
-            if (table.rows[0]) data.workspaceId = table.rows[0].workspace_id;
-          } catch (error) {
-            logger.warn("notification_workspace_enrichment_failed", { notificationId: notification.id, error: error.message });
-          }
+          if (workspaceByTable.has(data.tableId)) data.workspaceId = workspaceByTable.get(data.tableId);
         }
         return { ...notification, data };
-      }));
+      });
       return res.json(notifications);
     } catch (error) {
       logger.error("notifications_fetch_failed", { requestId: req.requestId, userId: req.user.id, error: error.message });
