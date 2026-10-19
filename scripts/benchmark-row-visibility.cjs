@@ -4,7 +4,7 @@ const { execFileSync } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { performance } = require('node:perf_hooks');
 const route = 'src/app/api/tables/[tableId]/tasks/route.js';
-const baseline = execFileSync('git', ['show', 'f21e6d3:' + route], { encoding: 'utf8' });
+const baseline = execFileSync('git', ['show', 'f21e6d34c9301397f6930406797d2bca4f5b4719:' + route], { encoding: 'utf8' });
 const head = fs.readFileSync(route, 'utf8');
 function query(source, restricted, scope) {
   const marker = source.includes('SELECT task.*, page.__visible_total') ? 'SELECT task.*, page.__visible_total' : 'SELECT *, COUNT(*) OVER()';
@@ -35,19 +35,21 @@ async function main() {
     const migration = fs.readFileSync('server/db/migrations/022_universal_roles_and_portals.sql','utf8');
     await db.query(migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION smart_manage_json_value_matches')));
     await db.query(`INSERT INTO rows SELECT 'row-'||i, CASE WHEN i%2=0 THEN 'board-a' ELSE 'board-b' END,
-      jsonb_build_object('order',i,'assignedUserId',CASE WHEN i%4=0 THEN 'reader' ELSE 'other' END,'teamId','team-a','departmentId','dept-a','companyId','company-a','payload',repeat(md5(i::text),128)),
+      jsonb_build_object('order',i,'assignedUserId',CASE WHEN i%4=0 THEN 'reader' ELSE 'other' END,'teamId',CASE WHEN i%4=0 THEN 'team-a' ELSE 'team-b' END,'departmentId',CASE WHEN i%4=0 THEN 'dept-a' ELSE 'dept-b' END,'companyId',CASE WHEN i%4=0 THEN 'company-a' ELSE 'company-b' END,'payload',repeat(md5(i::text),128)),
       CASE WHEN i%4=0 THEN 'reader' ELSE 'other' END, NOW(),NOW() FROM generate_series(1,20000) i`);
     await db.query('ANALYZE rows');
     const results = [];
     for (const scope of ['all_permitted','created_by_me','assigned_to_me','my_team','my_department','my_company','selected_records','custom']) {
       const restricted = scope !== 'all_permitted';
-      const rule = { scope, ids: ['row-4','row-8'], rule: { field: 'assignedUserId', value: '$current_user' } };
+      const rule = { scope, ids: ['row-4','row-8'], ...(scope === 'custom' ? { rule: { field: 'assignedUserId', value: '$current_user' } } : {}) };
       for (const offset of [0,500]) {
         const params = restricted ? ['board-a','[]','reader',JSON.stringify(rule),'team-a','dept-a','company-a',100,offset] : ['board-a',100,offset];
         const summary = { scope, offset, measurements: {} }; let expected;
         for (const [version, source] of [['BASE',baseline],['HEAD',head]]) {
           const sql = query(source, restricted, scope); const times=[];
           const actualParams = scope === 'created_by_me' && version === 'HEAD' ? ['board-a','reader',100,offset] : params;
+          const positive = await db.query(sql, actualParams);
+          if (offset === 0) assert.ok(positive.rows.length > 0, `Positive fixture required for ${scope}/${version}`);
           for(let i=0;i<10;i++){const start=performance.now(); const response=await db.query(sql,actualParams);times.push(performance.now()-start); if(version==='BASE') expected=response.rows; else assert.deepEqual(response.rows,expected); assert.ok(response.rows.every(row=>row.table_id==='board-a'));}
           const plan=(await db.query('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) '+sql,actualParams)).rows[0]['QUERY PLAN'][0];
           summary.measurements[version]={p50Ms:quantile(times,.5),p95Ms:quantile(times,.95),queryCallsPerPage:1,returnedRows:expected.length,sharedHitBlocks:plan.Plan['Shared Hit Blocks'],localHitBlocks:plan.Plan['Local Hit Blocks'],executionMs:plan['Execution Time'],plan};

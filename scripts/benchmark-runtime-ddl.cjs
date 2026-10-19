@@ -9,7 +9,9 @@ async function main() {
   const client = new Client({ connectionString: url.toString(), ssl: false });
   await client.connect();
   try {
-    const source = execFileSync('git', ['show', 'f21e6d34c9301397f6930406797d2bca4f5b4719:src/app/api/automation/[tableId]/route.js'], { encoding: 'utf8' });
+    const baselineSha = 'f21e6d34c9301397f6930406797d2bca4f5b4719';
+    const measuredSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    const source = execFileSync('git', ['show', baselineSha + ':src/app/api/automation/[tableId]/route.js'], { encoding: 'utf8' });
     const block = source.slice(source.indexOf('async function ensureAutomationSchema()'), source.indexOf('async function authorizeTable'));
     const queries = [...block.matchAll(/pool\.query\((?:`([\s\S]*?)`|"([^"]*)")\)/g)].map(match => match[1] || match[2]);
     if (queries.length !== 3) throw new Error('Expected three baseline schema repair round trips');
@@ -23,15 +25,18 @@ async function main() {
     if (kept.rows.length !== 1 || kept.rows[0].id !== 1) throw new Error('Legacy record changed');
     const iterations = 20;
     let started = performance.now();
-    for (let i = 0; i < iterations; i++) for (const sql of queries) await client.query(sql);
+    const baseSamples = [];
+    for (let i = 0; i < iterations; i++) { const tick = performance.now(); for (const sql of queries) await client.query(sql); baseSamples.push(performance.now() - tick); }
     const baseMs = performance.now() - started;
     // HEAD performs no schema repair SQL at request time.
     let metadataCalls = 0;
     const measuredPool = { query: (...args) => { metadataCalls++; return client.query(...args); } };
     started = performance.now();
-    for (let i = 0; i < iterations; i++) await getAutomationIdType(measuredPool);
+    const headSamples = [];
+    for (let i = 0; i < iterations; i++) { const tick = performance.now(); await getAutomationIdType(measuredPool); headSamples.push(performance.now() - tick); }
     const metadataMs = performance.now() - started;
-    const results = { classification: 'MEASURED_ISOLATED_POSTGRESQL', scope: 'schema prerequisite overhead only; not end-to-end route latency or billed egress', iterations, base: { schemaRepairRoundTrips: iterations * queries.length, elapsedMs: baseMs }, head: { schemaRepairRoundTrips: 0, metadataQueries: metadataCalls, metadataElapsedMs: metadataMs }, schemaRepairCallsReductionPercent: 100, legacyRowsPreserved: true, migrationIdempotent: true };
+    const latency = samples => { const sorted = [...samples].sort((a,b)=>a-b); return { p50Ms: sorted[Math.ceil(sorted.length*.5)-1], p95Ms: sorted[Math.ceil(sorted.length*.95)-1] }; };
+    const results = { baselineSha, measuredSha, migrationState: '044 applied twice before both variants in same transaction; SERIAL legacy row retained', classification: 'MEASURED_ISOLATED_POSTGRESQL', scope: 'schema prerequisite overhead only; not end-to-end route latency or billed egress; HEAD includes cold metadata lookup', iterations, base: { schemaRepairRoundTrips: iterations * queries.length, elapsedMs: baseMs, ...latency(baseSamples) }, head: { schemaRepairRoundTrips: 0, metadataQueries: metadataCalls, metadataElapsedMs: metadataMs, ...latency(headSamples) }, schemaRepairCallsReductionPercent: 100, legacyRowsPreserved: true, migrationIdempotent: true };
     fs.mkdirSync('artifacts/runtime-ddl', { recursive: true });
     fs.writeFileSync('artifacts/runtime-ddl/benchmark.json', JSON.stringify(results, null, 2));
     console.log(JSON.stringify(results));
