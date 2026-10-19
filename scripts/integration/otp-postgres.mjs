@@ -17,6 +17,13 @@ process.on('SIGINT', cleanup); process.on('SIGTERM', cleanup);
 try {
   const table = await one("SELECT c.relrowsecurity AS rls FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='auth_otp_challenges'");
   assert.equal(table.rls, true);
+  for (const role of ['anon', 'authenticated']) {
+    await db.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN CREATE ROLE ${role} NOLOGIN; END IF; END $$`);
+    const denied = await one('SELECT has_table_privilege($1, $2, $3) AS allowed', [role, 'public.auth_otp_challenges', 'SELECT']);
+    assert.equal(denied.allowed, false, `${role} must not read OTP challenges`);
+  }
+  const publicDenied = await one("SELECT has_table_privilege('public', 'public.auth_otp_challenges', 'SELECT') AS allowed");
+  assert.equal(publicDenied.allowed, false, 'PUBLIC must not read OTP challenges');
   await db.query("INSERT INTO users(id,name,email) VALUES($1,$2,$3)", [userId, user.name, user.email]);
 
   let deliveredCode;
@@ -35,8 +42,10 @@ try {
   assert.equal((await verifyEmailOtp('missing-otp', deliveredCode)).ok, false);
 
   const locked = await issueEmailOtp(user, { sendEmailFn: delivery });
+  const lockedWrongCode = deliveredCode === '999999' ? '999998' : '999999';
+  assert.notEqual(lockedWrongCode, deliveredCode);
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    assert.equal((await verifyEmailOtp(locked.challengeId, '111111')).ok, false);
+    assert.equal((await verifyEmailOtp(locked.challengeId, lockedWrongCode)).ok, false);
   }
   assert.equal((await verifyEmailOtp(locked.challengeId, deliveredCode)).ok, false);
   assert.equal((await one('SELECT attempts FROM auth_otp_challenges WHERE id=$1', [locked.challengeId])).attempts, 5);
