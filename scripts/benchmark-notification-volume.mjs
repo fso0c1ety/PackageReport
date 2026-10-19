@@ -32,14 +32,15 @@ try {
     const auth=await login.json();await context.setExtraHTTPHeaders({Authorization:`Bearer ${auth.token}`});
     const page=await context.newPage();await page.goto('/login/');
     const samples=[];let bytes=0,requests=0,transferred=0,transferKnown=true;
-    page.on('response',async response=>{if(new URL(response.url()).pathname==='/api/notifications/') {requests++;const size=await response.request().sizes().catch(()=>null);if(size)transferred+=size.responseBodySize+size.responseHeadersSize;else transferKnown=false;}});
+    const pendingSizes=new Set();
+    page.on('response',response=>{if(new URL(response.url()).pathname==='/api/notifications/') {requests++;const job=response.finished().then(()=>response.request().sizes()).then(size=>{transferred+=size.responseBodySize+size.responseHeadersSize;}).catch(()=>{transferKnown=false;});pendingSizes.add(job);void job.finally(()=>pendingSizes.delete(job));}});
     // Warm module schema detection before measuring request-local repetition.
     await page.evaluate(async()=>{await (await fetch('/api/notifications/')).arrayBuffer();});
-    requests=0;transferred=0;
+    await Promise.all([...pendingSizes]);requests=0;transferred=0;
     const snap=async()=> (await db.query("SELECT COALESCE(sum(calls),0)::text calls, COALESCE(sum(rows),0)::text rows FROM pg_stat_statements WHERE query NOT LIKE '%pg_stat_statements%'")).rows[0];
     const before=await snap();
     for(let i=0;i<10;i++) { const sample=await page.evaluate(async()=>{const start=performance.now(); const response=await fetch('/api/notifications/');const text=await response.text();return {status:response.status,bytes:new TextEncoder().encode(text).length,body:JSON.parse(text),ms:performance.now()-start};});assert.equal(sample.status,200);assert.equal(sample.body.length,20);assert(sample.body.every(n=>n.recipient_id===fixture.user));samples.push(sample.ms);bytes+=sample.bytes;}
-    const after=await snap();const idleStart=requests;await page.waitForTimeout(15000);
+    await Promise.all([...pendingSizes]);const after=await snap();const idleStart=requests;await page.waitForTimeout(15000);
     const denied=await page.evaluate(async id=>(await fetch(`/api/tables/${id}/tasks/?limit=1&offset=0`)).status,fixtures[1-t].table);assert([403,404].includes(denied));
     samples.sort((a,b)=>a-b);results.push({tenant:t+1,mode,requests,responseBytes:bytes,browserTransferredBytes:transferKnown?transferred:'UNKNOWN',p50Ms:samples[4],p95Ms:samples[9],dbCalls:Number(after.calls)-Number(before.calls),dbRows:Number(after.rows)-Number(before.rows),idle15sRequests:requests-idleStart,isolation:'PASS',scope:'notifications API from authenticated Chromium; login-page idle only'});
     await context.close();

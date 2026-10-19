@@ -49,7 +49,7 @@ jobs:
           for mode in BASE HEAD; do
             if [[ "$mode" = HEAD ]]; then cp /tmp/head-notifications-route.js src/app/api/notifications/route.js; fi
             npm run build
-            npx next start -p 3000 -H 127.0.0.1 > /tmp/notification-volume-server.log 2>&1 & app_pid=$!
+            node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1 > /tmp/notification-volume-server.log 2>&1 & app_pid=$!
             for n in $(seq 1 60); do curl -sf http://127.0.0.1:3000/login/ >/dev/null && break; sleep 2; done
             VOLUME_MODE="$mode" node scripts/benchmark-notification-volume.mjs
             kill "$app_pid"
