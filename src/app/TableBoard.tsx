@@ -3590,7 +3590,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const data = await response.json();
   const pageRows = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : null);
   if (!pageRows) return;
-  const nextRows = pageRows.map(normalizeRealtimeRow).map((row: Row) => {
+  const nextRows: Row[] = pageRows
+  .map(normalizeRealtimeRow)
+  .filter((row): row is Row => Boolean(row && typeof row.id === 'string' && row.id.length > 0))
+  .map((row: Row) => {
   // A realtime refetch can race an optimistic edit. Keep the newest local
   // value visible until its ordered mutation has been acknowledged.
   const values = { ...(row.values ?? {}) };
