@@ -23,7 +23,9 @@ try {
   const delivery = async ({ text }) => { deliveredCode = text.match(/(\d{6})/)?.[1]; };
   const issued = await issueEmailOtp(user, { sendEmailFn: delivery });
   assert.ok(issued.challengeId); assert.match(deliveredCode, /^\d{6}$/);
-  assert.equal((await verifyEmailOtp(issued.challengeId, '000000')).ok, false);
+  const wrongCode = deliveredCode === '000000' ? '000001' : '000000';
+  assert.notEqual(wrongCode, deliveredCode);
+  assert.equal((await verifyEmailOtp(issued.challengeId, wrongCode)).ok, false);
   assert.equal((await verifyEmailOtp(issued.challengeId, deliveredCode)).ok, true);
   assert.equal((await verifyEmailOtp(issued.challengeId, deliveredCode)).ok, false);
 
