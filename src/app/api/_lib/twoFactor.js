@@ -50,12 +50,16 @@ export async function issueEmailOtp(user) {
 }
 
 export async function verifyEmailOtp(challengeId, code) {
-  const result = await pool.query(
+  const client = await pool.connect();
+  await client.query("BEGIN");
+  try {
+  const result = await client.query(
     `SELECT c.*, u.id AS account_id, u.name, u.email, u.avatar
      FROM auth_otp_challenges c
      JOIN users u ON u.id=c.user_id
      WHERE c.id=$1
-     LIMIT 1`,
+     LIMIT 1
+     FOR UPDATE OF c`,
     [challengeId]
   );
   const challenge = result.rows[0];
@@ -72,11 +76,13 @@ export async function verifyEmailOtp(challengeId, code) {
   const matches = expected.length === actual.length && timingSafeEqual(expected, actual);
 
   if (!matches) {
-    await pool.query("UPDATE auth_otp_challenges SET attempts=attempts+1 WHERE id=$1", [challengeId]);
+    await client.query("UPDATE auth_otp_challenges SET attempts=attempts+1 WHERE id=$1", [challengeId]);
+    await client.query("COMMIT");
     return { ok: false, status: 401, error: "Incorrect verification code" };
   }
 
-  await pool.query("UPDATE auth_otp_challenges SET consumed_at=NOW() WHERE id=$1", [challengeId]);
+  await client.query("UPDATE auth_otp_challenges SET consumed_at=NOW() WHERE id=$1", [challengeId]);
+  await client.query("COMMIT");
   return {
     ok: true,
     user: {
@@ -86,4 +92,10 @@ export async function verifyEmailOtp(challengeId, code) {
       avatar: challenge.avatar,
     },
   };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }

@@ -18,6 +18,10 @@ test('migration ownership is explicit and additive', () => {
   assert.match(migration047, /CREATE TABLE IF NOT EXISTS auth_otp_challenges/i);
   assert.match(migration047, /idx_auth_otp_user_created/i);
   assert.match(migration047, /REFERENCES users\(id\) ON DELETE CASCADE/i);
+  assert.match(migration047, /ENABLE ROW LEVEL SECURITY/i);
+  assert.match(migration047, /REVOKE ALL ON TABLE public\.auth_otp_challenges FROM PUBLIC/i);
+  assert.match(migration047, /REVOKE ALL ON TABLE public\.auth_otp_challenges FROM anon/i);
+  assert.match(migration047, /REVOKE ALL ON TABLE public\.auth_otp_challenges FROM authenticated/i);
 });
 
 test('OTP security invariants remain in application code', () => {
@@ -26,4 +30,7 @@ test('OTP security invariants remain in application code', () => {
   assert.match(helper, /consumed_at=NOW\(\)/);
   assert.match(helper, /timingSafeEqual/);
   assert.match(helper, /attempts >= MAX_ATTEMPTS/);
+  assert.match(helper, /FOR UPDATE OF c/);
+  assert.match(helper, /BEGIN/);
+  assert.match(helper, /COMMIT/);
 });
