@@ -8,6 +8,9 @@ on:
       - 'server/db/migrations/017_optional_two_factor.sql'
       - 'server/db/migrations/047_two_factor_otp_challenges.sql'
       - 'test/two-factor-postgres.integration.cjs'
+      - 'scripts/integration/otp-postgres.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/two-factor-postgres-integration.yml'
 
 jobs:

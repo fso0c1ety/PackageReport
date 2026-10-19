@@ -32,6 +32,13 @@ try {
   assert.equal((await verifyEmailOtp(expired.challengeId, deliveredCode)).ok, false);
   assert.equal((await verifyEmailOtp('missing-otp', deliveredCode)).ok, false);
 
+  const locked = await issueEmailOtp(user, { sendEmailFn: delivery });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    assert.equal((await verifyEmailOtp(locked.challengeId, '111111')).ok, false);
+  }
+  assert.equal((await verifyEmailOtp(locked.challengeId, deliveredCode)).ok, false);
+  assert.equal((await one('SELECT attempts FROM auth_otp_challenges WHERE id=$1', [locked.challengeId])).attempts, 5);
+
   const failed = await issueEmailOtp(user, { sendEmailFn: async () => { throw new Error('synthetic delivery failure'); } }).catch(() => null);
   assert.equal(failed, null);
   // Security invariant: issuing a replacement invalidates the prior challenge
