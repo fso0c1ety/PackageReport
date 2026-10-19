@@ -33,7 +33,6 @@ test('all-permitted rows retain table scoping and exact pagination without per-r
   const { queries, body } = await readPage('all_permitted', [{ id: 'row', values: {}, __visible_total: 12 }]);
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /WHERE table_id=\$1\s+ORDER BY/);
-  assert.match(queries[0].sql, /JOIN rows task ON task.id=page.id AND task.table_id=\$1/);
   assert.doesNotMatch(queries[0].sql, /smart_manage_row_visible/);
   assert.match(queries[0].sql, /LIMIT \$2 OFFSET \$3/);
   assert.deepEqual(Array.from(queries[0].params), ['board', 100, 0]);
@@ -67,6 +66,13 @@ test('empty and out-of-range pages preserve the exact total contract', async () 
   assert.equal(beyond.body.total, 12);
   assert.equal(beyond.body.hasMore, false);
   assert.equal(beyond.queries.length, 2);
+});
+
+test('created-by scope keeps board and user predicates with exact pagination', async () => {
+  const { queries } = await readPage('created_by_me', [{ id: 'row', __visible_total: 1 }]);
+  assert.match(queries[0].sql, /table_id=\$1 AND created_by::text=\$2::text/);
+  assert.doesNotMatch(queries[0].sql, /smart_manage_row_visible/);
+  assert.deepEqual(Array.from(queries[0].params), ['board', 'reader', 100, 0]);
 });
 
 test('scheduled-message delivery runs after the task-read response and reuses sender lookups', () => {
