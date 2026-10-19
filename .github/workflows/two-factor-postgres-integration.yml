@@ -27,6 +27,7 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:otp-ci-local-only@127.0.0.1:5432/smart_manage_otp_test
+      JWT_SECRET: otp-ci-test-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,4 +38,4 @@ jobs:
       - name: Apply complete isolated migration chain
         run: node server/db/runMigrations.js
       - name: Verify real OTP PostgreSQL behavior
-        run: node --test test/two-factor-postgres.integration.cjs
+        run: node --experimental-default-type=module scripts/integration/otp-postgres.mjs

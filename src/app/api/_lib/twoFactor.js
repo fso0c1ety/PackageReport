@@ -11,7 +11,7 @@ function hashOtp(challengeId, code) {
     .digest("hex");
 }
 
-export async function issueEmailOtp(user) {
+export async function issueEmailOtp(user, { sendEmailFn = sendEmail } = {}) {
   const challengeId = randomUUID();
   const code = String(randomInt(0, 1000000)).padStart(6, "0");
 
@@ -28,7 +28,7 @@ export async function issueEmailOtp(user) {
   );
 
   try {
-    await sendEmail({
+    await sendEmailFn({
       to: user.email,
       subject: "Your Smart Manage verification code",
       text: `Your Smart Manage verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes. If you did not try to sign in, change your password immediately.`,
