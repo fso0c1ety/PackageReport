@@ -9,7 +9,7 @@ async function main() {
   const client = new Client({ connectionString: url.toString(), ssl: false });
   await client.connect();
   try {
-    const source = execFileSync('git', ['show', 'HEAD~1:src/app/api/automation/[tableId]/route.js'], { encoding: 'utf8' });
+    const source = execFileSync('git', ['show', 'f21e6d34c9301397f6930406797d2bca4f5b4719:src/app/api/automation/[tableId]/route.js'], { encoding: 'utf8' });
     const block = source.slice(source.indexOf('async function ensureAutomationSchema()'), source.indexOf('async function authorizeTable'));
     const queries = [...block.matchAll(/pool\.query\((?:`([\s\S]*?)`|"([^"]*)")\)/g)].map(match => match[1] || match[2]);
     if (queries.length !== 3) throw new Error('Expected three baseline schema repair round trips');
