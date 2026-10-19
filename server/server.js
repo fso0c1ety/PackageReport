@@ -161,8 +161,6 @@ startupMigrationPromise = (async () => {
       AND (jsonb_array_length(shared_users) = 0 OR jsonb_typeof(shared_users->0) = 'string');
     `);
 
-    await db.query(`ALTER TABLE tables ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;`);
-    
     // Fill missing invite codes for existing tables
     try {
       const missingCodes = await db.query('SELECT id FROM tables WHERE invite_code IS NULL');
