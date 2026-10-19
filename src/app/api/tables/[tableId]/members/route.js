@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureExtendedUserProfileColumns, getAuthenticatedUser, pool } from "../../../_lib/server";
+import { getAuthenticatedUser, pool } from "../../../_lib/server";
 import { requireBoardPermission } from "../../../_lib/authorization";
 
 export const runtime = "nodejs";
@@ -11,7 +11,6 @@ export async function GET(req, { params }) {
   }
 
   try {
-    await ensureExtendedUserProfileColumns();
     const { tableId } = await params;
 
     const access = await requireBoardPermission(pool, user.id, tableId, "viewer");
