@@ -1,0 +1,149 @@
+[
+  {
+    "conname": "account_activation_tokens_user_id_fkey",
+    "child": "account_activation_tokens",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "auth_sessions_user_id_fkey",
+    "child": "auth_sessions",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "authentication_audit_events_user_id_fkey",
+    "child": "authentication_audit_events",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "automations_created_by_fkey",
+    "child": "automations",
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "background_job_audit_workspace_id_fkey",
+    "child": "background_job_audit",
+    "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "demo_request_events_actor_id_fkey",
+    "child": "demo_request_events",
+    "definition": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "demo_requests_demo_workspace_id_fkey",
+    "child": "demo_requests",
+    "definition": "FOREIGN KEY (demo_workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "demo_requests_prospect_user_id_fkey",
+    "child": "demo_requests",
+    "definition": "FOREIGN KEY (prospect_user_id) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "demo_requests_provisioned_by_fkey",
+    "child": "demo_requests",
+    "definition": "FOREIGN KEY (provisioned_by) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "email_verification_tokens_user_id_fkey",
+    "child": "email_verification_tokens",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "enterprise_inquiries_user_id_fkey",
+    "child": "enterprise_inquiries",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "file_audit_log_user_id_fkey",
+    "child": "file_audit_log",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "friends_friend_id_fkey",
+    "child": "friends",
+    "definition": "FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "invoices_created_by_fkey",
+    "child": "invoices",
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "invoices_pdf_file_id_fkey",
+    "child": "invoices",
+    "definition": "FOREIGN KEY (pdf_file_id) REFERENCES uploaded_files(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "item_comments_user_id_fkey",
+    "child": "item_comments",
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "marketplace_reports_template_id_fkey",
+    "child": "marketplace_reports",
+    "definition": "FOREIGN KEY (template_id) REFERENCES marketplace_templates(id) ON DELETE CASCADE",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "platform_staff_roles_granted_by_fkey",
+    "child": "platform_staff_roles",
+    "definition": "FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "uploaded_files_workspace_id_fkey",
+    "child": "uploaded_files",
+    "definition": "FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE",
+    "decision": "ADD",
+    "reason": "Workspace ON DELETE CASCADE; benchmark referencing-row lookup and parent deletion"
+  },
+  {
+    "conname": "workspace_portal_overrides_portal_id_portal_version_fkey",
+    "child": "workspace_portal_overrides",
+    "definition": "FOREIGN KEY (portal_id, portal_version) REFERENCES portal_definitions(id, version)",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  },
+  {
+    "conname": "workspaces_demo_request_id_fkey",
+    "child": "workspaces",
+    "definition": "FOREIGN KEY (demo_request_id) REFERENCES demo_requests(id) ON DELETE SET NULL",
+    "decision": "INVESTIGATE",
+    "reason": "Retain existing indexes; require workload and selectivity evidence before adding"
+  }
+]
