@@ -6,6 +6,8 @@
       "fix/integration-benchmark-evidence-20261019": false,
       "fix/forward-reconciliation-044-046": false,
       "fix/password-reset-runtime-ddl": false,
+      "test/index-migration-lock-budget": false,
+      "audit/integration-remediation-20261019": false,
       "fix/production-schema-compatibility-20261014": false,
       "release-candidate/security-rls-123": false
     }
