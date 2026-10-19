@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { pool } from "./server";
 
 export const isValidEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -17,15 +16,7 @@ export const hashResetToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
 export async function ensurePasswordResetTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id UUID PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMPTZ NOT NULL,
-      used_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      requested_ip TEXT
-    )
-  `);
+  // Compatibility export for existing callers. Schema provisioning belongs to
+  // migration 004_password_reset_tokens.sql, never to an unauthenticated request.
+  // A missing schema fails at the caller's normal SQL operation; do not repair it.
 }
