@@ -1,9 +1,24 @@
 // Explicitly approved forward repairs, NOT a claim that unknown history ran.
 const { checksum } = require('../server/db/migrationUtils');
 const REPAIR_ORDER = Object.freeze(['043_existing_schema_compatibility.sql', '041_server_only_rls_baseline.sql', '042_server_only_platform_rls.sql']);
+const FORWARD_ORDER = Object.freeze(['044_automation_runtime_schema.sql', '045_uploaded_files_workspace_fk_index.sql', '046_guarded_duplicate_indexes.sql']);
 function validateReconciledPlan(files, rows, manifest, env, schemaHash) {
   const reject = () => { throw new Error('Reconciled repair approval/evidence mismatch'); };
-  if (env.RECONCILED_REPAIR_APPROVED !== '1' || !manifest || manifest.version !== 1 || manifest.mode !== 'preserve-unknown-history') reject();
+  const forward = manifest?.version === 2 && manifest.mode === 'dependent-forward-preserve-history';
+  const order = forward ? FORWARD_ORDER : REPAIR_ORDER;
+  if (env.RECONCILED_REPAIR_APPROVED !== '1' || !manifest || (!forward && (manifest.version !== 1 || manifest.mode !== 'preserve-unknown-history'))) reject();
+  if (forward) {
+    if (env.FORWARD_REPAIR_APPROVED !== '1' || env.EXPECTED_PROJECT_REF !== 'gxzvlsukjodbarlcjyys' || env.MAINTENANCE_WINDOW_APPROVED !== '1') reject();
+    if (!/^[a-f0-9]{64}$/.test(env.VERIFIED_BACKUP_SHA256 || '') || manifest.backupSha256 !== env.VERIFIED_BACKUP_SHA256) reject();
+    const start = Date.parse(manifest.windowStart), end = Date.parse(manifest.windowEnd), now = Date.now();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end-start > 2*60*60*1000 || now < start || now >= end) reject();
+    if (rows.filter(row=>row.checksum===null).length !== 9) reject();
+    for (const dependency of REPAIR_ORDER) {
+      const file = files.find(f=>f.filename===dependency), applied = rows.find(r=>r.filename===dependency);
+      if (!file || !applied || applied.checksum !== file.checksum) reject();
+    }
+    if (JSON.stringify(manifest.dependencies) !== JSON.stringify(REPAIR_ORDER.map(filename=>({filename,checksum:files.find(f=>f.filename===filename).checksum})))) reject();
+  }
   if (manifest.releaseSha !== env.APPROVED_SHA || manifest.projectRef !== 'gxzvlsukjodbarlcjyys') reject();
   if (checksum(JSON.stringify(manifest)) !== env.EXPECTED_RECONCILIATION_HASH) reject();
   if (!/^[a-f0-9]{64}$/.test(schemaHash) || manifest.schemaHash !== schemaHash) reject();
@@ -19,11 +34,11 @@ function validateReconciledPlan(files, rows, manifest, env, schemaHash) {
   if (!Array.isArray(manifest.preserveNullChecksums) || JSON.stringify([...manifest.preserveNullChecksums].sort())!==JSON.stringify(unknownNulls)) reject();
   const inventory=files.map(({filename,checksum})=>({filename,checksum}));
   if (!Array.isArray(manifest.inventory) || canonical(manifest.inventory)!==canonical(inventory)) reject();
-  if (REPAIR_ORDER.some(name=>rows.some(r=>r.filename===name))) reject();
-  const excluded=files.filter(f=>!rows.some(r=>r.filename===f.filename)&&!REPAIR_ORDER.includes(f.filename)).map(f=>f.filename).sort();
+  if (order.some(name=>rows.some(r=>r.filename===name))) reject();
+  const excluded=files.filter(f=>!rows.some(r=>r.filename===f.filename)&&!order.includes(f.filename)).map(f=>f.filename).sort();
   if (!Array.isArray(manifest.unverifiedLegacy) || manifest.unverifiedLegacy.some(r=>r.execution!=='unknown' || r.action!=='do-not-replay' || typeof r.evidence!=='string' || r.evidence.trim().length<20)) reject();
   if (JSON.stringify(manifest.unverifiedLegacy.map(r=>r.filename).sort())!==JSON.stringify(excluded)) reject();
-  const plan=REPAIR_ORDER.map(name=>files.find(f=>f.filename===name));
+  const plan=order.map(name=>files.find(f=>f.filename===name));
   if (plan.some(f=>!f) || checksum(JSON.stringify(plan.map(({filename,checksum})=>({filename,checksum}))))!==env.EXPECTED_PLAN_HASH) reject();
   return plan;
 }
@@ -46,4 +61,4 @@ async function schemaEvidenceHash(client) {
   if (!/^[a-f0-9]{64}$/.test(result.rows[0]?.evidence||'')) throw new Error('Schema evidence unavailable');
   return checksum(result.rows[0].evidence);
 }
-module.exports={REPAIR_ORDER,validateReconciledPlan,schemaEvidenceHash};
+module.exports={REPAIR_ORDER,FORWARD_ORDER,validateReconciledPlan,schemaEvidenceHash};
