@@ -34,7 +34,11 @@ try {
 
   const failed = await issueEmailOtp(user, { sendEmailFn: async () => { throw new Error('synthetic delivery failure'); } }).catch(() => null);
   assert.equal(failed, null);
-  assert.equal((await one('SELECT COUNT(*)::int AS count FROM auth_otp_challenges WHERE user_id=$1 AND consumed_at IS NULL', [userId])).count, 1);
+  // Security invariant: issuing a replacement invalidates the prior challenge
+  // before delivery. If delivery fails, the replacement is deleted and no
+  // challenge remains usable; this prevents reuse of a code that was never
+  // delivered and avoids silently reviving the previous challenge.
+  assert.equal((await one('SELECT COUNT(*)::int AS count FROM auth_otp_challenges WHERE user_id=$1 AND consumed_at IS NULL', [userId])).count, 0);
 
   const concurrent = await issueEmailOtp(user, { sendEmailFn: delivery });
   const results = await Promise.all([verifyEmailOtp(concurrent.challengeId, deliveredCode), verifyEmailOtp(concurrent.challengeId, deliveredCode)]);
