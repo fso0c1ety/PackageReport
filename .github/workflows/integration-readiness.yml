@@ -58,6 +58,8 @@ jobs:
       - run: node --test test/security-rls-postgres.integration.js
       - run: node scripts/benchmark-runtime-ddl.cjs
       - run: node scripts/benchmark-row-visibility.cjs
+      - run: node --test test/forward-reconciliation.test.cjs test/reconciled-repair-plan.test.js
+      - run: node scripts/verify-forward-reconciliation-postgres.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,4 +68,5 @@ jobs:
             artifacts/integration-readiness
             artifacts/runtime-ddl
             artifacts/row-visibility
+            artifacts/forward-reconciliation
           if-no-files-found: error
