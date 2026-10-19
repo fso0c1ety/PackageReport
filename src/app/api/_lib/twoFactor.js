@@ -51,9 +51,9 @@ export async function issueEmailOtp(user) {
 
 export async function verifyEmailOtp(challengeId, code) {
   const client = await pool.connect();
-  await client.query("BEGIN");
   try {
-  const result = await client.query(
+    await client.query("BEGIN");
+    const result = await client.query(
     `SELECT c.*, u.id AS account_id, u.name, u.email, u.avatar
      FROM auth_otp_challenges c
      JOIN users u ON u.id=c.user_id
@@ -62,36 +62,38 @@ export async function verifyEmailOtp(challengeId, code) {
      FOR UPDATE OF c`,
     [challengeId]
   );
-  const challenge = result.rows[0];
+    const challenge = result.rows[0];
 
-  if (!challenge || challenge.consumed_at || new Date(challenge.expires_at) <= new Date()) {
-    return { ok: false, status: 400, error: "Verification code expired. Sign in again." };
-  }
-  if (challenge.attempts >= MAX_ATTEMPTS) {
-    return { ok: false, status: 429, error: "Too many incorrect codes. Sign in again." };
-  }
+    if (!challenge || challenge.consumed_at || new Date(challenge.expires_at) <= new Date()) {
+      await client.query("ROLLBACK");
+      return { ok: false, status: 400, error: "Verification code expired. Sign in again." };
+    }
+    if (challenge.attempts >= MAX_ATTEMPTS) {
+      await client.query("ROLLBACK");
+      return { ok: false, status: 429, error: "Too many incorrect codes. Sign in again." };
+    }
 
-  const expected = Buffer.from(challenge.code_hash, "hex");
-  const actual = Buffer.from(hashOtp(challengeId, String(code || "")), "hex");
-  const matches = expected.length === actual.length && timingSafeEqual(expected, actual);
+    const expected = Buffer.from(challenge.code_hash, "hex");
+    const actual = Buffer.from(hashOtp(challengeId, String(code || "")), "hex");
+    const matches = expected.length === actual.length && timingSafeEqual(expected, actual);
 
-  if (!matches) {
-    await client.query("UPDATE auth_otp_challenges SET attempts=attempts+1 WHERE id=$1", [challengeId]);
+    if (!matches) {
+      await client.query("UPDATE auth_otp_challenges SET attempts=attempts+1 WHERE id=$1", [challengeId]);
+      await client.query("COMMIT");
+      return { ok: false, status: 401, error: "Incorrect verification code" };
+    }
+
+    await client.query("UPDATE auth_otp_challenges SET consumed_at=NOW() WHERE id=$1", [challengeId]);
     await client.query("COMMIT");
-    return { ok: false, status: 401, error: "Incorrect verification code" };
-  }
-
-  await client.query("UPDATE auth_otp_challenges SET consumed_at=NOW() WHERE id=$1", [challengeId]);
-  await client.query("COMMIT");
-  return {
-    ok: true,
-    user: {
-      id: challenge.account_id,
-      name: challenge.name,
-      email: challenge.email,
-      avatar: challenge.avatar,
-    },
-  };
+    return {
+      ok: true,
+      user: {
+        id: challenge.account_id,
+        name: challenge.name,
+        email: challenge.email,
+        avatar: challenge.avatar,
+      },
+    };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

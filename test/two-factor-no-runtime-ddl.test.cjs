@@ -33,4 +33,7 @@ test('OTP security invariants remain in application code', () => {
   assert.match(helper, /FOR UPDATE OF c/);
   assert.match(helper, /BEGIN/);
   assert.match(helper, /COMMIT/);
+  assert.match(helper, /ROLLBACK/);
+  assert.match(helper, /client\.release\(\)/);
+  assert.match(helper, /finally/);
 });
