@@ -1,0 +1,13 @@
+Module,Page_or_Function,API_Endpoint,Requests,DB_Queries,Egress_MB,Idle_MB_per_min,Tenant,Cause,Optimization,Priority,Measurement_Status
+Kanban,Board open,/api/tables/{tableId}/tasks,1/1/10/50/100,UNMEASURED,0.0478/0.4802/2.4078/4.8214,0.0000,synthetic-local,Measured response bytes for 100/1000/5000/10000-row pagination; idle sample produced no additional requests,Add DB snapshot/query attribution and retain page-size cap, P0,Measured in isolated CI run 39018929732
+Kanban,Board open (initial page),/api/tables/{tableId}/tasks,1,UNMEASURED,0.0478-0.0483,0.0000,synthetic-local,First 100-row page measured across four seeded tables; initial response excluded from idle,Instrument browser/server route bytes, P0,Measured in isolated CI run 39018929732
+Kanban,Board pagination,/api/tables/{tableId}/tasks,10/50/100,UNMEASURED,0.4802/2.4078/4.8214,NOT_MEASURED,synthetic-local,1000/5000/10000 rows with sequential pages,Add query fingerprint and DB result-size attribution, P0,Measured in isolated CI run 39018929732
+Table view,Table open,/api/tables/{tableId}/tasks,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Rows/columns and pagination,Measure page size and explicit projection, P0,Static candidate only
+Notifications,Top bar,/api/notifications,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,user/workspace,Realtime fallback refresh,Measure healthy/unhealthy Realtime, P0,Static candidate only
+Driver,Trips and documents,/api/logistics/driver/*,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,15s fallback when Realtime unhealthy,Measure hidden-tab behavior, P1,Static candidate only
+Workspace,Home/workspace,/api/workspaces and /api/tables,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Prefetch and refresh,Measure cache/dedup hit rate, P1,Static candidate only
+Chat,Task chat,/api/tables/{tableId}/chat,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Polling fallback,Measure active/idle sessions, P0,Static candidate only
+Files,Upload/download,/api/upload and signed URLs,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Payload size,Measure fixture bytes and Storage transfer, P1,Static candidate only
+Search,Command palette,/api/search,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Debounced search requests,Measure query/result bytes, P2,Static candidate only
+Billing,Billing pages,/api/billing/*,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Provider/API responses,Measure only isolated test accounts, P2,Static candidate only
+Portals,Portal activities,/api/professional-portal and portal routes,UNMEASURED,UNMEASURED,UNMEASURED,UNMEASURED,workspace_id,Role-scoped records,Measure per READY portal fixture, P1,Static candidate only
