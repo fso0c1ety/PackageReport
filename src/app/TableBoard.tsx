@@ -3576,6 +3576,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   let fallbackPollingId: ReturnType<typeof setInterval> | null = null;
   let fallbackRequestPending = false;
+  const FALLBACK_PAGE_SIZE = 100;
   const stopFallbackPolling = () => {
   if (fallbackPollingId) clearInterval(fallbackPollingId);
   fallbackPollingId = null;
@@ -3584,7 +3585,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (fallbackRequestPending || document.hidden) return;
   fallbackRequestPending = true;
   try {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { suppressNativeErrorAlert: true });
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=0`), { suppressNativeErrorAlert: true });
   if (!response.ok) return;
   const data = await response.json();
   if (!Array.isArray(data)) return;
@@ -3601,12 +3602,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   setRows((current) => {
   const currentRows = current.filter((row) => row.id !== 'placeholder');
-  const unchanged = currentRows.length === nextRows.length && currentRows.every((row, index) => (
-  row.id === nextRows[index]?.id
-  && (row as any).updated_at === (nextRows[index] as any)?.updated_at
-  && JSON.stringify(row.values ?? {}) === JSON.stringify(nextRows[index]?.values ?? {})
-  ));
-  return unchanged ? current : nextRows;
+  const changed = new Map(nextRows.map((row) => [row.id, row]));
+  const merged = currentRows.map((row) => changed.get(row.id) ?? row);
+  const knownIds = new Set(currentRows.map((row) => row.id));
+  nextRows.forEach((row) => { if (!knownIds.has(row.id)) merged.push(row); });
+  return merged;
   });
   } catch (error) {
   console.warn('[TableBoard fallback] Unable to refresh table rows', { tableId, error });
