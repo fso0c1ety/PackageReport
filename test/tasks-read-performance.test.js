@@ -32,7 +32,8 @@ async function readPage(scope, rows, offset = 0, failure = '') {
 test('all-permitted rows retain table scoping and exact pagination without per-row permission calls', async () => {
   const { queries, body } = await readPage('all_permitted', [{ id: 'row', values: {}, __visible_total: 12 }]);
   assert.equal(queries.length, 1);
-  assert.match(queries[0].sql, /WHERE table_id=\$1 ORDER BY/);
+  assert.match(queries[0].sql, /WHERE table_id=\$1\s+ORDER BY/);
+  assert.match(queries[0].sql, /JOIN rows task ON task.id=page.id AND task.table_id=\$1/);
   assert.doesNotMatch(queries[0].sql, /smart_manage_row_visible/);
   assert.match(queries[0].sql, /LIMIT \$2 OFFSET \$3/);
   assert.deepEqual(Array.from(queries[0].params), ['board', 100, 0]);

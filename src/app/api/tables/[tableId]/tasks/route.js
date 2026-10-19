@@ -610,7 +610,14 @@ export async function GET(req, { params }) {
         : `${visibleWhere} AND COALESCE(values->>$${visibilityParams.length + 1}, '') = $${visibilityParams.length + 2}`;
       if (paginated) {
         result = await readPool.query(
-          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${taskWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${taskParams.length + 1} OFFSET $${taskParams.length + 2}`,
+          `SELECT task.*, page.__visible_total FROM (
+            SELECT id, (values->>'order')::int AS sort_order, created_at,
+              COUNT(*) OVER()::int AS __visible_total
+            FROM rows WHERE ${taskWhere}
+            ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC
+            LIMIT $${taskParams.length + 1} OFFSET $${taskParams.length + 2}
+          ) page JOIN rows task ON task.id=page.id AND task.table_id=$1
+          ORDER BY page.sort_order ASC NULLS FIRST, page.created_at DESC, page.id ASC`,
           [...taskParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
