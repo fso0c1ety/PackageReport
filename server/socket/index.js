@@ -87,10 +87,8 @@ function attachSocketServer(io, {
         socket.emit("error", { code: "INVALID_EVENT", message: "Invalid task identifier" });
         return;
       }
-      const result = await db.query("SELECT table_id FROM rows WHERE id=$1", [taskId]);
-      const tableId = result.rows[0]?.table_id;
       const { getRowAccess } = require("../services/permissions");
-      const access = tableId && await getRowAccess(db, taskId, userId, "viewer", tableId);
+      const access = await getRowAccess(db, taskId, userId, "viewer");
       if (!access) {
         socket.emit("error", { code: "FORBIDDEN", message: "Task access denied" });
         return;
