@@ -10,6 +10,9 @@ async function main(){
   const db=new Client({connectionString:url.toString(),ssl:false});await db.connect();
   try{
     const files=inventory();
+    await db.query('CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions');
+    const cryptoSchema=(await db.query("SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='pgcrypto'")).rows[0]?.nspname;
+    if(cryptoSchema!=='extensions')await db.query('ALTER EXTENSION pgcrypto SET SCHEMA extensions');
     // This database is disposable CI data, never a restored customer database.
     await db.query('DELETE FROM public.schema_migrations WHERE filename=ANY($1::text[])',[FORWARD_ORDER]);
     const historical=(await db.query('SELECT filename FROM public.schema_migrations ORDER BY filename')).rows.filter(r=>!REPAIR_ORDER.includes(r.filename)).slice(0,9);
