@@ -15,6 +15,10 @@ test('fallback does not discard already loaded pages', () => {
   assert.match(source, /const merged = currentRows\.map/);
 });
 
+test('fallback accepts the paginated API response contract', () => {
+  assert.match(source, /Array\.isArray\(data\?\.rows\) \? data\.rows/);
+});
+
 test('fallback retains hidden-tab and overlapping-request guards', () => {
   assert.match(source, /fallbackRequestPending \|\| document\.hidden/);
   assert.match(source, /if \(fallbackPollingId\) return/);

@@ -3588,8 +3588,9 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=0`), { suppressNativeErrorAlert: true });
   if (!response.ok) return;
   const data = await response.json();
-  if (!Array.isArray(data)) return;
-  const nextRows = data.map(normalizeRealtimeRow).map((row: Row) => {
+  const pageRows = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : null);
+  if (!pageRows) return;
+  const nextRows = pageRows.map(normalizeRealtimeRow).map((row: Row) => {
   // A realtime refetch can race an optimistic edit. Keep the newest local
   // value visible until its ordered mutation has been acknowledged.
   const values = { ...(row.values ?? {}) };
