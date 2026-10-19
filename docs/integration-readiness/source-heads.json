@@ -1,0 +1,579 @@
+{
+  "base": "f21e6d3",
+  "sources": [
+    {
+      "number": 129,
+      "head": "5f204cd60f6f1e7d0f6f5906f0a6c1dac29a164f",
+      "branch": "audit/egress-network-2026-10-17",
+      "isDraft": true,
+      "checks": [
+        {
+          "name": "Build Android APK",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913125/job/117393911560"
+        },
+        {
+          "name": "Build Windows EXE",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913014/job/117393911186"
+        },
+        {
+          "name": "isolated numeric egress measurement",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031912955/job/117393910811"
+        },
+        {
+          "name": "legacy-repair",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913003/job/117393911295"
+        },
+        {
+          "name": "policy-detector",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393910896"
+        },
+        {
+          "name": "suite-test / suite-test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393945993"
+        },
+        {
+          "name": "suite-portal-acceptance / suite-portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393945999"
+        },
+        {
+          "name": "suite-kanban-postgres-e2e / suite-kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393946002"
+        },
+        {
+          "name": "suite-clean-install / suite-clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393946001"
+        },
+        {
+          "name": "suite-local-safety / suite-local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393945976"
+        },
+        {
+          "name": "suite-benchmark / suite-benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117393945963"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117394486019"
+        },
+        {
+          "name": "portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117394792759"
+        },
+        {
+          "name": "kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117395102275"
+        },
+        {
+          "name": "clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117394195060"
+        },
+        {
+          "name": "local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117394137558"
+        },
+        {
+          "name": "benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39031913017/job/117394701538"
+        }
+      ]
+    },
+    {
+      "number": 131,
+      "head": "a11e9729e137fd9831bbe5684f1c6678207171ee",
+      "branch": "fix/runtime-ddl-migrations",
+      "isDraft": true,
+      "checks": [
+        {
+          "name": "Build Android APK",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918332/job/117955743450"
+        },
+        {
+          "name": "Build Windows EXE",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918451/job/117955743239"
+        },
+        {
+          "name": "legacy-repair",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918341/job/117955743279"
+        },
+        {
+          "name": "migration-002",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918375/job/117955743302"
+        },
+        {
+          "name": "policy-detector",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955743549"
+        },
+        {
+          "name": "postgres",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918434/job/117955743365"
+        },
+        {
+          "name": "security-rls-postgres",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918335/job/117955743297"
+        },
+        {
+          "name": "suite-test / suite-test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955816155"
+        },
+        {
+          "name": "suite-portal-acceptance / suite-portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955815914"
+        },
+        {
+          "name": "suite-kanban-postgres-e2e / suite-kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955816074"
+        },
+        {
+          "name": "suite-clean-install / suite-clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955816109"
+        },
+        {
+          "name": "suite-local-safety / suite-local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955816066"
+        },
+        {
+          "name": "suite-benchmark / suite-benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117955815961"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117957305628"
+        },
+        {
+          "name": "portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117958029752"
+        },
+        {
+          "name": "kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117957799917"
+        },
+        {
+          "name": "clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117956303531"
+        },
+        {
+          "name": "local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117956256624"
+        },
+        {
+          "name": "benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39220918380/job/117957628046"
+        }
+      ]
+    },
+    {
+      "number": 132,
+      "head": "5556a9ded7538139b55030a2b01cf7538ab8d1cd",
+      "branch": "fix/row-visibility-performance",
+      "isDraft": true,
+      "checks": [
+        {
+          "name": "Build Android APK",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538136/job/117957736975"
+        },
+        {
+          "name": "Build Windows EXE",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538165/job/117957737060"
+        },
+        {
+          "name": "legacy-repair",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538241/job/117957737420"
+        },
+        {
+          "name": "policy-detector",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957737306"
+        },
+        {
+          "name": "benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538202/job/117957737356"
+        },
+        {
+          "name": "suite-test / suite-test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957816405"
+        },
+        {
+          "name": "suite-portal-acceptance / suite-portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957816224"
+        },
+        {
+          "name": "suite-kanban-postgres-e2e / suite-kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957816159"
+        },
+        {
+          "name": "suite-clean-install / suite-clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957816143"
+        },
+        {
+          "name": "suite-local-safety / suite-local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957816235"
+        },
+        {
+          "name": "suite-benchmark / suite-benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117957816322"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117959297712"
+        },
+        {
+          "name": "portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117960139972"
+        },
+        {
+          "name": "kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117960225005"
+        },
+        {
+          "name": "clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117958264221"
+        },
+        {
+          "name": "local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117958260873"
+        },
+        {
+          "name": "benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39221538177/job/117959949658"
+        }
+      ]
+    },
+    {
+      "number": 133,
+      "head": "e8260253b212101b7e1783b3eb7940c0fea229f5",
+      "branch": "fix/api-request-volume",
+      "isDraft": true,
+      "checks": [
+        {
+          "name": "Build Android APK",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863902/job/117962068480"
+        },
+        {
+          "name": "Build Windows EXE",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863888/job/117962042354"
+        },
+        {
+          "name": "benchmark (base, d2117b0c8ec5c2f1561311565b3143eb5a8aa7a8)",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863883/job/117962043802"
+        },
+        {
+          "name": "legacy-repair",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863924/job/117962042258"
+        },
+        {
+          "name": "measure",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863889/job/117962042504"
+        },
+        {
+          "name": "migration-002",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863835/job/117962042533"
+        },
+        {
+          "name": "policy-detector",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962048132"
+        },
+        {
+          "name": "benchmark (head, e8260253b212101b7e1783b3eb7940c0fea229f5)",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863883/job/117962042926"
+        },
+        {
+          "name": "suite-test / suite-test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962100373"
+        },
+        {
+          "name": "suite-portal-acceptance / suite-portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962100301"
+        },
+        {
+          "name": "suite-kanban-postgres-e2e / suite-kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962100666"
+        },
+        {
+          "name": "suite-clean-install / suite-clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962100507"
+        },
+        {
+          "name": "suite-local-safety / suite-local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962100322"
+        },
+        {
+          "name": "suite-benchmark / suite-benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962100572"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117963677800"
+        },
+        {
+          "name": "portal-acceptance",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117964510711"
+        },
+        {
+          "name": "kanban-postgres-e2e",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117964650024"
+        },
+        {
+          "name": "clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962571843"
+        },
+        {
+          "name": "local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117962514223"
+        },
+        {
+          "name": "benchmark",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39222863915/job/117964442316"
+        }
+      ]
+    },
+    {
+      "number": 134,
+      "head": "e5453caf9776453281d9a9507ad5b303a8ffabe9",
+      "branch": "audit/index-advisor-safety",
+      "isDraft": true,
+      "checks": [
+        {
+          "name": "Build Windows EXE",
+          "conclusion": "",
+          "status": "IN_PROGRESS",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710552/job/117964796920"
+        },
+        {
+          "name": "Build Android APK",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710255/job/117964795307"
+        },
+        {
+          "name": "legacy-repair",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710463/job/117964796712"
+        },
+        {
+          "name": "indexes",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710057/job/117964794480"
+        },
+        {
+          "name": "migration-002",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710096/job/117964794540"
+        },
+        {
+          "name": "policy-detector",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964794664"
+        },
+        {
+          "name": "security-rls-postgres",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710060/job/117964794957"
+        },
+        {
+          "name": "suite-test / suite-test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964873100"
+        },
+        {
+          "name": "suite-portal-acceptance / suite-portal-acceptance",
+          "conclusion": "",
+          "status": "IN_PROGRESS",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964873127"
+        },
+        {
+          "name": "suite-kanban-postgres-e2e / suite-kanban-postgres-e2e",
+          "conclusion": "",
+          "status": "IN_PROGRESS",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964873038"
+        },
+        {
+          "name": "suite-clean-install / suite-clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964873137"
+        },
+        {
+          "name": "suite-local-safety / suite-local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964873080"
+        },
+        {
+          "name": "suite-benchmark / suite-benchmark",
+          "conclusion": "",
+          "status": "IN_PROGRESS",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117964872935"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117966401051"
+        },
+        {
+          "name": "clean-install",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117965409257"
+        },
+        {
+          "name": "local-safety",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "url": "https://github.com/fso0c1ety/PackageReport/actions/runs/39223710066/job/117965304049"
+        }
+      ]
+    }
+  ]
+}

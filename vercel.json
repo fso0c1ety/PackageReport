@@ -2,6 +2,7 @@
   "buildCommand": "npm run vercel-build",
   "git": {
     "deploymentEnabled": {
+      "audit/integration-readiness-20261019": false,
       "fix/production-schema-compatibility-20261014": false,
       "release-candidate/security-rls-123": false
     }

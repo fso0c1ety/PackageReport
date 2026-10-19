@@ -49,8 +49,8 @@ test("notification persistence broadcasts only after a successful insert", () =>
 test("notification reads authorize items concurrently for realtime refresh latency", () => {
   const route = read("src", "app", "api", "notifications", "route.js");
   assert.match(route, /Promise\.all\(categoryRows\.map\(async/);
-  assert.match(route, /requireRowPermission\(pool, user\.id/);
-  assert.match(route, /requireBoardPermission\(pool, user\.id/);
+  assert.match(route, /requireRowPermission\(permissionPool, user\.id/);
+  assert.match(route, /requireBoardPermission\(permissionPool, user\.id/);
 });
 
 test("notification reads batch professional-invite validation instead of adding one query per bell item", () => {
