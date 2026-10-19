@@ -60,6 +60,8 @@ jobs:
       - run: node scripts/benchmark-row-visibility.cjs
       - run: node --test test/forward-reconciliation.test.cjs test/reconciled-repair-plan.test.js
       - run: node scripts/test-forward-reconciliation-postgres.cjs
+      - run: node --test test/password-reset-no-runtime-ddl.test.cjs
+      - run: node scripts/inventory-runtime-schema.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -69,4 +71,5 @@ jobs:
             artifacts/runtime-ddl
             artifacts/row-visibility
             artifacts/forward-reconciliation
+            artifacts/runtime-schema-inventory
           if-no-files-found: error
