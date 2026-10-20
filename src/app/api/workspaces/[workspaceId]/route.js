@@ -103,8 +103,6 @@ export async function DELETE(req, { params }) {
 
   try {
     const { workspaceId } = await params;
-    const billingError = await requireWritableSubscription(user.id, { workspaceId });
-    if (billingError) return billingError;
     const wsResult = await pool.query("SELECT * FROM workspaces WHERE id = $1", [workspaceId]);
     const workspace = wsResult.rows[0];
 
@@ -112,7 +110,7 @@ export async function DELETE(req, { params }) {
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
     }
 
-    if (workspace.owner_id !== user.id) {
+    if (String(workspace.owner_id) !== String(user.id)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
