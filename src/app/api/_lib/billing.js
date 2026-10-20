@@ -48,8 +48,13 @@ export async function getBillingStatus(userId) {
       [extendedTrialEnd, userId]
     );
     await pool.query(
-      `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
-       WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+      `UPDATE tables AS t
+       SET billing_archived_at=NULL, billing_purge_at=NULL
+       FROM workspaces AS w
+       WHERE t.workspace_id = w.id
+         AND w.owner_id = $1
+         AND w.is_demo IS NOT TRUE
+         AND (t.billing_archived_at IS NOT NULL OR t.billing_purge_at IS NOT NULL)`,
       [userId]
     );
   }
@@ -71,8 +76,13 @@ export async function getBillingStatus(userId) {
 
   if (unlimited) {
     await pool.query(
-      `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
-       WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+      `UPDATE tables AS t
+       SET billing_archived_at=NULL, billing_purge_at=NULL
+       FROM workspaces AS w
+       WHERE t.workspace_id = w.id
+         AND w.owner_id = $1
+         AND w.is_demo IS NOT TRUE
+         AND (t.billing_archived_at IS NOT NULL OR t.billing_purge_at IS NOT NULL)`,
       [userId]
     );
   }
@@ -160,8 +170,13 @@ export async function activateBillingPlan(userId, plan, stripe = {}) {
       stripe.currentPeriodEnd || null, userId]
   );
   await pool.query(
-    `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
-     WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+    `UPDATE tables AS t
+     SET billing_archived_at=NULL, billing_purge_at=NULL
+     FROM workspaces AS w
+     WHERE t.workspace_id = w.id
+       AND w.owner_id = $1
+       AND w.is_demo IS NOT TRUE
+       AND (t.billing_archived_at IS NOT NULL OR t.billing_purge_at IS NOT NULL)`,
     [userId]
   );
   return getBillingStatus(userId);
