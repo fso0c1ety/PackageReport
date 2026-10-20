@@ -11,7 +11,6 @@ Production. Katalogu read-only i verifikuar raporton **31 tabela aktive**:
 - Migrimi 041 përcakton 11 tabela që kërkojnë kontroll të veçantë të aksesit;
   klasifikimi backend-only/client-accessible bëhet sipas varësisë reale të API-së,
   jo vetëm nga statusi RLS.
-  `authenticated` dhe `PUBLIC`.
 - Migrimi 042 përcakton 20 tabela të tjera backend-only.
 - Të 31 kandidatët e inventarit ekzistojnë në Production.
 - `account_activation_tokens` dhe `auth_sessions` kanë RLS enabled, por zero
@@ -89,8 +88,8 @@ veçantë. Nuk ka ndryshim të aplikuar në këtë PR.
 - Pa ndryshim Production, pa SQL Production dhe pa ndryshim të ledger/checksum-eve.
 - Ky branch ndryshon vetëm dokumentacionin dhe një checker read-only.
 - Rollback i auditit: revert commit-et e dokumentacionit/checker-it; nuk prek skemën.
-- Rreziku kryesor i mbetur: pa catalog snapshot zyrtar nuk mund të konfirmohet
-  lista reale prej 29 tabelash, privilegjet efektive apo Data API exposure.
+- Rreziku kryesor i mbetur: ekspozimi efektiv përmes Data API kërkon test request-i
+  read-only; privilegjet dhe statusi RLS i catalogut janë të dokumentuara.
 
 Katalogu Production është i konfirmuar. Vetëm ekspozimi efektiv përmes Data API
 mbetet **UNKNOWN** dhe kërkon test request-i read-only. Vendimi: **BLOCKED për
