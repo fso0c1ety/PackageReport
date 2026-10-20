@@ -1,0 +1,32 @@
+table,source,classification,priority,application_dependency,production_catalog_status,rls_status,public_grants,data_api_effective_status,planned_action
+password_reset_tokens,041,backend-only,critical,password reset,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,REVOKE/RLS after reconciliation
+email_verification_tokens,020+041,backend-only,critical,registration/email verification,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,REVOKE/RLS after reconciliation
+account_activation_tokens,020+041,backend-only,critical,account activation,CONFIRMED_EXISTS,ENABLED,"anon/authenticated SELECT",UNKNOWN - no policies,add policies/revoke public grants
+auth_sessions,020+041,backend-only,critical,login/session refresh,CONFIRMED_EXISTS,ENABLED,"anon/authenticated SELECT",UNKNOWN - no policies,add policies/revoke public grants
+authentication_audit_events,020+041,backend-only,critical,login audit,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+invoices,030+041,backend-only,high,invoices API,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+subscriptions,005+041,backend-only,high,billing,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+marketplace_templates,012a+041,server/API,medium,marketplace,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,verify Data API need then protect
+marketplace_reviews,012a+041,server/API,medium,marketplace,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,verify Data API need then protect
+marketplace_reports,013+041,backend-only,medium,marketplace reporting,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+calendar_events,031a/035+041,server/API,medium,calendar,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,verify API contract then RLS
+automation_action_usage,unknown+042,backend-only,high,automation quota,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+background_job_audit,025+042,backend-only,high,background jobs,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+board_member_access,022+042,backend-only,critical,record permissions,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+demo_request_events,028+042,backend-only,medium,demo provisioning,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+demo_requests,027+042,backend-only,medium,demo requests,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+enterprise_audit_logs,unknown+042,backend-only,high,enterprise audit,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+enterprise_inquiries,005+042,backend-only,medium,enterprise inquiries,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,verify API contract then protect
+file_audit_log,024+042,backend-only,high,file security,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+integration_webhooks,unknown+042,backend-only,high,webhooks,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+invoice_sequences,030+042,backend-only,high,invoice numbering,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+nexus_credit_usage,unknown+042,backend-only,high,credits/billing,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+platform_staff_roles,027+042,backend-only,critical,staff authorization,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+portal_comments,unknown+042,server/API,high,public portal comments,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,verify token-scoped API then protect
+portal_definitions,026+042,backend-only,high,portal engine,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+professional_invitations,033+042,backend-only,critical,invitations,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+scheduler_locks,032+042,backend-only,high,scheduler,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+trip_status_history,019+042,backend-only,medium,logistics,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+workspace_job_roles,022+042,backend-only,critical,permissions,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+workspace_modules,010+042,backend-only,high,workspace modules,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
+workspace_portal_overrides,026+042,backend-only,high,portal overrides,CONFIRMED_EXISTS,DISABLED,"anon/authenticated CRUD",UNKNOWN,revoke public grants/RLS
