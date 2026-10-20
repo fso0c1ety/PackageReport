@@ -3,17 +3,21 @@
 Statusi: **audit read-only / pa ndryshime Production**
 
 Ky dokument nuk ekzekuton `GRANT`, `REVOKE`, `ALTER TABLE`, migrime ose SQL në
-Production. Ai ndan inventarin e kandidatë-ve nga tabelat e konfirmuara në
-catalog. Lista e Production me 29 tabela duhet të konfirmohet me snapshot
-catalogu të marrë veçmas nga Supabase Dashboard/MCP.
+Production. Katalogu read-only i verifikuar raporton **31 tabela aktive**:
+**29 me RLS disabled + 2 me RLS enabled por pa politika**.
 
 ## Përfundime të sigurta nga repository
 
 - Migrimi 041 përcakton 11 tabela backend-only që duhet të mbrohen nga `anon`,
   `authenticated` dhe `PUBLIC`.
 - Migrimi 042 përcakton 20 tabela të tjera backend-only.
-- Këto janë 31 kandidatë repository; disa mund të mungojnë në një instalim të
-  vjetër. Prandaj nuk supozohet se të gjitha 31 ekzistojnë në Production.
+- Të 31 kandidatët e inventarit ekzistojnë në Production.
+- `account_activation_tokens` dhe `auth_sessions` kanë RLS enabled, por zero
+  politika dhe ende privilegj SELECT për `anon`/`authenticated`. Kjo nuk quhet
+  automatikisht ekspozim efektiv Data API pa provë të request-it, por është
+  gjetje kritike për ACL/RLS.
+- Për 29 tabelat me RLS disabled, privilegjet publike janë rrezik i drejtpërdrejtë
+  dhe kërkojnë remediation të ndarë.
 - Production ledger i raportuar deri në 035 do të thotë se 041/042 nuk trajtohen
   si të aplikuara. Ky audit nuk i aplikon ato.
 
@@ -29,6 +33,13 @@ catalogu të marrë veçmas nga Supabase Dashboard/MCP.
 | Mesëm | `portal_comments`, `portal_definitions`, `workspace_portal_overrides`, `workspace_modules` | portale dhe konfigurim tenant | server/API; verifiko vetëm endpoint-et e autorizuara |
 | Mesëm | `marketplace_templates`, `marketplace_reviews`, `marketplace_reports` | marketplace | vendim sipas Data API; jo blanket grant |
 | Mesëm | `calendar_events`, `trip_status_history`, `scheduler_locks`, `background_job_audit` | kalendar/jobs/logs | backend-only për jobs; calendar varet nga API contract |
+
+## Gjendja e konfirmuar e catalogut
+
+| Grup | Numër | RLS | Privilegje API | Status |
+|---|---:|---|---|---|
+| Tabela backend-only të inventarit | 29 | DISABLED | SELECT/INSERT/UPDATE/DELETE për `anon` dhe `authenticated` | CRITICAL remediation |
+| `account_activation_tokens`, `auth_sessions` | 2 | ENABLED | SELECT për `anon` dhe `authenticated`; 0 policies | CRITICAL ACL/RLS remediation; Data API exposure EFFECTIVE = UNKNOWN |
 
 ## Varësitë e aplikacionit
 
@@ -54,6 +65,21 @@ catalogu të marrë veçmas nga Supabase Dashboard/MCP.
    PostgreSQL të izoluar.
 6. Vetëm pas reconciliation, backup dhe approval të veçantë mund të përgatitet
    migration additive. Ky branch nuk përmban migration SQL.
+
+## Renditja e remediation-it
+
+1. Tokenët/sesionet dhe audit logs: blloko aksesin publik, pastaj testo login,
+   reset, verification, refresh, expiry dhe replay.
+2. ACL/authorization: testo `workspace A -> B`, record-level denial, owner/admin
+   access dhe ndryshimet e roleve.
+3. Invoices/subscriptions: testo list/create/update/pdf dhe izolimin financiar.
+4. Invitations/portals/marketplace: testo recipient filtering, token scope dhe
+   public-link boundaries.
+5. Jobs/logistics/files: testo worker/backend role dhe refuzimin e CRUD nga API roles.
+
+Çdo grup kërkon catalog snapshot para/pas në PostgreSQL të izoluar, prova negative
+me `SET ROLE`, test Data API me anon/authenticated dhe rollback të migration-it të
+veçantë. Nuk ka ndryshim të aplikuar në këtë PR.
 
 ## Kufizime dhe rollback
 
