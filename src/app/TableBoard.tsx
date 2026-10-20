@@ -3604,6 +3604,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   let totalRows = totalRowsRef.current;
   for (let offset = 0; offset < targetCount; offset += FALLBACK_PAGE_SIZE) {
   const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=${offset}`), { suppressNativeErrorAlert: true, handleAuthErrors: false, signal: abortController.signal });
+  if (generation !== recoveryGeneration) return;
   if (response.status === 401 || response.status === 403) {
   clearUnauthorizedRows();
   return;
