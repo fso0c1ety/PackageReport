@@ -32,6 +32,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: Generate CI-only JWT secret
+        shell: bash
+        run: echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Apply isolated schema
         shell: bash
         run: |
@@ -71,7 +74,7 @@ jobs:
             cp /tmp/expired-demo-http.mjs scripts/integration/expired-demo-http.mjs
             export MIGRATION_TARGET="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | paste -sd, -)"
             npm run db:migrate
-            BENCHMARK_VARIANT="$variant" OUTPUT_JSON="artifacts/http-$variant.json" node scripts/integration/expired-demo-http.mjs
+            BENCHMARK_VARIANT="$variant" OUTPUT_JSON="artifacts/http-$variant.json" SERVER_LOG="artifacts/server-$variant.log" node scripts/integration/expired-demo-http.mjs
           done
       - name: Require HTTP artifacts
         run: test -s artifacts/http-BASE.json && test -s artifacts/http-HEAD.json

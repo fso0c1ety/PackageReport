@@ -13,6 +13,7 @@ const password = "HttpIntegrationOnlyA1!";
 const email = `${ids.user}@local.invalid`;
 const metrics = { variant, http: [], db: {}, scenarios: {}, billedSupabaseEgress: "UNKNOWN" };
 let server;
+const serverLog = process.env.SERVER_LOG || `artifacts/server-${variant}.log`;
 try {
   await db.query("DELETE FROM workspaces WHERE id = ANY($1::text[])", [[ids.demo, ids.normal]]);
   await db.query("DELETE FROM users WHERE id = ANY($1::text[])", [[ids.user, ids.other]]);
@@ -22,9 +23,11 @@ try {
   await db.query("INSERT INTO tables(id,name,workspace_id) VALUES($1,'HTTP Demo Board',$2)", [ids.table, ids.demo]);
   await db.query("INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,'{}'::jsonb,$3)", [`${ids.table}-row`, ids.table, ids.user]);
   await db.query("UPDATE workspaces SET demo_expires_at=NOW()-INTERVAL '1 day' WHERE id=$1", [ids.demo]);
-  await db.query("INSERT INTO workspace_members(workspace_id,user_id,workspace_role,role) VALUES($1,$2,'owner','owner') ON CONFLICT DO NOTHING", [ids.demo, ids.other]);
+  await db.query("INSERT INTO workspace_members(workspace_id,user_id,workspace_role,role) VALUES($1,$2,'owner','owner') ON CONFLICT DO NOTHING", [ids.normal, ids.other]);
 
-  server = spawn(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "dev", "--", "-H", "127.0.0.1", "-p", "3000"], { env: { ...process.env, NEXT_PUBLIC_API_URL: "http://127.0.0.1:3000" }, stdio: "ignore" });
+  const log = await import("node:fs").then(({ createWriteStream }) => createWriteStream(serverLog, { flags: "w" }));
+  server = spawn(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "dev", "--", "-H", "127.0.0.1", "-p", "3000"], { env: { ...process.env, NEXT_PUBLIC_API_URL: "http://127.0.0.1:3000", JWT_SECRET: process.env.JWT_SECRET || "ci-http-only-jwt-secret" }, stdio: ["ignore", "pipe", "pipe"] });
+  server.stdout.pipe(log); server.stderr.pipe(log);
   for (let i = 0; i < 60; i++) { try { const r = await fetch("http://127.0.0.1:3000/login/"); if (r.ok || r.status === 200) break; } catch {} await new Promise(r => setTimeout(r, 1000)); }
   const requests = async (url, options = {}) => {
     const started = performance.now(); const response = await fetch(`http://127.0.0.1:3000${url}`, options);
@@ -39,7 +42,9 @@ try {
   metrics.scenarios.billingExpiredDemo = await requests("/api/billing/status", auth);
   metrics.scenarios.ownerDeleteExpiredDemo = await requests(`/api/workspaces/${ids.demo}`, { ...auth, method: "DELETE" });
   const memberLogin = await fetch("http://127.0.0.1:3000/api/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: `${ids.other}@local.invalid`, password }) });
-  const memberBody = await memberLogin.json(); const memberCookie = memberLogin.headers.get("set-cookie")?.split(";")[0] || `access_token=${memberBody.token}`;
+  const memberBody = await memberLogin.json();
+  if (!memberLogin.ok || !memberBody.token) throw new Error(`member login failed: ${memberLogin.status}`);
+  const memberCookie = memberLogin.headers.get("set-cookie")?.split(";")[0] || `access_token=${memberBody.token}`;
   metrics.scenarios.memberOwnerDelete = await requests(`/api/workspaces/${ids.normal}`, { headers: { cookie: memberCookie }, method: "DELETE" });
   const state = await db.query("SELECT (SELECT count(*) FROM workspaces WHERE id=$1)::int AS demo_remaining,(SELECT count(*) FROM tables WHERE workspace_id=$1)::int AS boards_remaining", [ids.demo]);
   metrics.db.finalState = state.rows[0];
