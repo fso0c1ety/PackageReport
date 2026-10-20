@@ -3576,23 +3576,38 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   let fallbackPollingId: ReturnType<typeof setInterval> | null = null;
   let fallbackRequestPending = false;
+  let fallbackAbortController: AbortController | null = null;
   const FALLBACK_PAGE_SIZE = 100;
   let recoveryGeneration = 0;
   const stopFallbackPolling = () => {
   if (fallbackPollingId) clearInterval(fallbackPollingId);
   fallbackPollingId = null;
   };
+  const clearUnauthorizedRows = () => {
+  recoveryGeneration += 1;
+  fallbackAbortController?.abort();
+  totalRowsRef.current = 0;
+  nextRowsOffsetRef.current = 0;
+  setHasMoreRows(false);
+  setRows([]);
+  };
   const pollRowsFallback = async () => {
   if (fallbackRequestPending || document.hidden) return;
   fallbackRequestPending = true;
   const generation = ++recoveryGeneration;
+  const abortController = new AbortController();
+  fallbackAbortController = abortController;
   try {
   const loadedCount = rowsRef.current.filter((row) => row.id !== 'placeholder').length;
   const targetCount = Math.max(loadedCount, FALLBACK_PAGE_SIZE);
   const recoveredRows: Row[] = [];
   let totalRows = totalRowsRef.current;
   for (let offset = 0; offset < targetCount; offset += FALLBACK_PAGE_SIZE) {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=${offset}`), { suppressNativeErrorAlert: true });
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=${offset}`), { suppressNativeErrorAlert: true, handleAuthErrors: false, signal: abortController.signal });
+  if (response.status === 401 || response.status === 403) {
+  clearUnauthorizedRows();
+  return;
+  }
   if (!response.ok) return;
   const data = await response.json();
   const pageRows = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : null);
@@ -3624,6 +3639,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   } catch (error) {
   console.warn('[TableBoard fallback] Unable to refresh table rows', { tableId, error });
   } finally {
+  if (fallbackAbortController === abortController) fallbackAbortController = null;
   fallbackRequestPending = false;
   }
   };
@@ -3673,6 +3689,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   startFallbackPolling();
   } else if (status === 'SUBSCRIBED') {
   stopFallbackPolling();
+  recoveryGeneration += 1;
+  fallbackAbortController?.abort();
   // The initial table load already fetched the first page. Do not issue a
   // second full-table refresh when the realtime channel first subscribes.
   }
@@ -3688,6 +3706,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   return () => {
   cancelled = true;
+  recoveryGeneration += 1;
+  fallbackAbortController?.abort();
   const channel = subscription?.channel;
   if (channel && tableRealtimeChannelRef.current === channel) {
   tableRealtimeChannelRef.current = null;
