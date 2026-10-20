@@ -3576,19 +3576,53 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   let fallbackPollingId: ReturnType<typeof setInterval> | null = null;
   let fallbackRequestPending = false;
+  let fallbackAbortController: AbortController | null = null;
+  const FALLBACK_PAGE_SIZE = 100;
+  let recoveryGeneration = 0;
   const stopFallbackPolling = () => {
   if (fallbackPollingId) clearInterval(fallbackPollingId);
   fallbackPollingId = null;
   };
+  const clearUnauthorizedRows = () => {
+  recoveryGeneration += 1;
+  fallbackAbortController?.abort();
+  totalRowsRef.current = 0;
+  nextRowsOffsetRef.current = 0;
+  setHasMoreRows(false);
+  setRows([]);
+  };
   const pollRowsFallback = async () => {
   if (fallbackRequestPending || document.hidden) return;
   fallbackRequestPending = true;
+  const generation = ++recoveryGeneration;
+  const abortController = new AbortController();
+  fallbackAbortController = abortController;
   try {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { suppressNativeErrorAlert: true });
+  const loadedCount = rowsRef.current.filter((row) => row.id !== 'placeholder').length;
+  const targetCount = Math.max(loadedCount, FALLBACK_PAGE_SIZE);
+  const recoveredRows: Row[] = [];
+  let totalRows = totalRowsRef.current;
+  for (let offset = 0; offset < targetCount; offset += FALLBACK_PAGE_SIZE) {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=${offset}`), { suppressNativeErrorAlert: true, handleAuthErrors: false, signal: abortController.signal });
+  if (generation !== recoveryGeneration) return;
+  if (response.status === 401 || response.status === 403) {
+  clearUnauthorizedRows();
+  return;
+  }
   if (!response.ok) return;
   const data = await response.json();
-  if (!Array.isArray(data)) return;
-  const nextRows = data.map(normalizeRealtimeRow).map((row: Row) => {
+  const pageRows = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : null);
+  if (!pageRows) return;
+  if (!Array.isArray(data) && Number.isFinite(Number(data?.total))) totalRows = Number(data.total);
+  if (offset === 0 && pageRows.length === 0) totalRows = 0;
+  recoveredRows.push(...pageRows);
+  if (pageRows.length < FALLBACK_PAGE_SIZE || recoveredRows.length >= targetCount) break;
+  }
+  if (generation !== recoveryGeneration) return;
+  const nextRows: Row[] = recoveredRows
+  .map(normalizeRealtimeRow)
+  .filter((row): row is Row => Boolean(row && typeof row.id === 'string' && row.id.length > 0))
+  .map((row: Row) => {
   // A realtime refetch can race an optimistic edit. Keep the newest local
   // value visible until its ordered mutation has been acknowledged.
   const values = { ...(row.values ?? {}) };
@@ -3599,18 +3633,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   return { ...row, values };
   });
-  setRows((current) => {
-  const currentRows = current.filter((row) => row.id !== 'placeholder');
-  const unchanged = currentRows.length === nextRows.length && currentRows.every((row, index) => (
-  row.id === nextRows[index]?.id
-  && (row as any).updated_at === (nextRows[index] as any)?.updated_at
-  && JSON.stringify(row.values ?? {}) === JSON.stringify(nextRows[index]?.values ?? {})
-  ));
-  return unchanged ? current : nextRows;
-  });
+  totalRowsRef.current = totalRows;
+  nextRowsOffsetRef.current = nextRows.length;
+  setHasMoreRows(nextRows.length < totalRows);
+  setRows(nextRows);
   } catch (error) {
   console.warn('[TableBoard fallback] Unable to refresh table rows', { tableId, error });
   } finally {
+  if (fallbackAbortController === abortController) fallbackAbortController = null;
   fallbackRequestPending = false;
   }
   };
@@ -3660,6 +3690,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   startFallbackPolling();
   } else if (status === 'SUBSCRIBED') {
   stopFallbackPolling();
+  recoveryGeneration += 1;
+  fallbackAbortController?.abort();
   // The initial table load already fetched the first page. Do not issue a
   // second full-table refresh when the realtime channel first subscribes.
   }
@@ -3675,6 +3707,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   return () => {
   cancelled = true;
+  recoveryGeneration += 1;
+  fallbackAbortController?.abort();
   const channel = subscription?.channel;
   if (channel && tableRealtimeChannelRef.current === channel) {
   tableRealtimeChannelRef.current = null;
