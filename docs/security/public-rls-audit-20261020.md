@@ -8,7 +8,9 @@ Production. Katalogu read-only i verifikuar raporton **31 tabela aktive**:
 
 ## Përfundime të sigurta nga repository
 
-- Migrimi 041 përcakton 11 tabela backend-only që duhet të mbrohen nga `anon`,
+- Migrimi 041 përcakton 11 tabela që kërkojnë kontroll të veçantë të aksesit;
+  klasifikimi backend-only/client-accessible bëhet sipas varësisë reale të API-së,
+  jo vetëm nga statusi RLS.
   `authenticated` dhe `PUBLIC`.
 - Migrimi 042 përcakton 20 tabela të tjera backend-only.
 - Të 31 kandidatët e inventarit ekzistojnë në Production.
@@ -17,7 +19,8 @@ Production. Katalogu read-only i verifikuar raporton **31 tabela aktive**:
   automatikisht ekspozim efektiv Data API pa provë të request-it, por është
   gjetje kritike për ACL/RLS.
 - Për 29 tabelat me RLS disabled, privilegjet publike janë rrezik i drejtpërdrejtë
-  dhe kërkojnë remediation të ndarë.
+  ose kërkojnë kontroll shtesë sipas përdorimit real; jo të gjitha klasifikohen
+  automatikisht backend-only.
 - Production ledger i raportuar deri në 035 do të thotë se 041/042 nuk trajtohen
   si të aplikuara. Ky audit nuk i aplikon ato.
 
@@ -38,7 +41,7 @@ Production. Katalogu read-only i verifikuar raporton **31 tabela aktive**:
 
 | Grup | Numër | RLS | Privilegje API | Status |
 |---|---:|---|---|---|
-| Tabela backend-only të inventarit | 29 | DISABLED | SELECT/INSERT/UPDATE/DELETE për `anon` dhe `authenticated` | CRITICAL remediation |
+| Tabela me RLS disabled | 29 | DISABLED | SELECT/INSERT/UPDATE/DELETE për `anon` dhe `authenticated` | CRITICAL remediation; klasifikimi sipas API-së |
 | `account_activation_tokens`, `auth_sessions` | 2 | ENABLED | SELECT për `anon` dhe `authenticated`; 0 policies | CRITICAL ACL/RLS remediation; Data API exposure EFFECTIVE = UNKNOWN |
 
 ## Varësitë e aplikacionit
@@ -89,5 +92,6 @@ veçantë. Nuk ka ndryshim të aplikuar në këtë PR.
 - Rreziku kryesor i mbetur: pa catalog snapshot zyrtar nuk mund të konfirmohet
   lista reale prej 29 tabelash, privilegjet efektive apo Data API exposure.
 
-Vendimi: **BLOCKED për zbatim Production; READY për independent security review të
-auditit read-only.**
+Katalogu Production është i konfirmuar. Vetëm ekspozimi efektiv përmes Data API
+mbetet **UNKNOWN** dhe kërkon test request-i read-only. Vendimi: **BLOCKED për
+zbatim Production; READY për independent security review të auditit read-only.**
