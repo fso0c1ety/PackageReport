@@ -3577,6 +3577,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   let fallbackPollingId: ReturnType<typeof setInterval> | null = null;
   let fallbackRequestPending = false;
   const FALLBACK_PAGE_SIZE = 100;
+  let recoveryGeneration = 0;
   const stopFallbackPolling = () => {
   if (fallbackPollingId) clearInterval(fallbackPollingId);
   fallbackPollingId = null;
@@ -3584,13 +3585,24 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const pollRowsFallback = async () => {
   if (fallbackRequestPending || document.hidden) return;
   fallbackRequestPending = true;
+  const generation = ++recoveryGeneration;
   try {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=0`), { suppressNativeErrorAlert: true });
+  const loadedCount = rowsRef.current.filter((row) => row.id !== 'placeholder').length;
+  const targetCount = Math.max(loadedCount, FALLBACK_PAGE_SIZE);
+  const recoveredRows: Row[] = [];
+  let totalRows = totalRowsRef.current;
+  for (let offset = 0; offset < targetCount; offset += FALLBACK_PAGE_SIZE) {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=${FALLBACK_PAGE_SIZE}&offset=${offset}`), { suppressNativeErrorAlert: true });
   if (!response.ok) return;
   const data = await response.json();
   const pageRows = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : null);
   if (!pageRows) return;
-  const nextRows: Row[] = pageRows
+  if (!Array.isArray(data) && Number.isFinite(Number(data?.total))) totalRows = Number(data.total);
+  recoveredRows.push(...pageRows);
+  if (pageRows.length < FALLBACK_PAGE_SIZE || recoveredRows.length >= targetCount) break;
+  }
+  if (generation !== recoveryGeneration || !recoveredRows.length && loadedCount > 0) return;
+  const nextRows: Row[] = recoveredRows
   .map(normalizeRealtimeRow)
   .filter((row): row is Row => Boolean(row && typeof row.id === 'string' && row.id.length > 0))
   .map((row: Row) => {
@@ -3604,14 +3616,10 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   });
   return { ...row, values };
   });
-  setRows((current) => {
-  const currentRows = current.filter((row) => row.id !== 'placeholder');
-  const changed = new Map(nextRows.map((row) => [row.id, row]));
-  const merged = currentRows.map((row) => changed.get(row.id) ?? row);
-  const knownIds = new Set(currentRows.map((row) => row.id));
-  nextRows.forEach((row) => { if (!knownIds.has(row.id)) merged.push(row); });
-  return merged;
-  });
+  totalRowsRef.current = totalRows;
+  nextRowsOffsetRef.current = nextRows.length;
+  setHasMoreRows(nextRows.length < totalRows);
+  setRows(nextRows);
   } catch (error) {
   console.warn('[TableBoard fallback] Unable to refresh table rows', { tableId, error });
   } finally {
