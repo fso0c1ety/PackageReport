@@ -19,8 +19,10 @@ try {
   await client.query('DELETE FROM workspaces WHERE id = ANY($1::text[])', [[demoId, normalId]]);
   await client.query('DELETE FROM users WHERE id = $1', [userId]);
   await client.query('INSERT INTO users(id,name,email) VALUES($1,$2,$3)', [userId, 'Egress owner', `${userId}@local.invalid`]);
-  await client.query("INSERT INTO workspaces(id,name,owner_id,is_demo,demo_expires_at) VALUES($1,'Expired demo',$2,TRUE,NOW()-INTERVAL '1 day'),($3,'Normal',$2,FALSE,NULL)", [demoId, userId, normalId]);
+  await client.query("INSERT INTO workspaces(id,name,owner_id,is_demo,demo_expires_at) VALUES($1,'Demo under test',$2,TRUE,NOW()+INTERVAL '1 day'),($3,'Normal',$2,FALSE,NULL)", [demoId, userId, normalId]);
   await client.query("INSERT INTO tables(id,name,workspace_id,billing_archived_at,billing_purge_at) VALUES($1,'Demo board',$2,NOW(),NOW()),($3,'Normal board',$4,NOW(),NOW())", [tableId, demoId, `${tableId}-normal`, normalId]);
+  await client.query("INSERT INTO rows(id,table_id,values,created_by) VALUES($1,$2,'{}'::jsonb,$3)", [`${tableId}-row`, tableId, userId]);
+  await client.query("UPDATE workspaces SET demo_expires_at=NOW()-INTERVAL '1 day' WHERE id=$1", [demoId]);
   await client.query('COMMIT');
 
   const billingSql = run === 'BASE'
@@ -40,7 +42,16 @@ try {
   metrics.normalCleared = (await client.query("SELECT billing_archived_at,billing_purge_at FROM tables WHERE id=$1", [`${tableId}-normal`])).rows[0].billing_archived_at === null;
   const noOp = await client.query(billingSql, [userId]).catch(() => ({ rowCount: null }));
   metrics.noOpUpdateRows = noOp.rowCount;
-  metrics.workspaceDelete = { ownerSelect: 1, deleteWrites: 1, unauthorizedDeleteWrites: 0 };
+  const beforeDelete = await client.query("SELECT count(*)::int AS count FROM workspaces WHERE id = ANY($1::text[])", [[demoId, normalId]]);
+  const deleteStart = performance.now();
+  const deleteResult = await client.query("DELETE FROM workspaces WHERE id=$1 AND owner_id=$2 RETURNING id", [demoId, userId]);
+  metrics.workspaceDelete = {
+    ownerSelectRows: beforeDelete.rows[0].count,
+    ownerDeleteRows: deleteResult.rowCount,
+    elapsedMs: performance.now() - deleteStart,
+    remainingWorkspaceRows: (await client.query("SELECT count(*)::int AS count FROM workspaces WHERE id=$1", [demoId])).rows[0].count,
+    remainingBoardRows: (await client.query("SELECT count(*)::int AS count FROM tables WHERE workspace_id=$1", [demoId])).rows[0].count,
+  };
   metrics.notes.push('Isolated SQL-level safety benchmark; HTTP route latency/bytes require the application E2E harness.');
   await writeFile(process.env.OUTPUT_JSON, JSON.stringify(metrics, null, 2));
 } finally {
