@@ -27,4 +27,12 @@ test('fallback accepts the paginated API response contract', () => {
 test('fallback retains hidden-tab and overlapping-request guards', () => {
   assert.match(source, /fallbackRequestPending \|\| document\.hidden/);
   assert.match(source, /if \(fallbackPollingId\) return/);
+  assert.match(source, /fallbackAbortController\?\.abort\(\)/);
+  assert.match(source, /signal: abortController\.signal/);
+});
+
+test('fallback clears rows when authorization is lost', () => {
+  assert.match(source, /response\.status === 401 \|\| response\.status === 403/);
+  assert.match(source, /setRows\(\[\]\)/);
+  assert.match(source, /handleAuthErrors: false/);
 });
