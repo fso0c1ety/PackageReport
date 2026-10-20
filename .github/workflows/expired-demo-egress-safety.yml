@@ -1,0 +1,46 @@
+name: Expired Demo Egress Safety (isolated)
+
+on:
+  push:
+    branches: [test/expired-demo-egress-safety]
+    paths:
+      - 'src/app/api/_lib/billing.js'
+      - 'src/app/api/workspaces/**'
+      - 'scripts/benchmark-expired-demo-egress.mjs'
+      - '.github/workflows/expired-demo-egress-safety.yml'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_DB: smart_manage_egress_test, POSTGRES_USER: postgres, POSTGRES_PASSWORD: egress-ci-local-only }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_egress_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:egress-ci-local-only@127.0.0.1:5432/smart_manage_egress_test
+      DATABASE_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Apply isolated schema
+        shell: bash
+        run: |
+          targets="$(find server/db/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | paste -sd, -)"
+          MIGRATION_TARGET="$targets" npm run db:migrate
+      - name: Run BASE and HEAD safety measurements
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          BENCHMARK_VARIANT=BASE OUTPUT_JSON=artifacts/BASE.json node scripts/benchmark-expired-demo-egress.mjs
+          BENCHMARK_VARIANT=HEAD OUTPUT_JSON=artifacts/HEAD.json node scripts/benchmark-expired-demo-egress.mjs
+          node -e "const fs=require('fs');const b=JSON.parse(fs.readFileSync('artifacts/BASE.json'));const h=JSON.parse(fs.readFileSync('artifacts/HEAD.json'));fs.writeFileSync('artifacts/COMPARISON.md','# Expired demo billing safety\n\nThis isolated run measures guarded cleanup SQL and write counts. HTTP bytes and route p50/p95 require the full authenticated application harness and are UNKNOWN here.\n\n- BASE outcome/update rows: '+b.billingStatus[0].outcome+'/'+b.billingStatus[0].updateRows+'\n- HEAD outcome/update rows: '+h.billingStatus[0].outcome+'/'+h.billingStatus[0].updateRows+'\n- BASE no-op rows: '+b.noOpUpdateRows+'\n- HEAD no-op rows: '+h.noOpUpdateRows+'\n- HEAD demo unchanged: '+h.demoUnchanged+'\n- HEAD normal workspace cleared: '+h.normalCleared+'\n')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: expired-demo-egress-safety, path: artifacts/ }
