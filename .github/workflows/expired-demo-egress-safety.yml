@@ -26,6 +26,8 @@ jobs:
       DATABASE_SSL: 'false'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -36,6 +38,12 @@ jobs:
           MIGRATION_TARGET="$targets" npm run db:migrate
       - name: Preserve benchmark harness
         run: cp scripts/benchmark-expired-demo-egress.mjs /tmp/benchmark-expired-demo-egress.mjs
+      - name: Verify immutable BASE and HEAD objects
+        shell: bash
+        run: |
+          git cat-file -e ec20c4e3a4aeb7dc772e4bb132f48e4796f00b04^{commit}
+          git cat-file -e f83acd02de5c9ddc2f3a9f63fb8de9482de0af5d^{commit}
+          rm -rf artifacts
       - name: Run real BASE and HEAD safety measurements
         shell: bash
         run: |
@@ -48,7 +56,8 @@ jobs:
             npm run db:migrate
             BENCHMARK_VARIANT="$variant" OUTPUT_JSON="artifacts/$variant.json" node scripts/benchmark-expired-demo-egress.mjs
           done
-          node -e "const fs=require('fs');const b=JSON.parse(fs.readFileSync('artifacts/BASE.json'));const h=JSON.parse(fs.readFileSync('artifacts/HEAD.json'));fs.writeFileSync('artifacts/COMPARISON.md','# Expired demo billing safety\n\nBASE and HEAD execute the real checked-out application revision with identical isolated fixtures. HTTP requests/response bytes require authenticated app E2E and remain UNKNOWN in this SQL harness.\n\n- BASE billing outcome/update rows: '+b.billingStatus[0].outcome+'/'+b.billingStatus[0].updateRows+'\n- HEAD billing outcome/update rows: '+h.billingStatus[0].outcome+'/'+h.billingStatus[0].updateRows+'\n- BASE no-op rows: '+b.noOpUpdateRows+'\n- HEAD no-op rows: '+h.noOpUpdateRows+'\n- HEAD demo unchanged: '+h.demoUnchanged+'\n- HEAD normal workspace cleared: '+h.normalCleared+'\n- BASE delete metrics: '+JSON.stringify(b.workspaceDelete)+'\n- HEAD delete metrics: '+JSON.stringify(h.workspaceDelete)+'\n')"
+          test -s artifacts/BASE.json && test -s artifacts/HEAD.json
+          node -e "const fs=require('fs');const b=JSON.parse(fs.readFileSync('artifacts/BASE.json'));const h=JSON.parse(fs.readFileSync('artifacts/HEAD.json'));fs.writeFileSync('artifacts/COMPARISON.md','# Expired demo billing safety\n\nThis is an isolated SQL-level harness over the real checked-out revisions. It does not claim authenticated HTTP execution: HTTP requests/response bytes, WAL bytes and route p50/p95 are UNKNOWN until the application E2E harness is added.\n\n- BASE billing outcome/update rows: '+b.billingStatus[0].outcome+'/'+b.billingStatus[0].updateRows+'\n- HEAD billing outcome/update rows: '+h.billingStatus[0].outcome+'/'+h.billingStatus[0].updateRows+'\n- BASE no-op rows: '+b.noOpUpdateRows+'\n- HEAD no-op rows: '+h.noOpUpdateRows+'\n- HEAD demo unchanged: '+h.demoUnchanged+'\n- HEAD normal workspace cleared: '+h.normalCleared+'\n- BASE delete metrics: '+JSON.stringify(b.workspaceDelete)+'\n- HEAD delete metrics: '+JSON.stringify(h.workspaceDelete)+'\n')"
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: expired-demo-egress-safety, path: artifacts/ }
