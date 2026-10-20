@@ -32,7 +32,9 @@ test('fallback retains hidden-tab and overlapping-request guards', () => {
 });
 
 test('fallback clears rows when authorization is lost', () => {
-  assert.match(source, /response\.status === 401 \|\| response\.status === 403/);
+  const generationGuard = source.indexOf('if (generation !== recoveryGeneration) return;');
+  const authGuard = source.indexOf('if (response.status === 401 || response.status === 403)');
+  assert.ok(generationGuard >= 0 && generationGuard < authGuard, 'stale responses must be rejected before auth cleanup');
   assert.match(source, /setRows\(\[\]\)/);
   assert.match(source, /handleAuthErrors: false/);
 });
