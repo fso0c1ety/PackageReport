@@ -1,0 +1,32 @@
+table,source,classification,priority,application_dependency,production_catalog_status,planned_action
+password_reset_tokens,041,backend-only,critical,password reset,UNKNOWN,REVOKE/RLS after reconciliation
+email_verification_tokens,020+041,backend-only,critical,registration/email verification,UNKNOWN,REVOKE/RLS after reconciliation
+account_activation_tokens,020+041,backend-only,critical,account activation,UNKNOWN,REVOKE/RLS after reconciliation
+auth_sessions,020+041,backend-only,critical,login/session refresh,UNKNOWN,REVOKE/RLS after reconciliation
+authentication_audit_events,020+041,backend-only,critical,login audit,UNKNOWN,REVOKE/RLS after reconciliation
+invoices,030+041,backend-only,high,invoices API,UNKNOWN,REVOKE/RLS after reconciliation
+subscriptions,005+041,backend-only,high,billing,UNKNOWN,REVOKE/RLS after reconciliation
+marketplace_templates,012a+041,server/API,medium,marketplace,UNKNOWN,verify Data API need
+marketplace_reviews,012a+041,server/API,medium,marketplace,UNKNOWN,verify Data API need
+marketplace_reports,013+041,backend-only,medium,marketplace reporting,UNKNOWN,REVOKE/RLS after reconciliation
+calendar_events,031a/035+041,server/API,medium,calendar,UNKNOWN,verify API contract then RLS
+automation_action_usage,unknown+042,backend-only,high,automation quota,UNKNOWN,REVOKE/RLS after reconciliation
+background_job_audit,025+042,backend-only,high,background jobs,UNKNOWN,REVOKE/RLS after reconciliation
+board_member_access,022+042,backend-only,critical,record permissions,UNKNOWN,REVOKE/RLS after reconciliation
+demo_request_events,028+042,backend-only,medium,demo provisioning,UNKNOWN,REVOKE/RLS after reconciliation
+demo_requests,027+042,backend-only,medium,demo requests,UNKNOWN,REVOKE/RLS after reconciliation
+enterprise_audit_logs,unknown+042,backend-only,high,enterprise audit,UNKNOWN,REVOKE/RLS after reconciliation
+enterprise_inquiries,005+042,backend-only,medium,enterprise inquiries,UNKNOWN,verify API contract
+file_audit_log,024+042,backend-only,high,file security,UNKNOWN,REVOKE/RLS after reconciliation
+integration_webhooks,unknown+042,backend-only,high,webhooks,UNKNOWN,REVOKE/RLS after reconciliation
+invoice_sequences,030+042,backend-only,high,invoice numbering,UNKNOWN,REVOKE/RLS after reconciliation
+nexus_credit_usage,unknown+042,backend-only,high,credits/billing,UNKNOWN,REVOKE/RLS after reconciliation
+platform_staff_roles,027+042,backend-only,critical,staff authorization,UNKNOWN,REVOKE/RLS after reconciliation
+portal_comments,unknown+042,server/API,high,public portal comments,UNKNOWN,verify token-scoped API
+portal_definitions,026+042,backend-only,high,portal engine,UNKNOWN,REVOKE/RLS after reconciliation
+professional_invitations,033+042,backend-only,critical,invitations,UNKNOWN,REVOKE/RLS after reconciliation
+scheduler_locks,032+042,backend-only,high,scheduler,UNKNOWN,REVOKE/RLS after reconciliation
+trip_status_history,019+042,backend-only,medium,logistics,UNKNOWN,REVOKE/RLS after reconciliation
+workspace_job_roles,022+042,backend-only,critical,permissions,UNKNOWN,REVOKE/RLS after reconciliation
+workspace_modules,010+042,backend-only,high,workspace modules,UNKNOWN,REVOKE/RLS after reconciliation
+workspace_portal_overrides,026+042,backend-only,high,portal overrides,UNKNOWN,REVOKE/RLS after reconciliation
