@@ -20,6 +20,8 @@ test('fallback does not discard already loaded pages', () => {
 
 test('fallback accepts the paginated API response contract', () => {
   assert.match(source, /Array\.isArray\(data\?\.rows\) \? data\.rows/);
+  assert.match(source, /if \(offset === 0 && pageRows\.length === 0\) totalRows = 0/);
+  assert.match(source, /if \(generation !== recoveryGeneration\) return/);
 });
 
 test('fallback retains hidden-tab and overlapping-request guards', () => {

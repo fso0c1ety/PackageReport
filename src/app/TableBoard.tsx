@@ -3598,10 +3598,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const pageRows = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : null);
   if (!pageRows) return;
   if (!Array.isArray(data) && Number.isFinite(Number(data?.total))) totalRows = Number(data.total);
+  if (offset === 0 && pageRows.length === 0) totalRows = 0;
   recoveredRows.push(...pageRows);
   if (pageRows.length < FALLBACK_PAGE_SIZE || recoveredRows.length >= targetCount) break;
   }
-  if (generation !== recoveryGeneration || !recoveredRows.length && loadedCount > 0) return;
+  if (generation !== recoveryGeneration) return;
   const nextRows: Row[] = recoveredRows
   .map(normalizeRealtimeRow)
   .filter((row): row is Row => Boolean(row && typeof row.id === 'string' && row.id.length > 0))
