@@ -6,6 +6,7 @@ on:
     paths:
       - 'server/db/migrations/**'
       - 'test/security-rls-postgres.integration.js'
+      - 'test/public-rls-hotfix-048-postgres.integration.js'
       - 'src/lib/supabase.ts'
       - 'src/app/api/nexus/chat/route.js'
       - 'src/app/api/calendar-events/route.js'
@@ -49,3 +50,5 @@ jobs:
         run: node scripts/security-schema-fixture.cjs --after-migrations
       - name: Run real PostgreSQL role checks
         run: node --test test/security-rls-postgres.integration.js
+      - name: Run migration 048 negative-access checks
+        run: node --test test/public-rls-hotfix-048-postgres.integration.js
