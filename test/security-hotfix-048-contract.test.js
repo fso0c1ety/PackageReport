@@ -32,6 +32,15 @@ test('047a owns all five prerequisites before 048 without runtime-fixture creati
     assert.match(reconciliationMigration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
   assert.ok(reconciliationMigration.indexOf('CREATE TABLE IF NOT EXISTS automation_action_usage') < reconciliationMigration.indexOf('CREATE TABLE IF NOT EXISTS portal_comments'));
+  assert.match(reconciliationMigration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(reconciliationMigration, /REVOKE ALL ON TABLE .* FROM PUBLIC/);
+});
+
+test('PUBLIC ACL regression query binds pg_class explicitly', () => {
+  const integration = fs.readFileSync(path.join(__dirname, 'public-rls-hotfix-048-postgres.integration.js'), 'utf8');
+  assert.match(integration, /FROM pg_class AS c/);
+  assert.match(integration, /CROSS JOIN LATERAL aclexplode/);
+  assert.match(integration, /WHERE c\.oid = \$1::regclass/);
 });
 
 test('browser code does not directly query the sensitive tables', () => {

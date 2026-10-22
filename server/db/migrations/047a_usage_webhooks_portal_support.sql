@@ -66,3 +66,24 @@ CREATE TABLE IF NOT EXISTS portal_comments (
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Protect these five tables in the same transaction that creates them. This
+-- prevents a committed 047a followed by a failed 048 from exposing them.
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'automation_action_usage','enterprise_audit_logs','integration_webhooks',
+    'nexus_credit_usage','portal_comments'
+  ] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', table_name);
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', table_name);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM authenticated', table_name);
+    END IF;
+  END LOOP;
+END $$;

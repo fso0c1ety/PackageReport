@@ -24,8 +24,14 @@ if (!enabled) {
   test('all 29 sensitive tables deny PUBLIC-inherited and effective anon/authenticated CRUD', async () => {
     for (const table of tables) {
       const publicAcl = await client.query(`
-        SELECT COALESCE(bool_or(grantee = 0 AND privilege_type = 'SELECT'), false) AS allowed
-        FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner)))
+        SELECT COALESCE(
+          bool_or(a.grantee = 0 AND a.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')),
+          false
+        ) AS allowed
+        FROM pg_class AS c
+        CROSS JOIN LATERAL aclexplode(
+          COALESCE(c.relacl, acldefault('r', c.relowner))
+        ) AS a
         WHERE c.oid = $1::regclass
       `, [`public.${table}`]);
       assert.equal(publicAcl.rows[0].allowed, false, `PUBLIC SELECT ${table}`);
