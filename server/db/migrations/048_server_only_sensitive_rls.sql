@@ -17,10 +17,10 @@ DECLARE
   ];
   missing_tables text[];
 BEGIN
-  SELECT COALESCE(array_agg(table_name ORDER BY table_name), ARRAY[]::text[])
+  SELECT COALESCE(array_agg(r.required_name ORDER BY r.required_name), ARRAY[]::text[])
     INTO missing_tables
-    FROM unnest(required_tables) AS required(table_name)
-   WHERE to_regclass(format('public.%I', table_name)) IS NULL;
+    FROM unnest(required_tables) AS r(required_name)
+   WHERE to_regclass(format('public.%I', r.required_name)) IS NULL;
 
   IF cardinality(missing_tables) > 0 THEN
     RAISE EXCEPTION '048 prerequisites missing; migration rolled back: %', array_to_string(missing_tables, ', ')
