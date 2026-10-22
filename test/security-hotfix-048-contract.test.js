@@ -4,6 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const migration = fs.readFileSync(path.join(__dirname, '..', 'server', 'db', 'migrations', '048_server_only_sensitive_rls.sql'), 'utf8');
+const reconciliationMigration = fs.readFileSync(path.join(__dirname, '..', 'server', 'db', 'migrations', '047a_usage_webhooks_portal_support.sql'), 'utf8');
 const sourceRoot = path.join(__dirname, '..', 'src');
 
 const serverOnly = [
@@ -24,6 +25,13 @@ test('048 names every approved server-only table explicitly', () => {
   assert.match(migration, /REVOKE ALL ON TABLE .* FROM PUBLIC/);
   assert.match(migration, /missing_tables/);
   assert.match(migration, /RAISE EXCEPTION '048 prerequisites missing/);
+});
+
+test('047a owns all five prerequisites before 048 without runtime-fixture creation', () => {
+  for (const table of ['automation_action_usage', 'enterprise_audit_logs', 'integration_webhooks', 'nexus_credit_usage', 'portal_comments']) {
+    assert.match(reconciliationMigration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
+  }
+  assert.ok(reconciliationMigration.indexOf('CREATE TABLE IF NOT EXISTS automation_action_usage') < reconciliationMigration.indexOf('CREATE TABLE IF NOT EXISTS portal_comments'));
 });
 
 test('browser code does not directly query the sensitive tables', () => {

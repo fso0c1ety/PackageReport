@@ -40,7 +40,7 @@ The repository code audit found no direct `supabase.from(...)` browser queries f
 
 Production read-only reconciliation on 2026-10-22 found all 29 target tables present and the ledger maximum at `035_calendar_events_baseline.sql` (25 rows). No ledger rows for 041–048 were returned. This is evidence of schema/ledger drift, not evidence that any unapplied migration was executed. No Production SQL was changed for this PR.
 
-Migration 048 now checks all 29 prerequisites before the first DDL statement and raises an exception listing missing tables; the transaction therefore rolls back atomically. It must not be applied until the 041–047 dependency sequence, schema fingerprint, backup/recovery point and independent approval are reconciled.
+Migration `047a_usage_webhooks_portal_support.sql` now owns the five tables that were previously created by runtime helpers and runs lexically after 047 and before 048. Migration 048 checks all 29 prerequisites before the first DDL statement and raises an exception listing missing tables; the transaction therefore rolls back atomically. It must not be applied until the 041–047 dependency sequence, schema fingerprint, backup/recovery point and independent approval are reconciled.
 
 ### Read-only reconciliation matrix
 
@@ -53,6 +53,7 @@ Migration 048 now checks all 29 prerequisites before the first DDL statement and
 | 045 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
 | 046 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
 | 047 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
+| 047a | not present | additive reconciliation migration in this PR; not executed | NOT APPLIED |
 | 048 | not present | this PR only; not executed | NOT APPLIED |
 
 The Supabase connector migration listing returned an empty list, so the SQL read-only ledger query is the authoritative evidence above. A restored database copy is still required to prove historical migration compatibility.
