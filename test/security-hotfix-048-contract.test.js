@@ -22,6 +22,8 @@ test('048 names every approved server-only table explicitly', () => {
   assert.doesNotMatch(migration, /ALTER TABLE public\.\*|GRANT ALL|GRANT .*anon|GRANT .*authenticated/);
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
   assert.match(migration, /REVOKE ALL ON TABLE .* FROM PUBLIC/);
+  assert.match(migration, /missing_tables/);
+  assert.match(migration, /RAISE EXCEPTION '048 prerequisites missing/);
 });
 
 test('browser code does not directly query the sensitive tables', () => {

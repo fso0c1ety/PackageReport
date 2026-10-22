@@ -38,10 +38,39 @@ The repository code audit found no direct `supabase.from(...)` browser queries f
 
 ## Deployment prerequisites
 
-Production ledger is reported at migration 035, while the repository contains prior security migrations 041–043. Migration 048 must not be applied until the ledger, schema fingerprint, backup/recovery point, and dependency sequence are reconciled and independently approved. No Production SQL was executed for this PR.
+Production read-only reconciliation on 2026-10-22 found all 29 target tables present and the ledger maximum at `035_calendar_events_baseline.sql` (25 rows). No ledger rows for 041–048 were returned. This is evidence of schema/ledger drift, not evidence that any unapplied migration was executed. No Production SQL was changed for this PR.
+
+Migration 048 now checks all 29 prerequisites before the first DDL statement and raises an exception listing missing tables; the transaction therefore rolls back atomically. It must not be applied until the 041–047 dependency sequence, schema fingerprint, backup/recovery point and independent approval are reconciled.
+
+### Read-only reconciliation matrix
+
+| Migration range | Production ledger | Repository/schema evidence | Decision |
+|---|---|---|---|
+| 041 | not present (ledger ends at 035) | repository migration exists; target schema evidence must be reviewed | DO NOT MARK APPLIED |
+| 042 | not present | repository migration exists; dependency review required | DO NOT MARK APPLIED |
+| 043 | not present | repository migration exists; dependency review required | DO NOT MARK APPLIED |
+| 044 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
+| 045 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
+| 046 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
+| 047 | not present | no Production ledger evidence | BLOCKED pending restored-copy review |
+| 048 | not present | this PR only; not executed | NOT APPLIED |
+
+The Supabase connector migration listing returned an empty list, so the SQL read-only ledger query is the authoritative evidence above. A restored database copy is still required to prove historical migration compatibility.
+
+### Backend role and workflow coverage
+
+The PostgreSQL integration test checks the effective `current_user` of the application connection for CRUD access and separately checks the CI fixture's `service_role`; it does not claim that either name is the Production backend role. Production backend-role identity must be captured read-only before rollout. The release gate must exercise login/password reset, billing/invoices, invitations, workspace permissions, portals and scheduled-job paths with that role. Missing backend-role identity is a release blocker.
+
+### Pre/post-deployment assertions
+
+Before rollout, record the 29-table inventory, `relrowsecurity`, effective privileges for `anon`, `authenticated`, `PUBLIC` and the verified backend role, plus the ledger maximum and schema fingerprint. After rollout, repeat those assertions and run negative cross-tenant checks and smoke tests for login/reset, billing/invoices, invitations, workspaces, portals and jobs. Any unexpected privilege or workflow change stops rollout.
+
+### Default privileges remediation (separate review required)
+
+Read-only catalog evidence shows broad default ACLs for both `postgres` and `supabase_admin` in `public`, including `anon` and `authenticated` on future tables/functions/sequences. This PR does not change them. A separate reviewed remediation must first inventory object owners and Data API dependencies, then apply owner-specific least-privilege defaults in a maintenance window, validate new-table behavior, and provide an explicit rollback. No blanket REVOKE is authorized by this PR.
 
 ## Validation and rollback
 
 The isolated PostgreSQL job must verify: anonymous and authenticated CRUD denial; cross-workspace denial; backend-role API functionality; login/reset, billing, invitations, invoices, portals and automations; and Security Advisor results. Rollback is a reviewed forward decision or a restore of the verified recovery point—blindly disabling RLS is not an acceptable rollback.
 
-Residual risk: direct Data API exposure and backend-role identity must be verified against the actual Supabase project before rollout. Billed Egress impact is UNKNOWN.
+Rollback is not “disable RLS”: if 048 has been applied, use the independently approved restore point or a reviewed forward remediation that preserves the deny-by-default posture. Code rollback alone cannot undo database privileges. Residual risk: direct Data API exposure, backend-role identity, restored-copy validation and billed Egress remain UNKNOWN until separately verified.
