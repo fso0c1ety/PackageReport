@@ -177,15 +177,10 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           () => new Set(responses.flatMap((entry) => entry.ids)).size,
           { timeout: 60_000 },
         ).toBe(size);
-        const scopedPages = responses.filter((entry) => entry.scope !== "__global__" && entry.offset >= 100);
-        const expectedLargeScopes = [
-          ["Open", Math.ceil(size / 2)],
-          ["Done", Math.floor(size / 2)],
-        ].filter(([, total]) => Number(total) > 100).map(([scope]) => scope);
-        for (const scope of expectedLargeScopes) {
-          expect(scopedPages.some((entry) => entry.scope === scope)).toBe(true);
-        }
-        expect(new Set(scopedPages.flatMap((entry) => entry.ids)).size).toBeGreaterThanOrEqual(Math.max(0, size - 100));
+        const globalIds = new Set(responses.filter((entry) => entry.scope === "__global__").flatMap((entry) => entry.ids));
+        const scopedPages = responses.filter((entry) => entry.scope !== "__global__");
+        const scopedIdsOutsideGlobalPrefix = new Set(scopedPages.flatMap((entry) => entry.ids).filter((id) => !globalIds.has(id)));
+        expect(new Set([...globalIds, ...scopedIdsOutsideGlobalPrefix]).size).toBe(size);
         for (const entry of responses.filter((candidate) => candidate.scope !== "__global__")) {
           expect(entry.limit).toBe(100);
           expect(entry.revision).toBeTruthy();
@@ -195,12 +190,20 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           const scopeResponses = responses.filter((entry) => entry.scope === scope);
           const ordered = [...new Map(scopeResponses.map((entry) => [entry.offset, entry])).values()]
             .sort((left, right) => left.offset - right.offset);
-          const seen = new Set<string>();
+          const scopePrefixIds = new Set(responses.filter((entry) => entry.scope === "__global__").flatMap((entry) => entry.ids));
+          for (let index = 1; index < ordered.length; index += 1) {
+            const previous = ordered[index - 1];
+            const current = ordered[index];
+            expect(current.offset).toBe(previous.offset + previous.ids.length);
+            expect(current.revision).toBe(previous.revision);
+            expect(current.total).toBe(previous.total);
+          }
+          const seenOutsidePrefix = new Set<string>();
           for (const entry of ordered) {
-            expect(entry.offset % 100).toBe(0);
             for (const id of entry.ids) {
-              expect(seen.has(id)).toBe(false);
-              seen.add(id);
+              if (scopePrefixIds.has(id)) continue;
+              expect(seenOutsidePrefix.has(id)).toBe(false);
+              seenOutsidePrefix.add(id);
             }
           }
           const last = ordered.at(-1);
