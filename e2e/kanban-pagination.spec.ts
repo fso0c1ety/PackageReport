@@ -218,8 +218,25 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         if (size === 101) {
           await page.getByText(fixture.boardName, { exact: true }).click();
           const openColumn = page.locator('[data-rfd-droppable-id="kanban:Open"]');
-          await openColumn.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-          await expect(page.getByText(`${fixture.marker} Task 0101`, { exact: true })).toBeVisible();
+          const target = page.getByText(`${fixture.marker} Task 0101`, { exact: true });
+          let reachedTarget = false;
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            if (await target.isVisible().catch(() => false)) {
+              reachedTarget = true;
+              break;
+            }
+            const progressed = await openColumn.evaluate((element) => {
+              const before = element.scrollTop;
+              const step = Math.max(1, element.clientHeight * 0.8);
+              element.scrollTop = Math.min(element.scrollTop + step, element.scrollHeight - element.clientHeight);
+              element.dispatchEvent(new Event("scroll", { bubbles: true }));
+              return element.scrollTop > before;
+            });
+            await page.waitForTimeout(200);
+            if (!progressed && !(await target.isVisible().catch(() => false))) break;
+          }
+          expect(reachedTarget).toBe(true);
+          await expect(target).toBeVisible();
         }
     } finally {
       await fixture.client.query("DELETE FROM workspaces WHERE id=$1", [fixture.workspaceId]).catch(() => undefined);
