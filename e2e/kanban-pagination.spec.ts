@@ -110,7 +110,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     try {
         const taskRequests: string[] = [];
         let successfulPaginationResponses = 0;
-        let firstPageRowCount = -1;
+        const firstPageRowsByScope = new Map<string, number>();
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
@@ -122,20 +122,22 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         };
         page.on("request", request => {
           const parsed = taskUrl(request.url());
-          if (request.method() === "GET" && parsed && !parsed.searchParams.has("statusColumnId")) {
+          if (request.method() === "GET" && parsed) {
             taskRequests.push(request.url());
           }
         });
         page.on("response", response => {
           const parsed = taskUrl(response.url());
-          if (parsed && !parsed.searchParams.has("statusColumnId")) {
+          if (parsed) {
             const offset = Number(parsed.searchParams.get("offset") || "0");
             if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
               successfulPaginationResponses += 1;
             }
             if (response.status() >= 200 && response.status() < 300 && offset === 0) {
               void response.json().then((body) => {
-                firstPageRowCount = Array.isArray(body) ? body.length : Array.isArray(body?.rows) ? body.rows.length : -1;
+                const rows = Array.isArray(body) ? body : Array.isArray(body?.rows) ? body.rows : [];
+                const scope = parsed.searchParams.get("statusValue") || "__unfiltered__";
+                firstPageRowsByScope.set(scope, rows.length);
               }).catch(() => undefined);
             }
           }
@@ -144,7 +146,10 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         await chooseKanban(page, fixture.boardName);
         // Assert the first response itself is exactly one bounded page. The DOM
         // may already contain later pages because Kanban preloads automatically.
-        await expect.poll(() => firstPageRowCount, { timeout: 30_000 }).toBe(Math.min(100, size));
+        await expect.poll(
+          () => [...firstPageRowsByScope.values()].reduce((total, count) => total + count, 0),
+          { timeout: 30_000 },
+        ).toBe(Math.min(200, size));
         await expect.poll(() => statusCount(page, "Open"), { timeout: 30_000 }).toBe(Math.ceil(size / 2));
         await expect.poll(() => statusCount(page, "Done"), { timeout: 30_000 }).toBe(Math.floor(size / 2));
         const initialRequests = taskRequests.length;
@@ -157,7 +162,10 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         // A failed attempt and its retry are two browser requests but only one
         // successful pagination response. Count responses for the logical page
         // metric, while retaining taskRequests for transport diagnostics.
-        expect(successfulPaginationResponses).toBe(Math.ceil(Math.max(0, size - 100) / 100));
+        const expectedPaginationResponses =
+          Math.ceil(Math.max(0, Math.ceil(size / 2) - 100) / 100)
+          + Math.ceil(Math.max(0, Math.floor(size / 2) - 100) / 100);
+        expect(successfulPaginationResponses).toBe(expectedPaginationResponses);
 
         const beforeIdle = taskRequests.length;
         await page.waitForTimeout(10_000);
