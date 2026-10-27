@@ -155,7 +155,21 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
         continue;
       }
       const current = snapshot().global;
-      if (!current || !current.hasMore) return snapshot();
+      if (!current) {
+        const progressed = await load(params, false);
+        if (!progressed) {
+          if (isHidden()) continue;
+          zeroProgress += 1;
+          if (zeroProgress > 3) throw new Error('Non-progressing task page');
+          await new Promise(resolve => setTimeout(resolve, 250 * (2 ** (zeroProgress - 1))));
+          continue;
+        }
+        zeroProgress = 0;
+        retries = 0;
+        onProgress(snapshot());
+        continue;
+      }
+      if (!current.hasMore) return snapshot();
       try {
         const progressed = await load(params, true);
         if (!progressed) {

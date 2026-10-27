@@ -105,6 +105,15 @@ test('background loading pauses while hidden and resumes once visible',async()=>
   assert.equal(h.pager.snapshot().rows.length,250);assert.equal(h.calls.length,3);
   h.pager.dispose();
 });
+test('background loading recovers an initial hidden-tab no-op',async()=>{
+  const h=harness(449);h.hidden=true;
+  await h.pager.load(global);
+  const loading=h.pager.loadAll(global);
+  await tick();assert.equal(h.calls.length,0);
+  h.hidden=false;h.pager.resume();await loading;
+  assert.equal(h.pager.snapshot().rows.length,449);
+  h.pager.dispose();
+});
 test('background loading stops cleanly on cancellation while hidden',async()=>{
   const h=harness(250);await h.pager.load(global);h.hidden=true;
   const loading=h.pager.loadAll(global);
