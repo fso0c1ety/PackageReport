@@ -1760,6 +1760,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const nextRowsOffsetRef = React.useRef(0);
   const loadingMoreRowsRef = React.useRef(false);
   const [hasMoreRows, setHasMoreRows] = useState(false);
+  const [loadingAllTasks, setLoadingAllTasks] = useState(false);
   const [mobileTableHeight, setMobileTableHeight] = useState<number | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
   const columnDragOriginTopRef = React.useRef<number | null>(null);
@@ -3447,6 +3448,17 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     try { await pager.load(globalScope, true); }
     catch (error) { if (!cancelled && (error as Error).name !== 'AbortError') setKanbanLoadError((error as Error).message); }
   };
+  setLoadingAllTasks(true);
+  void pager.loadAll(globalScope, {
+    onProgress: (snapshot: any) => {
+      if (!cancelled) {
+        totalRowsRef.current = snapshot.total;
+        setHasMoreRows(Boolean(snapshot.global?.hasMore && !snapshot.complete));
+      }
+    },
+  }).catch(error => {
+    if (!cancelled && (error as Error).name !== 'AbortError') setKanbanLoadError((error as Error).message);
+  }).finally(() => { if (!cancelled) setLoadingAllTasks(false); });
   } catch (err) {
   if (!cancelled) {
   console.error("Failed to fetch table data", err);
@@ -10894,7 +10906,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
       {hasMoreRows && (
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1 }}>
           <Button size="small" variant="outlined" onClick={() => { void loadMoreRowsRef.current?.(); }}>
-            Load more tasks ({rows.length} / {totalRowsRef.current})
+            {loadingAllTasks ? `Loading tasks: ${rows.length} / ${totalRowsRef.current}` : `Load more tasks (${rows.length} / ${totalRowsRef.current})`}
           </Button>
         </Box>
       )}
@@ -11078,7 +11090,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
       variant="text"
       onClick={() => { void kanbanStatusLoadersRef.current.get(opt.value)?.(); }}
     >
-      Load more tasks ({colTasks.length} / {kanbanStatusCounts[opt.value]})
+      {loadingAllTasks ? `Loading tasks: ${rows.length} / ${totalRowsRef.current}` : `Load more tasks (${colTasks.length} / ${kanbanStatusCounts[opt.value]})`}
     </Button>
   )}
 

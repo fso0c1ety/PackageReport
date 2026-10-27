@@ -136,8 +136,26 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
       } finally {if(controller===abort)controller=null;}
     });
   }
+  async function loadAll(params = {}, { onProgress = () => {} } = {}) {
+    let retries = 0;
+    while (!disposed) {
+      const current = snapshot().global;
+      if (!current || !current.hasMore) return snapshot();
+      try {
+        await load(params, true);
+        retries = 0;
+        onProgress(snapshot());
+      } catch (error) {
+        if (error.name === 'AbortError' || error.name === 'AccessError') throw error;
+        if (retries >= 3) throw error;
+        await new Promise(resolve => setTimeout(resolve, 250 * (2 ** retries)));
+        retries += 1;
+      }
+    }
+    return snapshot();
+  }
   return {
-    identity: Object.freeze({...identity}), load, snapshot, revoke,
+    identity: Object.freeze({...identity}), load, loadAll, snapshot, revoke,
     reconcile() {cancel();dirty=true;return enqueue('reconcile',async()=>{if(!disposed&&!isHidden())await rebuild();});},
     invalidate() {cancel();dirty=true;},
     remove(id) {cancel();dirty=true;for(const scope of scopes.values())scope.rows=scope.rows.filter(row=>row.id!==id);publish();},
