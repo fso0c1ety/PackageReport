@@ -10891,6 +10891,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
             </TableFooter>
         </Table >
       </TableContainer >
+      {hasMoreRows && (
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1 }}>
+          <Button size="small" variant="outlined" onClick={() => { void loadMoreRowsRef.current?.(); }}>
+            Load more tasks ({rows.length} / {totalRows.current})
+          </Button>
+        </Box>
+      )}
       {isMobile && filteredRowIds.length > 8 && (
         <Stack
           spacing={1}
@@ -11064,6 +11071,16 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   loadError={kanbanLoadError}
   onRetry={() => { setKanbanLoadError(null); void kanbanStatusLoadersRef.current.get(opt.value)?.(); }}
   />
+
+  {!hasActiveFilters && colTasks.length < (kanbanStatusCounts[opt.value] ?? 0) && (
+    <Button
+      size="small"
+      variant="text"
+      onClick={() => { void kanbanStatusLoadersRef.current.get(opt.value)?.(); }}
+    >
+      Load more tasks ({colTasks.length} / {kanbanStatusCounts[opt.value]})
+    </Button>
+  )}
 
   {userPermission !== 'read' && (
   <Button
