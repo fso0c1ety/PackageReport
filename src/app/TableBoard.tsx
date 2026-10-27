@@ -10894,7 +10894,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
       {hasMoreRows && (
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1 }}>
           <Button size="small" variant="outlined" onClick={() => { void loadMoreRowsRef.current?.(); }}>
-            Load more tasks ({rows.length} / {totalRows.current})
+            Load more tasks ({rows.length} / {totalRowsRef.current})
           </Button>
         </Box>
       )}
