@@ -218,6 +218,10 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         if (size === 101) {
           await page.getByText(fixture.boardName, { exact: true }).click();
           const openColumn = page.locator('[data-rfd-droppable-id="kanban:Open"]');
+          await openColumn.evaluate((element) => {
+            element.scrollTop = 0;
+            element.dispatchEvent(new Event("scroll", { bubbles: true }));
+          });
           const target = page.getByText(`${fixture.marker} Task 0101`, { exact: true });
           let reachedTarget = false;
           for (let attempt = 0; attempt < 40; attempt += 1) {
