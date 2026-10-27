@@ -41,6 +41,9 @@ jobs:
       - name: Start isolated local Supabase Realtime
         shell: bash
         run: |
+          # Keep the Supabase CLI database port separate from any runner-level
+          # service/container that may already own the default 54322 port.
+          sed -i '0,/^port = 54322$/s//port = 55432/' supabase/config.toml
           supabase start
           supabase status -o env > /tmp/supabase-status.env
           api_url="$(sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '\"')"
