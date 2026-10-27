@@ -158,7 +158,10 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         // Kanban must continue fetching sequential pages automatically after the
         // first 100 rows. There is intentionally no Load more click or scroll
         // trigger here; Table View retains its own user-driven pagination.
-        await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 60_000 }).toBe(size);
+        await expect.poll(
+          async () => (await statusCount(page, "Open")) + (await statusCount(page, "Done")),
+          { timeout: 60_000 },
+        ).toBe(size);
         // A failed attempt and its retry are two browser requests but only one
         // successful pagination response. Count responses for the logical page
         // metric, while retaining taskRequests for transport diagnostics.
@@ -174,6 +177,8 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
 
         if (size === 101) {
           await page.getByText(fixture.boardName, { exact: true }).click();
+          const doneColumn = page.locator('[data-rfd-droppable-id="kanban:Done"]');
+          await doneColumn.evaluate((element) => { element.scrollTop = element.scrollHeight; });
           await expect(page.getByText(`${fixture.marker} Task 0101`, { exact: true })).toBeVisible();
         }
     } finally {
