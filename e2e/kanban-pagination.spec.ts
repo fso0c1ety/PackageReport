@@ -109,8 +109,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     const page = await context.newPage();
     try {
         const taskRequests: string[] = [];
-        let successfulPaginationResponses = 0;
-        const firstPageRowsByScope = new Map<string, number>();
+        const responses: Array<{ scope: string; offset: number; limit: number; status: number; ids: string[]; total: number; hasMore: boolean; revision: string | null }> = [];
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
@@ -130,45 +129,65 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           const parsed = taskUrl(response.url());
           if (parsed) {
             const offset = Number(parsed.searchParams.get("offset") || "0");
-            if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
-              successfulPaginationResponses += 1;
-            }
-            if (response.status() >= 200 && response.status() < 300 && offset === 0) {
+            if (response.status() >= 200 && response.status() < 300) {
               void response.json().then((body) => {
                 const rows = Array.isArray(body) ? body : Array.isArray(body?.rows) ? body.rows : [];
-                const scope = parsed.searchParams.get("statusValue") || "__unfiltered__";
-                firstPageRowsByScope.set(scope, rows.length);
+                responses.push({
+                  scope: parsed.searchParams.get("statusValue") || "__global__",
+                  offset,
+                  limit: Number(parsed.searchParams.get("limit") || "0"),
+                  status: response.status(),
+                  ids: rows.map((row: { id?: string }) => String(row.id || "")).filter(Boolean),
+                  total: Number(body?.total || rows.length),
+                  hasMore: Boolean(body?.hasMore),
+                  revision: typeof body?.revision === "string" ? body.revision : null,
+                });
               }).catch(() => undefined);
             }
           }
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
-        // Assert the first response itself is exactly one bounded page. The DOM
-        // may already contain later pages because Kanban preloads automatically.
+        // The first request is a global status-column prefix. Column-scoped
+        // pages are separate requests and must not be counted as the prefix.
         await expect.poll(
-          () => [...firstPageRowsByScope.values()].reduce((total, count) => total + count, 0),
+          () => responses.find((entry) => entry.scope === "__global__" && entry.offset === 0)?.ids.length || 0,
           { timeout: 30_000 },
-        ).toBe(Math.min(200, size));
+        ).toBe(Math.min(100, size));
         await expect.poll(() => statusCount(page, "Open"), { timeout: 30_000 }).toBe(Math.ceil(size / 2));
         await expect.poll(() => statusCount(page, "Done"), { timeout: 30_000 }).toBe(Math.floor(size / 2));
         const initialRequests = taskRequests.length;
         expect(initialRequests).toBeGreaterThan(0);
 
-        // Kanban must continue fetching sequential pages automatically after the
-        // first 100 rows. There is intentionally no Load more click or scroll
-        // trigger here; Table View retains its own user-driven pagination.
+        const scrollColumn = async (status: string) => {
+          const column = page.locator(`[data-rfd-droppable-id="kanban:${status}"]`);
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            await column.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+            await page.waitForTimeout(150);
+          }
+        };
+        if (size > 100) {
+          await scrollColumn("Open");
+          await scrollColumn("Done");
+        }
+
+        // Verify the response bodies, not just server totals: every fixture ID
+        // must be observed and each scoped page must use the stable revision.
         await expect.poll(
-          async () => (await statusCount(page, "Open")) + (await statusCount(page, "Done")),
+          () => new Set(responses.flatMap((entry) => entry.ids)).size,
           { timeout: 60_000 },
         ).toBe(size);
-        // A failed attempt and its retry are two browser requests but only one
-        // successful pagination response. Count responses for the logical page
-        // metric, while retaining taskRequests for transport diagnostics.
         const expectedPaginationResponses =
           Math.ceil(Math.max(0, Math.ceil(size / 2) - 100) / 100)
           + Math.ceil(Math.max(0, Math.floor(size / 2) - 100) / 100);
-        expect(successfulPaginationResponses).toBe(expectedPaginationResponses);
+        const scopedPages = responses.filter((entry) => entry.scope !== "__global__" && entry.offset >= 100);
+        expect(scopedPages.length).toBe(expectedPaginationResponses);
+        expect(new Set(scopedPages.flatMap((entry) => entry.ids)).size).toBeGreaterThanOrEqual(Math.max(0, size - 100));
+        for (const entry of responses.filter((candidate) => candidate.scope !== "__global__")) {
+          expect(entry.limit).toBe(100);
+          expect(entry.revision).toBeTruthy();
+          expect(entry.total).toBe(entry.scope === "Open" ? Math.ceil(size / 2) : Math.floor(size / 2));
+        }
 
         const beforeIdle = taskRequests.length;
         await page.waitForTimeout(10_000);
@@ -177,8 +196,8 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
 
         if (size === 101) {
           await page.getByText(fixture.boardName, { exact: true }).click();
-          const doneColumn = page.locator('[data-rfd-droppable-id="kanban:Done"]');
-          await doneColumn.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+          const openColumn = page.locator('[data-rfd-droppable-id="kanban:Open"]');
+          await openColumn.evaluate((element) => { element.scrollTop = element.scrollHeight; });
           await expect(page.getByText(`${fixture.marker} Task 0101`, { exact: true })).toBeVisible();
         }
     } finally {
