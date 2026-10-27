@@ -35,7 +35,8 @@ test('Kanban columns progressively load more tasks without idle requests and sho
   assert.match(kanbanColumn, /renderClone=/);
   assert.match(kanbanColumn, /useVirtualizer/);
   assert.match(board, /kanbanStatusLoadersRef\.current\.get\(opt\.value\)/);
-  assert.doesNotMatch(board, /Load more/);
+  assert.match(board, /Load more tasks/);
+  assert.match(board, /kanbanStatusLoadersRef\.current\.get\(opt\.value\)\?\.\(\)/);
   assert.match(board, /statusCounts/);
   assert.match(board, /statusColumnId/);
   assert.match(board, /statusValue/);
