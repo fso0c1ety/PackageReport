@@ -95,6 +95,34 @@ test('initial unavailable subscription does not duplicate or abort initial loadi
   const h=harness(500);let resume;h.delay=new Promise(r=>resume=r);const first=h.pager.load(global);await tick();
   const timers=[];const life=createRecoveryLifecycle({pager:h.pager,schedule:fn=>(timers.push(fn),timers.length),unschedule(){}});life.status('CHANNEL_ERROR');assert.equal(h.calls[0].signal.aborted,false);resume();await first;assert.equal(h.calls.length,1);assert.equal(timers.length,0);life.dispose();
 });
+test('background loading pauses while hidden and resumes once visible',async()=>{
+  const h=harness(250);await h.pager.load(global);h.hidden=true;
+  let settled=false;
+  const loading=h.pager.loadAll(global,{onProgress:()=>{}}).then(()=>{settled=true;});
+  await tick();
+  assert.equal(h.calls.length,1);assert.equal(settled,false);
+  h.hidden=false;h.pager.resume();await loading;
+  assert.equal(h.pager.snapshot().rows.length,250);assert.equal(h.calls.length,3);
+  h.pager.dispose();
+});
+test('background loading stops cleanly on cancellation while hidden',async()=>{
+  const h=harness(250);await h.pager.load(global);h.hidden=true;
+  const loading=h.pager.loadAll(global);
+  await tick();h.pager.dispose();await loading;
+  assert.equal(h.calls.length,1);
+});
+test('background loading rejects repeated zero-progress pages instead of looping',async()=>{
+  let calls=0;
+  const pager=createTaskPager({identity:{userId:'A'},isHidden:()=>false,onChange(){},fetchPage:async()=>{
+    calls++;
+    return {ok:true,status:200,json:async()=>calls===1
+      ? {rows:[{id:'1',values:{}}],total:2,hasMore:true,revision:'1'}
+      : {rows:[],total:2,hasMore:true,revision:'1'}};
+  }});
+  await pager.load(global);
+  await assert.rejects(pager.loadAll(global),/Non-progressing task page/);
+  assert.equal(calls,5);pager.dispose();
+});
 test('reconnect before first polling tick removes deleted rows with one resync',async()=>{
   const h=harness(1);await h.pager.load(global);const timers=[];
   const life=createRecoveryLifecycle({pager:h.pager,schedule:fn=>(timers.push(fn),timers.length),unschedule(){}});

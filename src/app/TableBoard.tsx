@@ -3475,6 +3475,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
 
   useEffect(() => {
+    const resumeTaskLoading = () => {
+      if (!document.hidden) taskPagerRef.current?.resume?.();
+    };
+    document.addEventListener('visibilitychange', resumeTaskLoading);
+    return () => document.removeEventListener('visibilitychange', resumeTaskLoading);
+  }, []);
+
+  useEffect(() => {
     const checkSession = () => {
       const pager = taskPagerRef.current;
       if (!pager) return;

@@ -4,6 +4,7 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
   let scopes = new Map(), revision = null, disposed = false, generation = 0;
   let controller = null, dirty = false, queue = Promise.resolve();
   const requests = new Map();
+  const visibilityWaiters = new Set();
   const desiredScopes = new Map();
   const canonical = value => Array.isArray(value) ? value.map(canonical)
     : value && typeof value==='object' ? Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])) : value;
@@ -32,6 +33,14 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
   }
   function publish() { if(!disposed)onChange(snapshot()); }
   function cancel() { generation++;controller?.abort();controller=null; }
+  function waitForVisible() {
+    if (disposed || !isHidden()) return Promise.resolve();
+    return new Promise(resolve => visibilityWaiters.add(resolve));
+  }
+  function resume() {
+    for (const resolve of visibilityWaiters) resolve();
+    visibilityWaiters.clear();
+  }
   function revoke() { cancel();scopes=new Map();revision=null;dirty=false;onChange({rows:[],revision:null,total:0,statusCounts:{},scopes,revoked:true}); }
   async function read(params,offset,expected,signal,trigger='load') {
     const requestId = `${generation}:${Date.now()}:${Math.random().toString(36).slice(2,7)}`;
@@ -106,8 +115,8 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
     const key=keyFor(params);
     desiredScopes.set(key,params);
     return enqueue(key,async()=>{
-      if(disposed||isHidden())return;
-      if(dirty) {await rebuild(params);return;}
+      if(disposed||isHidden())return false;
+      if(dirty) {await rebuild(params);return true;}
       let previous=scopes.get(key);
       if(previous&&params.statusValue===undefined&&snapshot().complete) {
         const known=new Map();for(const scope of scopes.values())for(const row of scope.rows)known.set(row.id,row);
@@ -122,27 +131,41 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
           scopes.set(key,previous);
         }
       }
-      if(previous && (!more || !previous.hasMore))return;
+      if(previous && (!more || !previous.hasMore))return false;
       const mine=generation,abort=new AbortController();controller=abort;
       try {
         const data=await read(params,previous?.rows.length||0,revision,abort.signal,more ? 'load-more' : 'load');
         if(mine!==generation)return;
         const rows=[...(previous?.rows||[]),...data.rows];
         if(new Set(rows.map(row=>row.id)).size!==rows.length)throw new Error('Duplicate page IDs');
-        scopes.set(key,{...previous,params,...data,rows});revision=data.revision;publish();
+        scopes.set(key,{...previous,params,...data,rows});revision=data.revision;publish();return true;
       } catch(error) {
         if(error.name==='RevisionError') {dirty=true;await rebuild(params);}
         else throw error;
       } finally {if(controller===abort)controller=null;}
     });
   }
+  /** @param {{onProgress?: (snapshot: any) => void}} options */
   async function loadAll(params = {}, { onProgress = () => {} } = {}) {
     let retries = 0;
+    let zeroProgress = 0;
     while (!disposed) {
+      if (isHidden()) {
+        await waitForVisible();
+        continue;
+      }
       const current = snapshot().global;
       if (!current || !current.hasMore) return snapshot();
       try {
-        await load(params, true);
+        const progressed = await load(params, true);
+        if (!progressed) {
+          if (isHidden()) continue;
+          zeroProgress += 1;
+          if (zeroProgress > 3) throw new Error('Non-progressing task page');
+          await new Promise(resolve => setTimeout(resolve, 250 * (2 ** (zeroProgress - 1))));
+          continue;
+        }
+        zeroProgress = 0;
         retries = 0;
         onProgress(snapshot());
       } catch (error) {
@@ -155,7 +178,7 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
     return snapshot();
   }
   return {
-    identity: Object.freeze({...identity}), load, loadAll, snapshot, revoke,
+    identity: Object.freeze({...identity}), load, loadAll, snapshot, revoke, resume,
     reconcile() {cancel();dirty=true;return enqueue('reconcile',async()=>{if(!disposed&&!isHidden())await rebuild();});},
     invalidate() {cancel();dirty=true;},
     remove(id) {cancel();dirty=true;for(const scope of scopes.values())scope.rows=scope.rows.filter(row=>row.id!==id);publish();},
@@ -170,7 +193,7 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
       }
       publish();
     },
-    dispose() {disposed=true;cancel();scopes.clear();requests.clear();desiredScopes.clear();},
+    dispose() {disposed=true;cancel();resume();scopes.clear();requests.clear();desiredScopes.clear();},
   };
 }
 
