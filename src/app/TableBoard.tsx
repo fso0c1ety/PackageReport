@@ -3450,7 +3450,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   };
   setLoadingAllTasks(true);
   void pager.loadAll(globalScope, {
-    onProgress: (snapshot: any) => {
+    onProgress: () => {
+      const snapshot = pager.snapshot();
       if (!cancelled) {
         totalRowsRef.current = snapshot.total;
         setHasMoreRows(Boolean(snapshot.global?.hasMore && !snapshot.complete));
