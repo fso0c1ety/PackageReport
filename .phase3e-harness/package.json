@@ -1,0 +1,1 @@
+{"private":true,"scripts":{"dev":"next dev --webpack -p 3199 -H 127.0.0.1"}}

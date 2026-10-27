@@ -4,11 +4,12 @@ const fs = require('node:fs');
 
 const workspace = fs.readFileSync('src/app/(dashboard)/workspace/page.tsx', 'utf8');
 const board = fs.readFileSync('src/app/TableBoard.tsx', 'utf8');
+const kanbanColumn = fs.readFileSync('src/app/KanbanVirtualColumn.tsx', 'utf8');
 
-test('workspace warms board metadata and first rows before a tab click', () => {
+test('workspace warms metadata without downloading an unused task page', () => {
   assert.match(workspace, /const prefetchTable = \(tableId: string\)/);
   assert.match(workspace, /onMouseEnter=\{\(\) => prefetchTable\(table\.id\)\}/);
-  assert.ok(workspace.includes('tasks?limit=100&offset=0'));
+  assert.ok(!workspace.includes('tasks?limit=100&offset=0'));
 });
 
 test('workspace coalesces repeated hover/focus prefetches per board', () => {
@@ -18,32 +19,36 @@ test('workspace coalesces repeated hover/focus prefetches per board', () => {
   assert.match(workspace, /prefetchesRef\.current\.set\(tableId, request\)/);
 });
 
-test('TableBoard keeps initial board transfer bounded and auto-loads later Kanban pages', () => {
+test('TableBoard keeps initial board transfer bounded and auto-loads later pages', () => {
   assert.match(board, /consumeCachedResponse: true/);
-  assert.ok(board.includes('tasks?limit=100&offset=0'));
-  assert.ok(board.includes('tasks?limit=100&offset=${offset}'));
+  assert.match(board, /pagination: 'consistent'/);
   assert.match(board, /loadMoreRowsRef\.current = async/);
   assert.match(board, /container\.scrollHeight - \(container\.scrollTop \+ container\.clientHeight\) < 600/);
   assert.match(board, /workspaceView !== 'kanban'/);
-  assert.match(board, /while \(active && loadMoreRowsRef\.current\)/);
+  assert.match(board, /kanbanStatusLoadersRef/);
+  assert.doesNotMatch(board, /while \(active && loadMoreRowsRef\.current\)/);
 });
 
 test('Kanban columns progressively load more tasks without idle requests and show server totals', () => {
-  assert.match(board, /onScroll=\{\(event\) => \{/);
-  assert.match(board, /loadMoreRowsRef\.current\?\.\(\)/);
-  assert.match(board, /Load more/);
+  assert.match(kanbanColumn, /onScroll=\{\(event\) => \{/);
+  assert.match(kanbanColumn, /mode="virtual"/);
+  assert.match(kanbanColumn, /renderClone=/);
+  assert.match(kanbanColumn, /useVirtualizer/);
+  assert.match(board, /kanbanStatusLoadersRef\.current\.get\(opt\.value\)/);
+  assert.doesNotMatch(board, /Load more/);
   assert.match(board, /statusCounts/);
   assert.match(board, /statusColumnId/);
-  assert.match(board, /loadingMoreRowsRef\.current/);
+  assert.match(board, /statusValue/);
+  assert.match(board, /snapshot\.global\?\.hasMore/);
   assert.match(board, /retryLoadTableRef\.current/);
   assert.match(board, /Load all tasks before reordering/);
 });
 
-test('workspace prefetch uses the same bounded first-page cache key as TableBoard', () => {
+test('workspace prefetch leaves revision-bound task pages to the scoped pager', () => {
   const workspace = fs.readFileSync('src/app/(dashboard)/workspace/page.tsx', 'utf8');
-  assert.match(workspace, /tasks\?limit=100&offset=0/);
+  assert.doesNotMatch(workspace, /tasks\?limit=100&offset=0/);
   assert.doesNotMatch(workspace, /statusColumnId/);
-  assert.match(board, /limit=1&offset=0&statusColumnId/);
+  assert.match(board, /taskPagination\.createTaskPager/);
 });
 
 test('People selector merges authoritative current-workspace teammates', () => {

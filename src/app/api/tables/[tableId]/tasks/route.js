@@ -16,6 +16,7 @@ import { isSafePublicHttpsUrl } from "../../../_lib/security";
 import { recordAccessQueryContext, requireBoardPermission, requireRowPermission, rowMatchesRecordAccess } from "../../../_lib/authorization";
 import addressFields from "@/shared/internationalAddress.cjs";
 import activityLogTimestamp from "../../../../../../server/utils/activityLogTimestamp.cjs";
+import consistentPages from "../../../../../../server/services/consistentTaskPage.cjs";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 
 export const runtime = "nodejs";
@@ -533,9 +534,23 @@ export async function GET(req, { params }) {
 
   try {
     const { tableId } = await params;
+    if (req.nextUrl.searchParams.get('pagination') === 'consistent') {
+      const page = await consistentPages.consistentTaskPage({ pool, userId: user.id, tableId,
+        searchParams: req.nextUrl.searchParams, requireBoardPermission, recordAccessQueryContext, normalizePeopleValues });
+      if (page.status === 200 && page.body.rows.some(row => toArray(row?.values?.message).some(message =>
+        message?.scheduledFor && !message.notificationSent && new Date(message.scheduledFor) <= new Date()))) {
+        after(() => processDueScheduledMessages(page.board,page.body.rows).catch(error => {
+          console.error('[TABLE TASKS][GET] Scheduled message processing failed:',error);
+        }));
+      }
+      return NextResponse.json(page.body, { status: page.status, headers: { 'Cache-Control': 'private, no-store' } });
+    }
     const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get("limit") || "", 10);
     const requestedOffset = Number.parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
     const statusColumnId = String(req.nextUrl.searchParams.get("statusColumnId") || "");
+    const statusValue = req.nextUrl.searchParams.has("statusValue")
+      ? String(req.nextUrl.searchParams.get("statusValue") || "")
+      : null;
     const paginated = Number.isFinite(requestedLimit) && requestedLimit > 0;
     const limit = paginated ? Math.min(requestedLimit, 500) : null;
     const offset = paginated && Number.isFinite(requestedOffset) && requestedOffset > 0
@@ -553,6 +568,8 @@ export async function GET(req, { params }) {
       if (!statusColumn || statusColumn.type !== "Status") {
         return NextResponse.json({ error: "Invalid status column" }, { status: 400 });
       }
+    } else if (statusValue !== null) {
+      return NextResponse.json({ error: "statusValue requires statusColumnId" }, { status: 400 });
     }
 
     const queryStart = Date.now();
@@ -561,11 +578,12 @@ export async function GET(req, { params }) {
     let statusCounts = null;
     if (table.legacy_authorization) {
       const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC", [tableId]);
-      const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
+      const authorizedRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
+      const visibleRows = authorizedRows.filter((row) => statusValue === null || String(row.values?.[statusColumnId] ?? "") === statusValue);
       result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
       countResult = { rows: [{ total: visibleRows.length }] };
       if (statusColumnId) {
-        statusCounts = Object.fromEntries(visibleRows.reduce((counts, row) => {
+        statusCounts = Object.fromEntries(authorizedRows.reduce((counts, row) => {
           const status = String(row.values?.[statusColumnId] || "");
           counts.set(status, (counts.get(status) || 0) + 1);
           return counts;
@@ -577,21 +595,27 @@ export async function GET(req, { params }) {
       const visibilityParams = unrestrictedRows ? [tableId] : [tableId, JSON.stringify(visibility.columns), visibility.userId,
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
+      const taskParams = statusValue === null
+        ? visibilityParams
+        : [...visibilityParams, statusColumnId, statusValue];
+      const taskWhere = statusValue === null
+        ? visibleWhere
+        : `${visibleWhere} AND COALESCE(values->>$${visibilityParams.length + 1}, '') = $${visibilityParams.length + 2}`;
       if (paginated) {
         result = await readPool.query(
-          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
-          [...visibilityParams, limit, offset]
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${taskWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${taskParams.length + 1} OFFSET $${taskParams.length + 2}`,
+          [...taskParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
           ?? (offset > 0
-            ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
+            ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${taskWhere}`, taskParams)).rows[0]?.total
             : 0);
         result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
         countResult = { rows: [{ total }] };
       } else {
         result = await readPool.query(
-          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC`,
-          visibilityParams
+          `SELECT * FROM rows WHERE ${taskWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC`,
+          taskParams
         );
         countResult = { rows: [{ total: 0 }] };
       }

@@ -30,12 +30,12 @@ test("task mutation responses schedule broadcast with Next after", () => {
   assert.doesNotMatch(cell, /await broadcastTableInvalidation/);
 });
 
-test("TableBoard applies realtime payloads directly and keeps polling as compatibility fallback", () => {
+test("TableBoard reauthorizes table broadcasts and delegates bounded recovery", () => {
   const source = read("src", "app", "TableBoard.tsx");
 
-  assert.match(source, /eventType === 'DELETE'[\s\S]*current\.filter\(\(row\) => row\.id !== payload\.rowId\)/);
-  assert.match(source, /const realtimeRow = normalizeRealtimeRow\(payload\?\.row\)/);
-  assert.match(source, /sortRowsForRealtime\(existing/);
-  assert.match(source, /Compatibility for older mutation paths/);
-  assert.match(source, /setInterval\(\(\) => \{ void pollRowsFallback\(\); \}, 15000\)/);
+  assert.match(source, /payload\?\.eventType==='DELETE'/);
+  assert.match(source, /taskPagerRef\.current\?\.remove\(id\)/);
+  assert.match(source, /Row authorization failed/);
+  assert.match(source, /taskPagination\.createRecoveryLifecycle/);
+  assert.doesNotMatch(source, /setInterval\(\(\) => \{ void pollRowsFallback/);
 });
