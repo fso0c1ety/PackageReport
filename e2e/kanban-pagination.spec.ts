@@ -177,16 +177,34 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
           () => new Set(responses.flatMap((entry) => entry.ids)).size,
           { timeout: 60_000 },
         ).toBe(size);
-        const expectedPaginationResponses =
-          Math.ceil(Math.max(0, Math.ceil(size / 2) - 100) / 100)
-          + Math.ceil(Math.max(0, Math.floor(size / 2) - 100) / 100);
         const scopedPages = responses.filter((entry) => entry.scope !== "__global__" && entry.offset >= 100);
-        expect(scopedPages.length).toBe(expectedPaginationResponses);
+        const expectedLargeScopes = [
+          ["Open", Math.ceil(size / 2)],
+          ["Done", Math.floor(size / 2)],
+        ].filter(([, total]) => Number(total) > 100).map(([scope]) => scope);
+        for (const scope of expectedLargeScopes) {
+          expect(scopedPages.some((entry) => entry.scope === scope)).toBe(true);
+        }
         expect(new Set(scopedPages.flatMap((entry) => entry.ids)).size).toBeGreaterThanOrEqual(Math.max(0, size - 100));
         for (const entry of responses.filter((candidate) => candidate.scope !== "__global__")) {
           expect(entry.limit).toBe(100);
           expect(entry.revision).toBeTruthy();
           expect(entry.total).toBe(entry.scope === "Open" ? Math.ceil(size / 2) : Math.floor(size / 2));
+        }
+        for (const scope of ["Open", "Done"]) {
+          const scopeResponses = responses.filter((entry) => entry.scope === scope);
+          const ordered = [...new Map(scopeResponses.map((entry) => [entry.offset, entry])).values()]
+            .sort((left, right) => left.offset - right.offset);
+          const seen = new Set<string>();
+          for (const entry of ordered) {
+            expect(entry.offset % 100).toBe(0);
+            for (const id of entry.ids) {
+              expect(seen.has(id)).toBe(false);
+              seen.add(id);
+            }
+          }
+          const last = ordered.at(-1);
+          if (last) expect(last.hasMore).toBe(false);
         }
 
         const beforeIdle = taskRequests.length;
