@@ -3480,7 +3480,15 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
       if (!document.hidden) taskPagerRef.current?.resume?.();
     };
     document.addEventListener('visibilitychange', resumeTaskLoading);
-    return () => document.removeEventListener('visibilitychange', resumeTaskLoading);
+    window.addEventListener('focus', resumeTaskLoading);
+    window.addEventListener('pageshow', resumeTaskLoading);
+    const removeNativeVisible = window.smartManageWindow?.onVisible?.(resumeTaskLoading);
+    return () => {
+      document.removeEventListener('visibilitychange', resumeTaskLoading);
+      window.removeEventListener('focus', resumeTaskLoading);
+      window.removeEventListener('pageshow', resumeTaskLoading);
+      removeNativeVisible?.();
+    };
   }, []);
 
   useEffect(() => {

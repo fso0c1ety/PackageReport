@@ -9,6 +9,7 @@ declare global {
       close: () => Promise<void>;
       getState: () => Promise<{ isMaximized: boolean }>;
       onState: (callback: (state: { isMaximized: boolean }) => void) => () => void;
+      onVisible: (callback: () => void) => () => void;
     };
     smartManageUpdater?: {
       check: () => Promise<void>;

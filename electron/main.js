@@ -369,6 +369,11 @@ function createMainWindow() {
   mainWindowReady = false;
   win.on("maximize", sendWindowState);
   win.on("unmaximize", sendWindowState);
+  const notifyWindowVisible = () => {
+    if (!win.isDestroyed()) win.webContents.send("smart-manage-window:visible");
+  };
+  win.on("show", notifyWindowVisible);
+  win.on("focus", notifyWindowVisible);
 
   win.once("ready-to-show", () => {
     mainWindowReady = true;
