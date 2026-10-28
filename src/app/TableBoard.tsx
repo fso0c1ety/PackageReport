@@ -3413,7 +3413,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const globalScope = statusColumnId ? { statusColumnId } : {};
   const pager = taskPagination.createTaskPager({
     identity: { userId: currentUserId, workspaceId: table.workspace_id, tableId },
-    isHidden: () => nativeWindowVisibleRef.current === true || (nativeWindowVisibleRef.current === null && document.hidden),
+    isHidden: () => nativeWindowVisibleRef.current === false || (nativeWindowVisibleRef.current === null && document.hidden),
     pendingValues: () => pendingCellValuesRef.current,
     pendingRows: () => rowsRef.current.filter(row => pendingTaskCreationsRef.current.has(row.id)),
     onDiagnostic: (event: any) => {
@@ -3478,7 +3478,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   useEffect(() => {
     const applyNativeVisibility = (state?: { isVisible?: boolean }) => {
       if (typeof state?.isVisible === 'boolean') nativeWindowVisibleRef.current = state.isVisible;
-      if (nativeWindowVisibleRef.current === false || (nativeWindowVisibleRef.current === null && !document.hidden)) {
+      if (nativeWindowVisibleRef.current === true || (nativeWindowVisibleRef.current === null && !document.hidden)) {
         taskPagerRef.current?.resume?.();
       }
     };
