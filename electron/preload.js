@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('smartManageWindow', {
     return () => ipcRenderer.removeListener('smart-manage-window:state', listener);
   },
   onVisible: (callback) => {
-    const listener = () => callback();
+    const listener = (_event, state) => callback(state);
     ipcRenderer.on('smart-manage-window:visible', listener);
     return () => ipcRenderer.removeListener('smart-manage-window:visible', listener);
   },

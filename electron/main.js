@@ -370,10 +370,15 @@ function createMainWindow() {
   win.on("maximize", sendWindowState);
   win.on("unmaximize", sendWindowState);
   const notifyWindowVisible = () => {
-    if (!win.isDestroyed()) win.webContents.send("smart-manage-window:visible");
+    if (!win.isDestroyed()) win.webContents.send("smart-manage-window:visible", {
+      isVisible: win.isVisible(),
+      isFocused: win.isFocused(),
+    });
   };
   win.on("show", notifyWindowVisible);
   win.on("focus", notifyWindowVisible);
+  win.on("hide", notifyWindowVisible);
+  win.on("blur", notifyWindowVisible);
 
   win.once("ready-to-show", () => {
     mainWindowReady = true;
@@ -451,7 +456,11 @@ app.whenReady().then(() => {
     else mainWindow.maximize();
   });
   ipcMain.handle("smart-manage-window:close", () => mainWindow?.close());
-  ipcMain.handle("smart-manage-window:state", () => ({ isMaximized: Boolean(mainWindow?.isMaximized()) }));
+  ipcMain.handle("smart-manage-window:state", () => ({
+    isMaximized: Boolean(mainWindow?.isMaximized()),
+    isVisible: Boolean(mainWindow?.isVisible()),
+    isFocused: Boolean(mainWindow?.isFocused()),
+  }));
 
   const { session } = require("electron");
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
