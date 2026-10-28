@@ -114,6 +114,18 @@ test('background loading recovers an initial hidden-tab no-op',async()=>{
   assert.equal(h.pager.snapshot().rows.length,449);
   h.pager.dispose();
 });
+test('legacy task API without revision loads every authorized row',async()=>{
+  const rows=Array.from({length:449},(_,i)=>({id:String(i+1),values:{order:i+1}}));
+  const calls=[];
+  const pager=createTaskPager({identity:{userId:'A',workspaceId:'W',tableId:'T'},onChange(){},fetchPage:async params=>{
+    calls.push({...params});const page=rows.slice(params.offset,params.offset+params.limit);
+    return {ok:true,status:200,json:async()=>({rows:page,total:rows.length,offset:params.offset,limit:params.limit,hasMore:params.offset+page.length<rows.length})};
+  }});
+  await pager.loadAll({statusColumnId:'status'});
+  const result=pager.snapshot();
+  assert.equal(result.rows.length,449);assert.equal(new Set(result.rows.map(row=>row.id)).size,449);
+  assert.deepEqual(calls.map(call=>call.offset),[0,100,200,300,400]);pager.dispose();
+});
 test('background loading stops cleanly on cancellation while hidden',async()=>{
   const h=harness(250);await h.pager.load(global);h.hidden=true;
   const loading=h.pager.loadAll(global);

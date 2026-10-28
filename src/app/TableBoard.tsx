@@ -3463,9 +3463,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   } catch (err) {
   if (!cancelled) {
   console.error("Failed to fetch table data", err);
-  setRows([]);
     setLoading(false);
-    setKanbanLoadError(err instanceof Error ? err.message : "Failed to load tasks");
+    setKanbanLoadError(`${err instanceof Error ? err.message : "Failed to load tasks"} [TASK_LOAD_FAILED]`);
   }
   }
   };
@@ -9851,6 +9850,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <Button size="small" variant="contained" onClick={() => void handleExportExcel(selectedRowIds)}>Export selected</Button>
   <Button size="small" onClick={() => setSelectedRowIds(new Set())}>Clear</Button>
   </Paper>
+  )}
+  {kanbanLoadError && (
+  <Alert severity="error" sx={{ mb: 1 }} action={<Button color="inherit" size="small" onClick={() => retryLoadTableRef.current?.()}>Retry</Button>}>
+  Task loading failed. No task count is being reported as authoritative. Diagnostic code: TASK_LOAD_FAILED.
+  </Alert>
   )}
   <TableContainer component={Paper} sx={{ 
   bgcolor: 'transparent', 

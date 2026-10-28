@@ -56,10 +56,15 @@ function createTaskPager({ identity, fetchPage, onChange, onDiagnostic = (..._ar
       if(!response.ok)throw new Error(`Task page failed (${response.status})`);
       const data = await response.json();
       if(signal.aborted || disposed)throw Object.assign(new Error('Obsolete response'),{name:'AbortError'});
-      if(!data.revision || !Array.isArray(data.rows) || (expected && data.revision!==expected))throw new Error('Invalid task page');
+      // The deployed legacy API predates consistent pagination and has no
+      // revision field. Accept that contract only for the initial/legacy
+      // traversal; never invent a revision or treat a revision-bound page as
+      // valid without one.
+      const legacy = data.revision == null && !expected;
+      if((!legacy && !data.revision) || !Array.isArray(data.rows) || (expected && data.revision!==expected))throw new Error('Invalid task page');
       if(data.rows.length>pageSize || (data.hasMore && !data.rows.length))throw new Error('Non-progressing task page');
       onDiagnostic({ type:'request-complete', ...request, elapsedMs: Date.now()-startedAt, rows:data.rows.length, nextRevision:data.revision });
-      return data;
+      return legacy ? {...data, legacy: true} : data;
     } catch (error) {
       onDiagnostic({ type:'request-end', ...request, outcome:error.name || 'Error', elapsedMs: Date.now()-startedAt });
       throw error;
