@@ -32,38 +32,6 @@ async function main() {
         END LOOP;
       END $$;
       ALTER ROLE service_role BYPASSRLS;
-      CREATE TABLE IF NOT EXISTS automation_action_usage (
-        id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, actor_id TEXT, workspace_id TEXT,
-        table_id TEXT, run_id TEXT, actions INTEGER NOT NULL,
-        period_start TIMESTAMPTZ NOT NULL, period_end TIMESTAMPTZ NOT NULL,
-        metadata JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS automation_action_usage_owner_period_idx
-        ON automation_action_usage(owner_id, period_start, created_at DESC);
-      CREATE TABLE IF NOT EXISTS enterprise_audit_logs (
-        id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, action TEXT NOT NULL,
-        entity_type TEXT NOT NULL, entity_id TEXT, table_id TEXT, workspace_id TEXT,
-        metadata JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_enterprise_audit_actor ON enterprise_audit_logs(actor_id, created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_enterprise_audit_table ON enterprise_audit_logs(table_id, created_at DESC);
-      CREATE TABLE IF NOT EXISTS integration_webhooks (
-        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, url TEXT NOT NULL,
-        events JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN DEFAULT TRUE,
-        last_status INTEGER, last_delivery_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS nexus_credit_usage (
-        id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, actor_id TEXT, workspace_id TEXT,
-        operation TEXT NOT NULL, credits INTEGER NOT NULL, period_start TIMESTAMPTZ NOT NULL,
-        period_end TIMESTAMPTZ NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS nexus_credit_usage_owner_period_idx
-        ON nexus_credit_usage(owner_id, period_start, created_at DESC);
-      CREATE TABLE IF NOT EXISTS portal_comments (
-        id TEXT PRIMARY KEY, table_id TEXT NOT NULL, client_name TEXT NOT NULL,
-        message TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW()
-      );
       CREATE OR REPLACE FUNCTION public.handle_new_user()
       RETURNS trigger
       LANGUAGE plpgsql
@@ -72,10 +40,6 @@ async function main() {
       AS $$ BEGIN RETURN NEW; END $$;
     `);
     if (!afterMigrations) {
-      for (const table of ['automation_action_usage','enterprise_audit_logs','integration_webhooks','nexus_credit_usage','portal_comments']) {
-        await client.query(`GRANT ALL PRIVILEGES ON TABLE public."${table}" TO anon, authenticated`);
-        await client.query(`GRANT ALL PRIVILEGES ON TABLE public."${table}" TO PUBLIC`);
-      }
     } else {
       for (const table of tables) {
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."${table}" TO service_role`);

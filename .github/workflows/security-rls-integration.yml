@@ -6,6 +6,7 @@ on:
     paths:
       - 'server/db/migrations/**'
       - 'test/security-rls-postgres.integration.js'
+      - 'test/public-rls-hotfix-048-postgres.integration.js'
       - 'src/lib/supabase.ts'
       - 'src/app/api/nexus/chat/route.js'
       - 'src/app/api/calendar-events/route.js'
@@ -44,8 +45,95 @@ jobs:
       - name: Prepare audited schema fixture and initial grants
         run: node scripts/security-schema-fixture.cjs
       - name: Apply isolated migration chain
+        run: |
+          # Build the real prerequisite schema before the two security changes.
+          targets=$(node -e "console.log(require('fs').readdirSync('server/db/migrations').filter(f=>f.endsWith('.sql')&&f<'047a').sort().join(','))")
+          MIGRATION_TARGET="$targets" npm run db:migrate
+      - name: Preserve pre-migration recovery snapshot
+        env:
+          PGPASSWORD: security-ci-local-only
+        run: |
+          set -euo pipefail
+          mkdir -p security-evidence
+          psql -h 127.0.0.1 -U postgres -d smart_manage_security_test -v ON_ERROR_STOP=1 -c "CREATE TABLE public.recovery_probe(id integer PRIMARY KEY, parent_id integer REFERENCES public.recovery_probe(id)); INSERT INTO public.recovery_probe VALUES(1,NULL),(2,1); GRANT SELECT ON public.recovery_probe TO anon;"
+          pg_dump -h 127.0.0.1 -U postgres -Fc smart_manage_security_test -f /tmp/security-before.dump
+          sha256sum /tmp/security-before.dump > security-evidence/pre-migration.sha256
+      - name: Apply security migrations
         run: npm run db:migrate
+      - name: Restore pre-migration snapshot to separate database
+        env:
+          PGPASSWORD: security-ci-local-only
+        run: |
+          set -euo pipefail
+          createdb -h 127.0.0.1 -U postgres security_before_recovery
+          pg_restore -h 127.0.0.1 -U postgres --exit-on-error -d security_before_recovery /tmp/security-before.dump
+          psql -h 127.0.0.1 -U postgres -d security_before_recovery -v ON_ERROR_STOP=1 <<'SQL' > security-evidence/pre-migration-restore.txt
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM public.recovery_probe) <> 2 THEN RAISE EXCEPTION 'pre-migration data lost'; END IF;
+            IF NOT has_table_privilege('anon','public.recovery_probe','SELECT') THEN RAISE EXCEPTION 'original grant lost'; END IF;
+            IF EXISTS(SELECT 1 FROM schema_migrations WHERE filename LIKE '048%' OR filename LIKE '047a%') THEN RAISE EXCEPTION 'wrong recovery point'; END IF;
+            BEGIN
+              INSERT INTO public.recovery_probe VALUES(3,999);
+              RAISE EXCEPTION 'foreign key missing';
+            EXCEPTION WHEN foreign_key_violation THEN NULL;
+            END;
+          END $$;
+          SELECT 'pre-migration recovery passed' AS result;
+          SQL
+          sha256sum --check security-evidence/pre-migration.sha256
       - name: Grant isolated backend role after migrations
         run: node scripts/security-schema-fixture.cjs --after-migrations
       - name: Run real PostgreSQL role checks
         run: node --test test/security-rls-postgres.integration.js
+      - name: Run migration 048 negative-access checks
+        run: node --test test/public-rls-hotfix-048-postgres.integration.js
+      - name: Rehearse synthetic backup and restore
+        env:
+          PGPASSWORD: security-ci-local-only
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d smart_manage_security_test -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA recovery_fixture;
+          CREATE TABLE recovery_fixture.tenants(id integer PRIMARY KEY);
+          CREATE TABLE recovery_fixture.records(id integer PRIMARY KEY, tenant_id integer REFERENCES recovery_fixture.tenants(id), value text NOT NULL);
+          INSERT INTO recovery_fixture.tenants VALUES(1),(2);
+          INSERT INTO recovery_fixture.records VALUES(1,1,'synthetic-a'),(2,2,'synthetic-b');
+          SQL
+          mkdir -p security-evidence
+          pg_dump -h 127.0.0.1 -U postgres -Fc smart_manage_security_test -f /tmp/security-synthetic.dump
+          sha256sum /tmp/security-synthetic.dump > security-evidence/backup.sha256
+          createdb -h 127.0.0.1 -U postgres security_restore_test
+          pg_restore -h 127.0.0.1 -U postgres --exit-on-error -d security_restore_test /tmp/security-synthetic.dump
+          psql -h 127.0.0.1 -U postgres -d security_restore_test -v ON_ERROR_STOP=1 <<'SQL' > security-evidence/restore.txt
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM recovery_fixture.records) <> 2 THEN RAISE EXCEPTION 'row count mismatch'; END IF;
+            IF (SELECT count(*) FROM recovery_fixture.tenants) <> 2 THEN RAISE EXCEPTION 'tenant count mismatch'; END IF;
+            BEGIN
+              INSERT INTO recovery_fixture.records VALUES(3,999,'invalid');
+              RAISE EXCEPTION 'foreign key did not reject invalid tenant';
+            EXCEPTION WHEN foreign_key_violation THEN NULL;
+            END;
+          END $$;
+          SELECT 'synthetic restore integrity passed' AS result;
+          SQL
+          # Repeat the same role assertions against the restored schema/ACLs.
+          DATABASE_URL=postgresql://postgres:security-ci-local-only@127.0.0.1:5432/security_restore_test node --test test/security-rls-postgres.integration.js test/public-rls-hotfix-048-postgres.integration.js
+          sha256sum --check security-evidence/backup.sha256
+          # pg_dump excludes global roles. Verify restoration in a new cluster,
+          # explicitly recreating only the fixture roles, without source grants.
+          docker run -d --name security-fresh-restore -e POSTGRES_PASSWORD=restore-local-only -e POSTGRES_DB=security_restore_fresh -p 127.0.0.1:55439:5432 postgres:17
+          for attempt in $(seq 1 30); do
+            docker exec security-fresh-restore pg_isready -U postgres && break
+            sleep 2
+          done
+          docker exec security-fresh-restore psql -U postgres -d security_restore_fresh -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;'
+          docker exec -i security-fresh-restore pg_restore -U postgres -d security_restore_fresh --exit-on-error < /tmp/security-synthetic.dump
+          DATABASE_URL=postgresql://postgres:restore-local-only@127.0.0.1:55439/security_restore_fresh node --test test/public-rls-hotfix-048-postgres.integration.js
+          docker rm -f security-fresh-restore
+      - name: Preserve executed CRUD matrix
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-crud-matrix-${{ github.sha }}
+          path: security-evidence/
+          if-no-files-found: error
