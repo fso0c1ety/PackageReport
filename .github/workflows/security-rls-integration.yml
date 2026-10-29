@@ -52,10 +52,39 @@ jobs:
         run: node --test test/security-rls-postgres.integration.js
       - name: Run migration 048 negative-access checks
         run: node --test test/public-rls-hotfix-048-postgres.integration.js
+      - name: Rehearse synthetic backup and restore
+        env:
+          PGPASSWORD: security-ci-local-only
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d smart_manage_security_test -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA recovery_fixture;
+          CREATE TABLE recovery_fixture.tenants(id integer PRIMARY KEY);
+          CREATE TABLE recovery_fixture.records(id integer PRIMARY KEY, tenant_id integer REFERENCES recovery_fixture.tenants(id), value text NOT NULL);
+          INSERT INTO recovery_fixture.tenants VALUES(1),(2);
+          INSERT INTO recovery_fixture.records VALUES(1,1,'synthetic-a'),(2,2,'synthetic-b');
+          SQL
+          mkdir -p security-evidence
+          pg_dump -h 127.0.0.1 -U postgres -Fc smart_manage_security_test -f /tmp/security-synthetic.dump
+          sha256sum /tmp/security-synthetic.dump > security-evidence/backup.sha256
+          createdb -h 127.0.0.1 -U postgres security_restore_test
+          pg_restore -h 127.0.0.1 -U postgres --exit-on-error -d security_restore_test /tmp/security-synthetic.dump
+          psql -h 127.0.0.1 -U postgres -d security_restore_test -v ON_ERROR_STOP=1 <<'SQL' > security-evidence/restore.txt
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM recovery_fixture.records) <> 2 THEN RAISE EXCEPTION 'row count mismatch'; END IF;
+            IF (SELECT count(*) FROM recovery_fixture.tenants) <> 2 THEN RAISE EXCEPTION 'tenant count mismatch'; END IF;
+            BEGIN
+              INSERT INTO recovery_fixture.records VALUES(3,999,'invalid');
+              RAISE EXCEPTION 'foreign key did not reject invalid tenant';
+            EXCEPTION WHEN foreign_key_violation THEN NULL;
+            END;
+          END $$;
+          SELECT 'synthetic restore integrity passed' AS result;
+          SQL
       - name: Preserve executed CRUD matrix
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-crud-matrix-${{ github.sha }}
-          path: security-evidence/crud-matrix.json
+          path: security-evidence/
           if-no-files-found: error
