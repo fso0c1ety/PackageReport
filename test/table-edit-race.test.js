@@ -10,7 +10,7 @@ test("TableBoard orders rapid saves per cell without a global edit lock", async 
   assert.match(boardSource, /pendingCellValuesRef/);
   assert.match(boardSource, /previousSave\.catch\(\(\) => undefined\)\.then\(persistCell\)/);
   assert.match(boardSource, /cellSaveQueuesRef\.current\.delete\(saveKey\)/);
-  assert.match(boardSource, /pendingCellValuesRef\.current\.forEach/);
+  assert.match(boardSource, /pendingValues: \(\) => pendingCellValuesRef\.current/);
 
   const queues = new Map();
   const committed = [];

@@ -109,8 +109,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     const page = await context.newPage();
     try {
         const taskRequests: string[] = [];
-        let successfulPaginationResponses = 0;
-        let firstPageRowCount = -1;
+        const responses: Array<{ scope: string; offset: number; limit: number; status: number; ids: string[]; total: number; hasMore: boolean; revision: string | null }> = [];
         const taskUrl = (url: string) => {
           try {
             const parsed = new URL(url);
@@ -122,42 +121,94 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
         };
         page.on("request", request => {
           const parsed = taskUrl(request.url());
-          if (request.method() === "GET" && parsed && !parsed.searchParams.has("statusColumnId")) {
+          if (request.method() === "GET" && parsed) {
             taskRequests.push(request.url());
           }
         });
         page.on("response", response => {
           const parsed = taskUrl(response.url());
-          if (parsed && !parsed.searchParams.has("statusColumnId")) {
+          if (parsed) {
             const offset = Number(parsed.searchParams.get("offset") || "0");
-            if (response.status() >= 200 && response.status() < 300 && offset >= 100) {
-              successfulPaginationResponses += 1;
-            }
-            if (response.status() >= 200 && response.status() < 300 && offset === 0) {
+            if (response.status() >= 200 && response.status() < 300) {
               void response.json().then((body) => {
-                firstPageRowCount = Array.isArray(body) ? body.length : Array.isArray(body?.rows) ? body.rows.length : -1;
+                const rows = Array.isArray(body) ? body : Array.isArray(body?.rows) ? body.rows : [];
+                responses.push({
+                  scope: parsed.searchParams.get("statusValue") || "__global__",
+                  offset,
+                  limit: Number(parsed.searchParams.get("limit") || "0"),
+                  status: response.status(),
+                  ids: rows.map((row: { id?: string }) => String(row.id || "")).filter(Boolean),
+                  total: Number(body?.total || rows.length),
+                  hasMore: Boolean(body?.hasMore),
+                  revision: typeof body?.revision === "string" ? body.revision : null,
+                });
               }).catch(() => undefined);
             }
           }
         });
         await page.goto(`/workspace/?id=${fixture.workspaceId}`);
         await chooseKanban(page, fixture.boardName);
-        // Assert the first response itself is exactly one bounded page. The DOM
-        // may already contain later pages because Kanban preloads automatically.
-        await expect.poll(() => firstPageRowCount, { timeout: 30_000 }).toBe(Math.min(100, size));
+        // The first request is a global status-column prefix. Column-scoped
+        // pages are separate requests and must not be counted as the prefix.
+        await expect.poll(
+          () => responses.find((entry) => entry.scope === "__global__" && entry.offset === 0)?.ids.length || 0,
+          { timeout: 30_000 },
+        ).toBe(Math.min(100, size));
         await expect.poll(() => statusCount(page, "Open"), { timeout: 30_000 }).toBe(Math.ceil(size / 2));
         await expect.poll(() => statusCount(page, "Done"), { timeout: 30_000 }).toBe(Math.floor(size / 2));
         const initialRequests = taskRequests.length;
         expect(initialRequests).toBeGreaterThan(0);
 
-        // Kanban must continue fetching sequential pages automatically after the
-        // first 100 rows. There is intentionally no Load more click or scroll
-        // trigger here; Table View retains its own user-driven pagination.
-        await expect.poll(() => loadedTasks(page, fixture.marker), { timeout: 60_000 }).toBe(size);
-        // A failed attempt and its retry are two browser requests but only one
-        // successful pagination response. Count responses for the logical page
-        // metric, while retaining taskRequests for transport diagnostics.
-        expect(successfulPaginationResponses).toBe(Math.ceil(Math.max(0, size - 100) / 100));
+        const scrollColumn = async (status: string) => {
+          const column = page.locator(`[data-rfd-droppable-id="kanban:${status}"]`);
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            await column.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+            await page.waitForTimeout(150);
+          }
+        };
+        if (size > 100) {
+          await scrollColumn("Open");
+          await scrollColumn("Done");
+        }
+
+        // Verify the response bodies, not just server totals: every fixture ID
+        // must be observed and each scoped page must use the stable revision.
+        await expect.poll(
+          () => new Set(responses.flatMap((entry) => entry.ids)).size,
+          { timeout: 60_000 },
+        ).toBe(size);
+        const globalIds = new Set(responses.filter((entry) => entry.scope === "__global__").flatMap((entry) => entry.ids));
+        const scopedPages = responses.filter((entry) => entry.scope !== "__global__");
+        const scopedIdsOutsideGlobalPrefix = new Set(scopedPages.flatMap((entry) => entry.ids).filter((id) => !globalIds.has(id)));
+        expect(new Set([...globalIds, ...scopedIdsOutsideGlobalPrefix]).size).toBe(size);
+        for (const entry of responses.filter((candidate) => candidate.scope !== "__global__")) {
+          expect(entry.limit).toBe(100);
+          expect(entry.revision).toBeTruthy();
+          expect(entry.total).toBe(entry.scope === "Open" ? Math.ceil(size / 2) : Math.floor(size / 2));
+        }
+        for (const scope of ["Open", "Done"]) {
+          const scopeResponses = responses.filter((entry) => entry.scope === scope);
+          const ordered = [...new Map(scopeResponses.map((entry) => [entry.offset, entry])).values()]
+            .sort((left, right) => left.offset - right.offset);
+          const scopePrefixIds = new Set(responses.filter((entry) => entry.scope === "__global__").flatMap((entry) => entry.ids));
+          for (let index = 1; index < ordered.length; index += 1) {
+            const previous = ordered[index - 1];
+            const current = ordered[index];
+            expect(current.offset).toBe(previous.offset + previous.ids.length);
+            expect(current.revision).toBe(previous.revision);
+            expect(current.total).toBe(previous.total);
+          }
+          const seenOutsidePrefix = new Set<string>();
+          for (const entry of ordered) {
+            for (const id of entry.ids) {
+              if (scopePrefixIds.has(id)) continue;
+              expect(seenOutsidePrefix.has(id)).toBe(false);
+              seenOutsidePrefix.add(id);
+            }
+          }
+          const last = ordered.at(-1);
+          if (last) expect(last.hasMore).toBe(false);
+        }
 
         const beforeIdle = taskRequests.length;
         await page.waitForTimeout(10_000);
@@ -166,7 +217,30 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
 
         if (size === 101) {
           await page.getByText(fixture.boardName, { exact: true }).click();
-          await expect(page.getByText(`${fixture.marker} Task 0101`, { exact: true })).toBeVisible();
+          const openColumn = page.locator('[data-rfd-droppable-id="kanban:Open"]');
+          await openColumn.evaluate((element) => {
+            element.scrollTop = 0;
+            element.dispatchEvent(new Event("scroll", { bubbles: true }));
+          });
+          const target = page.getByText(`${fixture.marker} Task 0101`, { exact: true });
+          let reachedTarget = false;
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            if (await target.isVisible().catch(() => false)) {
+              reachedTarget = true;
+              break;
+            }
+            const progressed = await openColumn.evaluate((element) => {
+              const before = element.scrollTop;
+              const step = Math.max(1, element.clientHeight * 0.8);
+              element.scrollTop = Math.min(element.scrollTop + step, element.scrollHeight - element.clientHeight);
+              element.dispatchEvent(new Event("scroll", { bubbles: true }));
+              return element.scrollTop > before;
+            });
+            await page.waitForTimeout(200);
+            if (!progressed && !(await target.isVisible().catch(() => false))) break;
+          }
+          expect(reachedTarget).toBe(true);
+          await expect(target).toBeVisible();
         }
     } finally {
       await fixture.client.query("DELETE FROM workspaces WHERE id=$1", [fixture.workspaceId]).catch(() => undefined);
