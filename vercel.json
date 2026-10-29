@@ -1,5 +1,9 @@
 {
   "buildCommand": "npm run vercel-build",
+  "crons": [
+    { "path": "/api/automation/due", "schedule": "* * * * *" },
+    { "path": "/api/scheduled-messages/due", "schedule": "* * * * *" }
+  ],
   "git": {
     "deploymentEnabled": {
       "fix/production-schema-compatibility-20261014": false,

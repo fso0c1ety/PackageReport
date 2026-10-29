@@ -81,40 +81,47 @@ function getFileIdentifier(file) {
 }
 
 async function processDueScheduledMessages(table, rows) {
+  const lock = await pool.query("SELECT pg_try_advisory_lock(hashtext('smartmanage:scheduled-messages:v1')) AS acquired");
+  if (!lock.rows[0]?.acquired) return false;
+
   let anyChanged = false;
-  // Multiple due messages can reference the same legacy sender name. Resolve
-  // that name once per batch instead of issuing one lookup per message.
-  const senderIdsByName = new Map();
-  for (const row of rows) {
-    const values = row.values && typeof row.values === "object" ? row.values : {};
-    const messages = toArray(values.message);
-    let rowChanged = false;
-    for (const message of messages) {
-      if (!message?.scheduledFor || message.notificationSent || new Date(message.scheduledFor) > new Date()) continue;
-      let senderId = message.senderId || null;
-      if (!senderId && message.sender) {
-        if (!senderIdsByName.has(message.sender)) {
-          const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
-          senderIdsByName.set(message.sender, senderResult.rows[0]?.id || null);
+  try {
+    // Multiple due messages can reference the same legacy sender name. Resolve
+    // that name once per batch instead of issuing one lookup per message.
+    const senderIdsByName = new Map();
+    for (const row of rows) {
+      const values = row.values && typeof row.values === "object" ? row.values : {};
+      const messages = toArray(values.message);
+      let rowChanged = false;
+      for (const message of messages) {
+        if (!message?.scheduledFor || message.notificationSent || new Date(message.scheduledFor) > new Date()) continue;
+        let senderId = message.senderId || null;
+        if (!senderId && message.sender) {
+          if (!senderIdsByName.has(message.sender)) {
+            const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
+            senderIdsByName.set(message.sender, senderResult.rows[0]?.id || null);
+          }
+          senderId = senderIdsByName.get(message.sender);
         }
-        senderId = senderIdsByName.get(message.sender);
+        const taskName = getTaskName(table, values);
+        const body = `${message.sender || "User"} scheduled a message on ${taskName}: ${message.text || "Scheduled message"}`;
+        await sendTableNotification({ table, senderId, type: "task_chat", title: "Scheduled Discussion", body, taskId: row.id, extraData: { taskName, scheduledMessageId: message.id } });
+        if (senderId) {
+          await pool.query(`INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at,dedupe_key) VALUES($1,$2,NULL,'task_chat',$3,FALSE,NOW(),$4) ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [uuidv4(), senderId, { subject: "Scheduled Discussion", body, tableId: table.id, workspaceId: table.workspace_id, taskId: row.id, taskName }, `scheduled-message:${message.id || `${row.id}:${message.scheduledFor}`}:${senderId}`]);
+        }
+        message.notificationSent = true;
+        message.deliveredAt = new Date().toISOString();
+        rowChanged = true;
       }
-      const taskName = getTaskName(table, values);
-      const body = `${message.sender || "User"} scheduled a message on ${taskName}: ${message.text || "Scheduled message"}`;
-      await sendTableNotification({ table, senderId, type: "task_chat", title: "Scheduled Discussion", body, taskId: row.id, extraData: { taskName, scheduledMessageId: message.id } });
-      if (senderId) {
-        await pool.query(`INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,NULL,'task_chat',$3,FALSE,NOW())`, [uuidv4(), senderId, { subject: "Scheduled Discussion", body, tableId: table.id, workspaceId: table.workspace_id, taskId: row.id, taskName }]);
+      if (rowChanged) {
+        values.message = messages;
+        await pool.query("UPDATE rows SET values=$1 WHERE id=$2", [JSON.stringify(values), row.id]);
+        row.values = values;
+        anyChanged = true;
       }
-      message.notificationSent = true;
-      message.deliveredAt = new Date().toISOString();
-      rowChanged = true;
     }
-    if (rowChanged) {
-      values.message = messages;
-      await pool.query("UPDATE rows SET values=$1 WHERE id=$2", [JSON.stringify(values), row.id]);
-      row.values = values;
-      anyChanged = true;
-    }
+  } finally {
+    await pool.query("SELECT pg_advisory_unlock(hashtext('smartmanage:scheduled-messages:v1'))").catch(() => {});
   }
   return anyChanged;
 }

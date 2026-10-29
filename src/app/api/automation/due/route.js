@@ -13,8 +13,9 @@ const SCHEDULER_LEASE_SECONDS = 600;
 const SCHEDULER_PURPOSE = "smart-manage:scheduled-automations:v1";
 
 function isAuthorizedSchedulerRequest(req) {
-  if (!SECRET_KEY) return false;
   const supplied = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  if (process.env.CRON_SECRET && supplied === process.env.CRON_SECRET) return true;
+  if (!SECRET_KEY) return false;
   const expected = createHmac("sha256", SECRET_KEY).update(SCHEDULER_PURPOSE).digest("hex");
   const suppliedBuffer = Buffer.from(supplied);
   const expectedBuffer = Buffer.from(expected);
@@ -57,6 +58,7 @@ async function processCalendarReminders() {
     SET reminder_sent_at=NOW()
     WHERE reminder_sent_at IS NULL
       AND starts_at<=NOW() AND starts_at>=NOW()-INTERVAL '24 hours'
+      AND EXISTS (SELECT 1 FROM users u WHERE u.id=calendar_events.user_id)
     RETURNING id,user_id,title,event_type
   `);
   for (const event of due.rows) {
@@ -149,7 +151,9 @@ export async function GET(req) {
       const claim = await pool.query(`
         INSERT INTO automation_runs (id,automation_id,table_id,row_id,idempotency_key,trigger_type,input,actions,scheduled_for,status,started_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,'running',NOW())
-        ON CONFLICT (idempotency_key) DO NOTHING
+        ON CONFLICT (idempotency_key) DO UPDATE SET
+          status='running', started_at=NOW(), finished_at=NULL, error_message=NULL
+          WHERE automation_runs.status='failed'
         RETURNING id
       `, [randomUUID(), String(item.id), item.table_id, item.row_id, scheduledKey, item.effective_trigger_type, JSON.stringify({ values: item.values, scheduledFor: rawValue }), JSON.stringify(definition?.actions || []), scheduled]);
       if (claim.rows.length === 0) continue;
