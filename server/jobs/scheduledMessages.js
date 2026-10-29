@@ -10,7 +10,10 @@ async function processScheduledMessages({ db, sendNotification, logger }) {
     const messages = row.values.message;
     if (!Array.isArray(messages)) continue;
 
-    const tableResult = await db.query("SELECT * FROM tables WHERE id = $1", [row.table_id]);
+    const tableResult = await db.query(
+      "SELECT id, name, workspace_id, columns, shared_users FROM tables WHERE id = $1",
+      [row.table_id],
+    );
     const table = tableResult.rows[0];
     if (!table) continue;
 
