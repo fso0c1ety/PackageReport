@@ -24,7 +24,7 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
             const recipientsArray = Array.from(recipientIds);
             
             // 1. Send Push Notifications
-            const tokensRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = ANY($1)', [recipientsArray]);
+            const tokensRes = await db.query('SELECT id, fcm_token, fcm_tokens FROM users WHERE id = ANY($1)', [recipientsArray]);
             const validRecipients = filterExistingRecipients(recipientsArray, tokensRes.rows);
             let tokens = new Set();
             tokensRes.rows.forEach(r => {
