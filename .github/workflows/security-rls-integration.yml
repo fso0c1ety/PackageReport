@@ -45,7 +45,42 @@ jobs:
       - name: Prepare audited schema fixture and initial grants
         run: node scripts/security-schema-fixture.cjs
       - name: Apply isolated migration chain
+        run: |
+          # Build the real prerequisite schema before the two security changes.
+          targets=$(node -e "console.log(require('fs').readdirSync('server/db/migrations').filter(f=>f.endsWith('.sql')&&f<'047a').sort().join(','))")
+          MIGRATION_TARGET="$targets" npm run db:migrate
+      - name: Preserve pre-migration recovery snapshot
+        env:
+          PGPASSWORD: security-ci-local-only
+        run: |
+          set -euo pipefail
+          mkdir -p security-evidence
+          psql -h 127.0.0.1 -U postgres -d smart_manage_security_test -v ON_ERROR_STOP=1 -c "CREATE TABLE public.recovery_probe(id integer PRIMARY KEY, parent_id integer REFERENCES public.recovery_probe(id)); INSERT INTO public.recovery_probe VALUES(1,NULL),(2,1); GRANT SELECT ON public.recovery_probe TO anon;"
+          pg_dump -h 127.0.0.1 -U postgres -Fc smart_manage_security_test -f /tmp/security-before.dump
+          sha256sum /tmp/security-before.dump > security-evidence/pre-migration.sha256
+      - name: Apply security migrations
         run: npm run db:migrate
+      - name: Restore pre-migration snapshot to separate database
+        env:
+          PGPASSWORD: security-ci-local-only
+        run: |
+          set -euo pipefail
+          createdb -h 127.0.0.1 -U postgres security_before_recovery
+          pg_restore -h 127.0.0.1 -U postgres --exit-on-error -d security_before_recovery /tmp/security-before.dump
+          psql -h 127.0.0.1 -U postgres -d security_before_recovery -v ON_ERROR_STOP=1 <<'SQL' > security-evidence/pre-migration-restore.txt
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM public.recovery_probe) <> 2 THEN RAISE EXCEPTION 'pre-migration data lost'; END IF;
+            IF NOT has_table_privilege('anon','public.recovery_probe','SELECT') THEN RAISE EXCEPTION 'original grant lost'; END IF;
+            IF EXISTS(SELECT 1 FROM schema_migrations WHERE filename LIKE '048%' OR filename LIKE '047a%') THEN RAISE EXCEPTION 'wrong recovery point'; END IF;
+            BEGIN
+              INSERT INTO public.recovery_probe VALUES(3,999);
+              RAISE EXCEPTION 'foreign key missing';
+            EXCEPTION WHEN foreign_key_violation THEN NULL;
+            END;
+          END $$;
+          SELECT 'pre-migration recovery passed' AS result;
+          SQL
+          sha256sum --check security-evidence/pre-migration.sha256
       - name: Grant isolated backend role after migrations
         run: node scripts/security-schema-fixture.cjs --after-migrations
       - name: Run real PostgreSQL role checks
