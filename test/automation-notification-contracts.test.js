@@ -32,7 +32,7 @@ test("notification delivery respects board and record access and supports idempo
   assert.match(helper, /ON CONFLICT \(dedupe_key\)/);
   assert.match(migration, /UNIQUE INDEX[\s\S]*notifications\(dedupe_key\)/);
   assert.ok(read('server','db','migrations','031_notification_delivery_idempotency.sql').length > 0);
-  assert.match(helper, /existingUserIds/);
+  assert.match(helper, /existingRecipientIds/);
   assert.match(helper, /validRecipients/);
 });
 
