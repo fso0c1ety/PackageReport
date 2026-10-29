@@ -100,11 +100,16 @@ export async function sendTableNotification({
     `,
     [recipients]
   );
+  const existingUserIds = new Set(userRes.rows.map((user) => String(user.id)));
+  const validRecipients = recipients.filter((recipientId) => existingUserIds.has(String(recipientId)));
+  if (validRecipients.length === 0) {
+    return { recipientCount: 0, successCount: 0, failureCount: 0 };
+  }
 
   const tokenSet = new Set();
   const insertedRecipientIds = new Set();
   const realtimeBroadcasts = [];
-  for (const recipientId of recipients) {
+  for (const recipientId of validRecipients) {
     const dedupeKey = extraData?.dedupeKey ? `${String(extraData.dedupeKey)}:${recipientId}` : null;
     const inserted = await pool.query(
       `INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at, dedupe_key)
