@@ -52,6 +52,11 @@ if (!enabled) {
       }
     }
     console.log(JSON.stringify({ kind: 'restricted-crud-matrix', assertions: matrix.length, matrix }));
+    require('node:fs').mkdirSync('security-evidence', { recursive: true });
+    require('node:fs').writeFileSync('security-evidence/crud-matrix.json', JSON.stringify({
+      sha: process.env.GITHUB_SHA || null, assertions: matrix.length,
+      passed: matrix.filter((entry) => entry.pass).length, matrix,
+    }, null, 2));
     assert.equal(matrix.length, 232);
     assert.deepEqual(matrix.filter((entry) => !entry.pass), []);
   });

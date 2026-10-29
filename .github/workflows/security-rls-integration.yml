@@ -52,3 +52,10 @@ jobs:
         run: node --test test/security-rls-postgres.integration.js
       - name: Run migration 048 negative-access checks
         run: node --test test/public-rls-hotfix-048-postgres.integration.js
+      - name: Preserve executed CRUD matrix
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-crud-matrix-${{ github.sha }}
+          path: security-evidence/crud-matrix.json
+          if-no-files-found: error
