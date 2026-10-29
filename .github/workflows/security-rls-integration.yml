@@ -81,6 +81,9 @@ jobs:
           END $$;
           SELECT 'synthetic restore integrity passed' AS result;
           SQL
+          # Repeat the same role assertions against the restored schema/ACLs.
+          DATABASE_URL=postgresql://postgres:security-ci-local-only@127.0.0.1:5432/security_restore_test node --test test/security-rls-postgres.integration.js test/public-rls-hotfix-048-postgres.integration.js
+          sha256sum --check security-evidence/backup.sha256
       - name: Preserve executed CRUD matrix
         if: always()
         uses: actions/upload-artifact@v4
