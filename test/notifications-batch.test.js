@@ -37,7 +37,7 @@ test('legacy notification helper skips deleted recipients before insert', async 
   originalDb.query = async (sql, params) => {
     if (sql.includes('FROM workspaces')) return { rows: [{ owner_id: 'deleted-owner' }] };
     if (sql.includes('SELECT id FROM users')) return { rows: [{ id: 'valid-user' }] };
-    if (sql.includes('SELECT fcm_token')) return { rows: [{ id: 'valid-user', fcm_token: null, fcm_tokens: [] }] };
+    if (sql.includes('SELECT id, fcm_token')) return { rows: [{ id: 'valid-user', fcm_token: null, fcm_tokens: [] }] };
     if (sql.includes('INSERT INTO notifications')) inserted.push(params[1]);
     return { rows: [] };
   };
