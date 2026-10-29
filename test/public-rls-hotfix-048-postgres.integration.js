@@ -21,6 +21,41 @@ if (!enabled) {
   test.before(() => client.connect());
   test.after(() => client.end());
 
+  test('executes all 232 restricted-role CRUD attempts with SQLSTATE evidence', async () => {
+    const matrix = [];
+    for (const table of tables) {
+      // Resolve a real writable column so UPDATE cannot fail at parse time.
+      const columns = await client.query(`SELECT attname FROM pg_attribute
+        WHERE attrelid=$1::regclass AND attnum>0 AND NOT attisdropped
+          AND attgenerated='' ORDER BY attnum LIMIT 1`, [`public.${table}`]);
+      assert.equal(columns.rowCount, 1, `fixture column ${table}`);
+      const quote = (value) => '"' + value.replaceAll('"', '""') + '"';
+      const relation = `public.${quote(table)}`;
+      const column = quote(columns.rows[0].attname);
+      const statements = {
+        SELECT: `SELECT * FROM ${relation} LIMIT 1`,
+        INSERT: `INSERT INTO ${relation} DEFAULT VALUES`,
+        UPDATE: `UPDATE ${relation} SET ${column}=${column} WHERE FALSE`,
+        DELETE: `DELETE FROM ${relation} WHERE FALSE`,
+      };
+      for (const role of ['anon', 'authenticated']) {
+        for (const [operation, sql] of Object.entries(statements)) {
+          await client.query('BEGIN');
+          let code = null;
+          try {
+            await client.query(`SET LOCAL ROLE ${quote(role)}`);
+            await client.query(sql);
+          } catch (error) { code = error.code; }
+          finally { await client.query('ROLLBACK'); }
+          matrix.push({ table, role, operation, sqlstate: code, pass: code === '42501' });
+        }
+      }
+    }
+    console.log(JSON.stringify({ kind: 'restricted-crud-matrix', assertions: matrix.length, matrix }));
+    assert.equal(matrix.length, 232);
+    assert.deepEqual(matrix.filter((entry) => !entry.pass), []);
+  });
+
   test('all 29 sensitive tables deny PUBLIC-inherited and effective anon/authenticated CRUD', async () => {
     for (const table of tables) {
       const publicAcl = await client.query(`
