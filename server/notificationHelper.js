@@ -1,6 +1,7 @@
 const db = require('./db');
 const { v4: uuidv4 } = require('uuid');
 const { sendPushNotification } = require('./firebase'); 
+const { filterExistingRecipients } = require('./notificationRecipients');
 
 async function sendNotification(title, body, type, data, table, excludeUserId = null) {
     try {
@@ -24,6 +25,7 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
             
             // 1. Send Push Notifications
             const tokensRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = ANY($1)', [recipientsArray]);
+            const validRecipients = filterExistingRecipients(recipientsArray, tokensRes.rows);
             let tokens = new Set();
             tokensRes.rows.forEach(r => {
                 if (r.fcm_token) tokens.add(r.fcm_token);
@@ -45,7 +47,7 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
             
             // 2. Save In-App Notifications
             if (table) {
-                for (const recipientId of recipientsArray) {
+                for (const recipientId of validRecipients) {
                     await db.query(`
                         INSERT INTO notifications (id, recipient_id, type, data, read, created_at)
                         VALUES ($1, $2, $3, $4, $5, NOW())
@@ -97,6 +99,8 @@ async function sendDirectNotification(recipientId, title, body, type, data) {
                 );
             }
         }
+
+        if (tokenRes.rows.length === 0) return;
 
         // 2. Save In-App Notification
         await db.query(`
