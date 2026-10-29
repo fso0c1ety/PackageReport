@@ -20,7 +20,14 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
         if (excludeUserId) recipientIds.delete(excludeUserId);
         
         if (recipientIds.size > 0) {
-            const recipientsArray = Array.from(recipientIds);
+            const candidateRecipients = Array.from(recipientIds);
+            const existingRecipients = await db.query(
+                'SELECT id FROM users WHERE id = ANY($1)',
+                [candidateRecipients],
+            );
+            const validRecipientIds = new Set(existingRecipients.rows.map((row) => String(row.id)));
+            const recipientsArray = candidateRecipients.filter((recipientId) => validRecipientIds.has(String(recipientId)));
+            if (recipientsArray.length === 0) return;
             
             // 1. Send Push Notifications
             const tokensRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = ANY($1)', [recipientsArray]);
@@ -69,8 +76,10 @@ async function sendNotification(title, body, type, data, table, excludeUserId = 
 async function sendDirectNotification(recipientId, title, body, type, data) {
     try {
         const safeData = data || {};
+        const recipientRes = await db.query('SELECT id, fcm_token, fcm_tokens FROM users WHERE id = $1', [recipientId]);
+        if (recipientRes.rows.length === 0) return;
         // 1. Send Push Notification if tokens exist
-        const tokenRes = await db.query('SELECT fcm_token, fcm_tokens FROM users WHERE id = $1', [recipientId]);
+        const tokenRes = recipientRes;
         if (tokenRes.rows.length > 0) {
             const r = tokenRes.rows[0];
             let tokens = new Set();

@@ -38,6 +38,12 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.118.0
+      - name: Avoid runner-local Inbucket port collision
+        shell: bash
+        run: |
+          # The hosted runner may reserve Supabase's default Inbucket UI port.
+          # Keep Inbucket enabled, but use an isolated high port for this job.
+          sed -i 's/^port = 54324$/port = 55424/' supabase/config.toml
       - name: Start isolated local Supabase Realtime
         shell: bash
         run: |

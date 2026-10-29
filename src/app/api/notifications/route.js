@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, pool } from "../_lib/server";
 import { requireBoardPermission, requireRowPermission } from "../_lib/authorization";
+import requestReads from "../../../../server/db/requestReadPool.cjs";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ export async function GET(req) {
   }
 
   try {
+    const permissionPool = requestReads.requestReadPool(pool);
     const url = new URL(req.url);
     const typeFilter = String(url.searchParams.get("type") || "").trim();
     const workspaceFilter = String(url.searchParams.get("workspaceId") || "").trim();
@@ -67,14 +69,14 @@ export async function GET(req) {
       }
       if (data.taskId && data.tableId) {
         const key = `${data.taskId}:${data.tableId}`;
-        if (!rowPermissionCache.has(key)) rowPermissionCache.set(key, requireRowPermission(pool, user.id, data.taskId, "viewer", data.tableId));
+        if (!rowPermissionCache.has(key)) rowPermissionCache.set(key, requireRowPermission(permissionPool, user.id, data.taskId, "viewer", data.tableId));
         return await rowPermissionCache.get(key)
           ? notification
           : null;
       }
       if (data.tableId) {
         const key = String(data.tableId);
-        if (!boardPermissionCache.has(key)) boardPermissionCache.set(key, requireBoardPermission(pool, user.id, data.tableId, "viewer"));
+        if (!boardPermissionCache.has(key)) boardPermissionCache.set(key, requireBoardPermission(permissionPool, user.id, data.tableId, "viewer"));
         return await boardPermissionCache.get(key)
           ? notification
           : null;

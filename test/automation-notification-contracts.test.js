@@ -32,12 +32,14 @@ test("notification delivery respects board and record access and supports idempo
   assert.match(helper, /ON CONFLICT \(dedupe_key\)/);
   assert.match(migration, /UNIQUE INDEX[\s\S]*notifications\(dedupe_key\)/);
   assert.ok(read('server','db','migrations','031_notification_delivery_idempotency.sql').length > 0);
+  assert.match(helper, /existingUserIds/);
+  assert.match(helper, /validRecipients/);
 });
 
 test("notification reads discard revoked or unauthorized deep links", () => {
   const source = read("src", "app", "api", "notifications", "route.js");
-  assert.match(source, /requireRowPermission\(pool, user\.id, data\.taskId/);
-  assert.match(source, /requireBoardPermission\(pool, user\.id, data\.tableId/);
+  assert.match(source, /requireRowPermission\(permissionPool, user\.id, data\.taskId/);
+  assert.match(source, /requireBoardPermission\(permissionPool, user\.id, data\.tableId/);
 });
 
 test("automation execution keys are per event and not permanently tied to a repeated value", () => {
