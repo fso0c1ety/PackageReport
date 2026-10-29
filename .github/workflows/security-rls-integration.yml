@@ -84,6 +84,17 @@ jobs:
           # Repeat the same role assertions against the restored schema/ACLs.
           DATABASE_URL=postgresql://postgres:security-ci-local-only@127.0.0.1:5432/security_restore_test node --test test/security-rls-postgres.integration.js test/public-rls-hotfix-048-postgres.integration.js
           sha256sum --check security-evidence/backup.sha256
+          # pg_dump excludes global roles. Verify restoration in a new cluster,
+          # explicitly recreating only the fixture roles, without source grants.
+          docker run -d --name security-fresh-restore -e POSTGRES_PASSWORD=restore-local-only -e POSTGRES_DB=security_restore_fresh -p 127.0.0.1:55439:5432 postgres:17
+          for attempt in $(seq 1 30); do
+            docker exec security-fresh-restore pg_isready -U postgres && break
+            sleep 2
+          done
+          docker exec security-fresh-restore psql -U postgres -d security_restore_fresh -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;'
+          docker exec -i security-fresh-restore pg_restore -U postgres -d security_restore_fresh --exit-on-error < /tmp/security-synthetic.dump
+          DATABASE_URL=postgresql://postgres:restore-local-only@127.0.0.1:55439/security_restore_fresh node --test test/public-rls-hotfix-048-postgres.integration.js
+          docker rm -f security-fresh-restore
       - name: Preserve executed CRUD matrix
         if: always()
         uses: actions/upload-artifact@v4
