@@ -37,6 +37,7 @@ import { v4 as uuidv4 } from "uuid";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getFallbackVirtualRows } from './tableVirtualization';
+import taskPagination from './board/taskPageCache.cjs';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import {
@@ -130,6 +131,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import BackupTableIcon from '@mui/icons-material/BackupTable';
 import { supabase } from "../lib/supabase";
 import { downloadStoredInvoicePdf } from "./invoicePdfDownload";
+import KanbanVirtualColumn from "./KanbanVirtualColumn";
 
 type TableRealtimeListener = (message: any) => void;
 type TableRealtimeStatusListener = (status: string) => void;
@@ -1751,10 +1753,14 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   const loadMoreRowsRef = React.useRef<(() => Promise<void>) | null>(null);
   const retryLoadTableRef = React.useRef<(() => void) | null>(null);
   const kanbanCountsRequestRef = React.useRef<string | null>(null);
+  const kanbanStatusLoadersRef = React.useRef<Map<string, () => Promise<void>>>(new Map());
+  const taskPagerRef = React.useRef<any>(null);
+  const taskRecoveryRef = React.useRef<any>(null);
   const totalRowsRef = React.useRef(0);
   const nextRowsOffsetRef = React.useRef(0);
   const loadingMoreRowsRef = React.useRef(false);
   const [hasMoreRows, setHasMoreRows] = useState(false);
+  const [loadingAllTasks, setLoadingAllTasks] = useState(false);
   const [mobileTableHeight, setMobileTableHeight] = useState<number | null>(null);
   const rowDragOriginLeftRef = React.useRef<number | null>(null);
   const columnDragOriginTopRef = React.useRef<number | null>(null);
@@ -3338,6 +3344,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [isMobile]);
 
   const chatRequestIdRef = React.useRef(0);
+  const nativeWindowVisibleRef = React.useRef<boolean | null>(null);
   const profileSyncRef = React.useRef(false);
   const chatTaskIdRef = React.useRef<string | null>(null);
   const chatRevalidationRef = React.useRef<{ rowId: string; startedAt: number; promise: Promise<any | null> } | null>(null);
@@ -3347,6 +3354,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!tableId) return;
   let cancelled = false;
   setLoading(true);
+  setRows([]);
+  totalRowsRef.current = 0;
+  nextRowsOffsetRef.current = 0;
+  setHasMoreRows(false);
+  setKanbanStatusCounts({});
   kanbanCountsRequestRef.current = null;
 
   const userJson = localStorage.getItem("user");
@@ -3391,100 +3403,150 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   if (!tableRes.ok) throw new Error("Failed to fetch table info");
   const table = await tableRes.json();
   const tableColumns = table.columns || [];
-  const firstRowsRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true });
-  if (!firstRowsRes.ok) throw new Error(`Failed to fetch table tasks (${firstRowsRes.status})`);
-
-  const firstPage = await firstRowsRes.json();
-  if (cancelled) return;
   setBoardTitle(table.name);
   setColumns(tableColumns);
   setDocContent(table.docContent || "");
-  if (table.workspace_owner_id === currentUserId) {
-  setUserPermission('owner');
-  } else {
-  const shared = table.shared_users || [];
-  const myShare = shared.find((u: any) => u.userId === currentUserId);
-  setUserPermission(myShare ? myShare.permission : 'read');
+  const myShare = (table.shared_users || []).find((share: any) => share.userId === currentUserId);
+  setUserPermission(table.workspace_owner_id === currentUserId ? 'owner' : (myShare?.permission || 'read'));
+  taskPagerRef.current?.dispose();
+  const statusColumnId = tableColumns.find((column: Column) => column.type === 'Status')?.id;
+  const globalScope = statusColumnId ? { statusColumnId } : {};
+  const pager = taskPagination.createTaskPager({
+    identity: { userId: currentUserId, workspaceId: table.workspace_id, tableId },
+    isHidden: () => nativeWindowVisibleRef.current === false || (nativeWindowVisibleRef.current === null && document.hidden),
+    pendingValues: () => pendingCellValuesRef.current,
+    pendingRows: () => rowsRef.current.filter(row => pendingTaskCreationsRef.current.has(row.id)),
+    onDiagnostic: (event: any) => {
+      const diagnostics = (window as any).__smartManageKanbanDiagnostics || ((window as any).__smartManageKanbanDiagnostics = []);
+      diagnostics.push({ ...event, tableId: String(tableId), workspaceView });
+    },
+    fetchPage: (params: Record<string, any>, signal: AbortSignal) => {
+      const query = new URLSearchParams({ pagination: 'consistent', ...Object.fromEntries(Object.entries(params).map(([key,value]) => [key,String(value)])) });
+      return authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?${query}`), {
+        signal, suppressNativeErrorAlert: true, handleAuthErrors: false
+      });
+    },
+    onChange: (snapshot: any) => {
+      if (cancelled) return;
+      totalRowsRef.current = snapshot.total;
+      nextRowsOffsetRef.current = snapshot.global?.rows.length || 0;
+      setHasMoreRows(Boolean(snapshot.global?.hasMore && !snapshot.complete));
+      setKanbanStatusCounts(snapshot.statusCounts);
+      setRows(normalizeRows(snapshot.rows));
+      setKanbanLoadError(null);
+    }
+  });
+  taskPagerRef.current = pager;
+  try { await pager.load(globalScope); }
+  catch (error) {
+    if (!cancelled && (error as Error).name === 'AbortError') await pager.load(globalScope);
+    else throw error;
   }
-
-  const firstRows = normalizeRows(Array.isArray(firstPage) ? firstPage : firstPage.rows || []);
-  const totalRows = Array.isArray(firstPage) ? firstRows.length : Number(firstPage.total || 0);
-  totalRowsRef.current = totalRows;
-  nextRowsOffsetRef.current = firstRows.length;
-  setHasMoreRows(firstRows.length < totalRows);
-  setKanbanStatusCounts({});
-  setKanbanLoadError(null);
-  if (firstRows.length > 0) {
-  setRows(firstRows);
-  } else if (totalRows === 0) {
-  setRows([{ id: 'placeholder', values: Object.fromEntries(tableColumns.map((col: Column) => [col.id, col.type === 'People' ? [] : ''])) }]);
-  }
+  if (cancelled) return;
   setLoading(false);
-
   loadMoreRowsRef.current = async () => {
-  if (cancelled || loadingMoreRowsRef.current || nextRowsOffsetRef.current >= totalRowsRef.current) return;
-  loadingMoreRowsRef.current = true;
-  const offset = nextRowsOffsetRef.current;
-  try {
-    const pageRes = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=100&offset=${offset}`));
-    if (!pageRes.ok) throw new Error(`Failed to fetch more table tasks (${pageRes.status})`);
-    const page = await pageRes.json();
-    const pageRows = normalizeRows(Array.isArray(page) ? page : page.rows || []);
-    if (cancelled || pageRows.length === 0) return;
-    setRows((current) => {
-      const existingIds = new Set(current.map((row) => row.id));
-      return [...current.filter((row) => row.id !== 'placeholder'), ...pageRows.filter((row) => !existingIds.has(row.id))];
-    });
-    nextRowsOffsetRef.current += pageRows.length;
-    setHasMoreRows(nextRowsOffsetRef.current < totalRowsRef.current);
-    setKanbanLoadError(null);
-  } catch (error) {
-    setKanbanLoadError(error instanceof Error ? error.message : "Failed to load more tasks");
-  } finally {
-    loadingMoreRowsRef.current = false;
-  }
+    if (cancelled) return;
+    try { await pager.load(globalScope, true); }
+    catch (error) { if (!cancelled && (error as Error).name !== 'AbortError') setKanbanLoadError((error as Error).message); }
   };
+  setLoadingAllTasks(true);
+  void pager.loadAll(globalScope, {
+    onProgress: () => {
+      const snapshot = pager.snapshot();
+      if (!cancelled) {
+        totalRowsRef.current = snapshot.total;
+        setHasMoreRows(Boolean(snapshot.global?.hasMore && !snapshot.complete));
+      }
+    },
+  }).catch(error => {
+    if (!cancelled && (error as Error).name !== 'AbortError') setKanbanLoadError((error as Error).message);
+  }).finally(() => { if (!cancelled) setLoadingAllTasks(false); });
   } catch (err) {
   if (!cancelled) {
   console.error("Failed to fetch table data", err);
-  setRows([]);
     setLoading(false);
-    setKanbanLoadError(err instanceof Error ? err.message : "Failed to load tasks");
+    setKanbanLoadError(`${err instanceof Error ? err.message : "Failed to load tasks"} [TASK_LOAD_FAILED]`);
   }
   }
   };
   retryLoadTableRef.current = () => { void loadTable(); };
 
   void loadTable();
-  return () => { cancelled = true; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; kanbanCountsRequestRef.current = null; };
+  return () => { cancelled = true; taskPagerRef.current?.dispose(); taskPagerRef.current = null; loadMoreRowsRef.current = null; retryLoadTableRef.current = null; kanbanCountsRequestRef.current = null; };
   }, [tableId]); // columns.length should not trigger re-fetch of basic table info
 
   useEffect(() => {
-  if (workspaceView !== 'kanban' || !tableId) return;
-  let active = true;
-  const preloadKanbanRows = async () => {
-    while (active && loadMoreRowsRef.current) {
-      const before = nextRowsOffsetRef.current;
-      await loadMoreRowsRef.current();
-      if (!active || nextRowsOffsetRef.current <= before || nextRowsOffsetRef.current >= totalRowsRef.current) break;
-    }
-  };
-  void preloadKanbanRows();
-  return () => { active = false; };
-  }, [workspaceView, tableId]);
+    const applyNativeVisibility = (state?: { isVisible?: boolean }) => {
+      if (typeof state?.isVisible === 'boolean') nativeWindowVisibleRef.current = state.isVisible;
+      if (nativeWindowVisibleRef.current === true || (nativeWindowVisibleRef.current === null && !document.hidden)) {
+        taskPagerRef.current?.resume?.();
+      }
+    };
+    const resumeTaskLoading = () => applyNativeVisibility();
+    document.addEventListener('visibilitychange', resumeTaskLoading);
+    window.addEventListener('focus', resumeTaskLoading);
+    window.addEventListener('pageshow', resumeTaskLoading);
+    const nativeWindow = window.smartManageWindow;
+    const removeNativeVisible = nativeWindow?.onVisible?.(applyNativeVisibility);
+    void nativeWindow?.getState?.().then(applyNativeVisibility).catch(() => undefined);
+    return () => {
+      document.removeEventListener('visibilitychange', resumeTaskLoading);
+      window.removeEventListener('focus', resumeTaskLoading);
+      window.removeEventListener('pageshow', resumeTaskLoading);
+      removeNativeVisible?.();
+      nativeWindowVisibleRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
-  if (workspaceView !== 'kanban' || !tableId) return;
-  const statusColumnId = columns.find((column) => column.type === 'Status')?.id;
-  if (!statusColumnId) return;
-  const requestKey = `${tableId}:${statusColumnId}`;
-  if (kanbanCountsRequestRef.current === requestKey) return;
-  kanbanCountsRequestRef.current = requestKey;
-  void authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks?limit=1&offset=0&statusColumnId=${encodeURIComponent(statusColumnId)}`), { responseCacheTtlMs: 60_000, consumeCachedResponse: true })
-    .then((response) => response.ok ? response.json() : null)
-    .then((data) => { if (data?.statusCounts) setKanbanStatusCounts(data.statusCounts); })
-    .catch(() => { kanbanCountsRequestRef.current = null; });
-  }, [workspaceView, tableId, columns]);
+    const checkSession = () => {
+      const pager = taskPagerRef.current;
+      if (!pager) return;
+      let userId: string | null = null;
+      try { userId = JSON.parse(localStorage.getItem('user') || 'null')?.id || null; } catch { /* invalid session is cleared */ }
+      if (String(pager.identity.userId) !== String(userId)) {
+        pager.revoke();pager.dispose();
+        setKanbanLoadError('Session changed. Reopen this board.');
+      }
+    };
+    checkSession();
+    window.addEventListener('storage',checkSession);
+    return () => window.removeEventListener('storage',checkSession);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (workspaceView !== 'kanban' || !tableId || loading) return;
+    const column = columns.find(item => item.type === 'Status');
+    if (!column || !Array.isArray(column.options)) return;
+    let active = true;
+    const loaders = new Map<string, () => Promise<void>>();
+    column.options.forEach(option => {
+      loaders.set(String(option.value), async () => {
+        if (!active || document.hidden) return;
+        try { await taskPagerRef.current?.load({ statusColumnId: column.id, statusValue: String(option.value) }, true); }
+        catch(error) { if(active && (error as Error).name !== 'AbortError') setKanbanLoadError((error as Error).message); }
+      });
+    });
+    kanbanStatusLoadersRef.current = loaders;
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting) {
+          const status = (entry.target as HTMLElement).dataset.kanbanStatus;
+          if(status !== undefined) void loaders.get(status)?.();
+        }
+      });
+    }, { rootMargin: '0px 0px 180px 0px' });
+    const markers = Array.from(document.querySelectorAll<HTMLElement>('[data-kanban-page-end]'));
+    markers.forEach(marker => observer.observe(marker));
+    const resume = () => { if(!document.hidden) markers.forEach(marker => {observer.unobserve(marker);observer.observe(marker);}); };
+    document.addEventListener('visibilitychange',resume);
+    return () => {
+      active=false;observer.disconnect();
+      document.removeEventListener('visibilitychange',resume);
+      kanbanStatusLoadersRef.current.clear();
+    };
+  }, [workspaceView, tableId, columns, loading]);
+
 
   useEffect(() => {
     const container = tableContainerRef.current;
@@ -3496,7 +3558,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
     };
     container.addEventListener('scroll', onScroll, { passive: true });
     return () => container.removeEventListener('scroll', onScroll);
-  }, [tableId]);
+  }, [tableId, workspaceView]);
 
   // Fleet V2: a Drivers record represents an application user, not free-form text.
   // Existing Drivers boards are upgraded in place while row data is preserved.
@@ -3551,140 +3613,69 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }, [boardTitle, columns, tableId, userPermission]);
 
   useEffect(() => {
-  if (!tableId) return;
-
-  const normalizeRealtimeRow = (row: any): Row => {
-  const values = row?.values ?? {};
-  return {
-  ...row,
-  values: values.message && Array.isArray(values.message)
-  ? { ...values, message: values.message.map(formatChatMessage) }
-  : values,
-  };
-  };
-
-  const sortRowsForRealtime = (nextRows: Row[]) => {
-  return [...nextRows].sort((a, b) => {
-  const aOrder = Number.parseInt(String(a.values?.order ?? ""), 10);
-  const bOrder = Number.parseInt(String(b.values?.order ?? ""), 10);
-  if (!Number.isNaN(aOrder) && !Number.isNaN(bOrder) && aOrder !== bOrder) return aOrder - bOrder;
-  if (!Number.isNaN(aOrder)) return -1;
-  if (!Number.isNaN(bOrder)) return 1;
-  return 0;
-  });
-  };
-
-  let fallbackPollingId: ReturnType<typeof setInterval> | null = null;
-  let fallbackRequestPending = false;
-  const stopFallbackPolling = () => {
-  if (fallbackPollingId) clearInterval(fallbackPollingId);
-  fallbackPollingId = null;
-  };
-  const pollRowsFallback = async () => {
-  if (fallbackRequestPending || document.hidden) return;
-  fallbackRequestPending = true;
-  try {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), { suppressNativeErrorAlert: true });
-  if (!response.ok) return;
-  const data = await response.json();
-  if (!Array.isArray(data)) return;
-  const nextRows = data.map(normalizeRealtimeRow).map((row: Row) => {
-  // A realtime refetch can race an optimistic edit. Keep the newest local
-  // value visible until its ordered mutation has been acknowledged.
-  const values = { ...(row.values ?? {}) };
-  pendingCellValuesRef.current.forEach((pending, key) => {
-  const separator = key.indexOf(":");
-  if (separator < 0 || key.slice(0, separator) !== row.id) return;
-  values[key.slice(separator + 1)] = pending.value;
-  });
-  return { ...row, values };
-  });
-  setRows((current) => {
-  const currentRows = current.filter((row) => row.id !== 'placeholder');
-  const unchanged = currentRows.length === nextRows.length && currentRows.every((row, index) => (
-  row.id === nextRows[index]?.id
-  && (row as any).updated_at === (nextRows[index] as any)?.updated_at
-  && JSON.stringify(row.values ?? {}) === JSON.stringify(nextRows[index]?.values ?? {})
-  ));
-  return unchanged ? current : nextRows;
-  });
-  } catch (error) {
-  console.warn('[TableBoard fallback] Unable to refresh table rows', { tableId, error });
-  } finally {
-  fallbackRequestPending = false;
-  }
-  };
-  const startFallbackPolling = () => {
-  if (fallbackPollingId) return;
-  fallbackPollingId = setInterval(() => { void pollRowsFallback(); }, 15000);
-  };
-
-  let cancelled = false;
-  let subscription: ReturnType<typeof acquireTableRealtimeChannel> | null = null;
-  const setupRealtime = async () => {
-  try {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/realtime-topic`), { suppressNativeErrorAlert: true });
-  if (!response.ok) throw new Error(`Realtime authorization failed (${response.status})`);
-  const data = await response.json();
-  if (cancelled || typeof data?.topic !== 'string') return;
-  subscription = acquireTableRealtimeChannel(tableId, data.topic, (payload) => {
-  const eventType = payload?.eventType;
-  if (eventType === 'DELETE' && typeof payload?.rowId === 'string') {
-  setRows((current) => current.filter((row) => row.id !== payload.rowId));
-  return;
-  }
-  const realtimeRow = normalizeRealtimeRow(payload?.row);
-  if (realtimeRow?.id) {
-  setRows((current) => {
-  const withoutPlaceholder = current.filter((row) => row.id !== 'placeholder');
-  const existing = withoutPlaceholder.find((row) => row.id === realtimeRow.id);
-  const values = { ...(realtimeRow.values ?? {}) };
-  pendingCellValuesRef.current.forEach((pending, key) => {
-  const separator = key.indexOf(':');
-  if (separator < 0 || key.slice(0, separator) !== realtimeRow.id) return;
-  values[key.slice(separator + 1)] = pending.value;
-  });
-  const mergedRow = { ...realtimeRow, values };
-  return sortRowsForRealtime(existing
-  ? withoutPlaceholder.map((row) => row.id === mergedRow.id ? mergedRow : row)
-  : [...withoutPlaceholder, mergedRow]);
-  });
-  return;
-  }
-  // Compatibility for older mutation paths. Normal task mutations include a
-  // committed row payload and never require this full-table recovery request.
-  void pollRowsFallback();
-  }, (status) => {
-  if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-  console.warn('[TableBoard realtime] Failed to subscribe to table rows', { tableId });
-  startFallbackPolling();
-  } else if (status === 'SUBSCRIBED') {
-  stopFallbackPolling();
-  // The initial table load already fetched the first page. Do not issue a
-  // second full-table refresh when the realtime channel first subscribes.
-  }
-  });
-  tableRealtimeChannelRef.current = subscription.channel;
-  } catch (error) {
-  if (cancelled) return;
-  console.warn('[TableBoard realtime] Unable to authorize table subscription', { tableId, error });
-  startFallbackPolling();
-  }
-  };
-  void setupRealtime();
-
-  return () => {
-  cancelled = true;
-  const channel = subscription?.channel;
-  if (channel && tableRealtimeChannelRef.current === channel) {
-  tableRealtimeChannelRef.current = null;
-  }
-  stopFallbackPolling();
-  subscription?.release();
-  };
-  // The rows-store action identity may change as the board store rehydrates;
-  // resubscribing for that change creates a gap where edits cannot broadcast.
-  // The subscription is board-scoped and must change only with the board id.
+    if (!tableId) return;
+    let active=true;
+    let interrupted=false;
+    let subscription: ReturnType<typeof acquireTableRealtimeChannel> | null = null;
+    const rowRequests=new Map<string,AbortController>();
+    const abortRows=()=>{rowRequests.forEach(controller=>controller.abort());rowRequests.clear();};
+    const recovery=taskPagination.createRecoveryLifecycle({
+      pager: {
+        reconcile: async()=>{await taskPagerRef.current?.reconcile();},
+        invalidate: ()=>taskPagerRef.current?.invalidate()
+      },
+      visible: ()=>!document.hidden,
+      onError: (error: Error)=>{if(active)setKanbanLoadError(error.message);}
+    });
+    taskRecoveryRef.current=recovery;
+    const setup=async()=>{
+      try {
+        const response=await authenticatedFetch(getApiUrl(`/tables/${tableId}/realtime-topic`),{suppressNativeErrorAlert:true});
+        if(!active)return;
+        if(!response.ok)throw new Error(`Realtime authorization failed (${response.status})`);
+        const data=await response.json();
+        if(!active||typeof data.topic!=='string')return;
+        subscription=acquireTableRealtimeChannel(tableId,data.topic,(payload)=>{
+          if(!active)return;
+          const id=String(payload?.rowId||payload?.row?.id||'');
+          if(payload?.eventType==='DELETE'&&id) {
+            rowRequests.get(id)?.abort();
+            taskPagerRef.current?.remove(id);
+            return;
+          }
+          if(!id){taskPagerRef.current?.invalidate();void recovery.retry();return;}
+          // Broadcasts are table-scoped. Reauthorize the row before showing it.
+          rowRequests.get(id)?.abort();
+          const controller=new AbortController();rowRequests.set(id,controller);
+          void authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${id}`),{signal:controller.signal,suppressNativeErrorAlert:true,handleAuthErrors:false})
+          .then(async response=>{
+            if(!active||controller.signal.aborted)return;
+            if(response.status===401){taskPagerRef.current?.revoke();return;}
+            if(response.status===403||response.status===404){taskPagerRef.current?.remove(id);return;}
+            if(!response.ok)throw new Error(`Row authorization failed (${response.status})`);
+            const row=await response.json();
+            if(active&&!controller.signal.aborted)taskPagerRef.current?.update(row);
+          }).catch(error=>{if(active&&!controller.signal.aborted)setKanbanLoadError(error.message);})
+          .finally(()=>{if(rowRequests.get(id)===controller)rowRequests.delete(id);});
+        },status=>{
+          if(!active)return;
+          if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)){interrupted=true;abortRows();}
+          else if(status==='SUBSCRIBED'&&interrupted){interrupted=false;abortRows();}
+          recovery.status(status);
+        });
+        tableRealtimeChannelRef.current=subscription.channel;
+      }catch(error){if(active){setKanbanLoadError((error as Error).message);recovery.status('CHANNEL_ERROR');}}
+    };
+    void setup();
+    const resume=()=>recovery.resume();
+    document.addEventListener('visibilitychange',resume);
+    window.addEventListener('online',resume);
+    return ()=>{
+      active=false;abortRows();recovery.dispose();subscription?.release();
+      document.removeEventListener('visibilitychange',resume);window.removeEventListener('online',resume);
+      if(taskRecoveryRef.current===recovery)taskRecoveryRef.current=null;
+      if(tableRealtimeChannelRef.current===subscription?.channel)tableRealtimeChannelRef.current=null;
+    };
   }, [tableId]);
 
 
@@ -6090,7 +6081,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (effectiveType === "Date") {
-  const formattedDate = value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : '';
+  const formattedDate = value && dayjs(value).isValid() ? dayjs(value).format('DD.MM.YYYY') : '';
   return <Box onClick={activate} sx={{ cursor: canEdit ? 'pointer' : 'default', minHeight: isMobile ? 34 : 38, width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', borderRadius: 2, px: isMobile ? 1 : 1.5, ml: -1, transition: 'var(--board-cell-transition)', '&:hover': { bgcolor: canEdit ? theme.palette.action.hover : 'transparent', boxShadow: canEdit ? `0 0 0 1px ${theme.palette.divider}` : 'none' } }}><Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>{formattedDate}</Typography></Box>;
   }
 
@@ -7697,7 +7688,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value, col.type)}
   >
   <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>
-  {value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : ''}
+  {value && dayjs(value).isValid() ? dayjs(value).format('DD.MM.YYYY') : ''}
   </Typography>
   </Box>
   );
@@ -8926,6 +8917,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   </Menu >
   <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 1.5, md: 3 }, gap: { xs: 1, md: 1.5 }, flexWrap: { xs: 'nowrap', md: 'wrap' } }}>
   <IconButton
+  aria-label="Board views"
   onClick={e => { e.stopPropagation(); setHeaderMenuAnchor(e.currentTarget); }}
   sx={{
   color: theme.palette.text.secondary,
@@ -9866,6 +9858,11 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   <Button size="small" variant="contained" onClick={() => void handleExportExcel(selectedRowIds)}>Export selected</Button>
   <Button size="small" onClick={() => setSelectedRowIds(new Set())}>Clear</Button>
   </Paper>
+  )}
+  {kanbanLoadError && (
+  <Alert severity="error" sx={{ mb: 1 }} action={<Button color="inherit" size="small" onClick={() => retryLoadTableRef.current?.()}>Retry</Button>}>
+  Task loading failed. No task count is being reported as authoritative. Diagnostic code: TASK_LOAD_FAILED.
+  </Alert>
   )}
   <TableContainer component={Paper} sx={{ 
   bgcolor: 'transparent', 
@@ -10861,7 +10858,8 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
                     const summary = footerSummariesByColumn.get(col.id);
                     content = summary?.kind === 'date' ? <Typography variant="caption" noWrap sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{summary.dateRange}</Typography> : null;
                   } else if (index === 0) {
-                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{filteredRows.length} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
+                    const visibleTotal = totalRowsRef.current || filteredRows.length;
+                    content = <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>{hasActiveFilters ? filteredRows.length : `${filteredRows.length} of ${visibleTotal}`} {filteredRows.length === 1 ? 'item' : 'items'}</Typography>;
                   }
                   
                   return (
@@ -10934,6 +10932,13 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
             </TableFooter>
         </Table >
       </TableContainer >
+      {hasMoreRows && (
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1 }}>
+          <Button size="small" variant="outlined" onClick={() => { void loadMoreRowsRef.current?.(); }}>
+            {loadingAllTasks ? `Loading tasks: ${rows.length} / ${totalRowsRef.current}` : `Load more tasks (${rows.length} / ${totalRowsRef.current})`}
+          </Button>
+        </Box>
+      )}
       {isMobile && filteredRowIds.length > 8 && (
         <Stack
           spacing={1}
@@ -11090,186 +11095,32 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   </Box>
   </Box>
 
-  <Droppable droppableId={`kanban:${opt.value}`} type="kanban-task" isDropDisabled={userPermission === 'read' || hasActiveFilters}>
-  {(provided, snapshot) => (
-  <Box
-  ref={provided.innerRef}
-  {...provided.droppableProps}
-  onScroll={(event) => {
-    const target = event.currentTarget;
-    if (target.scrollHeight - (target.scrollTop + target.clientHeight) < 180) {
-      void loadMoreRowsRef.current?.();
-    }
-  }}
-  sx={{
-  flex: 1,
-  overflowY: 'auto',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 0.65,
-  px: 0.25,
-  pb: 1,
-  borderRadius: 1.5,
-  minHeight: 0,
-  bgcolor: snapshot.isDraggingOver ? alpha(statusColor, 0.08) : 'transparent',
-  transition: 'background-color 0.2s ease',
-  '::-webkit-scrollbar': { width: 6 },
-  '::-webkit-scrollbar-track': { background: 'transparent' },
-  '::-webkit-scrollbar-thumb': { background: '#35365a', borderRadius: 3 },
-  }}
-  >
-  {colTasks.map((task, index) => {
-  const taskStatusValue = task.values[statusCol.id];
-  const taskStatusOption = statusCol.options?.find((option: any) => option.value === taskStatusValue);
-  const taskStatusColor = taskStatusOption?.color || statusColor;
-
-  return (
-  <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={userPermission === 'read' || hasActiveFilters}>
-  {(providedTask, snapshotTask) => (
-  <Paper data-testid={`kanban-card-${task.id}`}
-  ref={providedTask.innerRef}
-  {...providedTask.draggableProps}
-  {...providedTask.dragHandleProps}
-  style={providedTask.draggableProps.style}
-  elevation={0}
-  sx={{
-  bgcolor: alpha(taskStatusColor, theme.palette.mode === 'dark' ? 0.18 : 0.1),
-  px: 1.25,
-  py: 1,
-  minHeight: 64,
-  borderRadius: 1.25,
-  cursor: userPermission === 'read' ? 'default' : (snapshotTask.isDragging ? 'grabbing' : 'grab'),
-  transition: snapshotTask.isDragging ? 'none' : 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
-  border: `1px solid ${alpha(taskStatusColor, 0.35)}`,
-  borderLeft: `3px solid ${taskStatusColor}`,
-  position: 'relative',
-  boxShadow: snapshotTask.isDragging ? `0 10px 24px ${alpha(taskStatusColor, 0.35)}` : 'none',
-  '&:hover': {
-  transform: 'translateY(-2px)',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-  borderColor: alpha(taskStatusColor, 0.55),
-  }
-  }}
-  onClick={() => openReviewTask(task)}
-  >
-  {task.created_by && (() => {
-  const creator = task.created_by ? tableMemberById.get(task.created_by) : undefined;
-  if (!creator) return null;
-  return (
-  <Tooltip title={`Created by ${creator.name}`}>
-  <Avatar
-  src={getAvatarUrl(creator.avatar, creator.name)}
-  sx={{
-  width: 18,
-  height: 18,
-  position: 'absolute',
-  top: 6,
-  right: 6,
-  fontSize: '0.6rem',
-  fontWeight: 'bold',
-  bgcolor: stringToColor(task.created_by),
-  border: `2px solid ${theme.palette.background.default}`,
-  zIndex: 2
-  }}
-  >
-  {creator.name ? creator.name.charAt(0).toUpperCase() : '?'}
-  </Avatar>
-  </Tooltip>
-  );
-  })()}
-
-  <Typography noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 0.55, lineHeight: 1.25, pr: 2.5, fontSize: '0.82rem' }}>
-  {columns[0] ? (typeof task.values[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
-  </Typography>
-
-  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: 16 }}>
-  {kanbanCardColumns.map(col => {
-  const rawVal = task.values[col.id];
-  if (!rawVal) return null;
-
-  if (col.type === 'People' && Array.isArray(rawVal)) {
-  return (
-  <Box key={col.id} sx={{ display: 'flex', '& > *': { ml: -0.5 }, pl: 0.5 }}>
-  {rawVal.slice(0, 3).map((p: any, i) => (
-  <Tooltip key={i} title={p.name || p.email}>
-  <Avatar
-  src={getAvatarUrl(p.avatar, p.name)}
-  sx={{ width: 22, height: 22, border: `2px solid ${theme.palette.background.default}`, fontSize: '0.6rem', bgcolor: '#3d3e5a' }}
-  >
-  {p.name?.[0] || p.email?.[0] || '?'}
-  </Avatar>
-  </Tooltip>
-  ))}
-  </Box>
-  );
-  }
-
-  if (col.type === 'Priority') {
-  const prioColor = rawVal === 'High' ? '#e2445c' : rawVal === 'Medium' ? '#fdab3d' : '#00c875';
-  return (
-  <Chip
-  key={col.id}
-  label={String(rawVal)}
-  size="small"
-  sx={{
-  height: 20,
-  fontSize: '0.65rem',
-  bgcolor: `${prioColor}33`,
-  color: prioColor,
-  border: `1px solid ${prioColor}44`
-  }}
+  <KanbanVirtualColumn
+  statusValue={opt.value}
+  statusColumnId={statusCol.id}
+  tasks={colTasks}
+  statusColor={statusColor}
+  userPermission={userPermission}
+  hasActiveFilters={hasActiveFilters}
+  theme={theme}
+  tableMemberById={tableMemberById}
+  columns={columns}
+  kanbanCardColumns={kanbanCardColumns}
+  openReviewTask={openReviewTask}
+  stringToColor={stringToColor}
+  onLoadMore={() => { void kanbanStatusLoadersRef.current.get(opt.value)?.(); }}
+  loadError={kanbanLoadError}
+  onRetry={() => { setKanbanLoadError(null); void kanbanStatusLoadersRef.current.get(opt.value)?.(); }}
   />
-  );
-  }
 
-  if (col.type === 'Country' && countryCodeMap[String(rawVal)]) {
-  return (
-  <Tooltip key={col.id} title={String(rawVal)}>
-  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
-  <Flag country={countryCodeMap[String(rawVal)]} size={14} />
-  </Box>
-  </Tooltip>
-  );
-  }
-
-  if (['Date', 'Text'].includes(col.type)) {
-  return (
-  <Typography key={col.id} variant="caption" noWrap sx={{ color: theme.palette.text.secondary, fontSize: '0.66rem', display: 'flex', alignItems: 'center', gap: 0.4, maxWidth: '100%' }}>
-  {col.type === 'Date' && <DateRangeIcon sx={{ fontSize: 12 }} />}
-  {String(rawVal)}
-  </Typography>
-  );
-  }
-
-  return null;
-  })}
-  </Box>
-  </Paper>
-  )}
-  </Draggable>
-  );
-  })}
-
-  {provided.placeholder}
-
-  {hasMoreRows && (
-  <Button
-  size="small"
-  disabled={loadingMoreRowsRef.current}
-  onClick={() => { void loadMoreRowsRef.current?.(); }}
-  sx={{ textTransform: 'none', color: theme.palette.primary.main, justifyContent: 'center' }}
-  >
-  Load more
-  </Button>
-  )}
-
-  {kanbanLoadError && (
-  <Stack spacing={0.5} sx={{ px: 0.75, py: 0.5 }}>
-  <Typography variant="caption" color="error">{kanbanLoadError}</Typography>
-  <Button size="small" onClick={() => { setKanbanLoadError(null); void loadMoreRowsRef.current?.(); }} sx={{ textTransform: 'none' }}>
-  Retry
-  </Button>
-  </Stack>
+  {!hasActiveFilters && colTasks.length < (kanbanStatusCounts[opt.value] ?? 0) && (
+    <Button
+      size="small"
+      variant="text"
+      onClick={() => { void kanbanStatusLoadersRef.current.get(opt.value)?.(); }}
+    >
+      {loadingAllTasks ? `Loading tasks: ${rows.length} / ${totalRowsRef.current}` : `Load more tasks (${colTasks.length} / ${kanbanStatusCounts[opt.value]})`}
+    </Button>
   )}
 
   {userPermission !== 'read' && (
@@ -11313,9 +11164,6 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   New Task
   </Button>
   )}
-  </Box>
-  )}
-  </Droppable>
   </Paper>
   )}
   </Draggable>

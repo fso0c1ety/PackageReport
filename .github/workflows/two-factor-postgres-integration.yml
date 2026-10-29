@@ -1,0 +1,45 @@
+name: Two-factor PostgreSQL integration
+
+on:
+  pull_request:
+    paths:
+      - 'src/app/api/_lib/twoFactor.js'
+      - 'src/app/api/users/two-factor/route.js'
+      - 'server/db/migrations/017_optional_two_factor.sql'
+      - 'server/db/migrations/047_two_factor_otp_challenges.sql'
+      - 'test/two-factor-postgres.integration.cjs'
+      - 'scripts/integration/otp-postgres.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/two-factor-postgres-integration.yml'
+
+jobs:
+  otp-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: smart_manage_otp_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: otp-ci-local-only
+        command: postgres -c shared_preload_libraries=pg_stat_statements
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_manage_otp_test"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:otp-ci-local-only@127.0.0.1:5432/smart_manage_otp_test
+      DATABASE_SSL: "false"
+      JWT_SECRET: otp-ci-test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Enable local query statistics
+        run: node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.DATABASE_URL});await c.connect();await c.query('CREATE EXTENSION IF NOT EXISTS pg_stat_statements');await c.end()})().catch(e=>{console.error(e);process.exit(1)})"
+      - name: Apply complete isolated migration chain
+        run: node server/db/runMigrations.js
+      - name: Verify real OTP PostgreSQL behavior
+        run: npm exec -- tsx scripts/integration/otp-postgres.mjs

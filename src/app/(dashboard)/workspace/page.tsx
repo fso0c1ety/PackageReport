@@ -182,7 +182,6 @@ function WorkspaceContent() {
     if (existing) return;
     const request = Promise.all([
       authenticatedFetch(getApiUrl(`tables/${tableId}`), { responseCacheTtlMs: 60_000 }),
-      authenticatedFetch(getApiUrl(`tables/${tableId}/tasks?limit=100&offset=0`), { responseCacheTtlMs: 60_000 }),
     ]).then(() => undefined);
     prefetchesRef.current.set(tableId, request);
     void request.catch(() => {

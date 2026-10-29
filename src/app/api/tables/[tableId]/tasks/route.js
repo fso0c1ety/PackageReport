@@ -16,6 +16,7 @@ import { isSafePublicHttpsUrl } from "../../../_lib/security";
 import { recordAccessQueryContext, requireBoardPermission, requireRowPermission, rowMatchesRecordAccess } from "../../../_lib/authorization";
 import addressFields from "@/shared/internationalAddress.cjs";
 import activityLogTimestamp from "../../../../../../server/utils/activityLogTimestamp.cjs";
+import consistentPages from "../../../../../../server/services/consistentTaskPage.cjs";
 import { broadcastTableInvalidation } from "../../../_lib/tableRealtime";
 
 export const runtime = "nodejs";
@@ -81,40 +82,47 @@ function getFileIdentifier(file) {
 }
 
 async function processDueScheduledMessages(table, rows) {
+  const lock = await pool.query("SELECT pg_try_advisory_lock(hashtext('smartmanage:scheduled-messages:v1')) AS acquired");
+  if (!lock.rows[0]?.acquired) return false;
+
   let anyChanged = false;
-  // Multiple due messages can reference the same legacy sender name. Resolve
-  // that name once per batch instead of issuing one lookup per message.
-  const senderIdsByName = new Map();
-  for (const row of rows) {
-    const values = row.values && typeof row.values === "object" ? row.values : {};
-    const messages = toArray(values.message);
-    let rowChanged = false;
-    for (const message of messages) {
-      if (!message?.scheduledFor || message.notificationSent || new Date(message.scheduledFor) > new Date()) continue;
-      let senderId = message.senderId || null;
-      if (!senderId && message.sender) {
-        if (!senderIdsByName.has(message.sender)) {
-          const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
-          senderIdsByName.set(message.sender, senderResult.rows[0]?.id || null);
+  try {
+    // Multiple due messages can reference the same legacy sender name. Resolve
+    // that name once per batch instead of issuing one lookup per message.
+    const senderIdsByName = new Map();
+    for (const row of rows) {
+      const values = row.values && typeof row.values === "object" ? row.values : {};
+      const messages = toArray(values.message);
+      let rowChanged = false;
+      for (const message of messages) {
+        if (!message?.scheduledFor || message.notificationSent || new Date(message.scheduledFor) > new Date()) continue;
+        let senderId = message.senderId || null;
+        if (!senderId && message.sender) {
+          if (!senderIdsByName.has(message.sender)) {
+            const senderResult = await pool.query("SELECT id FROM users WHERE name=$1 LIMIT 1", [message.sender]);
+            senderIdsByName.set(message.sender, senderResult.rows[0]?.id || null);
+          }
+          senderId = senderIdsByName.get(message.sender);
         }
-        senderId = senderIdsByName.get(message.sender);
+        const taskName = getTaskName(table, values);
+        const body = `${message.sender || "User"} scheduled a message on ${taskName}: ${message.text || "Scheduled message"}`;
+        await sendTableNotification({ table, senderId, type: "task_chat", title: "Scheduled Discussion", body, taskId: row.id, extraData: { taskName, scheduledMessageId: message.id } });
+        if (senderId) {
+          await pool.query(`INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at,dedupe_key) VALUES($1,$2,NULL,'task_chat',$3,FALSE,NOW(),$4) ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [uuidv4(), senderId, { subject: "Scheduled Discussion", body, tableId: table.id, workspaceId: table.workspace_id, taskId: row.id, taskName }, `scheduled-message:${message.id || `${row.id}:${message.scheduledFor}`}:${senderId}`]);
+        }
+        message.notificationSent = true;
+        message.deliveredAt = new Date().toISOString();
+        rowChanged = true;
       }
-      const taskName = getTaskName(table, values);
-      const body = `${message.sender || "User"} scheduled a message on ${taskName}: ${message.text || "Scheduled message"}`;
-      await sendTableNotification({ table, senderId, type: "task_chat", title: "Scheduled Discussion", body, taskId: row.id, extraData: { taskName, scheduledMessageId: message.id } });
-      if (senderId) {
-        await pool.query(`INSERT INTO notifications(id,recipient_id,sender_id,type,data,read,created_at) VALUES($1,$2,NULL,'task_chat',$3,FALSE,NOW())`, [uuidv4(), senderId, { subject: "Scheduled Discussion", body, tableId: table.id, workspaceId: table.workspace_id, taskId: row.id, taskName }]);
+      if (rowChanged) {
+        values.message = messages;
+        await pool.query("UPDATE rows SET values=$1 WHERE id=$2", [JSON.stringify(values), row.id]);
+        row.values = values;
+        anyChanged = true;
       }
-      message.notificationSent = true;
-      message.deliveredAt = new Date().toISOString();
-      rowChanged = true;
     }
-    if (rowChanged) {
-      values.message = messages;
-      await pool.query("UPDATE rows SET values=$1 WHERE id=$2", [JSON.stringify(values), row.id]);
-      row.values = values;
-      anyChanged = true;
-    }
+  } finally {
+    await pool.query("SELECT pg_advisory_unlock(hashtext('smartmanage:scheduled-messages:v1'))").catch(() => {});
   }
   return anyChanged;
 }
@@ -533,9 +541,23 @@ export async function GET(req, { params }) {
 
   try {
     const { tableId } = await params;
+    if (req.nextUrl.searchParams.get('pagination') === 'consistent') {
+      const page = await consistentPages.consistentTaskPage({ pool, userId: user.id, tableId,
+        searchParams: req.nextUrl.searchParams, requireBoardPermission, recordAccessQueryContext, normalizePeopleValues });
+      if (page.status === 200 && page.body.rows.some(row => toArray(row?.values?.message).some(message =>
+        message?.scheduledFor && !message.notificationSent && new Date(message.scheduledFor) <= new Date()))) {
+        after(() => processDueScheduledMessages(page.board,page.body.rows).catch(error => {
+          console.error('[TABLE TASKS][GET] Scheduled message processing failed:',error);
+        }));
+      }
+      return NextResponse.json(page.body, { status: page.status, headers: { 'Cache-Control': 'private, no-store' } });
+    }
     const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get("limit") || "", 10);
     const requestedOffset = Number.parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
     const statusColumnId = String(req.nextUrl.searchParams.get("statusColumnId") || "");
+    const statusValue = req.nextUrl.searchParams.has("statusValue")
+      ? String(req.nextUrl.searchParams.get("statusValue") || "")
+      : null;
     const paginated = Number.isFinite(requestedLimit) && requestedLimit > 0;
     const limit = paginated ? Math.min(requestedLimit, 500) : null;
     const offset = paginated && Number.isFinite(requestedOffset) && requestedOffset > 0
@@ -553,6 +575,8 @@ export async function GET(req, { params }) {
       if (!statusColumn || statusColumn.type !== "Status") {
         return NextResponse.json({ error: "Invalid status column" }, { status: 400 });
       }
+    } else if (statusValue !== null) {
+      return NextResponse.json({ error: "statusValue requires statusColumnId" }, { status: 400 });
     }
 
     const queryStart = Date.now();
@@ -561,11 +585,12 @@ export async function GET(req, { params }) {
     let statusCounts = null;
     if (table.legacy_authorization) {
       const legacyRows = await readPool.query("SELECT * FROM rows WHERE table_id=$1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC", [tableId]);
-      const visibleRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
+      const authorizedRows = legacyRows.rows.filter((row) => rowMatchesRecordAccess(row, table, user.id));
+      const visibleRows = authorizedRows.filter((row) => statusValue === null || String(row.values?.[statusColumnId] ?? "") === statusValue);
       result = { rows: paginated ? visibleRows.slice(offset, offset + limit) : visibleRows };
       countResult = { rows: [{ total: visibleRows.length }] };
       if (statusColumnId) {
-        statusCounts = Object.fromEntries(visibleRows.reduce((counts, row) => {
+        statusCounts = Object.fromEntries(authorizedRows.reduce((counts, row) => {
           const status = String(row.values?.[statusColumnId] || "");
           counts.set(status, (counts.get(status) || 0) + 1);
           return counts;
@@ -577,21 +602,27 @@ export async function GET(req, { params }) {
       const visibilityParams = unrestrictedRows ? [tableId] : [tableId, JSON.stringify(visibility.columns), visibility.userId,
         JSON.stringify(visibility.access), visibility.teamId, visibility.departmentId, visibility.companyId];
       const visibleWhere = unrestrictedRows ? "table_id=$1" : `table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)`;
+      const taskParams = statusValue === null
+        ? visibilityParams
+        : [...visibilityParams, statusColumnId, statusValue];
+      const taskWhere = statusValue === null
+        ? visibleWhere
+        : `${visibleWhere} AND COALESCE(values->>$${visibilityParams.length + 1}, '') = $${visibilityParams.length + 2}`;
       if (paginated) {
         result = await readPool.query(
-          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${visibilityParams.length + 1} OFFSET $${visibilityParams.length + 2}`,
-          [...visibilityParams, limit, offset]
+          `SELECT *, COUNT(*) OVER()::int AS __visible_total FROM rows WHERE ${taskWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC LIMIT $${taskParams.length + 1} OFFSET $${taskParams.length + 2}`,
+          [...taskParams, limit, offset]
         );
         const total = result.rows[0]?.__visible_total
           ?? (offset > 0
-            ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${visibleWhere}`, visibilityParams)).rows[0]?.total
+            ? (await readPool.query(`SELECT COUNT(*)::int AS total FROM rows WHERE ${taskWhere}`, taskParams)).rows[0]?.total
             : 0);
         result.rows = result.rows.map(({ __visible_total: _visibleTotal, ...row }) => row);
         countResult = { rows: [{ total }] };
       } else {
         result = await readPool.query(
-          `SELECT * FROM rows WHERE ${visibleWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC`,
-          visibilityParams
+          `SELECT * FROM rows WHERE ${taskWhere} ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC, id ASC`,
+          taskParams
         );
         countResult = { rows: [{ total: 0 }] };
       }

@@ -44,7 +44,9 @@ test("scheduled automation requests contain no runtime DDL and filter candidates
   assert.match(route, /WITH configured AS/);
   assert.match(route, /scheduled_at<=NOW\(\)/);
   assert.match(route, /INSERT INTO automation_runs/);
-  assert.match(route, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  assert.match(route, /ON CONFLICT \(idempotency_key\) DO UPDATE SET/);
+  assert.match(route, /status='running'/);
+  assert.match(route, /WHERE automation_runs\.status='failed'/);
 });
 
 test("client reminder polling is read-only and reminder delivery is scheduler-owned", () => {

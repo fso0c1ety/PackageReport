@@ -7,8 +7,9 @@ declare global {
       minimize: () => Promise<void>;
       maximize: () => Promise<void>;
       close: () => Promise<void>;
-      getState: () => Promise<{ isMaximized: boolean }>;
+      getState: () => Promise<{ isMaximized: boolean; isVisible?: boolean; isFocused?: boolean }>;
       onState: (callback: (state: { isMaximized: boolean }) => void) => () => void;
+      onVisible: (callback: (state: { isVisible?: boolean; isFocused?: boolean }) => void) => () => void;
     };
     smartManageUpdater?: {
       check: () => Promise<void>;

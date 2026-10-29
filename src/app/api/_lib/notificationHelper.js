@@ -100,11 +100,19 @@ export async function sendTableNotification({
     `,
     [recipients]
   );
+  // Permission checks can produce stale user IDs after an account is deleted.
+  // Restrict all downstream work to rows that still exist so one stale
+  // recipient cannot abort delivery for every valid recipient with 23503.
+  const existingRecipientIds = new Set(userRes.rows.map((user) => String(user.id)));
+  const validRecipients = recipients.filter((recipientId) => existingRecipientIds.has(String(recipientId)));
+  if (validRecipients.length === 0) {
+    return { recipientCount: 0, successCount: 0, failureCount: 0 };
+  }
 
   const tokenSet = new Set();
   const insertedRecipientIds = new Set();
   const realtimeBroadcasts = [];
-  for (const recipientId of recipients) {
+  for (const recipientId of validRecipients) {
     const dedupeKey = extraData?.dedupeKey ? `${String(extraData.dedupeKey)}:${recipientId}` : null;
     const inserted = await pool.query(
       `INSERT INTO notifications (id, recipient_id, sender_id, type, data, read, created_at, dedupe_key)

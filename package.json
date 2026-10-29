@@ -1,6 +1,6 @@
 {
   "name": "client",
-  "version": "1.0.26",
+  "version": "1.0.31",
   "description": "Smart Manage universal work management platform",
   "author": "Aximo Studio",
   "private": true,
@@ -98,7 +98,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.5",
     "nodemon": "^3.1.14",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "tsx": "4.23.15"
   },
   "build": {
     "appId": "com.packagereport.desktop",
