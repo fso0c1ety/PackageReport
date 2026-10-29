@@ -50,6 +50,10 @@ jobs:
           # Keep the Supabase CLI database port separate from any runner-level
           # service/container that may already own the default 54322 port.
           sed -i '0,/^port = 54322$/s//port = 55432/' supabase/config.toml
+          # A reused CI runner can retain a stopped/partial Supabase project
+          # whose fixed local db port blocks this job. Clean only this job's
+          # local Supabase containers before starting the isolated stack.
+          supabase stop --no-backup || true
           supabase start
           supabase status -o env > /tmp/supabase-status.env
           sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"' | xargs -I{} echo "NEXT_PUBLIC_SUPABASE_URL={}" >> "$GITHUB_ENV"

@@ -6081,7 +6081,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   }
 
   if (effectiveType === "Date") {
-  const formattedDate = value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : '';
+  const formattedDate = value && dayjs(value).isValid() ? dayjs(value).format('DD.MM.YYYY') : '';
   return <Box onClick={activate} sx={{ cursor: canEdit ? 'pointer' : 'default', minHeight: isMobile ? 34 : 38, width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', borderRadius: 2, px: isMobile ? 1 : 1.5, ml: -1, transition: 'var(--board-cell-transition)', '&:hover': { bgcolor: canEdit ? theme.palette.action.hover : 'transparent', boxShadow: canEdit ? `0 0 0 1px ${theme.palette.divider}` : 'none' } }}><Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>{formattedDate}</Typography></Box>;
   }
 
@@ -7688,7 +7688,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   onClick={() => userPermission !== 'read' && handleCellClick(row.id, col.id, value, col.type)}
   >
   <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.95rem', width: '100%', minWidth: 0 }}>
-  {value && dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : ''}
+  {value && dayjs(value).isValid() ? dayjs(value).format('DD.MM.YYYY') : ''}
   </Typography>
   </Box>
   );

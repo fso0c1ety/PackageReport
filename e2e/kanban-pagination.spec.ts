@@ -6,6 +6,7 @@ const password = process.env.SMART_MANAGE_PORTAL_TEST_PASSWORD;
 const databaseUrl = process.env.DATABASE_URL || "";
 const isolated = process.env.KANBAN_E2E_ISOLATED === "1";
 const sizes = [50, 100, 101, 500, 1100];
+const measurementEmail = (process.env.EGRESS_MEASURE_EMAILS || '').split(',').map((value) => value.trim()).filter(Boolean)[0] || 'portal-manager-v2@smartmanage-demo.com';
 
 function assertLocalDatabase(url: string) {
   const parsed = new URL(url);
@@ -19,7 +20,7 @@ function assertLocalDatabase(url: string) {
 async function login(browser: Browser, baseURL: string) {
   const context = await browser.newContext({ baseURL });
   const response = await context.request.post(`${baseURL}/api/login/`, {
-    data: { email: "portal-manager-v2@smartmanage-demo.com", password },
+    data: { email: measurementEmail, password },
     headers: { Origin: baseURL },
   });
   const body = await response.json();

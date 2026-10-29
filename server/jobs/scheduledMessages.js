@@ -1,4 +1,9 @@
 async function processScheduledMessages({ db, sendNotification, logger }) {
+  const lock = await db.query("SELECT pg_try_advisory_lock(hashtext('smartmanage:scheduled-messages:v1')) AS acquired");
+  if (!lock.rows[0]?.acquired) return { processed: 0, skipped: "already-running" };
+
+  let processed = 0;
+  try {
   const result = await db.query(`
     SELECT r.id, r.table_id, r.values
     FROM rows r
@@ -27,18 +32,23 @@ async function processScheduledMessages({ db, sendNotification, logger }) {
         "New Discussion",
         `${message.sender || "System"} commented on the ${taskName}: ${message.text}`,
         "task_chat",
-        { taskId: row.id },
+        { taskId: row.id, scheduledMessageId: message.id || `${row.id}:${message.scheduledFor}` },
         table,
         null,
       );
       message.notificationSent = true;
       changed = true;
+      processed += 1;
     }
 
     if (changed) {
       await db.query("UPDATE rows SET values = $1 WHERE id = $2", [JSON.stringify(row.values), row.id]);
       logger.info("scheduled_messages_processed", { taskId: row.id });
     }
+  }
+  return { processed };
+  } finally {
+    await db.query("SELECT pg_advisory_unlock(hashtext('smartmanage:scheduled-messages:v1'))").catch(() => {});
   }
 }
 

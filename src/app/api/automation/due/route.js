@@ -13,8 +13,9 @@ const SCHEDULER_LEASE_SECONDS = 600;
 const SCHEDULER_PURPOSE = "smart-manage:scheduled-automations:v1";
 
 function isAuthorizedSchedulerRequest(req) {
-  if (!SECRET_KEY) return false;
   const supplied = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  if (process.env.CRON_SECRET && supplied === process.env.CRON_SECRET) return true;
+  if (!SECRET_KEY) return false;
   const expected = createHmac("sha256", SECRET_KEY).update(SCHEDULER_PURPOSE).digest("hex");
   const suppliedBuffer = Buffer.from(supplied);
   const expectedBuffer = Buffer.from(expected);
@@ -57,6 +58,7 @@ async function processCalendarReminders() {
     SET reminder_sent_at=NOW()
     WHERE reminder_sent_at IS NULL
       AND starts_at<=NOW() AND starts_at>=NOW()-INTERVAL '24 hours'
+      AND EXISTS (SELECT 1 FROM users u WHERE u.id=calendar_events.user_id)
     RETURNING id,user_id,title,event_type
   `);
   for (const event of due.rows) {
@@ -87,6 +89,10 @@ export async function GET(req) {
       WITH configured AS (
         SELECT a.*, t.name AS table_name, t.columns, t.workspace_id, t.shared_users,
           w.owner_id AS workspace_owner_id,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM pg_timezone_names tz
+            WHERE tz.name = NULLIF(w.settings->>'timezone','')
+          ) THEN NULLIF(w.settings->>'timezone','') ELSE 'Europe/Belgrade' END AS effective_timezone,
           COALESCE(a.definition->'trigger'->>'type',a.trigger_type) AS effective_trigger_type,
           COALESCE(a.definition->'trigger'->>'columnId',a.trigger_col) AS effective_trigger_col,
           GREATEST(0, COALESCE(
@@ -125,7 +131,12 @@ export async function GET(req) {
         SELECT candidates.*,
           CASE
             WHEN raw_value ~ '^\\d{4}-\\d{2}-\\d{2}$' AND pg_input_is_valid(raw_value, 'date'::regtype)
-              THEN raw_value::date::timestamptz - make_interval(mins=>minutes_before)
+              THEN make_timestamptz(
+                EXTRACT(YEAR FROM raw_value::date)::int,
+                EXTRACT(MONTH FROM raw_value::date)::int,
+                EXTRACT(DAY FROM raw_value::date)::int,
+                0, 0, 0, effective_timezone
+              ) - make_interval(mins=>minutes_before)
             WHEN raw_value ~ '^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}' AND pg_input_is_valid(raw_value, 'timestamp with time zone'::regtype)
               THEN raw_value::timestamptz - make_interval(mins=>minutes_before)
             ELSE NULL
@@ -135,7 +146,7 @@ export async function GET(req) {
       )
       SELECT * FROM scheduled
       WHERE scheduled_at IS NOT NULL
-        AND ((date_only AND scheduled_at::date=CURRENT_DATE)
+        AND ((date_only AND scheduled_at<=NOW() AND scheduled_at>=NOW()-INTERVAL '24 hours')
           OR (NOT date_only AND scheduled_at<=NOW() AND scheduled_at>=NOW()-INTERVAL '5 minutes'))
     `);
 
@@ -149,7 +160,9 @@ export async function GET(req) {
       const claim = await pool.query(`
         INSERT INTO automation_runs (id,automation_id,table_id,row_id,idempotency_key,trigger_type,input,actions,scheduled_for,status,started_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,'running',NOW())
-        ON CONFLICT (idempotency_key) DO NOTHING
+        ON CONFLICT (idempotency_key) DO UPDATE SET
+          status='running', started_at=NOW(), finished_at=NULL, error_message=NULL
+          WHERE automation_runs.status='failed'
         RETURNING id
       `, [randomUUID(), String(item.id), item.table_id, item.row_id, scheduledKey, item.effective_trigger_type, JSON.stringify({ values: item.values, scheduledFor: rawValue }), JSON.stringify(definition?.actions || []), scheduled]);
       if (claim.rows.length === 0) continue;
