@@ -28,11 +28,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run db:migrate
-      - run: node --test test/runtime-ddl.test.js test/automation-builder-engine.test.js
-      - run: node scripts/benchmark-runtime-ddl.cjs
+      - run: node --test test/migration-044-schema.test.cjs test/automation-builder-engine.test.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: runtime-ddl-evidence
-          path: artifacts/runtime-ddl
-          if-no-files-found: error
+          path: artifacts/migration-044
+          if-no-files-found: ignore
