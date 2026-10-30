@@ -13,11 +13,9 @@ async function authorizeTable(tableId, userId, write = false) {
   return Boolean(await requireBoardPermission(pool, userId, tableId, write ? "editor" : "viewer"));
 }
 
-async function getAutomationIdType() {
-  const result = await pool.query("SELECT data_type FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='automations' AND column_name='id' LIMIT 1");
-  return result.rows[0]?.data_type || "text";
-}
-
+// Shared, bounded schema metadata cache; authorization stays request-local.
+import automationSchema from "../../../../../../server/db/automationSchema.cjs";
+const getAutomationIdType = () => automationSchema.getAutomationIdType(pool);
 async function executeRetryActions({ actions, automation, table, rowId, values, actorId }) {
   const results = [];
   for (const action of actions) {
