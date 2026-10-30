@@ -21,8 +21,16 @@ test('migration 044 is idempotent and preserves legacy automation rows', async (
     await client.query(migration);
     const row = await client.query('SELECT id, table_id FROM automations');
     assert.deepEqual(row.rows, [{ id: 1, table_id: 'synthetic' }]);
-    const column = await client.query("SELECT 1 FROM information_schema.columns WHERE table_name='automation_runs' AND column_name='scheduled_for'");
-    assert.equal(column.rowCount, 1);
+    const result = await client.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_attribute
+        WHERE attrelid = to_regclass('pg_temp.automation_runs')
+          AND attname = 'scheduled_for'
+          AND NOT attisdropped
+      ) AS present
+    `);
+    assert.equal(result.rows[0].present, true);
     await client.query('ROLLBACK');
   } finally {
     await client.end();
