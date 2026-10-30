@@ -14,7 +14,15 @@ function query(source, restricted, scope) {
   const specialized = scope === 'created_by_me' && source.includes('created_by::text=$2::text');
   const visibilityParams = specialized ? Array(2) : restricted ? Array(7) : Array(1);
   const visibleWhere = specialized ? 'table_id=$1 AND created_by::text=$2::text' : restricted ? 'table_id=$1 AND smart_manage_row_visible(values,id::text,created_by::text,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::text,$7::text)' : 'table_id=$1';
-  return source.slice(start, end).replace(/\$\{visibleWhere\}/g, visibleWhere).replace(/\$\{visibilityParams.length \+ 1\}/g, String(visibilityParams.length + 1)).replace(/\$\{visibilityParams.length \+ 2\}/g, String(visibilityParams.length + 2));
+  const taskWhere = visibleWhere;
+  const taskParamsLength = visibilityParams.length;
+  return source.slice(start, end)
+    .replace(/\$\{visibleWhere\}/g, visibleWhere)
+    .replace(/\$\{taskWhere\}/g, taskWhere)
+    .replace(/\$\{visibilityParams.length \+ 1\}/g, String(visibilityParams.length + 1))
+    .replace(/\$\{visibilityParams.length \+ 2\}/g, String(visibilityParams.length + 2))
+    .replace(/\$\{taskParams.length \+ 1\}/g, String(taskParamsLength + 1))
+    .replace(/\$\{taskParams.length \+ 2\}/g, String(taskParamsLength + 2));
 }
 const quantile = (values, p) => [...values].sort((a,b) => a-b)[Math.ceil(values.length*p)-1];
 async function main() {
