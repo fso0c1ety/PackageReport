@@ -1,0 +1,42 @@
+[
+  {
+    "oid": 1978,
+    "opcname": "int4_ops",
+    "input_type": "integer"
+  },
+  {
+    "oid": 3122,
+    "opcname": "date_ops",
+    "input_type": "date"
+  },
+  {
+    "oid": 3126,
+    "opcname": "text_ops",
+    "input_type": "text"
+  },
+  {
+    "oid": 3127,
+    "opcname": "timestamptz_ops",
+    "input_type": "timestamp with time zone"
+  },
+  {
+    "oid": 3128,
+    "opcname": "timestamp_ops",
+    "input_type": "timestamp without time zone"
+  },
+  {
+    "oid": 10003,
+    "opcname": "bool_ops",
+    "input_type": "boolean"
+  },
+  {
+    "oid": 10065,
+    "opcname": "uuid_ops",
+    "input_type": "uuid"
+  },
+  {
+    "oid": 10090,
+    "opcname": "jsonb_ops",
+    "input_type": "jsonb"
+  }
+]
