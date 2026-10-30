@@ -8,6 +8,8 @@ import DateRangeIcon from "@mui/icons-material/DateRange";
 import Flag from "react-flagkit";
 import { getAvatarUrl } from "./apiUrl";
 import { countryCodeMap } from "./board/constants/countryConstants";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { getKanbanTaskTitle } = require("./board/kanbanTaskTitle.cjs");
 
 export type KanbanTaskCardProps = {
   task: any;
@@ -79,7 +81,7 @@ export default function KanbanTaskCard({
         </Tooltip>
       )}
       <Typography noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 0.55, lineHeight: 1.25, pr: 2.5, fontSize: '0.82rem' }}>
-        {columns[0] ? (typeof task.values?.[columns[0].id] === 'string' ? task.values[columns[0].id] : 'Untitled') : 'Untitled'}
+        {columns[0] ? getKanbanTaskTitle(task.values?.[columns[0].id]) : 'Untitled'}
       </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: 16 }}>
         {kanbanCardColumns.map((col: any) => {
