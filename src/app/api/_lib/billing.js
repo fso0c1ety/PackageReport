@@ -48,8 +48,13 @@ export async function getBillingStatus(userId) {
       [extendedTrialEnd, userId]
     );
     await pool.query(
-      `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
-       WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+      `UPDATE tables AS t
+       SET billing_archived_at=NULL, billing_purge_at=NULL
+       FROM workspaces AS w
+       WHERE t.workspace_id = w.id
+         AND w.owner_id = $1
+         AND w.is_demo IS NOT TRUE
+         AND (t.billing_archived_at IS NOT NULL OR t.billing_purge_at IS NOT NULL)`,
       [userId]
     );
   }
@@ -71,8 +76,13 @@ export async function getBillingStatus(userId) {
 
   if (unlimited) {
     await pool.query(
-      `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
-       WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+      `UPDATE tables AS t
+       SET billing_archived_at=NULL, billing_purge_at=NULL
+       FROM workspaces AS w
+       WHERE t.workspace_id = w.id
+         AND w.owner_id = $1
+         AND w.is_demo IS NOT TRUE
+         AND (t.billing_archived_at IS NOT NULL OR t.billing_purge_at IS NOT NULL)`,
       [userId]
     );
   }
@@ -131,7 +141,7 @@ export async function getScopedBillingStatus(userId, scope = {}) {
 }
 
 export async function requireWritableSubscription(userId, scope = {}) {
-  const billing = await getScopedBillingStatus(userId, scope);
+  const billing = await getWriteEntitlement(userId, scope);
 
   if (billing.writable) return null;
 
@@ -143,6 +153,58 @@ export async function requireWritableSubscription(userId, scope = {}) {
     },
     { status: 402 }
   );
+}
+
+// Keep hot task/cell mutations on the smallest entitlement read path. Full
+// billing status (seat counts and archival cleanup) remains available to
+// billing/settings surfaces; writes only need the owner subscription state.
+export async function getWriteEntitlement(userId, scope = {}) {
+  let workspaceId = scope.workspaceId;
+  let ownerId = userId;
+  if (!workspaceId && scope.tableId) {
+    const table = await pool.query(
+      `SELECT w.id AS workspace_id, w.owner_id
+       FROM tables t JOIN workspaces w ON w.id = t.workspace_id
+       WHERE t.id = $1`,
+      [scope.tableId]
+    );
+    workspaceId = table.rows[0]?.workspace_id;
+    ownerId = table.rows[0]?.owner_id || userId;
+  } else if (workspaceId) {
+    const workspace = await pool.query(
+      `SELECT owner_id FROM workspaces WHERE id = $1`,
+      [workspaceId]
+    );
+    ownerId = workspace.rows[0]?.owner_id || userId;
+  }
+
+  if (workspaceId) {
+    const demo = (await pool.query(`SELECT w.id,w.demo_expires_at,w.demo_metadata,dr.revoked_at
+      FROM workspaces w LEFT JOIN demo_requests dr ON dr.id=w.demo_request_id
+      WHERE w.id=$1 AND w.is_demo=TRUE AND (w.owner_id=$2 OR EXISTS(SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=w.id AND wm.user_id=$2))`, [workspaceId, userId])).rows[0];
+    if (demo) {
+      const revoked = Boolean(demo.revoked_at || demo.demo_metadata?.revoked);
+      const expiresAt = demo.demo_expires_at ? new Date(demo.demo_expires_at) : null;
+      const expired = revoked || !expiresAt || expiresAt <= new Date();
+      return { plan: "demo", status: revoked ? "revoked" : expired ? "expired" : "active", writable: !expired, unlimited: false, is_demo: true, demo_expires_at: demo.demo_expires_at };
+    }
+  }
+
+  const result = await pool.query(
+    `SELECT LOWER(u.email) AS email, s.*
+     FROM users u LEFT JOIN subscriptions s ON s.user_id = u.id
+     WHERE u.id = $1`,
+    [ownerId]
+  );
+  const row = result.rows[0] || {};
+  // Preserve legacy provisioning and internal-owner archival semantics on the
+  // rare paths that need the full billing compatibility routine.
+  if (!row.id || internalOwner.isInternalOwnerEmail(row.email) || TRIAL_EXTENSION_BY_EMAIL[row.email]) {
+    return getBillingStatus(ownerId);
+  }
+  const writable = row.status === "active"
+    || (row.status === "trialing" && new Date(row.trial_ends_at) > new Date());
+  return { ...row, writable, unlimited: false, internal_owner: false, entitlement: "subscription" };
 }
 
 export async function activateBillingPlan(userId, plan, stripe = {}) {
@@ -160,8 +222,13 @@ export async function activateBillingPlan(userId, plan, stripe = {}) {
       stripe.currentPeriodEnd || null, userId]
   );
   await pool.query(
-    `UPDATE tables SET billing_archived_at=NULL, billing_purge_at=NULL
-     WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=$1)`,
+    `UPDATE tables AS t
+     SET billing_archived_at=NULL, billing_purge_at=NULL
+     FROM workspaces AS w
+     WHERE t.workspace_id = w.id
+       AND w.owner_id = $1
+       AND w.is_demo IS NOT TRUE
+       AND (t.billing_archived_at IS NOT NULL OR t.billing_purge_at IS NOT NULL)`,
     [userId]
   );
   return getBillingStatus(userId);

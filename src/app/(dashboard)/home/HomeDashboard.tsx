@@ -26,6 +26,7 @@ import {
   TextField,
   CircularProgress,
   LinearProgress,
+  Alert,
 } from "@mui/material";
 import { styled, useTheme } from "@mui/material/styles";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -227,6 +228,8 @@ export default function HomeDashboard() {
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [workspaceDeleteError, setWorkspaceDeleteError] = useState<string | null>(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isWorkspaceGalleryOpen, setIsWorkspaceGalleryOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
@@ -250,6 +253,7 @@ export default function HomeDashboard() {
   };
 
   const handleDeleteStart = () => {
+    setWorkspaceDeleteError(null);
     setIsDeleteOpen(true);
     setAnchorEl(null);
   };
@@ -276,18 +280,34 @@ export default function HomeDashboard() {
   const handleDeleteConfirm = async () => {
     if (!selectedWorkspace) return;
 
+    const workspaceId = String(selectedWorkspace.id);
+    setIsDeletingWorkspace(true);
+    setWorkspaceDeleteError(null);
+
     try {
-      const res = await authenticatedFetch(getApiUrl(`workspaces/${selectedWorkspace.id}`), {
+      const res = await authenticatedFetch(getApiUrl(`workspaces/${workspaceId}`), {
         method: 'DELETE'
       });
 
       if (res.ok) {
-        setWorkspaces(prev => prev.filter(w => w.id !== selectedWorkspace.id));
+        setWorkspaces(prev => prev.filter(w => String(w.id) !== workspaceId));
         setIsDeleteOpen(false);
         handleMenuClose();
+      } else {
+        const statusMessage = {
+          401: "Sesioni ka skaduar. Hyni përsëri.",
+          402: "Abonimi nuk lejon këtë veprim.",
+          403: "Nuk keni pronësi mbi këtë workspace.",
+          404: "Workspace nuk u gjet.",
+          500: "Fshirja dështoi për shkak të një gabimi në server. Të dhënat nuk u hoqën nga pamja.",
+        }[res.status] || `Fshirja dështoi (HTTP ${res.status}).`;
+        setWorkspaceDeleteError(statusMessage);
       }
     } catch (err) {
       console.error("Failed to delete workspace", err);
+      setWorkspaceDeleteError("Fshirja dështoi për shkak të një problemi rrjeti. Provojeni përsëri.");
+    } finally {
+      setIsDeletingWorkspace(false);
     }
   };
 
@@ -1022,13 +1042,17 @@ export default function HomeDashboard() {
       >
         <DialogTitle>Delete Workspace?</DialogTitle>
         <DialogContent>
+          {workspaceDeleteError && <Alert severity="error" sx={{ mb: 2 }}>{workspaceDeleteError}</Alert>}
           <DialogContentText sx={{ color: theme.palette.text.secondary }}>
             Are you sure you want to delete this workspace? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setIsDeleteOpen(false)} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} sx={{ color: "#ef4444" }}>Delete</Button>
+          <Button onClick={handleDeleteConfirm} disabled={isDeletingWorkspace} sx={{ color: "#ef4444" }}>
+            {isDeletingWorkspace ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
 
