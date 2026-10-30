@@ -8,6 +8,7 @@ import DateRangeIcon from "@mui/icons-material/DateRange";
 import Flag from "react-flagkit";
 import { getAvatarUrl } from "./apiUrl";
 import { countryCodeMap } from "./board/constants/countryConstants";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getKanbanTaskTitle } = require("./board/kanbanTaskTitle.cjs");
 
 export type KanbanTaskCardProps = {
