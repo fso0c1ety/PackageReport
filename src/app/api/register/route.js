@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
-import { ensureExtendedUserProfileColumns, pool } from "../_lib/server";
+import { pool } from "../_lib/server";
 import { sendEmail } from "../_lib/mailer";
 import { buildAccountActionEmail } from "../_lib/emailTemplates";
 import { publicAppUrl, replaceAccountToken } from "../_lib/accountTokens";
@@ -16,7 +16,6 @@ const genericResponse = {
 
 export async function POST(req) {
   try {
-    await ensureExtendedUserProfileColumns();
     const body = await req.json();
     const firstName = String(body?.first_name || "").trim();
     const lastName = String(body?.last_name || "").trim();
