@@ -37,6 +37,7 @@ jobs:
       DATABASE_SSL: 'false'
       E2E_BASE_URL: http://127.0.0.1:3000
       EGRESS2_PASSWORD: Egress2Phase2LocalOnlyA1!
+      EGRESS_TASK_COUNTS: 5000,10000
       EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
       JWT_SECRET: Egress2Phase2LocalOnlyA1!
       CI: 'true'
@@ -92,7 +93,7 @@ jobs:
         run: node scripts/measure-egress-playwright.mjs
         env:
           EGRESS_MEASURE_PASSWORD: EgressPhase2LocalOnlyA1!
-          EGRESS_IDLE_SECONDS: 5,15,30
+          EGRESS_IDLE_SECONDS: 60
       - name: Run real Kanban UI pagination measurements
         run: npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1
         env:
