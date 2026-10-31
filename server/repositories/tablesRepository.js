@@ -15,10 +15,41 @@ async function findById(tableId) {
   return result.rows[0] || null;
 }
 
-async function listRows(tableId) {
+const ROW_PROJECTION = `id, table_id, values, created_by, created_at, updated_at,
+      group_id, title, position, assigned_user_ids, archived_at`;
+
+function normalizePageOption(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+async function listRows(tableId, options = {}) {
+  const limit = normalizePageOption(options.limit, null);
+  const offset = normalizePageOption(options.offset, 0);
+  const values = [tableId];
+  let visibility = "";
+  if (options.visibility?.scope === "created_by_me" && options.visibility.userId) {
+    values.push(String(options.visibility.userId));
+    visibility = " AND created_by = $2";
+  } else if (options.visibility?.scope === "selected_records" && Array.isArray(options.visibility.ids)) {
+    values.push(options.visibility.ids.map(String));
+    visibility = ` AND id = ANY($${values.length}::text[])`;
+  }
+  let pagination = "";
+  if (limit !== null) {
+    const limitParam = values.length + 1;
+    const offsetParam = values.length + 2;
+    values.push(Math.min(limit, 100), offset);
+    pagination = ` LIMIT $${limitParam} OFFSET $${offsetParam}`;
+  }
   const result = await db.query(
-    "SELECT * FROM rows WHERE table_id = $1 ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC",
-    [tableId]
+    `SELECT ${ROW_PROJECTION}
+      FROM rows
+      WHERE table_id = $1${visibility}
+      ORDER BY (values->>'order')::int ASC NULLS FIRST, created_at DESC
+      ${pagination}`,
+    values
   );
   return result.rows;
 }
