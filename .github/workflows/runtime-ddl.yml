@@ -1,0 +1,37 @@
+name: Runtime DDL regression and benchmark
+on: [pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: runtime_ddl_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:isolated-only@127.0.0.1:5432/runtime_ddl_test
+      DATABASE_SSL: 'false'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: node --test test/migration-044-schema.test.cjs test/automation-builder-engine.test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-ddl-evidence
+          path: artifacts/migration-044
+          if-no-files-found: ignore

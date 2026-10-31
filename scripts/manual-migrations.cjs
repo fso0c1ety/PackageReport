@@ -20,6 +20,12 @@ function config(env) {
   if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.search || url.hash) throw new Error('Database URL parameters are not allowed');
   if (url.hostname !== env.EXPECTED_DB_HOST || decodeURIComponent(url.pathname.slice(1)) !== env.EXPECTED_DB_NAME || decodeURIComponent(url.username) !== env.EXPECTED_DB_USER || (url.port || '5432') !== env.EXPECTED_DB_PORT) throw new Error('Destination identity mismatch');
   const local = ['127.0.0.1', 'localhost', '::1'].includes(url.hostname);
+  if (env.FORWARD_REPAIR_APPROVED === '1' && !local) {
+    const project = 'gxzvlsukjodbarlcjyys';
+    const direct = url.hostname === `db.${project}.supabase.co`;
+    const pooler = url.hostname.endsWith('.pooler.supabase.com') && decodeURIComponent(url.username) === `postgres.${project}`;
+    if (env.EXPECTED_PROJECT_REF !== project || (!direct && !pooler)) throw new Error('Forward repair project identity mismatch');
+  }
   if (env.MIGRATION_LOCAL_TEST === '1') {
     if (!local || env.EXPECTED_DB_NAME !== 'smart_manage_manual_test') throw new Error('Isolated test destination required');
   } else {

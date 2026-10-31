@@ -1,0 +1,70 @@
+name: Temporary integration readiness
+on:
+  push:
+    branches: [audit/integration-readiness-20261019]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+  portal:
+    uses: ./.github/workflows/portal-acceptance.yml
+  kanban:
+    uses: ./.github/workflows/kanban-postgres-e2e.yml
+  clean-install:
+    uses: ./.github/workflows/migration-clean-install.yml
+  local-safety:
+    uses: ./.github/workflows/deployment-safety-validation.yml
+  benchmark:
+    uses: ./.github/workflows/egress-2-benchmark.yml
+  combined-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: integration_readiness_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:isolated-only@127.0.0.1:5432/integration_readiness_test
+      DATABASE_SSL: 'false'
+      SMART_MANAGE_SECURITY_INTEGRATION: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/security-schema-fixture.cjs
+      - name: Install pre-044 schema
+        shell: bash
+        run: |
+          export MIGRATION_TARGET="$(node -e "console.log(require('fs').readdirSync('server/db/migrations').filter(n=>n.endsWith('.sql')&&n<'044').sort().join(','))")"
+          npm run db:migrate
+      - name: Verify combined upgrade, authorization, revocation and rollback
+        run: node scripts/integration-readiness.mjs
+      - run: node scripts/security-schema-fixture.cjs --after-migrations
+      - run: node --test test/security-rls-postgres.integration.js
+      - run: node scripts/benchmark-row-visibility.cjs
+      - run: node --test test/forward-reconciliation.test.cjs test/reconciled-repair-plan.test.js
+      - run: node scripts/verify-forward-reconciliation-postgres.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: combined-integration-evidence
+          path: |
+            artifacts/integration-readiness
+            artifacts/row-visibility
+            artifacts/forward-reconciliation
+          if-no-files-found: error

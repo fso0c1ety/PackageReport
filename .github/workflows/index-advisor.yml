@@ -1,0 +1,39 @@
+name: Index advisor isolated verification
+on: [pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  indexes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: index_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:synthetic-only@127.0.0.1:5432/index_test
+      DATABASE_SSL: 'false'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/verify-index-advisor.cjs
+      - run: node scripts/verify-index-lock-budget.cjs
+      - name: Full clean migration installation
+        run: npm run db:migrate
+      - run: node --test test/permissions.test.js test/enterprise-permissions.test.js test/migration-002-timestamp.test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: index-advisor-plans-and-tests
+          path: artifacts/index-advisor
+          if-no-files-found: error
