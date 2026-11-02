@@ -9,7 +9,7 @@ assert.ok(['127.0.0.1', 'localhost', '::1'].includes(url.hostname), 'isolated Po
 assert.match(url.pathname, /test/i, 'test database required');
 
 const root = path.resolve(new URL('.', import.meta.url).pathname, '..');
-const migrations = ['044_automation_runtime_schema.sql', '045_uploaded_files_workspace_fk_index.sql', '046_guarded_duplicate_indexes.sql', '048_server_only_sensitive_rls.sql'];
+const migrations = ['044_automation_runtime_schema.sql', '045_uploaded_files_workspace_fk_index.sql', '046_guarded_duplicate_indexes.sql', '047a_usage_webhooks_portal_support.sql', '048_server_only_sensitive_rls.sql'];
 const client = new Client({ connectionString: url.toString(), ssl: false });
 const evidence = { classification: 'MEASURED_ISOLATED_POSTGRESQL', target: 'disposable-ci-postgres', migrations: [], rollback: null };
 
@@ -56,8 +56,14 @@ async function main() {
     evidence.postflight = { checks, rls: { enabled: Number(rls.enabled), total: Number(rls.total) }, restrictedCrudGrants: Number(acl.violations) };
 
     await client.query('BEGIN');
-    try { await client.query("SET LOCAL lock_timeout = '1ms'; SELECT 1"); await client.query('ROLLBACK'); evidence.rollback = { transactionRollback: true, dataMutation: false }; }
-    catch (error) { await client.query('ROLLBACK'); throw error; }
+    try {
+      await client.query("CREATE TEMP TABLE rollback_probe (id integer PRIMARY KEY)");
+      await client.query('INSERT INTO rollback_probe VALUES (1)');
+      await client.query('ROLLBACK');
+      const probe = await client.query("SELECT to_regclass('pg_temp.rollback_probe') AS probe");
+      assert.equal(probe.rows[0].probe, null, 'rollback probe survived rollback');
+      evidence.rollback = { transactionRollback: true, rolledBackDDLAndDML: true, dataMutation: false };
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
 
     fs.mkdirSync(path.join(root, 'artifacts', 'integration-readiness'), { recursive: true });
     fs.writeFileSync(path.join(root, 'artifacts', 'integration-readiness', 'results.json'), JSON.stringify(evidence, null, 2));
