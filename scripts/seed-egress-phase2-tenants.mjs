@@ -8,6 +8,7 @@ const password = process.env.EGRESS_MEASURE_PASSWORD || 'EgressPhase2LocalOnlyA1
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
 const tenants = [];
 const tableIds = [];
+const workspaceIds = [];
 const taskCounts = (process.env.EGRESS_TASK_COUNTS || '5000,10000').split(',').map(Number);
 if (taskCounts.length !== 2 || taskCounts.some((count) => !Number.isInteger(count) || count < 1)) throw new Error('EGRESS_TASK_COUNTS must contain two positive integers');
 const client = await pool.connect();
@@ -17,7 +18,7 @@ try {
   const hash = await bcrypt.hash(password, 4);
   for (let tenantIndex = 1; tenantIndex <= 2; tenantIndex += 1) {
     const userId = randomUUID();
-    const workspaceId = randomUUID();
+    const workspaceId = randomUUID(); workspaceIds.push(workspaceId);
     const email = `${marker.toLowerCase()}-tenant${tenantIndex}@example.test`;
     await client.query('INSERT INTO users(id,name,email,password,email_verified_at) VALUES($1,$2,$3,$4,NOW())', [userId, `${marker} tenant ${tenantIndex}`, email, hash]);
     await client.query('INSERT INTO workspaces(id,name,owner_id) VALUES($1,$2,$3)', [workspaceId, `${marker} tenant ${tenantIndex}`, userId]);
@@ -34,7 +35,7 @@ try {
   }
   await client.query('COMMIT');
   const envFile = process.env.GITHUB_ENV;
-  if (envFile) await import('node:fs/promises').then(({ appendFile }) => appendFile(envFile, `EGRESS_MEASURE_EMAILS=${tenants.map(({ email }) => email).join(',')}\nEGRESS_MEASURE_TABLE_IDS=${tableIds.join(',')}\n`));
+  if (envFile) await import('node:fs/promises').then(({ appendFile }) => appendFile(envFile, `EGRESS_MEASURE_EMAILS=${tenants.map(({ email }) => email).join(',')}\nEGRESS_MEASURE_WORKSPACE_IDS=${workspaceIds.join(',')}\nEGRESS_MEASURE_TABLE_IDS=${tableIds.join(',')}\nEGRESS_MEASURE_TASK_COUNTS=${taskCounts.join(',')}\n`));
   console.log(JSON.stringify({ syntheticTenants: tenants.length, taskCounts, markerPrefix: marker.slice(0, 18) }));
 } catch (error) {
   await client.query('ROLLBACK');
