@@ -44,6 +44,8 @@ jobs:
           distribution: zulu
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - name: Start local backend
         run: |
@@ -63,6 +65,12 @@ jobs:
           script: |
             adb install android/app/build/outputs/apk/debug/app-debug.apk
             node scripts/android-functional-local.mjs
+      - name: Collect available failure diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts/android-functional
+          if command -v adb >/dev/null; then adb logcat -d -s AndroidRuntime > artifacts/android-functional/crashes.txt 2>&1 || true; fi
+          echo 'Functional success requires result.json; diagnostics alone are not PASS evidence.' > artifacts/android-functional/evidence-scope.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
