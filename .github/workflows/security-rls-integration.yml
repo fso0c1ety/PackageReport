@@ -87,6 +87,10 @@ jobs:
         run: node --test test/security-rls-postgres.integration.js
       - name: Run migration 048 negative-access checks
         run: node --test test/public-rls-hotfix-048-postgres.integration.js
+      - name: Verify read-only catalog postflight
+        env:
+          EXPECTED_BACKEND_ROLE: service_role
+        run: node scripts/security-catalog-check.cjs after > security-evidence/catalog-postflight.json
       - name: Rehearse synthetic backup and restore
         env:
           PGPASSWORD: security-ci-local-only
