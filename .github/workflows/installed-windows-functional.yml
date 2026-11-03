@@ -1,0 +1,56 @@
+name: Isolated installed Windows functional acceptance
+on: [workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  installed:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      PORTAL_ACCEPTANCE_CI: '1'
+      VERCEL_ENV: ''
+      DATABASE_URL: postgresql://postgres:isolated-ci-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: 'false'
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3000
+      SMART_MANAGE_DEMO_PASSWORD: SyntheticOnlyCiPassword2026!
+      SMART_MANAGE_PORTAL_TEST_PASSWORD: SyntheticOnlyCiPassword2026!
+      JWT_SECRET: SyntheticOnlyCiJwtSecretNotForProduction2026
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prepare disposable PostgreSQL
+        shell: pwsh
+        run: |
+          choco install postgresql17 --yes --no-progress --params '/Password:isolated-ci-only /Port:5432'
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL installation failed' }
+          $pgbin = 'C:\Program Files\PostgreSQL\17\bin'
+          $env:PGPASSWORD = 'isolated-ci-only'
+          & "$pgbin\createdb.exe" -h 127.0.0.1 -U postgres smart_manage_portal_acceptance
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated database creation failed' }
+      - run: npm run db:migrate
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - run: npm run desktop:build
+      - name: Start isolated backend and install app
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Start-Process -FilePath node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput "$env:RUNNER_TEMP/backend.log" -RedirectStandardError "$env:RUNNER_TEMP/backend-error.log"
+          $ready=$false
+          for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
+          if(-not $ready){throw 'Isolated backend not ready'}
+          $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
+          $dest=Join-Path $env:RUNNER_TEMP 'functional-installed'
+          $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
+          if($p.ExitCode -ne 0){throw 'Installer failed'}
+          $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
+          node scripts/electron-runtime-smoke.mjs
+          if($LASTEXITCODE -ne 0){throw 'Installed functional acceptance failed'}

@@ -4,6 +4,10 @@ import { chromium } from "playwright";
 const executable = process.env.SMART_MANAGE_ELECTRON_EXE;
 const password = process.env.SMART_MANAGE_DEMO_PASSWORD;
 if (!executable || !password) throw new Error("Electron executable and demo credential environment are required");
+const backend = new URL(process.env.NEXT_PUBLIC_API_URL || '');
+if (!['127.0.0.1', 'localhost'].includes(backend.hostname) || backend.protocol !== 'http:') throw new Error('Installed acceptance requires explicit loopback backend');
+const db = new URL(process.env.DATABASE_URL || '');
+if (!['127.0.0.1', 'localhost'].includes(db.hostname) || db.pathname !== '/smart_manage_portal_acceptance') throw new Error('Isolated acceptance database required');
 
 const port = 9333;
 const child = spawn(executable, [`--remote-debugging-port=${port}`], { stdio: "ignore", windowsHide: false });
@@ -21,6 +25,13 @@ try {
   if (!endpoint) throw new Error("Packaged Electron app did not expose a healthy renderer");
   browser = await chromium.connectOverCDP(endpoint);
   const context = browser.contexts()[0];
+  const denied = [];
+  await context.route('**/*', async route => {
+    const url = new URL(route.request().url());
+    if (['app:', 'data:', 'blob:'].includes(url.protocol) || ['localhost','127.0.0.1'].includes(url.hostname)) return route.continue();
+    denied.push(url.origin);
+    return route.abort('blockedbyclient');
+  });
   let page;
   for (let attempt = 0; attempt < 40; attempt += 1) {
     page = context.pages().find((candidate) => candidate.url().startsWith("app://localhost/"));
@@ -54,6 +65,7 @@ try {
   await page.goto("app://localhost/login.html");
   if (!page.url().includes("login")) throw new Error("Packaged logout navigation failed");
   console.log(JSON.stringify({ started: true, renderer: "app://localhost", login: true, api: true, workspaces: api.count, boards: api.tables, rows: api.rows, logout: true }));
+  if (denied.length) throw new Error('Nonlocal renderer requests blocked; inspect test build endpoint configuration');
 } finally {
   await browser?.close().catch(() => {});
   child.kill();
