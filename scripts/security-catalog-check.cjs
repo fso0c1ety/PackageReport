@@ -7,7 +7,8 @@ async function inspect(client, backend, phase) {
   assert.ok(['before', 'after'].includes(phase), 'phase must be before or after');
   assert.ok(backend, 'explicit backend role required');
   const sql = fs.readFileSync('server/db/migrations/048_server_only_sensitive_rls.sql', 'utf8');
-  assert.equal(crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex'), 'fc3da9f13f6dea3d7d8d96d231b6af78bc6db464666541df82460e6f0a7c14ba');
+  // Repository blobs use LF; the previously approved Windows byte hash used CRLF.
+  assert.equal(crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex'), 'ce15210c3d4165230d1909e73994738ddbbb1fd04fd12e2b23252ff3ca6e24d1');
   const names = [...sql.match(/required_tables text\[\] := ARRAY\[([\s\S]*?)\];/)[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
   assert.equal(new Set(names).size, 29);
   await client.query('BEGIN READ ONLY');
@@ -33,8 +34,13 @@ async function inspect(client, backend, phase) {
     }
     const dependencies=(await client.query(`SELECT DISTINCT d.classid::regclass::text AS catalog,d.objid::text,d.deptype FROM pg_depend d WHERE d.refobjid=ANY($1::oid[]) ORDER BY 1,2,3`,[tables.map(t=>t.oid)])).rows;
     const roles=(await client.query('SELECT rolname,rolsuper,rolbypassrls FROM pg_roles WHERE rolname=ANY($1)',[['anon','authenticated',backend]])).rows;
-    const fingerprint=crypto.createHash('sha256').update(JSON.stringify(tables)).digest('hex');
-    return {phase,tables,permissions,roles,dependencies,fingerprint,limitations:['Catalog dependencies require review; dynamic SQL dependencies may be absent.','Backend grants do not prove application workflow or live runtime identity.','Fingerprint requires comparison with independently approved baseline.']};
+    assert.equal(roles.length,3,'three distinct existing roles required');
+    const functions=(await client.query(`SELECT n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) AS arguments,p.prosecdef,pg_get_userbyid(p.proowner) AS owner,p.proconfig,md5(pg_get_functiondef(p.oid)) AS definition_hash FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prokind='f' ORDER BY 1,2,3`)).rows;
+    const views=(await client.query(`SELECT schemaname,viewname,definition FROM pg_views WHERE schemaname='public' ORDER BY viewname`)).rows;
+    const memberships=(await client.query(`SELECT pg_get_userbyid(roleid) AS granted_role,pg_get_userbyid(member) AS member,admin_option FROM pg_auth_members ORDER BY 1,2`)).rows;
+    const stable=tables.map(({relname,relkind,columns,constraints})=>({relname,relkind,columns,constraints}));
+    const fingerprint=crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
+    return {phase,tables,permissions,roles,dependencies,functions,views,memberships,fingerprint,limitations:['Catalog dependencies require review; dynamic SQL dependencies may be absent.','Backend grants do not prove application workflow or live runtime identity.','Fingerprint excludes OIDs, ACLs and RLS; compare with independently approved baseline.']};
   } finally {await client.query('ROLLBACK');}
 }
 module.exports={inspect};
