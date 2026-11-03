@@ -58,7 +58,10 @@ Test legitimate operations with equivalent roles before approving SQL.
 ## Gate 3: urgent 048 containment, separately approved
 
 Use only `048_server_only_sensitive_rls.sql` from the pinned baseline.
-SHA256: `FC3DA9F13F6DEA3D7D8D96D231B6AF78BC6DB464666541DF82460E6F0A7C14BA`.
+Committed LF SHA256: `ce15210c3d4165230d1909e73994738ddbbb1fd04fd12e2b23252ff3ca6e24d1`.
+Historical Windows CRLF SHA256: `FC3DA9F13F6DEA3D7D8D96D231B6AF78BC6DB464666541DF82460E6F0A7C14BA`.
+The SQL is identical after line-ending normalization. Execute and review committed
+LF bytes; do not use a CRLF byte hash to validate an LF execution file.
 All 29 required tables already exist; inspected 047a definitions match. Do not
 replay 047a because its ledger record is absent. Do not replay 041-047 or insert
 historical ledger records as part of this containment.
@@ -95,7 +98,8 @@ requires separate authorization and an explicit intervening-data-loss decision.
 
 ## Gate 4: separate automation 044
 
-SHA256: `20B3BAA91E31565B97D5E9DCA3E267132670261E3323A4208BDB0FF44D0EB1B9`.
+Committed LF SHA256: `c6c6b14ad25235d0c25f15dcb097975548cfdefbe2e1b0ac47592747e9ceda10`.
+Historical Windows CRLF SHA256: `20B3BAA91E31565B97D5E9DCA3E267132670261E3323A4208BDB0FF44D0EB1B9`.
 Production scheduled_for is missing. Review actual automations/automation_runs
 column types, defaults, IDs, FKs, existing indexes and constraints first. Preserve
 SERIAL/integer IDs; capture counts and ID/content integrity fingerprints privately.
