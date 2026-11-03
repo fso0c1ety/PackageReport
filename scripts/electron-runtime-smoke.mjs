@@ -75,10 +75,13 @@ try {
     return { status: response.status, count: workspaces.length, tableStatus: tablesResponse?.status, tables: tables.length, rowStatus: rowsResponse?.status, rows: rows.length };
   });
   if (api.status !== 200 || api.count < 1 || api.tableStatus !== 200 || api.tables < 1 || api.rowStatus !== 200 || api.rows < 1) throw new Error(`Packaged workspace/board connectivity failed (${JSON.stringify(api)})`);
-  await page.evaluate(() => { localStorage.removeItem("token"); localStorage.removeItem("user"); });
-  await page.goto("app://localhost/login.html");
-  if (!page.url().includes("login")) throw new Error("Packaged logout navigation failed");
-  console.log(JSON.stringify({ started: true, renderer: "app://localhost", login: true, api: true, workspaces: api.count, boards: api.tables, rows: api.rows, logout: true }));
+  await page.getByRole('button', {name:'Account settings'}).click();
+  const revoked = page.waitForResponse(response => response.url().includes('/auth/logout') && response.request().method()==='POST');
+  await page.getByRole('button', {name:'Logout',exact:true}).click();
+  if (!(await revoked).ok()) throw new Error('Logout session revocation failed');
+  await page.waitForURL(url => url.pathname.includes('login'));
+  if (await page.evaluate(()=>Boolean(localStorage.getItem('token')))) throw new Error('Logout retained access token');
+  console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:'NOT TESTED',kanbanUI:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true }));
   if (denied.length) throw new Error('Nonlocal renderer requests blocked; inspect test build endpoint configuration');
 } finally {
   await browser?.close().catch(() => {});
