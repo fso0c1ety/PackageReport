@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
+import fs from 'node:fs';
 
 const executable = process.env.SMART_MANAGE_ELECTRON_EXE;
 const password = process.env.SMART_MANAGE_DEMO_PASSWORD;
@@ -76,9 +77,16 @@ try {
   });
   if (api.status !== 200 || api.count < 1 || api.tableStatus !== 200 || api.tables < 1 || api.rowStatus !== 200 || api.rows < 1) throw new Error(`Packaged workspace/board connectivity failed (${JSON.stringify(api)})`);
   await page.getByRole('button', {name:'Account settings'}).click();
-  const revoked = page.waitForResponse(response => response.url().includes('/auth/logout') && response.request().method()==='POST');
-  await page.getByRole('button', {name:'Logout',exact:true}).click();
-  if (!(await revoked).ok()) throw new Error('Logout session revocation failed');
+  fs.mkdirSync('artifacts/windows-functional',{recursive:true});
+  fs.writeFileSync('artifacts/windows-functional/pre-logout.json',JSON.stringify({loginUI:true,workspaceAPI:true,taskCreateEditPersistenceAPI:true,taskUI:false,kanbanUI:false}));
+  const [revoked] = await Promise.all([
+    page.waitForResponse(response => response.url().includes('/auth/logout') && response.request().method()==='POST'),
+    page.getByRole('button', {name:'Logout',exact:true}).click(),
+  ]).catch(async error=>{
+    await page.screenshot({path:'artifacts/windows-functional/logout-failure.png'}).catch(()=>{});
+    throw error;
+  });
+  if (!revoked.ok()) throw new Error(`Logout session revocation failed: ${revoked.status()}`);
   await page.waitForURL(url => url.pathname.includes('login'));
   if (await page.evaluate(()=>Boolean(localStorage.getItem('token')))) throw new Error('Logout retained access token');
   console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:'NOT TESTED',kanbanUI:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true }));
