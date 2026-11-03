@@ -10,7 +10,7 @@ jobs:
       CI: 'true'
       PORTAL_ACCEPTANCE_CI: '1'
       VERCEL_ENV: ''
-      DATABASE_URL: postgresql://postgres:isolated-ci-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_URL: postgresql://postgres:isolated-ci-only@127.0.0.1:55439/smart_manage_portal_acceptance
       DATABASE_SSL: 'false'
       NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
       NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
@@ -32,8 +32,16 @@ jobs:
           choco install postgresql17 --yes --no-progress --params '/Password:isolated-ci-only /Port:5432'
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL installation failed' }
           $pgbin = 'C:\Program Files\PostgreSQL\17\bin'
+          # Never reuse the runner's pre-existing 5432 cluster or its credentials.
+          $data = Join-Path $env:RUNNER_TEMP 'smartmanage-pg-functional'
+          $passwordFile = Join-Path $env:RUNNER_TEMP 'synthetic-pg-password'
+          'isolated-ci-only' | Set-Content $passwordFile -NoNewline
+          & "$pgbin\initdb.exe" -D $data -U postgres --auth=scram-sha-256 --pwfile=$passwordFile
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster initialization failed' }
+          & "$pgbin\pg_ctl.exe" -D $data -l "$env:RUNNER_TEMP/functional-postgres.log" -o '-p 55439 -h 127.0.0.1' -w start
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster startup failed' }
           $env:PGPASSWORD = 'isolated-ci-only'
-          & "$pgbin\createdb.exe" -h 127.0.0.1 -U postgres smart_manage_portal_acceptance
+          & "$pgbin\createdb.exe" -h 127.0.0.1 -p 55439 -U postgres smart_manage_portal_acceptance
           if ($LASTEXITCODE -ne 0) { throw 'Isolated database creation failed' }
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
@@ -52,5 +60,11 @@ jobs:
           $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
           if($p.ExitCode -ne 0){throw 'Installer failed'}
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
+          # Block external traffic in main/renderer/helper processes, including
+          # startup updater requests. Loopback remains available to the test API.
+          $programs = @((Get-Command node).Source) + @(Get-ChildItem $dest -Recurse -Filter '*.exe' | ForEach-Object FullName)
+          foreach($program in $programs){
+            New-NetFirewallRule -DisplayName "SmartManage isolated acceptance $([guid]::NewGuid())" -Direction Outbound -Program $program -Action Block -RemoteAddress @('0.0.0.0-126.255.255.255','128.0.0.0-255.255.255.255','::/0') -ErrorAction Stop | Out-Null
+          }
           node scripts/electron-runtime-smoke.mjs
           if($LASTEXITCODE -ne 0){throw 'Installed functional acceptance failed'}
