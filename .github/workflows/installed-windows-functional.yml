@@ -67,7 +67,9 @@ jobs:
           # startup updater requests. Loopback remains available to the test API.
           $programs = @((Get-Command node).Source) + @(Get-ChildItem $dest -Recurse -Filter '*.exe' | ForEach-Object FullName)
           foreach($program in $programs){
-            New-NetFirewallRule -DisplayName "SmartManage isolated acceptance $([guid]::NewGuid())" -Direction Outbound -Program $program -Action Block -RemoteAddress @('0.0.0.0-126.255.255.255','128.0.0.0-255.255.255.255','::/0') -ErrorAction Stop | Out-Null
+            $addresses = @('0.0.0.1-126.255.255.255','128.0.0.0-255.255.255.254','::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe')
+            $rule = New-NetFirewallRule -DisplayName "SmartManage isolated acceptance $([guid]::NewGuid())" -Direction Outbound -Program $program -Action Block -RemoteAddress $addresses -ErrorAction Stop
+            if ($rule.Enabled -ne 'True' -or $rule.Action -ne 'Block') { throw 'Outbound isolation rule inactive' }
           }
           node scripts/electron-runtime-smoke.mjs
           if($LASTEXITCODE -ne 0){throw 'Installed functional acceptance failed'}
