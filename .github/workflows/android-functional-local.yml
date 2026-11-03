@@ -67,9 +67,15 @@ jobs:
             node scripts/android-functional-local.mjs
       - name: Collect available failure diagnostics
         if: always()
+        timeout-minutes: 1
         run: |
           mkdir -p artifacts/android-functional
-          if command -v adb >/dev/null; then adb logcat -d -s AndroidRuntime > artifacts/android-functional/crashes.txt 2>&1 || true; fi
+          if command -v adb >/dev/null; then
+            timeout 10s adb devices > artifacts/android-functional/devices.txt 2>&1 || true
+            if grep -q $'\tdevice$' artifacts/android-functional/devices.txt; then
+              timeout 15s adb logcat -d -s AndroidRuntime > artifacts/android-functional/crashes.txt 2>&1 || true
+            fi
+          fi
           echo 'Functional success requires result.json; diagnostics alone are not PASS evidence.' > artifacts/android-functional/evidence-scope.txt
       - uses: actions/upload-artifact@v4
         if: always()
