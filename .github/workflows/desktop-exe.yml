@@ -89,6 +89,34 @@ jobs:
           if ($process.HasExited) { throw "Packaged Smart Manage exited during startup with code $($process.ExitCode)." }
           Stop-Process -Id $process.Id -Force
 
+      - name: Install and verify candidate on disposable runner
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer missing' }
+          $destination = Join-Path $env:RUNNER_TEMP 'smartmanage-install-acceptance'
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+          if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+          $exe = Join-Path $destination 'Smart Manage.exe'
+          $expected = (Get-Content package.json | ConvertFrom-Json).version
+          if (-not (Get-Item $exe).VersionInfo.ProductVersion.StartsWith($expected)) { throw 'Installed version mismatch' }
+          $update = Get-Content (Join-Path $destination 'resources/app-update.yml') -Raw
+          if ($update -notmatch 'owner: fso0c1ety' -or $update -notmatch 'repo: PackageReport') { throw 'Installed updater source mismatch' }
+          # No installed app launch against an unverified backend. The separate
+          # packaged startup check above is not authenticated acceptance.
+          New-Item -ItemType Directory -Force artifacts/installation | Out-Null
+          @{installed=$true;version=$expected;installerSha256=(Get-FileHash $installer.FullName -Algorithm SHA256).Hash;installedLogin='NOT RUN: isolated backend required';upgrade='NOT RUN: candidate is same version as stable';rollback='NOT RUN'} | ConvertTo-Json | Set-Content artifacts/installation/windows.json
+          Get-ChildItem dist-electron -File | Where-Object Extension -in '.exe','.yml','.blockmap' | Get-FileHash -Algorithm SHA256 | Select-Object Hash,Path | ConvertTo-Json | Set-Content artifacts/installation/checksums.json
+
+      - name: Upload installation evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-installation-evidence
+          path: artifacts/installation
+          if-no-files-found: error
+
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
         with:
