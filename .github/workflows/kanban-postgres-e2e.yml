@@ -54,16 +54,19 @@ jobs:
           # whose fixed local db port blocks this job. Clean only this job's
           # local Supabase containers before starting the isolated stack.
           supabase stop --no-backup || true
-          # Match Portal acceptance isolation: Inbucket's default host port
-          # can already be held by runner infrastructure outside this project.
-          # Capture ownership before remapping; never kill an unrelated listener.
-          ss -ltnp '( sport = :54324 )' || true
-          docker ps --format '{{.Names}} {{.Ports}}'
-          sed -i 's/^port = 54324$/port = 55424/' supabase/config.toml
-          if ss -H -ltn '( sport = :55424 )' | grep -q .; then
-            echo 'Isolated Inbucket port 55424 is occupied; refusing unsafe startup'
-            exit 1
-          fi
+          # Kanban uses seeded application credentials and Realtime, not the
+          # local mail capture UI or SMTP delivery. Avoid creating this unused
+          # container (including CLI compatibility mappings for [inbucket]).
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, tomllib
+          p = Path('supabase/config.toml')
+          text = p.read_text()
+          text, count = re.subn(r'(\[inbucket\]\s*\n)enabled = true', r'\1enabled = false', text)
+          assert count == 1, 'Expected exactly one local mail section'
+          assert tomllib.loads(text)['inbucket']['enabled'] is False
+          p.write_text(text)
+          PY
           supabase start
           supabase status -o env > /tmp/supabase-status.env
           sed -n 's/^API_URL=//p' /tmp/supabase-status.env | head -n 1 | tr -d '"' | xargs -I{} echo "NEXT_PUBLIC_SUPABASE_URL={}" >> "$GITHUB_ENV"
