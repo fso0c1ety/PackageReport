@@ -22,7 +22,7 @@ const devices=await _android.devices();
 if(devices.length!==1)throw Error('Exactly one isolated emulator required');
 const device=devices[0];
 const webview=await device.webView({pkg:'com.smartmanage.app'});
-const page=await webview.page();
+let page=await webview.page();
 try{
   const context=page.context();
   const denied=[];
@@ -34,7 +34,20 @@ try{
   if(!page)throw Error('Application WebView missing');
   // Fresh installation redirects itself to login. A second goto races that
   // application navigation and can interrupt the very same URL.
-  await page.waitForURL(url=>url.hostname==='localhost' && url.pathname.includes('login'),{timeout:30000,waitUntil:'domcontentloaded'});
+  let ready=false;
+  for(let attempt=0;attempt<30;attempt++){
+    try{
+      page=await (await device.webView({pkg:'com.smartmanage.app'})).page();
+      await page.getByLabel(/email/i).waitFor({state:'visible',timeout:1000});
+      await page.getByRole('textbox',{name:/^password$/i}).waitFor({state:'visible',timeout:1000});
+      ready=true;break;
+    }catch(error){
+      fs.mkdirSync('artifacts/android-functional',{recursive:true});
+      fs.writeFileSync('artifacts/android-functional/startup.json',JSON.stringify({attempt,error:error.message}));
+      await new Promise(r=>setTimeout(r,500));
+    }
+  }
+  if(!ready)throw Error('Active Android WebView login form never became usable');
   await page.getByLabel(/email/i).fill('demo@smartmanage.com');
   await page.getByRole('textbox',{name:/^password$/i}).fill(process.env.SMART_MANAGE_DEMO_PASSWORD);
   await page.getByRole('button',{name:/sign in|login/i}).click();
