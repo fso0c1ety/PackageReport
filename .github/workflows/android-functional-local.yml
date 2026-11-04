@@ -25,6 +25,8 @@ jobs:
       NEXT_PUBLIC_FRONTEND_URL: http://10.0.2.2:3000
       NEXT_PUBLIC_SOCKET_URL: http://10.0.2.2:3000
       CORS_ORIGINS: http://10.0.2.2:3000,capacitor://localhost
+      NODE_ENV: production
+      PORT: '3000'
       SMART_MANAGE_DEMO_PASSWORD: SyntheticOnlyCiPassword2026!
       SMART_MANAGE_PORTAL_TEST_PASSWORD: SyntheticOnlyCiPassword2026!
       JWT_SECRET: SyntheticOnlyCiJwtSecretNotForProduction2026
@@ -50,7 +52,7 @@ jobs:
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - name: Start local backend
         run: |
-          PORT=3000 npm start > /tmp/android-backend.log 2>&1 &
+          node server/index.js > /tmp/android-backend.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
           curl -sf http://127.0.0.1:3000/login/ >/dev/null
       - name: Configure KVM
