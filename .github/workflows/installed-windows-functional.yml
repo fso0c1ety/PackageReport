@@ -91,7 +91,6 @@ jobs:
                 Add-Content artifacts/windows-functional/wer-report-contents.txt ("--- $($_.FullName) ---")
                 Get-Content $_.FullName | Add-Content artifacts/windows-functional/wer-report-contents.txt
               }
-            }
             throw
             }
           }
