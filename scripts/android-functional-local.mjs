@@ -24,13 +24,18 @@ const device=devices[0];
 const webview=await device.webView({pkg:'com.smartmanage.app'});
 let page=await webview.page();
 try{
-  const context=page.context();
   const denied=[];
-  await context.route('**/*',route=>{
-    const u=new URL(route.request().url());
-    if(['localhost','127.0.0.1','10.0.2.2'].includes(u.hostname)||['data:','blob:','capacitor:'].includes(u.protocol))return route.continue();
-    denied.push(u.origin);return route.abort();
-  });
+  const guardedContexts=new WeakSet();
+  const guardContext=context=>{
+    if(guardedContexts.has(context))return;
+    guardedContexts.add(context);
+    context.route('**/*',route=>{
+      const u=new URL(route.request().url());
+      if(['localhost','127.0.0.1','10.0.2.2'].includes(u.hostname)||['data:','blob:','capacitor:'].includes(u.protocol))return route.continue();
+      denied.push({origin:u.origin,url:u.href});return route.abort();
+    });
+  };
+  guardContext(page.context());
   if(!page)throw Error('Application WebView missing');
   // Fresh installation redirects itself to login. A second goto races that
   // application navigation and can interrupt the very same URL.
@@ -38,6 +43,7 @@ try{
   for(let attempt=0;attempt<30;attempt++){
     try{
       page=await (await device.webView({pkg:'com.smartmanage.app'})).page();
+      guardContext(page.context());
       await page.getByLabel(/email/i).waitFor({state:'visible',timeout:1000});
       await page.getByRole('textbox',{name:/^password$/i}).waitFor({state:'visible',timeout:1000});
       ready=true;break;
@@ -51,12 +57,29 @@ try{
   await page.getByLabel(/email/i).fill('demo@smartmanage.com');
   await page.getByRole('textbox',{name:/^password$/i}).fill(process.env.SMART_MANAGE_DEMO_PASSWORD);
   await page.getByRole('button',{name:/sign in|login/i}).click();
-  await page.waitForURL(url=>!url.pathname.includes('login'),{timeout:30000});
-  const workspaces=await page.evaluate(async origin=>{
-    const r=await fetch(`${origin}/api/workspaces`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});
-    if(!r.ok)throw Error(`Workspace API ${r.status}`);
-    const rows=await r.json();if(!Array.isArray(rows)||!rows.length)throw Error('Synthetic workspace missing');return rows.length;
-  },backend.origin);
+  let workspaces;
+  let lastApiError;
+  for(let attempt=0;attempt<20;attempt++){
+    try{
+      page=await (await device.webView({pkg:'com.smartmanage.app'})).page();
+      guardContext(page.context());
+      await page.getByLabel(/email/i).waitFor({state:'visible',timeout:1000}).catch(()=>{});
+      workspaces=await page.evaluate(async origin=>{
+        const token=localStorage.getItem('token');
+        if(!token)throw Error('Login token not available');
+        const r=await fetch(`${origin}/api/workspaces`,{headers:{Authorization:`Bearer ${token}`}});
+        if(!r.ok)throw Error(`Workspace API ${r.status}`);
+        const rows=await r.json();if(!Array.isArray(rows)||!rows.length)throw Error('Synthetic workspace missing');return rows.length;
+      },backend.origin);
+      break;
+    }catch(error){
+      lastApiError=error;
+      fs.mkdirSync('artifacts/android-functional',{recursive:true});
+      fs.writeFileSync('artifacts/android-functional/api-attempt.json',JSON.stringify({attempt,error:error.message,denied}));
+      await new Promise(r=>setTimeout(r,1000));
+    }
+  }
+  if(!workspaces)throw lastApiError || Error('Workspace API never became available');
   if(denied.length)throw Error('Unexpected nonlocal requests blocked');
   fs.mkdirSync('artifacts/android-functional',{recursive:true});
   await page.screenshot({path:'artifacts/android-functional/authenticated.png'});
