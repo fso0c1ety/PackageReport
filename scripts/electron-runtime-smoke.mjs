@@ -76,6 +76,11 @@ try {
     return { status: response.status, count: workspaces.length, tableStatus: tablesResponse?.status, tables: tables.length, rowStatus: rowsResponse?.status, rows: rows.length };
   });
   if (api.status !== 200 || api.count < 1 || api.tableStatus !== 200 || api.tables < 1 || api.rowStatus !== 200 || api.rows < 1) throw new Error(`Packaged workspace/board connectivity failed (${JSON.stringify(api)})`);
+  // The isolated firewall intentionally blocks the public updater. Dismiss its
+  // recoverable update-failure overlay through the real user control before
+  // interacting with the account menu underneath it.
+  const later=page.getByRole('button',{name:'Later',exact:true});
+  if(await later.isVisible()) await later.click();
   await page.getByRole('button', {name:'Account settings'}).click();
   const logoutCalls=[];
   page.on('request',request=>{if(/\/(users\/fcm|auth\/logout)/.test(request.url()))logoutCalls.push({event:'request',method:request.method(),path:new URL(request.url()).pathname,time:Date.now()});});
