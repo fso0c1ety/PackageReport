@@ -6,7 +6,10 @@ function createTaskReadsRouter({ logger, requireTablePermission, requireRowPermi
 
   router.get("/tables/:tableId/tasks", requireTablePermission("viewer"), async (req, res) => {
     try {
-      return res.json(await tableService.getRows(req.params.tableId, req.table, req.user.id));
+      const pageOptions = {};
+      if (req.query.limit !== undefined) pageOptions.limit = req.query.limit;
+      if (req.query.offset !== undefined) pageOptions.offset = req.query.offset;
+      return res.json(await tableService.getRows(req.params.tableId, req.table, req.user.id, pageOptions));
     } catch (error) {
       logger.error("tasks_fetch_failed", { tableId: req.params.tableId, userId: req.user.id, error: error.message });
       return res.status(500).json({ error: "Internal server error" });
