@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process';
-import {chromium} from 'playwright';
+import {_android} from 'playwright';
 import fs from 'node:fs';
 
 const backend=new URL(process.env.NEXT_PUBLIC_API_URL || '');
@@ -18,16 +18,19 @@ for(let n=0;n<40;n++){
 }
 if(!socket)throw Error('Debug APK WebView DevTools unavailable');
 adb('forward','tcp:9222',`localabstract:${socket}`);
-const browser=await chromium.connectOverCDP('http://127.0.0.1:9222');
+const devices=await _android.devices();
+if(devices.length!==1)throw Error('Exactly one isolated emulator required');
+const device=devices[0];
+const webview=await device.webView({pkg:'com.smartmanage.app'});
+const page=await webview.page();
 try{
-  const context=browser.contexts()[0];
+  const context=page.context();
   const denied=[];
   await context.route('**/*',route=>{
     const u=new URL(route.request().url());
     if(['localhost','127.0.0.1','10.0.2.2'].includes(u.hostname)||['data:','blob:','capacitor:'].includes(u.protocol))return route.continue();
     denied.push(u.origin);return route.abort();
   });
-  const page=context.pages()[0];
   if(!page)throw Error('Application WebView missing');
   await page.goto('http://localhost/login.html');
   await page.getByLabel(/email/i).fill('demo@smartmanage.com');
@@ -43,4 +46,4 @@ try{
   fs.mkdirSync('artifacts/android-functional',{recursive:true});
   await page.screenshot({path:'artifacts/android-functional/authenticated.png'});
   fs.writeFileSync('artifacts/android-functional/result.json',JSON.stringify({emulator:true,physicalDevice:false,loginUI:true,workspaceAPI:true,workspaces,tasks:'NOT TESTED',reconnect:'NOT TESTED',notifications:'NOT TESTED'}));
-}finally{await browser.close();}
+}finally{await device.close();}
