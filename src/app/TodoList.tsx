@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl, authenticatedFetch } from "./apiUrl";
 import { v4 as uuidv4 } from "uuid";
-import { Box, Button, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, MenuItem, Select, TextField, InputAdornment } from "@mui/material";
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, MenuItem, Select, TextField, InputAdornment } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { Column, ColumnType, Row } from "../types";
+import { hasNextTaskPage, mergeTaskPage, normalizeTaskPage, taskPageRequest } from "./todoListPaging";
 
 
 
@@ -18,77 +19,126 @@ interface TodoListProps {
 export function TodoList({ columns, tableId }: TodoListProps) {
   const [tasks, setTasks] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [editValue, setEditValue] = useState<any>("");
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  const requestSequenceRef = useRef(0);
+  const tableGenerationRef = useRef(0);
+  const nextPageRef = useRef(0);
+  const loadingRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Always load tasks from backend
+  const loadPage = useCallback(async (nextPage: number, append = true) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const sequence = ++requestSequenceRef.current;
+    try {
+      const res = await authenticatedFetch(getApiUrl(taskPageRequest(tableId, nextPage)), { signal: controller.signal });
+      if (!res.ok) throw new Error(`Failed to fetch tasks (${res.status})`);
+      const rows = normalizeTaskPage(await res.json());
+      if (sequence !== requestSequenceRef.current) return;
+      setTasks((current) => append ? mergeTaskPage(current, rows, nextPage) : rows);
+      nextPageRef.current = nextPage + 1;
+      setHasNextPage(hasNextTaskPage(rows));
+      setPageError(null);
+      return rows;
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : "";
+      if (sequence === requestSequenceRef.current && errorName !== "AbortError") {
+        setPageError("Some tasks could not be loaded. Scroll down to retry.");
+      }
+      throw error;
+    } finally {
+      if (sequence === requestSequenceRef.current) loadingRef.current = false;
+    }
+  }, [tableId]);
+
   useEffect(() => {
+    tableGenerationRef.current += 1;
+    setSaving(false);
     setLoading(true);
-    authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch tasks (${res.status})`);
-        }
-        return res.json();
-      })
-      .then((data) => setTasks(data))
+    nextPageRef.current = 0;
+    loadPage(0, false)
       .catch((err) => {
-        console.error('Failed to fetch tasks:', err);
-        setTasks([]);
+        if (err?.name !== "AbortError") {
+          console.error('Failed to fetch tasks:', err);
+          setTasks([]);
+        }
       })
       .finally(() => setLoading(false));
-  }, [tableId]);
+    return () => { requestRef.current?.abort(); loadingRef.current = false; };
+  }, [loadPage]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasNextPage) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        loadPage(nextPageRef.current).catch((error) => {
+          const errorName = error instanceof Error ? error.name : "";
+          if (errorName !== "AbortError") console.error("Failed to load more tasks", error);
+        });
+      }
+    }, { rootMargin: "600px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, loadPage, pageError]);
 
   const addTask = async () => {
     const newTask = { id: uuidv4(), values: {} };
-    setLoading(true);
-    await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newTask),
-    });
-    // Refetch tasks from backend after adding
-    authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch tasks (${res.status})`);
-        }
-        return res.json();
-      })
-      .then((data) => setTasks(data))
-      .catch((err) => {
-        console.error('Failed to refresh tasks:', err);
-      })
-      .finally(() => setLoading(false));
+    const generation = tableGenerationRef.current;
+    setSaving(true);
+    try {
+      const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTask),
+      });
+      if (!response.ok) throw new Error(`Failed to add task (${response.status})`);
+      const created = await response.json().catch(() => null);
+      if (generation === tableGenerationRef.current && created?.id) {
+        setTasks((current) => [created, ...current]);
+      }
+    } catch (error) {
+      console.error("Failed to add task", error);
+    } finally {
+      if (generation === tableGenerationRef.current) setSaving(false);
+    }
   };
 
   const handleCellSave = async (taskId: string, columnId: string, value: any) => {
-    setLoading(true);
+    const generation = tableGenerationRef.current;
+    setSaving(true);
     const updatedTask = tasks.find((t) => t.id === taskId);
-    if (updatedTask) {
-      const newValues = { ...updatedTask.values, [columnId]: value };
-      await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: taskId, values: newValues }),
-      });
-    }
-    // Refetch tasks from backend after editing
-    authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`))
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch tasks (${res.status})`);
+    try {
+      if (updatedTask) {
+        const newValues = { ...updatedTask.values, [columnId]: value };
+        const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: taskId, values: newValues }),
+        });
+        if (!response.ok) throw new Error(`Failed to save task (${response.status})`);
+        const saved = await response.json().catch(() => null);
+        if (generation === tableGenerationRef.current) {
+          setTasks((current) => current.map((row) => (
+            row.id === taskId ? (saved?.task || saved || { ...row, values: newValues }) : row
+          )));
         }
-        return res.json();
-      })
-      .then((data) => setTasks(data))
-      .catch((err) => {
-        console.error('Failed to refresh tasks:', err);
-      })
-      .finally(() => {
+      }
+    } catch (error) {
+      console.error("Failed to save task", error);
+    } finally {
+      if (generation === tableGenerationRef.current) {
         setEditingCell(null);
-        setLoading(false);
-      });
+        setSaving(false);
+      }
+    }
   };
 
   const handleCellClick = (taskId: string, colId: string, value: any) => {
@@ -173,6 +223,9 @@ export function TodoList({ columns, tableId }: TodoListProps) {
           </TableBody>
         </Table>
       </TableContainer>
+      <Box ref={sentinelRef} sx={{ height: 1 }} aria-hidden="true" />
+      {pageError && <Typography role="status" color="error" sx={{ mt: 1 }}>{pageError}</Typography>}
+      {saving && <Typography role="status" sx={{ mt: 1 }}>Saving…</Typography>}
     </Box>
   );
 }
