@@ -50,7 +50,7 @@ jobs:
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - name: Start local backend
         run: |
-          npx next start -H 0.0.0.0 -p 3000 > /tmp/android-backend.log 2>&1 &
+          PORT=3000 npm start > /tmp/android-backend.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
           curl -sf http://127.0.0.1:3000/login/ >/dev/null
       - name: Configure KVM
