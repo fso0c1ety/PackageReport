@@ -63,10 +63,17 @@ jobs:
           Get-FileHash $installer.FullName -Algorithm SHA256 | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-sha256.json
           Get-Item $installer.FullName | Select-Object FullName,Length,CreationTimeUtc,LastWriteTimeUtc | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-metadata.json
           $dest=Join-Path $env:RUNNER_TEMP 'functional-installed'
-          try {
+          $attempts = @()
+          $installed = $false
+          for($attempt=1; $attempt -le 2 -and -not $installed; $attempt++) {
+            if(Test-Path -LiteralPath $dest){Remove-Item -LiteralPath $dest -Recurse -Force}
             $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
-            if($p.ExitCode -ne 0){throw "Installer failed with exit code $($p.ExitCode); path=$($installer.Name)"}
-          } catch {
+            $attempts += [pscustomobject]@{ attempt=$attempt; exitCode=$p.ExitCode; installed=(Test-Path -LiteralPath (Join-Path $dest 'Smart Manage.exe')) }
+            if($p.ExitCode -eq 0 -and (Test-Path -LiteralPath (Join-Path $dest 'Smart Manage.exe'))){$installed=$true}
+          }
+          $attempts | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-attempts.json
+          if(-not $installed){
+            try { throw "Installer failed after $($attempts.Count) attempts; path=$($installer.Name)" } catch {
             $_ | Out-String | Set-Content artifacts/windows-functional/installer-error.txt
             Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue |
               Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
@@ -78,13 +85,15 @@ jobs:
               Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-10) } |
               Select-Object FullName,LastWriteTime,Length
             $wer | ConvertTo-Json | Set-Content artifacts/windows-functional/wer-reports.json
-            foreach($report in $wer | Where-Object { $_.PSIsContainer }) {
-              $reportFile = Join-Path $report.FullName 'Report.wer'
-              if (Test-Path $reportFile) {
-                Get-Content $reportFile | Add-Content artifacts/windows-functional/wer-report-contents.txt
+            Get-ChildItem $werArchive,$werQueue -Recurse -Filter 'Report.wer' -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-10) } |
+              ForEach-Object {
+                Add-Content artifacts/windows-functional/wer-report-contents.txt ("--- $($_.FullName) ---")
+                Get-Content $_.FullName | Add-Content artifacts/windows-functional/wer-report-contents.txt
               }
             }
             throw
+            }
           }
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
           # Block external traffic in main/renderer/helper processes, including
