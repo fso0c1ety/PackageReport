@@ -72,10 +72,18 @@ jobs:
               Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
               Select-Object TimeCreated,ProviderName,Id,LevelDisplayName,Message |
               Format-List | Out-File artifacts/windows-functional/application-events.txt
-            $wer = Get-ChildItem "$env:ProgramDataMicrosoftWindowsWERReportArchive","$env:ProgramDataMicrosoftWindowsWERReportQueue" -ErrorAction SilentlyContinue |
+            $werArchive = Join-Path $env:ProgramData 'Microsoft\Windows\WER\ReportArchive'
+            $werQueue = Join-Path $env:ProgramData 'Microsoft\Windows\WER\ReportQueue'
+            $wer = Get-ChildItem $werArchive,$werQueue -Recurse -ErrorAction SilentlyContinue |
               Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-10) } |
               Select-Object FullName,LastWriteTime,Length
             $wer | ConvertTo-Json | Set-Content artifacts/windows-functional/wer-reports.json
+            foreach($report in $wer | Where-Object { $_.PSIsContainer }) {
+              $reportFile = Join-Path $report.FullName 'Report.wer'
+              if (Test-Path $reportFile) {
+                Get-Content $reportFile | Add-Content artifacts/windows-functional/wer-report-contents.txt
+              }
+            }
             throw
           }
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
