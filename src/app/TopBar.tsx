@@ -193,10 +193,13 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   
   const handleLogout = async () => {
     try {
-      await authenticatedFetch(getApiUrl('users/fcm'), {
+      // Push-token cleanup is optional and must not gate session revocation.
+      void authenticatedFetch(getApiUrl('users/fcm'), {
         method: 'DELETE',
+        signal: AbortSignal.timeout(5000),
+        skipSessionRefresh: true,
         suppressNativeErrorAlert: true,
-      });
+      }).catch(e => console.error('Failed to clear FCM token on server', e));
     } catch (e) {
       console.error("Failed to clear FCM token on server", e);
     }
