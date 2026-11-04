@@ -80,15 +80,21 @@ try {
   // may finish asynchronously after the first renderer load, so settle and
   // dismiss its recoverable overlay immediately before opening Account settings.
   const dismissUpdater = async () => {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    // The isolated firewall can leave electron-updater in a failed state only
+    // after its network timeout completes. Keep using the real Later control,
+    // but allow that state transition to finish before opening Account.
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       const later = page.getByRole('button', { name: 'Later', exact: true });
       if (await later.isVisible().catch(() => false)) {
         await later.click({ timeout: 2000 }).catch(() => {});
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(500);
         continue;
       }
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(500);
     }
+    // Require a short quiet period so a delayed updater state update cannot
+    // cover the real Account/Logout controls immediately afterward.
+    await page.waitForTimeout(1500);
     if (await page.getByRole('button', { name: 'Later', exact: true }).isVisible().catch(() => false)) {
       throw new Error('Updater overlay did not settle before logout');
     }
