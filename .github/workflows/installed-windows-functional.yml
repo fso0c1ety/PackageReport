@@ -54,14 +54,30 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force artifacts/windows-functional | Out-Null
           Start-Process -FilePath node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput "$env:RUNNER_TEMP/backend.log" -RedirectStandardError "$env:RUNNER_TEMP/backend-error.log"
           $ready=$false
           for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
           if(-not $ready){throw 'Isolated backend not ready'}
           $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
+          Get-FileHash $installer.FullName -Algorithm SHA256 | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-sha256.json
+          Get-Item $installer.FullName | Select-Object FullName,Length,CreationTimeUtc,LastWriteTimeUtc | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-metadata.json
           $dest=Join-Path $env:RUNNER_TEMP 'functional-installed'
-          $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
-          if($p.ExitCode -ne 0){throw "Installer failed with exit code $($p.ExitCode); path=$($installer.Name)"}
+          try {
+            $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
+            if($p.ExitCode -ne 0){throw "Installer failed with exit code $($p.ExitCode); path=$($installer.Name)"}
+          } catch {
+            $_ | Out-String | Set-Content artifacts/windows-functional/installer-error.txt
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue |
+              Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
+              Select-Object TimeCreated,ProviderName,Id,LevelDisplayName,Message |
+              Format-List | Out-File artifacts/windows-functional/application-events.txt
+            $wer = Get-ChildItem "$env:ProgramDataMicrosoftWindowsWERReportArchive","$env:ProgramDataMicrosoftWindowsWERReportQueue" -ErrorAction SilentlyContinue |
+              Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-10) } |
+              Select-Object FullName,LastWriteTime,Length
+            $wer | ConvertTo-Json | Set-Content artifacts/windows-functional/wer-reports.json
+            throw
+          }
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
           # Block external traffic in main/renderer/helper processes, including
           # startup updater requests. Loopback remains available to the test API.
