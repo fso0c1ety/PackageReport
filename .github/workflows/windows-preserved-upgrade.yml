@@ -1,0 +1,48 @@
+name: Preserved Windows installer upgrade and rollback
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-preserved-upgrade.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  upgrade:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '13342484792'
+          run-id: 41868431877
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Install stable, upgrade preserved binary, and restore stable
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release download v1.0.31 --repo fso0c1ety/PackageReport --pattern Smart-Manage-Setup-1.0.31.exe --dir stable
+          if ($LASTEXITCODE -ne 0) { throw 'Official stable download failed' }
+          $candidate = (Resolve-Path candidate/Smart-Manage-Setup-1.0.32.exe).Path
+          if ((Get-FileHash $candidate -Algorithm SHA256).Hash -ne '34D86D8F1931A10CCD32518AF95B7DE1AAD00B9EE7AFAB31D084D6DA2546DB9E') { throw 'Candidate hash mismatch' }
+          $stable = (Resolve-Path stable/Smart-Manage-Setup-1.0.31.exe).Path
+          $destination = Join-Path $env:RUNNER_TEMP 'smartmanage-upgrade-validation'
+          $evidence = @()
+          foreach ($stage in @(@{name='fresh-stable';file=$stable;version='1.0.31'},@{name='upgrade';file=$candidate;version='1.0.32'},@{name='rollback-reinstall';file=$stable;version='1.0.31'})) {
+            $process = Start-Process -FilePath $stage.file -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+            if ($process.ExitCode -ne 0) { throw "$($stage.name) installer failed: $($process.ExitCode)" }
+            $actual = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
+            if (-not $actual.StartsWith($stage.version)) { throw "$($stage.name) version mismatch: $actual" }
+            $evidence += @{stage=$stage.name;installedVersion=$actual;exitCode=$process.ExitCode}
+          }
+          New-Item -ItemType Directory -Path evidence -Force | Out-Null
+          @{stages=$evidence;appLaunch='NOT TESTED';automaticUpdate='NOT TESTED';userDataRecovery='NOT TESTED';candidateSha256=(Get-FileHash $candidate -Algorithm SHA256).Hash} | ConvertTo-Json -Depth 5 | Set-Content evidence/upgrade.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preserved-windows-upgrade-evidence
+          path: evidence
+          if-no-files-found: error
