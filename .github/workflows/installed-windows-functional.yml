@@ -61,7 +61,7 @@ jobs:
           $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
           $dest=Join-Path $env:RUNNER_TEMP 'functional-installed'
           $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
-          if($p.ExitCode -ne 0){throw 'Installer failed'}
+          if($p.ExitCode -ne 0){throw "Installer failed with exit code $($p.ExitCode); path=$($installer.Name)"}
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
           # Block external traffic in main/renderer/helper processes, including
           # startup updater requests. Loopback remains available to the test API.
