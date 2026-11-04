@@ -2,6 +2,7 @@ name: Isolated installed Windows functional acceptance
 on: [workflow_dispatch, pull_request]
 permissions:
   contents: read
+  actions: read
 jobs:
   installed:
     runs-on: windows-latest
@@ -49,7 +50,24 @@ jobs:
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
-      - run: npm run desktop:build
+      - name: Build isolated backend only
+        run: npm run build
+      - name: Download preserved release installer
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '13342484792'
+          run-id: 41868431877
+          github-token: ${{ github.token }}
+          path: dist-electron
+      - name: Verify exact release artifact
+        shell: pwsh
+        run: |
+          $installer = 'dist-electron/Smart-Manage-Setup-1.0.32.exe'
+          $expected = '34D86D8F1931A10CCD32518AF95B7DE1AAD00B9EE7AFAB31D084D6DA2546DB9E'
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $expected) { throw 'Release installer SHA256 mismatch' }
+          $manifest = Get-Content dist-electron/latest.yml -Raw
+          $sha512 = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes((Resolve-Path $installer))))
+          if (-not $manifest.Contains($sha512) -or $manifest -notmatch 'version: 1\.0\.32') { throw 'Release updater manifest mismatch' }
       - name: Start isolated backend and install app
         shell: pwsh
         run: |
