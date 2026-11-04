@@ -102,6 +102,9 @@ try {
   await dismissUpdater();
   await page.getByRole('button', {name:'Account settings'}).click();
   await dismissUpdater();
+  const preLogoutCookies = await context.cookies();
+  const preLogoutRefresh = preLogoutCookies.find(cookie => cookie.name === 'smart_manage_refresh')?.value;
+  if (!preLogoutRefresh) throw new Error('Pre-logout refresh session cookie was not captured');
   const logoutCalls=[];
   page.on('request',request=>{if(/\/(users\/fcm|auth\/logout)/.test(request.url()))logoutCalls.push({event:'request',method:request.method(),path:new URL(request.url()).pathname,time:Date.now()});});
   page.on('response',response=>{if(/\/(users\/fcm|auth\/logout)/.test(response.url()))logoutCalls.push({event:'response',status:response.status(),path:new URL(response.url()).pathname,time:Date.now()});});
@@ -119,7 +122,11 @@ try {
   fs.writeFileSync('artifacts/windows-functional/logout-calls.json',JSON.stringify(logoutCalls));
   await page.waitForURL(url => url.pathname.includes('login'));
   if (await page.evaluate(()=>Boolean(localStorage.getItem('token')))) throw new Error('Logout retained access token');
-  console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:'NOT TESTED',kanbanUI:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true }));
+  const refreshReuse = await context.request.post(new URL('/api/auth/refresh', backend).toString(), {
+    headers: { Cookie: `smart_manage_refresh=${preLogoutRefresh}` },
+  });
+  if (refreshReuse.status() !== 401) throw new Error(`Revoked refresh session was reusable (${refreshReuse.status()})`);
+  console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:'NOT TESTED',kanbanUI:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status() }));
   if (denied.length) throw new Error('Nonlocal renderer requests blocked; inspect test build endpoint configuration');
 } finally {
   await browser?.close().catch(() => {});
