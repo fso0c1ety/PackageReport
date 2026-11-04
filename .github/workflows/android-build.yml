@@ -77,6 +77,32 @@ jobs:
             exit 1
           fi
 
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install APK in isolated emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell pm path com.smartmanage.app
+            mkdir -p artifacts/android-installation
+            adb shell dumpsys package com.smartmanage.app > artifacts/android-installation/package.txt
+            sha256sum android/app/build/outputs/apk/debug/app-debug.apk > artifacts/android-installation/apk.sha256
+            echo 'EMULATOR INSTALL VERIFIED; launch/login/tasks/reconnect/notifications NOT RUN pending isolated backend configuration; physical device NOT TESTED; debug signed APK only' > artifacts/android-installation/scope.txt
+      - name: Upload emulator evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-emulator-installation-evidence
+          path: artifacts/android-installation
+          if-no-files-found: error
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
