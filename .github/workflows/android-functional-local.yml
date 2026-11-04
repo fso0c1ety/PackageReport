@@ -1,0 +1,89 @@
+name: Isolated Android functional acceptance
+on: [workflow_dispatch, pull_request]
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-only
+          POSTGRES_DB: smart_manage_portal_acceptance
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      CI: 'true'
+      PORTAL_ACCEPTANCE_CI: '1'
+      VERCEL_ENV: ''
+      DATABASE_URL: postgresql://postgres:isolated-only@127.0.0.1:5432/smart_manage_portal_acceptance
+      DATABASE_SSL: 'false'
+      NEXT_PUBLIC_API_URL: http://10.0.2.2:3000
+      NEXT_PUBLIC_FRONTEND_URL: http://10.0.2.2:3000
+      NEXT_PUBLIC_SOCKET_URL: http://10.0.2.2:3000
+      CORS_ORIGINS: http://10.0.2.2:3000,http://localhost,capacitor://localhost
+      PORT: '3000'
+      SMART_MANAGE_DEMO_PASSWORD: SyntheticOnlyCiPassword2026!
+      SMART_MANAGE_PORTAL_TEST_PASSWORD: SyntheticOnlyCiPassword2026!
+      JWT_SECRET: SyntheticOnlyCiJwtSecretNotForProduction2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - run: npm run build
+      - run: npx cap sync android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - name: Start local backend
+        env:
+          NODE_ENV: production
+        run: |
+          node server/index.js > /tmp/android-backend.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:3000/login/ >/dev/null && break || sleep 2; done
+          curl -sf http://127.0.0.1:3000/login/ >/dev/null
+      - name: Configure KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb install android/app/build/outputs/apk/debug/app-debug.apk
+            node scripts/android-functional-local.mjs
+      - name: Collect available failure diagnostics
+        if: always()
+        timeout-minutes: 1
+        run: |
+          mkdir -p artifacts/android-functional
+          if command -v adb >/dev/null; then
+            timeout 10s adb devices > artifacts/android-functional/devices.txt 2>&1 || true
+            if grep -q $'\tdevice$' artifacts/android-functional/devices.txt; then
+              timeout 15s adb logcat -d -s AndroidRuntime > artifacts/android-functional/crashes.txt 2>&1 || true
+            fi
+          fi
+          echo 'Functional success requires result.json; diagnostics alone are not PASS evidence.' > artifacts/android-functional/evidence-scope.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-functional-evidence
+          path: artifacts/android-functional
+          if-no-files-found: error
