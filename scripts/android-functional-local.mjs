@@ -32,7 +32,9 @@ try{
     denied.push(u.origin);return route.abort();
   });
   if(!page)throw Error('Application WebView missing');
-  await page.goto('http://localhost/login.html');
+  // Fresh installation redirects itself to login. A second goto races that
+  // application navigation and can interrupt the very same URL.
+  await page.waitForURL(url=>url.hostname==='localhost' && url.pathname.includes('login'),{timeout:30000,waitUntil:'domcontentloaded'});
   await page.getByLabel(/email/i).fill('demo@smartmanage.com');
   await page.getByRole('textbox',{name:/^password$/i}).fill(process.env.SMART_MANAGE_DEMO_PASSWORD);
   await page.getByRole('button',{name:/sign in|login/i}).click();
