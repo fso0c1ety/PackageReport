@@ -18,6 +18,9 @@ try {
   if (-not $uninstaller) { throw 'Checkpoint cleanup uninstaller missing' }
   $cleanup = Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
   if ($cleanup.ExitCode -ne 0) { throw 'Checkpoint uninstall failed' }
+  for ($wait = 0; $wait -lt 60 -and (Test-Path $exe); $wait++) { Start-Sleep -Seconds 1 }
+  if (Test-Path $exe) { throw 'Checkpoint cleanup incomplete: installed executable remains' }
+  @{uninstallerExitCode=$cleanup.ExitCode;installedExecutableRemoved=$true} | ConvertTo-Json | Set-Content "$evidence/$Stage-cleanup.json"
 } finally {
   Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$started} -ErrorAction SilentlyContinue |
     Where-Object ProviderName -match 'Application Error|Windows Error Reporting' |
