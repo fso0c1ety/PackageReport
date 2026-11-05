@@ -10,7 +10,10 @@ try {
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
   $installer=Join-Path $Root 'Smart-Manage-Setup-1.0.32.exe'
-  if((Get-FileHash $installer -Algorithm SHA256).Hash -ne 'E28D4D3AAAD54B26ECDD139969359003BB358EFB36E77006087B309FD8EDB490'){throw 'Interactive installer checksum mismatch'}
+  $algorithm=[Security.Cryptography.SHA256]::Create()
+  try {$hash=[BitConverter]::ToString($algorithm.ComputeHash([IO.File]::ReadAllBytes($installer))).Replace('-','')}
+  finally {$algorithm.Dispose()}
+  if($hash -ne 'E28D4D3AAAD54B26ECDD139969359003BB358EFB36E77006087B309FD8EDB490'){throw 'Interactive installer checksum mismatch'}
   $destination=Join-Path $Root 'installed'
   $result.customDirectory=$destination
   $process=Start-Process -FilePath $installer -PassThru -WindowStyle Normal
