@@ -58,6 +58,20 @@ export async function installedKanbanNotification(page) {
     await open();
     await expect(page.locator('[data-rfd-droppable-id="kanban:Open"]').getByText(`${marker} edited`,{exact:true})).toBeVisible();
 
+    // Observe the real native constructor/events without substituting a fake
+    // notification or changing permission. Server runners may lack toast UI.
+    await page.evaluate(()=>{
+      window.__installedNotificationEvidence={permission:Notification.permission,requested:0,shown:0,errors:0};
+      const Original=window.Notification;
+      window.Notification=new Proxy(Original,{construct(Target,args){
+        const notification=Reflect.construct(Target,args);
+        window.__installedNotificationEvidence.requested++;
+        notification.addEventListener('show',()=>window.__installedNotificationEvidence.shown++);
+        notification.addEventListener('error',()=>window.__installedNotificationEvidence.errors++);
+        return notification;
+      }});
+    });
+
     // A different synthetic editor generates a genuine task-update notification.
     const login=await fetch(new URL('/api/login/',backend),{method:'POST',headers:{'Content-Type':'application/json',Origin:backend.origin},body:JSON.stringify({email:'driver-b@smartmanage-demo.com',password:process.env.SMART_MANAGE_PORTAL_TEST_PASSWORD})});
     expect(login.status).toBe(200);const actor=await login.json();
@@ -78,7 +92,9 @@ export async function installedKanbanNotification(page) {
     await expect.poll(async()=>(await client.query('SELECT read FROM notifications WHERE id=$1',[notification.id])).rows[0]?.read).toBe(true);
     await page.screenshot({path:'artifacts/windows-functional/installed-kanban-notification.png'});
     await page.keyboard.press('Escape');
-    fs.writeFileSync('artifacts/windows-functional/installed-ui.json',JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistReload:true,notificationEvent:true,notificationUI:true,notificationRead:true,notificationTransport:'90-second fallback polling; realtime unavailable under outbound isolation',OSPush:'NOT TESTED'}));
+    const nativeEvidence=await page.evaluate(()=>window.__installedNotificationEvidence);
+    fs.writeFileSync('artifacts/windows-functional/native-notification-observation.json',JSON.stringify(nativeEvidence));
+    fs.writeFileSync('artifacts/windows-functional/installed-ui.json',JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistReload:true,notificationEvent:true,notificationUI:true,notificationRead:true,notificationTransport:'90-second fallback polling; realtime unavailable under outbound isolation',nativeNotification:nativeEvidence,OSPush:nativeEvidence.shown>0?'Real native show event observed':'NOT VERIFIED on server runner; constructor/event evidence recorded'}));
   } catch(error) {
     await page.screenshot({path:'artifacts/windows-functional/installed-ui-failure.png'}).catch(()=>{});
     fs.writeFileSync('artifacts/windows-functional/installed-ui-failure.json',JSON.stringify({message:error.message,stack:error.stack}));
