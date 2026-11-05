@@ -1,0 +1,12 @@
+name: Windows release real Kanban UI gate
+on:
+  push:
+    branches: [diagnostic/nsis-8536-v1.0.32]
+    paths: ['e2e/kanban-pagination.spec.ts', '.github/workflows/windows-release-kanban-ui.yml']
+permissions:
+  contents: read
+jobs:
+  kanban:
+    uses: ./.github/workflows/kanban-postgres-e2e.yml
+    with:
+      test_grep: 'release UI creates edits moves and reloads'

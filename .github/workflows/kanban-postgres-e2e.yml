@@ -2,6 +2,10 @@ name: Kanban PostgreSQL E2E
 
 on:
   workflow_call:
+    inputs:
+      test_grep:
+        type: string
+        default: '.*'
 
 jobs:
   suite-kanban-postgres-e2e:
@@ -32,6 +36,7 @@ jobs:
       # fallback from being counted as a second request in the main E2E flow.
       # Production and preview builds do not inherit this CI-only value.
       NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+      KANBAN_TEST_GREP: ${{ inputs.test_grep }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,7 +124,7 @@ jobs:
         run: |
           echo "KANBAN_E2E_START $(date -u +%Y-%m-%dT%H:%M:%SZ) fixtures=50,100,101,500,1100"
           set -o pipefail
-          npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 2>&1 | tee /tmp/kanban-playwright.log
+          npx playwright test e2e/kanban-pagination.spec.ts --project=desktop-1440 --workers=1 --grep "$KANBAN_TEST_GREP" --retries=0 2>&1 | tee /tmp/kanban-playwright.log
           playwright_status=${PIPESTATUS[0]}
           echo "KANBAN_E2E_END $(date -u +%Y-%m-%dT%H:%M:%SZ) status=${playwright_status}"
           if [ "$playwright_status" -ne 0 ]; then

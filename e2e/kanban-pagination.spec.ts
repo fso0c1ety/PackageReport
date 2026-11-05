@@ -101,6 +101,52 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   test.setTimeout(240_000);
   test.skip(!password || !isolated || !databaseUrl, "Requires the isolated Kanban PostgreSQL workflow");
 
+  test('release UI creates edits moves and reloads a Kanban task', async ({ browser, baseURL }) => {
+    const { context, userId } = await login(browser, baseURL!);
+    const fixture = await seedBoard(userId, 2);
+    const page = await context.newPage();
+    try {
+      await page.goto(`/workspace/?id=${fixture.workspaceId}`);
+      await chooseKanban(page, fixture.boardName);
+      const createdResponse = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname.replace(/\/$/,'') === `/api/tables/${fixture.tableId}/tasks`);
+      await page.getByRole('button', { name: /^New Task$/i }).last().click();
+      const response = await createdResponse;
+      expect(response.ok()).toBe(true);
+      const created = await response.json();
+      const dialog = page.getByRole('dialog').last();
+      await expect(dialog).toBeVisible();
+      const title = `${fixture.marker} UI created`;
+      const field = dialog.getByPlaceholder('Empty').first();
+      await field.fill(title);
+      await field.press('Enter');
+      const columns = (await fixture.client.query('SELECT columns FROM tables WHERE id=$1',[fixture.tableId])).rows[0].columns;
+      const nameId = columns[0].id;
+      const statusId = columns[1].id;
+      await expect.poll(async () => (await fixture.client.query('SELECT values FROM rows WHERE id=$1',[created.id])).rows[0]?.values[nameId]).toBe(title);
+      await field.fill(`${title} edited`);
+      await field.press('Enter');
+      await expect.poll(async () => (await fixture.client.query('SELECT values FROM rows WHERE id=$1',[created.id])).rows[0]?.values[nameId]).toBe(`${title} edited`);
+      await dialog.getByRole('button').filter({hasText:'×'}).click();
+      const card = page.locator(`[data-rfd-draggable-id="${created.id}"]`);
+      await expect(card).toBeVisible();
+      await card.focus();
+      await card.press('Space');
+      await card.press('ArrowLeft');
+      await card.press('Space');
+      await expect.poll(async () => (await fixture.client.query('SELECT values FROM rows WHERE id=$1',[created.id])).rows[0]?.values[statusId]).toBe('Open');
+      await page.reload();
+      await chooseKanban(page,fixture.boardName);
+      await expect(page.locator('[data-rfd-droppable-id="kanban:Open"]').getByText(`${title} edited`,{exact:true})).toBeVisible();
+      const unauthenticated = await browser.newContext({baseURL});
+      try { expect((await unauthenticated.request.get(`/api/tables/${fixture.tableId}/tasks`)).status()).toBe(401); } finally {await unauthenticated.close();}
+      await test.info().attach('kanban-ui-assertions',{body:JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistence:true,reload:true,unauthenticatedDenied:true,installedDesktop:'Separate installed suite; this test is browser UI'}),contentType:'application/json'});
+    } finally {
+      await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);
+      await fixture.client.end();
+      await context.close();
+    }
+  });
+
   for (const size of sizes) {
     test(`${size} tasks: progressive pagination, retry and idle traffic`, async ({ browser, baseURL }) => {
     test.skip(test.info().project.name !== "desktop-1440", "Focused desktop functional flow");
