@@ -109,7 +109,7 @@ public static class InstallerDesktopProbe {
       $value=$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
       if($value.Current.Value -match '^[A-Za-z]:\\'){
         if(-not $directorySeen){
-          $expected=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs'
+           $expected=Join-Path $env:LOCALAPPDATA 'Programs'
           if(-not $value.Current.Value.StartsWith($expected,[StringComparison]::OrdinalIgnoreCase)){throw "Unexpected default per-user directory: $($value.Current.Value)"}
           $result.defaultDirectory=$value.Current.Value
         }
@@ -122,7 +122,7 @@ public static class InstallerDesktopProbe {
       foreach($handle in [InstallerDesktopProbe]::Edits([IntPtr]$window.Current.NativeWindowHandle)){
         $text=[InstallerDesktopProbe]::Text($handle)
         if($text -match '^[A-Za-z]:\\'){
-          $expected=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs'
+           $expected=Join-Path $env:LOCALAPPDATA 'Programs'
           if(-not $text.StartsWith($expected,[StringComparison]::OrdinalIgnoreCase)){throw "Unexpected native default folder: $text"}
           $result.defaultDirectory=$text
           [InstallerDesktopProbe]::SetText($handle,$destination)
