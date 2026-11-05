@@ -35,8 +35,13 @@ try {
   // Chromium writes profile storage asynchronously. Terminate only after a
   // graceful browser shutdown; forced taskkill is cleanup on failure, not proof
   // of normal profile recovery.
-  await call('Browser.close').catch(()=>{});
-  await Promise.race([new Promise(resolve=>child.once('exit',resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error('Graceful installed application shutdown did not complete')),15000))]);
+  const exited=child.exitCode!==null ? Promise.resolve() : new Promise(resolve=>child.once('exit',resolve));
+  // Browser.close can close CDP before returning a response. Observe the real
+  // process exit instead of awaiting a response on the now-closed transport.
+  socket.send(JSON.stringify({id:++id,method:'Browser.close'}));
+  let exitTimer;
+  try {await Promise.race([exited,new Promise((_,reject)=>{exitTimer=setTimeout(()=>reject(Error('Graceful installed application shutdown did not complete')),15000);})]);}
+  finally {clearTimeout(exitTimer);}
 } finally {
   socket?.close();
   await new Promise(resolve=>{const stop=spawn('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore',windowsHide:true});stop.once('exit',resolve);stop.once('error',resolve);});
