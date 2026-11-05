@@ -9,6 +9,21 @@ try {
   $result.standardUser=$true
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
+  Add-Type @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class InstallerDesktopProbe {
+  [DllImport("user32.dll")] public static extern IntPtr GetProcessWindowStation();
+  [DllImport("user32.dll")] public static extern IntPtr GetThreadDesktop(uint id);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] public static extern bool GetUserObjectInformation(IntPtr handle,int index,StringBuilder value,int length,out int needed);
+  public static string Name(IntPtr handle){int needed;var value=new StringBuilder(256);return GetUserObjectInformation(handle,2,value,512,out needed)?value.ToString():"unavailable:"+Marshal.GetLastWin32Error();}
+}
+'@
+  $result.windowStation=[InstallerDesktopProbe]::Name([InstallerDesktopProbe]::GetProcessWindowStation())
+  $result.desktop=[InstallerDesktopProbe]::Name([InstallerDesktopProbe]::GetThreadDesktop([InstallerDesktopProbe]::GetCurrentThreadId()))
+  $result.sessionId=[Diagnostics.Process]::GetCurrentProcess().SessionId
   $installer=Join-Path $Root 'Smart-Manage-Setup-1.0.32.exe'
   $algorithm=[Security.Cryptography.SHA256]::Create()
   try {$hash=[BitConverter]::ToString($algorithm.ComputeHash([IO.File]::ReadAllBytes($installer))).Replace('-','')}
@@ -20,10 +35,13 @@ try {
   $deadline=(Get-Date).AddSeconds(180)
   $directorySeen=$false
   $pages=[System.Collections.Generic.List[object]]::new()
+  $result.pages=$pages
   while(-not $process.HasExited -and (Get-Date) -lt $deadline){
     $windows=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+    $result.rootWindowCount=$windows.Count
+    $result.processWindowTitle=$process.MainWindowTitle
     $window=$null
-    foreach($candidate in $windows){if($candidate.Current.Name -match 'Smart Manage.*Setup|Smart Manage.*Installation'){$window=$candidate;break}}
+    foreach($candidate in $windows){if($candidate.Current.ProcessId -eq $process.Id -or $candidate.Current.Name -match 'Smart Manage.*Setup|Smart Manage.*Installation'){$window=$candidate;break}}
     if(-not $window){Start-Sleep -Milliseconds 250;$process.Refresh();continue}
     $controls=$window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
     $buttons=@();$edits=@();$labels=@()
@@ -54,6 +72,7 @@ try {
         $directorySeen=$true
       }
     }
+    $result.lastVisibleLabels=$labels
     $button=$buttons | Where-Object {$_.label -match '^(Next\s*>?|Install|Finish|I Agree)$'} | Select-Object -First 1
     if($button){
       if($button.label -eq 'Install' -and -not $directorySeen){throw 'Refusing installation before the custom directory UI is verified'}
