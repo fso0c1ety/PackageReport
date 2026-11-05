@@ -152,11 +152,12 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
     const recipient = await login(browser,baseURL!,'driver-b@smartmanage-demo.com');
     const fixture = await seedBoard(owner.userId,2);
     try {
-      await fixture.client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,updated_at) VALUES($1,$2,'member','member','{"scope":"all"}'::jsonb,NOW())`,[fixture.workspaceId,recipient.userId]);
-      await fixture.client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'viewer','{}'::jsonb,'{"scope":"all"}'::jsonb,NOW())`,[fixture.tableId,recipient.userId]);
+      await fixture.client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,updated_at) VALUES($1,$2,'member','member','{"scope":"all_permitted"}'::jsonb,NOW())`,[fixture.workspaceId,recipient.userId]);
+      await fixture.client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'viewer','{}'::jsonb,'{"scope":"all_permitted"}'::jsonb,NOW())`,[fixture.tableId,recipient.userId]);
       const row = (await fixture.client.query('SELECT id,values FROM rows WHERE table_id=$1 ORDER BY id LIMIT 1',[fixture.tableId])).rows[0];
       const columns = (await fixture.client.query('SELECT columns FROM tables WHERE id=$1',[fixture.tableId])).rows[0].columns;
       const changed = {...row.values,[columns[0].id]:`${fixture.marker} notification event`};
+      expect((await recipient.context.request.get(`/api/tables/${fixture.tableId}/tasks/${row.id}`)).status()).toBe(200);
       const response = await owner.context.request.put(`/api/tables/${fixture.tableId}/tasks`,{data:{id:row.id,values:changed}});
       expect(response.ok(),await response.text()).toBe(true);
       let id='';
