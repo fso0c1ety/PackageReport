@@ -213,10 +213,26 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
       expect((await due()).status()).toBe(200);
       expect((await notifications()).rowCount).toBe(1);
       expect((await fixture.client.query('SELECT id FROM automation_runs WHERE automation_id=$1',[automationId])).rowCount).toBe(1);
+      // Exercise a real failed webhook against the isolated authenticated API:
+      // no credentials are forwarded, so it must reject the call with 401.
+      const secondDate=new Date(Date.now()-120_000).toISOString();
+      await fixture.client.query('UPDATE rows SET values=values || $1::jsonb WHERE id=$2',[JSON.stringify({[dateColumn]:secondDate}),rowId]);
+      await fixture.client.query("UPDATE automations SET action_type='webhook',action_config=$1::jsonb WHERE id=$2",[JSON.stringify({webhookUrl:new URL('/api/workspaces/',baseURL).href}),automationId]);
+      expect((await due()).status()).toBe(200);
+      const failed=(await fixture.client.query("SELECT id,error_message FROM automation_runs WHERE automation_id=$1 AND status='failed'",[automationId])).rows;
+      expect(failed).toHaveLength(1);expect(failed[0].error_message).toContain('401');
+      expect((await notifications()).rowCount).toBe(1);
+      await fixture.client.query("UPDATE automations SET action_type='notification',action_config='{}'::jsonb WHERE id=$1",[automationId]);
+      expect((await due()).status()).toBe(200);
+      const retried=(await fixture.client.query('SELECT status FROM automation_runs WHERE id=$1',[failed[0].id])).rows[0];
+      expect(retried.status).toBe('success');expect((await notifications()).rowCount).toBe(2);
+      expect((await due()).status()).toBe(200);
+      expect((await notifications()).rowCount).toBe(2);
+      expect((await fixture.client.query('SELECT id FROM automation_runs WHERE automation_id=$1',[automationId])).rowCount).toBe(2);
       await fixture.client.query('UPDATE automations SET enabled=FALSE WHERE id=$1',[automationId]);
       expect((await due()).status()).toBe(200);
-      expect((await notifications()).rowCount).toBe(1);
-      await test.info().attach('scheduler-delivery',{body:JSON.stringify({environment:'ISOLATED_MIGRATED_SCHEMA',scheduledExecution:true,successStatus:true,scheduledTimestamp:true,notificationDelivered:true,duplicatePrevented:true,disabled:true,productionMissingScheduledFor:'BLOCKED; separate catalog and legacy fixture evidence'}),contentType:'application/json'});
+      expect((await notifications()).rowCount).toBe(2);
+      await test.info().attach('scheduler-delivery',{body:JSON.stringify({environment:'ISOLATED_MIGRATED_SCHEMA',scheduledExecution:true,successStatus:true,scheduledTimestamp:true,notificationDelivered:true,duplicatePrevented:true,failedWebhookRecorded:true,retrySameRunSucceeded:true,retryNotificationNotDuplicated:true,disabled:true,productionMissingScheduledFor:'BLOCKED; separate catalog and legacy fixture evidence'}),contentType:'application/json'});
     } finally {
       if(rowId) await fixture.client.query("DELETE FROM notifications WHERE type='automation' AND data->>'taskId'=$1",[rowId]);
       if(automationId){await fixture.client.query('DELETE FROM automation_runs WHERE automation_id=$1',[automationId]);await fixture.client.query('DELETE FROM automations WHERE id=$1',[automationId]);}
