@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 import fs from 'node:fs';
+import { installedKanbanNotification } from './installed-kanban-notification.mjs';
 
 const executable = process.env.SMART_MANAGE_ELECTRON_EXE;
 const password = process.env.SMART_MANAGE_DEMO_PASSWORD;
@@ -99,6 +100,8 @@ try {
       throw new Error('Updater overlay did not settle before logout');
     }
   };
+  await dismissUpdater();
+  await installedKanbanNotification(page);
   await dismissUpdater();
   await page.getByRole('button', {name:'Account settings'}).click();
   await dismissUpdater();

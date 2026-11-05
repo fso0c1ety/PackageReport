@@ -28,10 +28,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: diagnostic-D
-          run-id: 42027791733
+          name: PackageReport-windows-exe
+          run-id: 42035647291
           github-token: ${{ github.token }}
-          path: .
+          path: dist-electron
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -65,15 +65,15 @@ jobs:
       - name: Download preserved release installer
         uses: actions/download-artifact@v4
         with:
-          name: diagnostic-D
-          run-id: 42027791733
+          name: PackageReport-windows-exe
+          run-id: 42035647291
           github-token: ${{ github.token }}
-          path: .
+          path: dist-electron
       - name: Verify exact release artifact
         shell: pwsh
         run: |
           $installer = 'dist-electron/Smart-Manage-Setup-1.0.32.exe'
-          $expected = '8255C79534866482A02B08D08A4729F7C8316AF269BC06A2C0A2DCFFC1745AB3'
+          $expected = '3166CDEB65BD323A2B561B41838F47ACE0E5FDDC4CCC0AB70E4DD268132D9362'
           if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $expected) { throw 'Release installer SHA256 mismatch' }
           $manifest = Get-Content dist-electron/latest.yml -Raw
           $sha512 = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes((Resolve-Path $installer))))
