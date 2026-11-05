@@ -26,8 +26,8 @@
     "start": "set NODE_ENV=production&& node server/index.js",
     "start-server": "set SKIP_NEXT_APP=true&& set NODE_ENV=development&& nodemon server/index.js",
     "lint": "eslint",
-    "desktop:build": "npm run build && npx electron-builder --win nsis --publish never --config.npmRebuild=false",
-    "desktop:pack": "npm run build && npx electron-builder --win --dir --publish never --config.npmRebuild=false"
+    "desktop:build": "npm run build && node scripts/patch-nsis-known-folder.cjs && npx electron-builder --win nsis --publish never --config.npmRebuild=false",
+    "desktop:pack": "npm run build && node scripts/patch-nsis-known-folder.cjs && npx electron-builder --win --dir --publish never --config.npmRebuild=false"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

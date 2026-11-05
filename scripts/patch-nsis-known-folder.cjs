@@ -21,6 +21,11 @@ if (require.main === module) {
   const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
   const file = path.join(root, 'templates/nsis/multiUser.nsh');
   const before = fs.readFileSync(file);
+  if (version !== '26.8.1') throw new Error(`Unsupported app-builder-lib version: ${version}`);
+  if (crypto.createHash('sha256').update(before).digest('hex') === 'cd2d6272db86a7ec1359ae0f9549440c6cab77544fb51169e1676904e2133d9b') {
+    console.log('Verified known NSIS per-user fallback patch already applied');
+    process.exit(0);
+  }
   const after = patchTemplate(version, before);
   fs.mkdirSync('evidence', { recursive: true });
   fs.writeFileSync('evidence/multiUser-original.nsh', before);
