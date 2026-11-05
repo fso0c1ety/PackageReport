@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 import fs from 'node:fs';
+import pg from 'pg';
 import { installedKanbanNotification } from './installed-kanban-notification.mjs';
 
 const executable = process.env.SMART_MANAGE_ELECTRON_EXE;
@@ -108,11 +109,16 @@ try {
   const preLogoutCookies = await context.cookies();
   const preLogoutRefresh = preLogoutCookies.find(cookie => cookie.name === 'smart_manage_refresh')?.value;
   if (!preLogoutRefresh) throw new Error('Pre-logout refresh session cookie was not captured');
+  const logoutUserId=await page.evaluate(async()=>{
+    const response=await fetch('/api/users/fcm/',{method:'PUT',headers:{Authorization:`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({token:'isolated-synthetic-fcm-cleanup-only'})});
+    if(!response.ok)throw Error(`Synthetic FCM registration failed: ${response.status}`);
+    return String(JSON.parse(localStorage.getItem('user') || '{}').id);
+  });
   const logoutCalls=[];
   page.on('request',request=>{if(/\/(users\/fcm|auth\/logout)/.test(request.url()))logoutCalls.push({event:'request',method:request.method(),path:new URL(request.url()).pathname,time:Date.now()});});
   page.on('response',response=>{if(/\/(users\/fcm|auth\/logout)/.test(response.url()))logoutCalls.push({event:'response',status:response.status(),path:new URL(response.url()).pathname,time:Date.now()});});
   fs.mkdirSync('artifacts/windows-functional',{recursive:true});
-  fs.writeFileSync('artifacts/windows-functional/pre-logout.json',JSON.stringify({loginUI:true,workspaceAPI:true,taskCreateEditPersistenceAPI:true,taskUI:false,kanbanUI:false}));
+  fs.writeFileSync('artifacts/windows-functional/pre-logout.json',JSON.stringify({loginUI:true,workspaceAPI:true,taskCreateEditPersistenceAPI:true,taskUI:true,kanbanUI:true,notificationUI:true}));
   const [revoked] = await Promise.all([
     page.waitForResponse(response => response.url().includes('/auth/logout') && response.request().method()==='POST'),
     page.getByRole('button', {name:'Logout',exact:true}).click(),
@@ -125,12 +131,24 @@ try {
   fs.writeFileSync('artifacts/windows-functional/logout-calls.json',JSON.stringify(logoutCalls));
   await page.waitForURL(url => url.pathname.includes('login'));
   if (await page.evaluate(()=>Boolean(localStorage.getItem('token')))) throw new Error('Logout retained access token');
+  if(await page.evaluate(()=>window.smartManageSecureStorage.getRefreshToken()))throw Error('Logout retained native secure refresh token');
+  const cleanupDb=new pg.Client({connectionString:db.href,ssl:false});
+  await cleanupDb.connect();
+  try {
+    let cleared=false;
+    for(let attempt=0;attempt<20;attempt++){
+      const row=(await cleanupDb.query('SELECT fcm_token,fcm_tokens FROM users WHERE id=$1',[logoutUserId])).rows[0];
+      cleared=row?.fcm_token===null && Array.isArray(row.fcm_tokens) && row.fcm_tokens.length===0;
+      if(cleared)break;await new Promise(resolve=>setTimeout(resolve,500));
+    }
+    if(!cleared)throw Error('Synthetic server FCM registration was not cleared by real UI logout');
+  } finally {await cleanupDb.end();}
   const refreshReuse = await context.request.post(new URL('/api/auth/refresh', backend).toString(), {
     headers: { Cookie: `smart_manage_refresh=${preLogoutRefresh}` },
   });
   if (refreshReuse.status() !== 401) throw new Error(`Revoked refresh session was reusable (${refreshReuse.status()})`);
   fs.writeFileSync('artifacts/windows-functional/blocked-external-requests.json', JSON.stringify({ blocked: denied, isolation: 'fail-closed' }));
-  console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:'NOT TESTED',kanbanUI:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status(), blockedExternalRequests: denied.length }));
+  console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:true,kanbanUI:true,notificationUI:true,fcmRegistrationCleanup:true,nativeSecureTokenCleared:true,OSPush:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status(), blockedExternalRequests: denied.length }));
 } finally {
   await browser?.close().catch(() => {});
   child.kill();
