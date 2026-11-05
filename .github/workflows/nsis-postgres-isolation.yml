@@ -1,7 +1,6 @@
 name: NSIS dependency environment isolation
 on:
-  pull_request:
-    paths: ['.github/workflows/nsis-postgres-isolation.yml']
+  workflow_dispatch:
 permissions:
   contents: read
   actions: read

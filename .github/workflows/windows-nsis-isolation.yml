@@ -1,7 +1,5 @@
 name: Preserved NSIS clean runner isolation
 on:
-  pull_request:
-    paths: ['.github/workflows/windows-nsis-isolation.yml']
   workflow_dispatch:
 permissions:
   contents: read
