@@ -47,15 +47,8 @@ export async function installedKanbanNotification(page) {
     const field=dialog.getByPlaceholder('Empty').first();
     await field.fill(`${marker} created`);await field.press('Enter');
     await expect.poll(async()=>(await client.query('SELECT values FROM rows WHERE id=$1',[row.id])).rows[0]?.values[name]).toBe(`${marker} created`);
-    // Database commit precedes the renderer's save-response handling. Complete
-    // the create operation before reopening the task for a separate edit.
-    await expect.poll(()=>pendingMutations.size).toBe(0);
-    await dialog.getByRole('button').filter({hasText:'×'}).click();
-    // TableBoard intentionally suppresses reopening for 1000 ms after closing
-    // review (reviewCloseGuardRef). Respect that visible interaction lifecycle.
-    await page.waitForTimeout(1100);
-    await page.locator(`[data-rfd-draggable-id="${row.id}"]`).getByText(`${marker} created`,{exact:true}).click();
-    await expect(field).toHaveValue(`${marker} created`);
+    // Preserve the rapid-edit regression: older create-save acknowledgements
+    // must not erase the next typed value in the installed application's UI.
     await field.fill(`${marker} edited`);await field.press('Enter');
     await expect.poll(async()=>(await client.query('SELECT values FROM rows WHERE id=$1',[row.id])).rows[0]?.values[name]).toBe(`${marker} edited`);
     await dialog.getByRole('button').filter({hasText:'×'}).click();
