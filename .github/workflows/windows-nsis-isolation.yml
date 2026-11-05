@@ -1,0 +1,58 @@
+name: Preserved NSIS clean runner isolation
+on:
+  pull_request:
+    paths: ['.github/workflows/windows-nsis-isolation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '13342484792'
+          merge-multiple: true
+          run-id: 41868431877
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Single clean installation and crash evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory evidence -Force | Out-Null
+          $installer = (Resolve-Path candidate/Smart-Manage-Setup-1.0.32.exe).Path
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash
+          if ($hash -ne '34D86D8F1931A10CCD32518AF95B7DE1AAD00B9EE7AFAB31D084D6DA2546DB9E') { throw 'Installer hash mismatch' }
+          $destination = Join-Path $env:RUNNER_TEMP 'functional-installed'
+          $started = Get-Date
+          try {
+            $process = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+            $installed = Test-Path (Join-Path $destination 'Smart Manage.exe')
+            @{sha256=$hash;exitCode=$process.ExitCode;installed=$installed;destination=$destination;image=$env:ImageOS;imageVersion=$env:ImageVersion;os=[Environment]::OSVersion.VersionString;arguments=@('/S',"/D=$destination");attempts=1} | ConvertTo-Json | Set-Content evidence/result.json
+            if ($process.ExitCode -ne 0 -or -not $installed) { throw "NSIS failed: $($process.ExitCode)" }
+            $version = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
+            if (-not $version.StartsWith('1.0.32')) { throw "Installed version mismatch: $version" }
+          } finally {
+            Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$started} -ErrorAction SilentlyContinue |
+              Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
+              Select-Object TimeCreated,ProviderName,Id,Message | ConvertTo-Json -Depth 4 | Set-Content evidence/events.json
+            foreach ($root in @($env:ProgramData,$env:LOCALAPPDATA)) {
+              foreach ($directory in @('Microsoft\Windows\WER\ReportArchive','Microsoft\Windows\WER\ReportQueue')) {
+                Get-ChildItem (Join-Path $root $directory) -Recurse -Filter Report.wer -File -ErrorAction SilentlyContinue |
+                  Where-Object LastWriteTime -ge $started | ForEach-Object { Get-Content $_.FullName | Add-Content evidence/wer.txt }
+              }
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nsis-clean-${{ matrix.os }}
+          path: evidence
+          if-no-files-found: error
