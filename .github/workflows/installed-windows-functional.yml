@@ -22,17 +22,31 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '13342484792'
+          merge-multiple: true
+          run-id: 41868431877
+          github-token: ${{ github.token }}
+          path: dist-electron
+      - name: Installer checkpoint after checkout
+        shell: pwsh
+        run: ./scripts/nsis-environment-checkpoint.ps1 -Stage checkout
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Installer checkpoint after npm ci
+        shell: pwsh
+        run: ./scripts/nsis-environment-checkpoint.ps1 -Stage npm-ci
       - name: Prepare disposable PostgreSQL
         timeout-minutes: 10
         shell: pwsh
         run: |
           choco install postgresql17 --yes --no-progress --params '/Password:isolated-ci-only /Port:5432'
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL installation failed' }
+          ./scripts/nsis-environment-checkpoint.ps1 -Stage chocolatey-postgres
           $pgbin = 'C:\Program Files\PostgreSQL\17\bin'
           # Never reuse the runner's pre-existing 5432 cluster or its credentials.
           $data = Join-Path $env:RUNNER_TEMP 'smartmanage-pg-functional'
@@ -47,6 +61,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Isolated database creation failed' }
           & "$pgbin\psql.exe" -X -h 127.0.0.1 -p 55439 -U postgres -d smart_manage_portal_acceptance -v ON_ERROR_STOP=1 -c "SELECT current_database(), inet_server_addr(), inet_server_port(); DO `$`$ BEGIN IF current_setting('server_encoding') <> 'UTF8' THEN RAISE EXCEPTION 'UTF8 required'; END IF; END `$`$;"
           if ($LASTEXITCODE -ne 0) { throw 'Isolated cluster identity/encoding assertion failed' }
+          ./scripts/nsis-environment-checkpoint.ps1 -Stage database-initialized
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
@@ -78,6 +93,7 @@ jobs:
           $ready=$false
           for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
           if(-not $ready){throw 'Isolated backend not ready'}
+          ./scripts/nsis-environment-checkpoint.ps1 -Stage backend-ready
           $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
           Get-FileHash $installer.FullName -Algorithm SHA256 | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-sha256.json
           Get-Item $installer.FullName | Select-Object FullName,Length,CreationTimeUtc,LastWriteTimeUtc | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-metadata.json
