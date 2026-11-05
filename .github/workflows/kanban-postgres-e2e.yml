@@ -27,6 +27,7 @@ jobs:
       CI: true
       PORTAL_ACCEPTANCE_CI: "1"
       KANBAN_E2E_ISOLATED: "1"
+      KANBAN_RELEASE_ACCEPTANCE: "1"
       VERCEL_ENV: ""
       DATABASE_URL: postgresql://postgres:kanban-ci-local-only@127.0.0.1:5432/smart_manage_portal_acceptance
       DATABASE_SSL: "false"

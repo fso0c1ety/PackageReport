@@ -38,6 +38,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getFallbackVirtualRows } from './tableVirtualization';
 import taskPagination from './board/taskPageCache.cjs';
+import reviewSaveState from './board/reviewSaveState.cjs';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import {
@@ -4640,7 +4641,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
   // value — to avoid reopening the dialog after it was closed while a date/cell save was in flight.
   if (reviewTaskRef.current?.id === mergedRow.id
   && dismissedTaskIdRef.current !== mergedRow.id) {
-  setReviewTaskSynced(mergedRow);
+  setReviewTaskSynced(reviewSaveState.mergeReviewSaveResult(reviewTaskRef.current, mergedRow, colId, newValue));
   }
   }
   if (col.type === 'Status' && String(previousValue || '') !== String(newValue || '')) {

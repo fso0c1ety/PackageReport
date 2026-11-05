@@ -102,6 +102,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   test.skip(!password || !isolated || !databaseUrl, "Requires the isolated Kanban PostgreSQL workflow");
 
   test('release UI creates edits moves and reloads a Kanban task', async ({ browser, baseURL }) => {
+    test.skip(process.env.KANBAN_RELEASE_ACCEPTANCE !== '1', 'Requires complete release-acceptance fixtures');
     const { context, userId } = await login(browser, baseURL!);
     const fixture = await seedBoard(userId, 2);
     const page = await context.newPage();
@@ -148,6 +149,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   });
 
   test('release notification event delivers and UI marks it read', async ({ browser, baseURL }) => {
+    test.skip(process.env.KANBAN_RELEASE_ACCEPTANCE !== '1', 'Requires complete release-acceptance fixtures');
     const owner = await login(browser,baseURL!);
     const recipient = await login(browser,baseURL!,'driver-b@smartmanage-demo.com');
     const fixture = await seedBoard(owner.userId,2);
@@ -187,6 +189,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   });
 
   test('release scheduled automation executes and prevents duplicate notification', async ({browser,baseURL}) => {
+    test.skip(process.env.KANBAN_RELEASE_ACCEPTANCE !== '1', 'Requires complete release-acceptance fixtures');
     const owner=await login(browser,baseURL!);
     const fixture=await seedBoard(owner.userId,2);
     let automationId: string | undefined;
