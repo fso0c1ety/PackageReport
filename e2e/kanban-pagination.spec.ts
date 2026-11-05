@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 import pg from "pg";
 
 const password = process.env.SMART_MANAGE_PORTAL_TEST_PASSWORD;
@@ -183,6 +183,41 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
       await fixture.client.query("DELETE FROM notifications WHERE data->>'workspaceId'=$1",[fixture.workspaceId]);
       await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);
       await fixture.client.end();await owner.context.close();await recipient.context.close();
+    }
+  });
+
+  test('release scheduled automation executes and prevents duplicate notification', async ({browser,baseURL}) => {
+    const owner=await login(browser,baseURL!);
+    const fixture=await seedBoard(owner.userId,2);
+    let automationId: string | undefined;
+    let rowId: string | undefined;
+    try {
+      const dateColumn=randomUUID();
+      const dateValue=new Date(Date.now()-60_000).toISOString();
+      await fixture.client.query("UPDATE tables SET columns=columns || $1::jsonb WHERE id=$2",[JSON.stringify([{id:dateColumn,name:'Due',type:'Date',order:2}]),fixture.tableId]);
+      rowId=(await fixture.client.query('SELECT id FROM rows WHERE table_id=$1 ORDER BY id LIMIT 1',[fixture.tableId])).rows[0].id;
+      await fixture.client.query('UPDATE rows SET values=values || $1::jsonb WHERE id=$2',[JSON.stringify({[dateColumn]:dateValue}),rowId]);
+      automationId=String((await fixture.client.query(`INSERT INTO automations(table_id,enabled,created_by,trigger_type,trigger_col,task_ids,action_type,recipients,definition) VALUES($1,TRUE,$2,'date_arrives',$3,$4::jsonb,'notification',$5::jsonb,'{}'::jsonb) RETURNING id`,[fixture.tableId,owner.userId,dateColumn,JSON.stringify([rowId]),JSON.stringify([measurementEmail])])).rows[0].id);
+      expect(process.env.JWT_SECRET,'Synthetic scheduler secret required').toBeTruthy();
+      const token=createHmac('sha256',process.env.JWT_SECRET!).update('smart-manage:scheduled-automations:v1').digest('hex');
+      const due=()=>owner.context.request.get('/api/automation/due/',{headers:{Authorization:`Bearer ${token}`}});
+      const first=await due();expect(first.status(),await first.text()).toBe(200);
+      expect((await first.json()).triggered.some((x:{automationId:string|number})=>String(x.automationId)===automationId)).toBe(true);
+      const run=await fixture.client.query('SELECT status,scheduled_for FROM automation_runs WHERE automation_id=$1',[automationId]);
+      expect(run.rows).toHaveLength(1);expect(run.rows[0].status).toBe('success');expect(run.rows[0].scheduled_for).toBeTruthy();
+      const notifications=()=>fixture.client.query("SELECT id FROM notifications WHERE recipient_id=$1 AND type='automation' AND data->>'taskId'=$2",[owner.userId,rowId]);
+      expect((await notifications()).rowCount).toBe(1);
+      expect((await due()).status()).toBe(200);
+      expect((await notifications()).rowCount).toBe(1);
+      expect((await fixture.client.query('SELECT id FROM automation_runs WHERE automation_id=$1',[automationId])).rowCount).toBe(1);
+      await fixture.client.query('UPDATE automations SET enabled=FALSE WHERE id=$1',[automationId]);
+      expect((await due()).status()).toBe(200);
+      expect((await notifications()).rowCount).toBe(1);
+      await test.info().attach('scheduler-delivery',{body:JSON.stringify({environment:'ISOLATED_MIGRATED_SCHEMA',scheduledExecution:true,successStatus:true,scheduledTimestamp:true,notificationDelivered:true,duplicatePrevented:true,disabled:true,productionMissingScheduledFor:'BLOCKED; separate catalog and legacy fixture evidence'}),contentType:'application/json'});
+    } finally {
+      if(rowId) await fixture.client.query("DELETE FROM notifications WHERE type='automation' AND data->>'taskId'=$1",[rowId]);
+      if(automationId){await fixture.client.query('DELETE FROM automation_runs WHERE automation_id=$1',[automationId]);await fixture.client.query('DELETE FROM automations WHERE id=$1',[automationId]);}
+      await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);await fixture.client.end();await owner.context.close();
     }
   });
 
