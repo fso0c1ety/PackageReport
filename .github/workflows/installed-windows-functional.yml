@@ -5,7 +5,11 @@ permissions:
   actions: read
 jobs:
   installed:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [1, 2]
+    runs-on: windows-2025
     timeout-minutes: 60
     env:
       CI: 'true'
@@ -29,24 +33,17 @@ jobs:
           run-id: 41868431877
           github-token: ${{ github.token }}
           path: dist-electron
-      - name: Installer checkpoint after checkout
-        shell: pwsh
-        run: ./scripts/nsis-environment-checkpoint.ps1 -Stage checkout
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Installer checkpoint after npm ci
-        shell: pwsh
-        run: ./scripts/nsis-environment-checkpoint.ps1 -Stage npm-ci
       - name: Prepare disposable PostgreSQL
         timeout-minutes: 10
         shell: pwsh
         run: |
           choco install postgresql17 --yes --no-progress --params '/Password:isolated-ci-only /Port:5432'
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL installation failed' }
-          ./scripts/nsis-environment-checkpoint.ps1 -Stage chocolatey-postgres
           $pgbin = 'C:\Program Files\PostgreSQL\17\bin'
           # Never reuse the runner's pre-existing 5432 cluster or its credentials.
           $data = Join-Path $env:RUNNER_TEMP 'smartmanage-pg-functional'
@@ -61,7 +58,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Isolated database creation failed' }
           & "$pgbin\psql.exe" -X -h 127.0.0.1 -p 55439 -U postgres -d smart_manage_portal_acceptance -v ON_ERROR_STOP=1 -c "SELECT current_database(), inet_server_addr(), inet_server_port(); DO `$`$ BEGIN IF current_setting('server_encoding') <> 'UTF8' THEN RAISE EXCEPTION 'UTF8 required'; END IF; END `$`$;"
           if ($LASTEXITCODE -ne 0) { throw 'Isolated cluster identity/encoding assertion failed' }
-          ./scripts/nsis-environment-checkpoint.ps1 -Stage database-initialized
       - run: npm run db:migrate
       - run: node scripts/seed-marketing-demo.mjs
       - run: node scripts/seed-portal-acceptance.mjs
@@ -93,14 +89,13 @@ jobs:
           $ready=$false
           for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
           if(-not $ready){throw 'Isolated backend not ready'}
-          ./scripts/nsis-environment-checkpoint.ps1 -Stage backend-ready
           $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
           Get-FileHash $installer.FullName -Algorithm SHA256 | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-sha256.json
           Get-Item $installer.FullName | Select-Object FullName,Length,CreationTimeUtc,LastWriteTimeUtc | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-metadata.json
           $dest=Join-Path $env:RUNNER_TEMP 'functional-installed'
           $attempts = @()
           $installed = $false
-          for($attempt=1; $attempt -le 2 -and -not $installed; $attempt++) {
+          for($attempt=1; $attempt -le 1 -and -not $installed; $attempt++) {
             if(Test-Path -LiteralPath $dest){Remove-Item -LiteralPath $dest -Recurse -Force}
             $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
             $attempts += [pscustomobject]@{ attempt=$attempt; exitCode=$p.ExitCode; installed=(Test-Path -LiteralPath (Join-Path $dest 'Smart Manage.exe')) }
@@ -143,6 +138,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: installed-windows-functional-evidence
+          name: installed-windows-functional-evidence-${{ matrix.replica }}
           path: artifacts/windows-functional
           if-no-files-found: warn
