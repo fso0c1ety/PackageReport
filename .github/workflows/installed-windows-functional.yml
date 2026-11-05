@@ -85,10 +85,22 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           New-Item -ItemType Directory -Force artifacts/windows-functional | Out-Null
+          # Capture native installer crashes in this workflow, before NSIS starts.
+          $dumpFolder=Join-Path $env:RUNNER_TEMP 'private-nsis-dumps'
+          New-Item -ItemType Directory $dumpFolder -Force | Out-Null
+          $dumpKey='HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Smart-Manage-Setup-1.0.32.exe'
+          New-Item $dumpKey -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpFolder -Value $dumpFolder -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          Get-Process | Select-Object ProcessName,Id,WorkingSet64,CPU | ConvertTo-Json | Set-Content artifacts/windows-functional/preinstall-processes.json
+          Get-Service | Select-Object Name,Status | ConvertTo-Json | Set-Content artifacts/windows-functional/preinstall-services.json
+          @{image=$env:ImageOS;imageVersion=$env:ImageVersion;backendBeforeInstall=('${{ matrix.replica }}' -eq '1');availableMemory=(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory} | ConvertTo-Json | Set-Content artifacts/windows-functional/environment.json
+          if ('${{ matrix.replica }}' -eq '1') {
           Start-Process -FilePath node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput "$env:RUNNER_TEMP/backend.log" -RedirectStandardError "$env:RUNNER_TEMP/backend-error.log"
           $ready=$false
           for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
           if(-not $ready){throw 'Isolated backend not ready'}
+          }
           $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
           Get-FileHash $installer.FullName -Algorithm SHA256 | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-sha256.json
           Get-Item $installer.FullName | Select-Object FullName,Length,CreationTimeUtc,LastWriteTimeUtc | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-metadata.json
@@ -105,6 +117,16 @@ jobs:
           if(-not $installed){
             try { throw "Installer failed after $($attempts.Count) attempts; path=$($installer.Name)" } catch {
             $_ | Out-String | Set-Content artifacts/windows-functional/installer-error.txt
+            Start-Sleep -Seconds 15
+            $dumps=Get-ChildItem $dumpFolder -Filter '*.dmp' -ErrorAction SilentlyContinue
+            @{dumpCount=@($dumps).Count;privateDumpsUploaded=$false} | ConvertTo-Json | Set-Content artifacts/windows-functional/private-dump-summary.json
+            $debugger=Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue | Where-Object FullName -match '\\x64\\' | Select-Object -First 1
+            if ($debugger -and $dumps) {
+              # Only native stack/module summaries leave the runner; never memory dumps.
+              foreach($dump in $dumps) {
+                & $debugger.FullName -z $dump.FullName -c '.ecxr; kv; lm m System; q' 2>&1 | Select-String 'System|nsis|EXCEPTION|Exception|Child-SP|RetAddr|^[0-9a-f`]+\s' | Out-File artifacts/windows-functional/native-stack-summary.txt -Append
+              }
+            } else { 'Native stack unavailable: no dump or debugger present.' | Set-Content artifacts/windows-functional/native-stack-summary.txt }
             Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue |
               Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
               Select-Object TimeCreated,ProviderName,Id,LevelDisplayName,Message |
@@ -123,6 +145,12 @@ jobs:
               }
             throw
             }
+          }
+          if ('${{ matrix.replica }}' -eq '2') {
+            Start-Process -FilePath node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput "$env:RUNNER_TEMP/backend.log" -RedirectStandardError "$env:RUNNER_TEMP/backend-error.log"
+            $ready=$false
+            for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
+            if(-not $ready){throw 'Isolated backend not ready after installation'}
           }
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
           # Block external traffic in main/renderer/helper processes, including
