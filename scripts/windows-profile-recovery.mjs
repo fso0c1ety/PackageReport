@@ -18,15 +18,15 @@ try {
   let id=0;const pending=new Map();
   socket.addEventListener('message',event=>{const r=JSON.parse(event.data);if(pending.has(r.id)){const {resolve,reject}=pending.get(r.id);pending.delete(r.id);r.error?reject(Error(JSON.stringify(r.error))):resolve(r.result);}});
   const call=(method,params={})=>new Promise((resolve,reject)=>{const current=++id;pending.set(current,{resolve,reject});socket.send(JSON.stringify({id:current,method,params}));setTimeout(()=>{if(pending.has(current)){pending.delete(current);reject(Error('CDP recovery operation timed out'));}},15000).unref();});
-  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error('Recovery renderer evaluation failed');return result.result.value;};
+  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails){fs.mkdirSync('evidence',{recursive:true});fs.writeFileSync(`evidence/profile-${stage}-exception.json`,JSON.stringify(result.exceptionDetails));throw Error(`Recovery renderer evaluation failed: ${result.exceptionDetails.exception?.description || result.exceptionDetails.text}`);}return result.result.value;};
   if(stage==='fresh-stable'){
     await evaluate("localStorage.setItem('themeMode','dark');localStorage.setItem('syntheticRecoveryWorkspace','isolated-workspace');true");
     await call('Page.reload');
   }
   let value;
   for(let i=0;i<30;i++){
-    value=await evaluate("({mode:localStorage.getItem('themeMode'),workspace:localStorage.getItem('syntheticRecoveryWorkspace'),renderedTheme:document.documentElement.dataset.theme})");
-    if(value.mode==='dark' && value.workspace==='isolated-workspace' && (stage!=='upgrade' || value.renderedTheme==='dark'))break;
+    value=await evaluate("document.documentElement && document.readyState !== 'loading' ? ({mode:localStorage.getItem('themeMode'),workspace:localStorage.getItem('syntheticRecoveryWorkspace'),renderedTheme:document.documentElement.dataset.theme}) : null");
+    if(value?.mode==='dark' && value?.workspace==='isolated-workspace' && (stage!=='upgrade' || value?.renderedTheme==='dark'))break;
     await new Promise(r=>setTimeout(r,500));
   }
   if(value?.mode!=='dark' || value?.workspace!=='isolated-workspace' || (stage==='upgrade' && value.renderedTheme!=='dark')) throw Error(`Profile recovery mismatch: ${JSON.stringify(value)}`);
