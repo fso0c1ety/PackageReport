@@ -16,6 +16,10 @@ export async function installedKanbanNotification(page) {
   const boardName=`${marker} Board`;
   const userId=await page.evaluate(()=>String(JSON.parse(localStorage.getItem('user') || '{}').id || ''));
   if (!userId) throw Error('Installed login identity missing');
+  const pendingMutations=new Set();const mutationEvidence=[];
+  const onRequest=request=>{if(request.method()==='PATCH' && request.url().includes(`/api/tables/${table}/tasks/`)){pendingMutations.add(request);mutationEvidence.push({method:request.method(),path:new URL(request.url()).pathname,body:request.postDataJSON()});}};
+  const onFinished=request=>pendingMutations.delete(request);
+  page.on('request',onRequest);page.on('requestfinished',onFinished);page.on('requestfailed',onFinished);
   try {
     await client.query('BEGIN');
     await client.query("INSERT INTO workspaces(id,name,owner_id,is_demo,demo_expires_at,demo_metadata) VALUES($1,$2,$3,TRUE,NOW()+INTERVAL '1 hour','{}'::jsonb)",[workspace,`${marker} Workspace`,userId]);
@@ -43,6 +47,12 @@ export async function installedKanbanNotification(page) {
     const field=dialog.getByPlaceholder('Empty').first();
     await field.fill(`${marker} created`);await field.press('Enter');
     await expect.poll(async()=>(await client.query('SELECT values FROM rows WHERE id=$1',[row.id])).rows[0]?.values[name]).toBe(`${marker} created`);
+    // Database commit precedes the renderer's save-response handling. Complete
+    // the create operation before reopening the task for a separate edit.
+    await expect.poll(()=>pendingMutations.size).toBe(0);
+    await dialog.getByRole('button').filter({hasText:'×'}).click();
+    await page.locator(`[data-rfd-draggable-id="${row.id}"]`).getByText(`${marker} created`,{exact:true}).click();
+    await expect(field).toHaveValue(`${marker} created`);
     await field.fill(`${marker} edited`);await field.press('Enter');
     await expect.poll(async()=>(await client.query('SELECT values FROM rows WHERE id=$1',[row.id])).rows[0]?.values[name]).toBe(`${marker} edited`);
     await dialog.getByRole('button').filter({hasText:'×'}).click();
@@ -74,6 +84,8 @@ export async function installedKanbanNotification(page) {
     fs.writeFileSync('artifacts/windows-functional/installed-ui-failure.json',JSON.stringify({message:error.message,stack:error.stack}));
     throw error;
   } finally {
+    fs.writeFileSync('artifacts/windows-functional/ui-mutation-requests.json',JSON.stringify(mutationEvidence));
+    page.off('request',onRequest);page.off('requestfinished',onFinished);page.off('requestfailed',onFinished);
     await client.query('ROLLBACK').catch(()=>{});
     await client.query("DELETE FROM notifications WHERE data->>'workspaceId'=$1",[workspace]);
     await client.query('DELETE FROM workspaces WHERE id=$1',[workspace]);await client.end();

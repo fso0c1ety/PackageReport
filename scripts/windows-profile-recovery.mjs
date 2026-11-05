@@ -32,6 +32,11 @@ try {
   if(value?.mode!=='dark' || value?.workspace!=='isolated-workspace' || (stage==='upgrade' && value.renderedTheme!=='dark')) throw Error(`Profile recovery mismatch: ${JSON.stringify(value)}`);
   fs.mkdirSync('evidence',{recursive:true});
   fs.writeFileSync(`evidence/profile-${stage}.json`,JSON.stringify({stage,settingsRetained:true,candidateThemeConsumed:stage==='upgrade' && value.renderedTheme==='dark',encryptedSessionRecovery:'NOT TESTED',network:'External application traffic blocked before launch'}));
+  // Chromium writes profile storage asynchronously. Terminate only after a
+  // graceful browser shutdown; forced taskkill is cleanup on failure, not proof
+  // of normal profile recovery.
+  await call('Browser.close').catch(()=>{});
+  await Promise.race([new Promise(resolve=>child.once('exit',resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error('Graceful installed application shutdown did not complete')),15000))]);
 } finally {
   socket?.close();
   await new Promise(resolve=>{const stop=spawn('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore',windowsHide:true});stop.once('exit',resolve);stop.once('error',resolve);});
