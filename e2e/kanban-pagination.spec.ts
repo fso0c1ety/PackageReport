@@ -197,7 +197,7 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
       await fixture.client.query("UPDATE tables SET columns=columns || $1::jsonb WHERE id=$2",[JSON.stringify([{id:dateColumn,name:'Due',type:'Date',order:2}]),fixture.tableId]);
       rowId=(await fixture.client.query('SELECT id FROM rows WHERE table_id=$1 ORDER BY id LIMIT 1',[fixture.tableId])).rows[0].id;
       await fixture.client.query('UPDATE rows SET values=values || $1::jsonb WHERE id=$2',[JSON.stringify({[dateColumn]:dateValue}),rowId]);
-      automationId=String((await fixture.client.query(`INSERT INTO automations(table_id,enabled,created_by,trigger_type,trigger_col,task_ids,action_type,recipients,definition) VALUES($1,TRUE,$2,'date_arrives',$3,$4::jsonb,'notification',$5::jsonb,'{}'::jsonb) RETURNING id`,[fixture.tableId,owner.userId,dateColumn,JSON.stringify([rowId]),JSON.stringify([measurementEmail])])).rows[0].id);
+      automationId=String((await fixture.client.query(`INSERT INTO automations(id,table_id,enabled,created_by,trigger_type,trigger_col,task_ids,action_type,recipients,definition) VALUES($1,$2,TRUE,$3,'date_arrives',$4,$5::jsonb,'notification',$6::jsonb,'{}'::jsonb) RETURNING id`,[randomUUID(),fixture.tableId,owner.userId,dateColumn,JSON.stringify([rowId]),JSON.stringify([measurementEmail])])).rows[0].id);
       expect(process.env.JWT_SECRET,'Synthetic scheduler secret required').toBeTruthy();
       const token=createHmac('sha256',process.env.JWT_SECRET!).update('smart-manage:scheduled-automations:v1').digest('hex');
       const due=()=>owner.context.request.get('/api/automation/due/',{headers:{Authorization:`Bearer ${token}`}});
