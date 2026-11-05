@@ -19,7 +19,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: PackageReport-windows-exe
-          run-id: 42035647291
+          run-id: 42045849602
           github-token: ${{ github.token }}
           path: candidate/dist-electron
       - name: Install stable, upgrade preserved binary, and restore stable
@@ -34,7 +34,7 @@ jobs:
           gh release download v1.0.31 --repo fso0c1ety/PackageReport --pattern Smart-Manage-Setup-1.0.31.exe --dir stable
           if ($LASTEXITCODE -ne 0) { throw 'Official stable download failed' }
           $candidate = (Resolve-Path candidate/dist-electron/Smart-Manage-Setup-1.0.32.exe).Path
-          if ((Get-FileHash $candidate -Algorithm SHA256).Hash -ne '3166CDEB65BD323A2B561B41838F47ACE0E5FDDC4CCC0AB70E4DD268132D9362') { throw 'Candidate hash mismatch' }
+          if ((Get-FileHash $candidate -Algorithm SHA256).Hash -ne '62784E1C4948202F0E3782380C2CF556724BC39BEE1E10E6D9807CDE89476E7E') { throw 'Candidate hash mismatch' }
           $stable = (Resolve-Path stable/Smart-Manage-Setup-1.0.31.exe).Path
           $destination = Join-Path $env:RUNNER_TEMP 'smartmanage-upgrade-validation'
           $evidence = @()
@@ -43,7 +43,7 @@ jobs:
           $settings = Join-Path $settingsDirectory 'release-acceptance-synthetic.json'
           $settingsValue = '{"tenant":"synthetic-only","theme":"dark","selectedWorkspace":"isolated-workspace"}'
           [IO.File]::WriteAllText($settings,$settingsValue)
-          foreach ($stage in @(@{name='fresh-stable';file=$stable;version='1.0.31'},@{name='upgrade';file=$candidate;version='1.0.32'},@{name='rollback-reinstall';file=$stable;version='1.0.31'})) {
+          foreach ($stage in @(@{name='fresh-stable';file=$stable;version='1.0.31'},@{name='upgrade';file=$candidate;version='1.0.32'},@{name='rollback-reinstall';file=$stable;version='1.0.31'},@{name='reinstall-after-rollback';file=$candidate;version='1.0.32'})) {
             $process = Start-Process -FilePath $stage.file -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
             if ($process.ExitCode -ne 0) { throw "$($stage.name) installer failed: $($process.ExitCode)" }
             $actual = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
@@ -62,10 +62,21 @@ jobs:
               $target=$shell.CreateShortcut($shortcut.FullName).TargetPath
               if ($target -ne (Join-Path $destination 'Smart Manage.exe')) { throw "Unexpected shortcut target: $target" }
             }
-            $evidence += @{stage=$stage.name;installedVersion=$actual;exitCode=$process.ExitCode;syntheticSettingsPreserved=$true;shortcutTargetsValid=$true}
+            $entries=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Smart Manage*' -and $_.InstallLocation.TrimEnd('\') -eq $destination.TrimEnd('\') }
+            if(-not $entries){throw 'Per-user uninstall registry entry missing for custom directory'}
+            $globalEntries=Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Smart Manage*' }
+            if($globalEntries){throw 'Unexpected per-machine registration on clean runner'}
+            $evidence += @{stage=$stage.name;installedVersion=$actual;exitCode=$process.ExitCode;syntheticSettingsPreserved=$true;shortcutTargetsValid=$true;perUserRegistry=$true;perMachineRegistry=$false}
           }
+          $uninstaller=Get-ChildItem $destination -Filter 'Uninstall*.exe' | Select-Object -First 1
+          if(-not $uninstaller){throw 'Candidate uninstaller missing'}
+          $uninstall=Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
+          if($uninstall.ExitCode -ne 0){throw "Candidate uninstaller failed: $($uninstall.ExitCode)"}
+          for($i=0;$i -lt 60 -and (Test-Path (Join-Path $destination 'Smart Manage.exe'));$i++){Start-Sleep 1}
+          if(Test-Path (Join-Path $destination 'Smart Manage.exe')){throw 'Candidate executable remains after uninstall'}
+          if([IO.File]::ReadAllText($settings) -ne $settingsValue){throw 'Uninstall deleted synthetic user data'}
           New-Item -ItemType Directory -Path evidence -Force | Out-Null
-          @{stages=$evidence;appLaunch='NOT TESTED';automaticUpdate='NOT TESTED';userDataRecovery='Synthetic settings file retention only; application consumption and encrypted session recovery NOT TESTED';candidateSha256=(Get-FileHash $candidate -Algorithm SHA256).Hash} | ConvertTo-Json -Depth 5 | Set-Content evidence/upgrade.json
+          @{stages=$evidence;appLaunch='PASS: isolated profile launches';automaticUpdate='PENDING OWNER VERIFICATION';candidateUninstall=$true;uninstallPreservesSyntheticSettings=$true;standardUserUAC='NOT TESTED: elevated CI runner';userDataRecovery='Profile localStorage retention and candidate theme consumption; encrypted session recovery NOT TESTED';candidateSha256=(Get-FileHash $candidate -Algorithm SHA256).Hash} | ConvertTo-Json -Depth 5 | Set-Content evidence/upgrade.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

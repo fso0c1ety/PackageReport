@@ -1,7 +1,8 @@
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 const [executable,stage]=process.argv.slice(2);
-if(!executable || !['fresh-stable','upgrade','rollback-reinstall'].includes(stage)) throw Error('Explicit installed executable and recovery stage required');
+if(!executable || !['fresh-stable','upgrade','rollback-reinstall','reinstall-after-rollback'].includes(stage)) throw Error('Explicit installed executable and recovery stage required');
+const candidateStage=['upgrade','reinstall-after-rollback'].includes(stage);
 if(process.env.NEXT_PUBLIC_FRONTEND_URL!=='http://127.0.0.1:3000') throw Error('Loopback runtime required');
 const child=spawn(executable,['--remote-debugging-port=9335'],{stdio:'ignore',windowsHide:true});
 let socket;
@@ -26,12 +27,12 @@ try {
   let value;
   for(let i=0;i<30;i++){
     value=await evaluate("document.documentElement && document.readyState !== 'loading' ? ({mode:localStorage.getItem('themeMode'),workspace:localStorage.getItem('syntheticRecoveryWorkspace'),renderedTheme:document.documentElement.dataset.theme}) : null");
-    if(value?.mode==='dark' && value?.workspace==='isolated-workspace' && (stage!=='upgrade' || value?.renderedTheme==='dark'))break;
+    if(value?.mode==='dark' && value?.workspace==='isolated-workspace' && (!candidateStage || value?.renderedTheme==='dark'))break;
     await new Promise(r=>setTimeout(r,500));
   }
-  if(value?.mode!=='dark' || value?.workspace!=='isolated-workspace' || (stage==='upgrade' && value.renderedTheme!=='dark')) throw Error(`Profile recovery mismatch: ${JSON.stringify(value)}`);
+  if(value?.mode!=='dark' || value?.workspace!=='isolated-workspace' || (candidateStage && value.renderedTheme!=='dark')) throw Error(`Profile recovery mismatch: ${JSON.stringify(value)}`);
   fs.mkdirSync('evidence',{recursive:true});
-  fs.writeFileSync(`evidence/profile-${stage}.json`,JSON.stringify({stage,settingsRetained:true,candidateThemeConsumed:stage==='upgrade' && value.renderedTheme==='dark',encryptedSessionRecovery:'NOT TESTED',network:'External application traffic blocked before launch'}));
+  fs.writeFileSync(`evidence/profile-${stage}.json`,JSON.stringify({stage,settingsRetained:true,candidateThemeConsumed:candidateStage && value.renderedTheme==='dark',encryptedSessionRecovery:'NOT TESTED',network:'External application traffic blocked before launch'}));
   // Chromium writes profile storage asynchronously. Terminate only after a
   // graceful browser shutdown; forced taskkill is cleanup on failure, not proof
   // of normal profile recovery.

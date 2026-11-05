@@ -109,6 +109,7 @@ try {
   const preLogoutCookies = await context.cookies();
   const preLogoutRefresh = preLogoutCookies.find(cookie => cookie.name === 'smart_manage_refresh')?.value;
   if (!preLogoutRefresh) throw new Error('Pre-logout refresh session cookie was not captured');
+  if(!await page.evaluate(()=>window.smartManageSecureStorage.getRefreshToken()))throw new Error('Native secure refresh session was not stored before logout');
   const logoutUserId=await page.evaluate(async()=>{
     const response=await fetch('/api/users/fcm/',{method:'PUT',headers:{Authorization:`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({token:'isolated-synthetic-fcm-cleanup-only'})});
     if(!response.ok)throw Error(`Synthetic FCM registration failed: ${response.status}`);
