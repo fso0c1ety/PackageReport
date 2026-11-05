@@ -19,7 +19,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: PackageReport-windows-exe
-          run-id: 42045849602
+          run-id: 42050688838
           github-token: ${{ github.token }}
           path: candidate/dist-electron
       - name: Install stable, upgrade preserved binary, and restore stable
@@ -34,7 +34,7 @@ jobs:
           gh release download v1.0.31 --repo fso0c1ety/PackageReport --pattern Smart-Manage-Setup-1.0.31.exe --dir stable
           if ($LASTEXITCODE -ne 0) { throw 'Official stable download failed' }
           $candidate = (Resolve-Path candidate/dist-electron/Smart-Manage-Setup-1.0.32.exe).Path
-          if ((Get-FileHash $candidate -Algorithm SHA256).Hash -ne '62784E1C4948202F0E3782380C2CF556724BC39BEE1E10E6D9807CDE89476E7E') { throw 'Candidate hash mismatch' }
+          if ((Get-FileHash $candidate -Algorithm SHA256).Hash -ne 'E28D4D3AAAD54B26ECDD139969359003BB358EFB36E77006087B309FD8EDB490') { throw 'Candidate hash mismatch' }
           $stable = (Resolve-Path stable/Smart-Manage-Setup-1.0.31.exe).Path
           $destination = Join-Path $env:RUNNER_TEMP 'smartmanage-upgrade-validation'
           $evidence = @()

@@ -29,7 +29,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: PackageReport-windows-exe
-          run-id: 42045849602
+          run-id: 42050688838
           github-token: ${{ github.token }}
           path: dist-electron
       - uses: actions/setup-node@v4
@@ -66,14 +66,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: PackageReport-windows-exe
-          run-id: 42045849602
+          run-id: 42050688838
           github-token: ${{ github.token }}
           path: dist-electron
       - name: Verify exact release artifact
         shell: pwsh
         run: |
           $installer = 'dist-electron/Smart-Manage-Setup-1.0.32.exe'
-          $expected = '62784E1C4948202F0E3782380C2CF556724BC39BEE1E10E6D9807CDE89476E7E'
+          $expected = 'E28D4D3AAAD54B26ECDD139969359003BB358EFB36E77006087B309FD8EDB490'
           if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $expected) { throw 'Release installer SHA256 mismatch' }
           $manifest = Get-Content dist-electron/latest.yml -Raw
           $sha512 = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes((Resolve-Path $installer))))
@@ -151,6 +151,9 @@ jobs:
             if(-not $ready){throw 'Isolated backend not ready after installation'}
           }
           $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
+          $installedVersion=(Get-Item $env:SMART_MANAGE_ELECTRON_EXE).VersionInfo.ProductVersion
+          if(-not $installedVersion.StartsWith('1.0.32')){throw "Installed version mismatch: $installedVersion"}
+          @{version=$installedVersion} | ConvertTo-Json | Set-Content artifacts/windows-functional/installed-version.json
           # Block external traffic in main/renderer/helper processes, including
           # startup updater requests. Loopback remains available to the test API.
           $programs = @((Get-Command node).Source) + @(Get-ChildItem $dest -Recurse -Filter '*.exe' | ForEach-Object FullName)

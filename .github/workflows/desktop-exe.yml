@@ -82,7 +82,17 @@ jobs:
 
       - name: Smoke test packaged application startup
         shell: pwsh
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3000
         run: |
+          $ErrorActionPreference='Stop'
+          foreach($program in (Get-ChildItem 'dist-electron/win-unpacked' -Recurse -Filter '*.exe')){
+            $addresses=@('0.0.0.1-126.255.255.255','128.0.0.0-255.255.255.254','::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe')
+            $rule=New-NetFirewallRule -DisplayName "SmartManage packaging smoke $([guid]::NewGuid())" -Direction Outbound -Program $program.FullName -Action Block -RemoteAddress $addresses -ErrorAction Stop
+            if($rule.Enabled -ne 'True' -or $rule.Action -ne 'Block'){throw 'Packaged startup isolation inactive'}
+          }
           $process = Start-Process -FilePath "dist-electron/win-unpacked/Smart Manage.exe" -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 25
           $process.Refresh()
