@@ -39,6 +39,12 @@ jobs:
           if ($hash -ne '34D86D8F1931A10CCD32518AF95B7DE1AAD00B9EE7AFAB31D084D6DA2546DB9E') { throw 'Installer hash mismatch' }
           $destination = Join-Path $env:RUNNER_TEMP 'functional-installed'
           $started = Get-Date
+          $dumpFolder=Join-Path $env:RUNNER_TEMP 'private-nsis-dumps'
+          New-Item -ItemType Directory $dumpFolder -Force | Out-Null
+          $dumpKey='HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Smart-Manage-Setup-1.0.32.exe'
+          New-Item $dumpKey -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpFolder -Value $dumpFolder -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
           function Snapshot([string]$label) {
             Get-Process | Select-Object Id,ProcessName,Path | ConvertTo-Json | Set-Content "evidence/$label-processes.json"
             Get-ChildItem -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName,Length | ConvertTo-Json | Set-Content "evidence/$label-files.json"
@@ -74,6 +80,15 @@ jobs:
             $version = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
             if (-not $version.StartsWith('1.0.32')) { throw "Installed version mismatch: $version" }
           } finally {
+            Start-Sleep -Seconds 15
+            $dumps=Get-ChildItem $dumpFolder -Filter '*.dmp' -ErrorAction SilentlyContinue
+            @{dumpCount=@($dumps).Count;privateDumpsUploaded=$false} | ConvertTo-Json | Set-Content evidence/private-dump-summary.json
+            $debugger=Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue | Where-Object FullName -match '\\x64\\' | Select-Object -First 1
+            if ($debugger -and $dumps) {
+              foreach($dump in $dumps) {
+                & $debugger.FullName -z $dump.FullName -c '.ecxr; r; kv; lm m System; q' 2>&1 | Select-String 'System|nsis|EXCEPTION|Exception|Child|RetAddr|eax=|ecx=|edx=|^[0-9a-f`]+\s' | Out-File evidence/native-stack-summary.txt -Append
+              }
+            } else { 'Native stack unavailable: no dump or debugger present.' | Set-Content evidence/native-stack-summary.txt }
             Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$started} -ErrorAction SilentlyContinue |
               Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
               Select-Object TimeCreated,ProviderName,Id,Message | ConvertTo-Json -Depth 4 | Set-Content evidence/events.json
