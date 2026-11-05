@@ -11,16 +11,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, windows-2025]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+        condition: [A, B, C, D]
+    runs-on: windows-2025
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           artifact-ids: '13342484792'
@@ -30,6 +29,8 @@ jobs:
           path: candidate
       - name: Single clean installation and crash evidence
         shell: pwsh
+        env:
+          CONDITION: ${{ matrix.condition }}
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory evidence -Force | Out-Null
@@ -38,7 +39,34 @@ jobs:
           if ($hash -ne '34D86D8F1931A10CCD32518AF95B7DE1AAD00B9EE7AFAB31D084D6DA2546DB9E') { throw 'Installer hash mismatch' }
           $destination = Join-Path $env:RUNNER_TEMP 'functional-installed'
           $started = Get-Date
+          function Snapshot([string]$label) {
+            Get-Process | Select-Object Id,ProcessName,Path | ConvertTo-Json | Set-Content "evidence/$label-processes.json"
+            Get-ChildItem -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName,Length | ConvertTo-Json | Set-Content "evidence/$label-files.json"
+            $entries = foreach ($key in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+              Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Smart Manage|PackageReport' } | Select-Object DisplayName,DisplayVersion,InstallLocation,UninstallString,PSPath
+            }
+            $entries | ConvertTo-Json | Set-Content "evidence/$label-registry.json"
+            @{componentServicing=(Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending');windowsUpdate=(Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired');pendingRenames=(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue).PendingFileRenameOperations;mutexEnumeration='NOT AVAILABLE: process snapshots do not prove absence of named mutexes'} | ConvertTo-Json | Set-Content "evidence/$label-reboot-and-locks.json"
+          }
           try {
+            Snapshot 'baseline'
+            if ($env:CONDITION -in @('C','D')) {
+              $first = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+              @{stage='initial-install';exitCode=$first.ExitCode} | ConvertTo-Json | Set-Content evidence/initial-install.json
+              if ($first.ExitCode -ne 0) { throw 'Initial install failed before reinstall experiment' }
+              $uninstaller = Get-ChildItem $destination -Filter '*Uninstall*.exe' | Select-Object -First 1
+              if (-not $uninstaller) { throw 'Uninstaller missing' }
+              $cleanup = Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
+              for ($i=0; $i -lt 60 -and (Test-Path (Join-Path $destination 'Smart Manage.exe')); $i++) { Start-Sleep 1 }
+              Snapshot 'after-uninstall'
+              @{exitCode=$cleanup.ExitCode;executableRemains=(Test-Path (Join-Path $destination 'Smart Manage.exe'))} | ConvertTo-Json | Set-Content evidence/uninstall.json
+              if ($cleanup.ExitCode -ne 0 -or (Test-Path (Join-Path $destination 'Smart Manage.exe'))) { throw 'Uninstall did not finish' }
+            }
+            if ($env:CONDITION -in @('B','D')) {
+              npm ci
+              if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed; NSIS comparison not reached' }
+            }
+            Snapshot 'before-tested-install'
             $process = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
             $installed = Test-Path (Join-Path $destination 'Smart Manage.exe')
             @{sha256=$hash;exitCode=$process.ExitCode;installed=$installed;destination=$destination;image=$env:ImageOS;imageVersion=$env:ImageVersion;os=[Environment]::OSVersion.VersionString;arguments=@('/S',"/D=$destination");attempts=1} | ConvertTo-Json | Set-Content evidence/result.json
@@ -59,6 +87,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: nsis-clean-${{ matrix.os }}
+          name: nsis-condition-${{ matrix.condition }}
           path: evidence
           if-no-files-found: error
