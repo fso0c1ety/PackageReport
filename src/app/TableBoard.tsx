@@ -4228,7 +4228,7 @@ export default function TableBoard({ tableId, taskId, initialTab, initialView }:
 
   if (sourceStatus !== destinationStatus) {
   try {
-  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks/${movedTaskId}`), {
+  const response = await authenticatedFetch(getApiUrl(`/tables/${tableId}/tasks`), {
   method: "PUT",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ id: movedTaskId, values: orderedMovedTask.values }),
