@@ -54,15 +54,18 @@ public static class InstallerDesktopProbe {
       if($control.Current.IsOffscreen){continue}
       $label=$control.Current.Name.Replace('&','').Trim()
       if($label){$labels+=$label}
-      if($control.Current.ControlType -eq [System.Windows.Automation.ControlType]::RadioButton -and $label -match 'Only for me|Just me'){
+      if($control.Current.ControlType.Id -eq [System.Windows.Automation.ControlType]::RadioButton.Id -and $label -match 'Only for me|Just me'){
         $selection=$control.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern);$selection.Select()
       }
-      if($control.Current.ControlType -eq [System.Windows.Automation.ControlType]::CheckBox -and $label -match '^Run '){
+      if($control.Current.ControlType.Id -eq [System.Windows.Automation.ControlType]::CheckBox.Id -and $label -match '^Run '){
         $toggle=$control.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
         if($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On){$toggle.Toggle()}
       }
-      if($control.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit){$edits+=$control}
-      if($control.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $control.Current.IsEnabled){$buttons+=@{element=$control;label=$label}}
+      if($control.Current.ControlType.Id -eq [System.Windows.Automation.ControlType]::Edit.Id){$edits+=$control}
+      if($label -match '^(Next\s*>?|Install|Finish|I Agree)$'){
+        $result.nextControl=@{name=$label;typeId=$control.Current.ControlType.Id;enabled=$control.Current.IsEnabled;patterns=@($control.GetSupportedPatterns() | ForEach-Object ProgrammaticName)}
+        if($control.Current.IsEnabled){$buttons+=@{element=$control;label=$label}}
+      }
     }
     foreach($edit in $edits){
       $value=$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -82,7 +85,10 @@ public static class InstallerDesktopProbe {
     if($button){
       if($button.label -eq 'Install' -and -not $directorySeen){throw 'Refusing installation before the custom directory UI is verified'}
       $pages.Add(@{button=$button.label;visibleLabels=$labels})
-      $button.element.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+      $action=$null
+      if($button.element.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$action)){$action.Invoke()}
+      elseif($button.element.TryGetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern,[ref]$action)){$action.DoDefaultAction()}
+      else{throw 'Installer next control has no native accessible action'}
       Start-Sleep -Milliseconds 600
     }else{Start-Sleep -Milliseconds 250}
     $process.Refresh()
