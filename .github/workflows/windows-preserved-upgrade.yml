@@ -31,15 +31,28 @@ jobs:
           $stable = (Resolve-Path stable/Smart-Manage-Setup-1.0.31.exe).Path
           $destination = Join-Path $env:RUNNER_TEMP 'smartmanage-upgrade-validation'
           $evidence = @()
+          $settingsDirectory = Join-Path $env:APPDATA 'Smart Manage'
+          New-Item -ItemType Directory $settingsDirectory -Force | Out-Null
+          $settings = Join-Path $settingsDirectory 'release-acceptance-synthetic.json'
+          $settingsValue = '{"tenant":"synthetic-only","theme":"dark","selectedWorkspace":"isolated-workspace"}'
+          [IO.File]::WriteAllText($settings,$settingsValue)
           foreach ($stage in @(@{name='fresh-stable';file=$stable;version='1.0.31'},@{name='upgrade';file=$candidate;version='1.0.32'},@{name='rollback-reinstall';file=$stable;version='1.0.31'})) {
             $process = Start-Process -FilePath $stage.file -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
             if ($process.ExitCode -ne 0) { throw "$($stage.name) installer failed: $($process.ExitCode)" }
             $actual = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
             if (-not $actual.StartsWith($stage.version)) { throw "$($stage.name) version mismatch: $actual" }
-            $evidence += @{stage=$stage.name;installedVersion=$actual;exitCode=$process.ExitCode}
+            if (-not (Test-Path $settings) -or [IO.File]::ReadAllText($settings) -ne $settingsValue) { throw 'Synthetic user settings changed or deleted' }
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcuts = Get-ChildItem (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') -Recurse -Filter '*Smart Manage*.lnk'
+            if (-not $shortcuts) { throw 'Installed Start Menu shortcut missing' }
+            foreach($shortcut in $shortcuts) {
+              $target=$shell.CreateShortcut($shortcut.FullName).TargetPath
+              if ($target -ne (Join-Path $destination 'Smart Manage.exe')) { throw "Unexpected shortcut target: $target" }
+            }
+            $evidence += @{stage=$stage.name;installedVersion=$actual;exitCode=$process.ExitCode;syntheticSettingsPreserved=$true;shortcutTargetsValid=$true}
           }
           New-Item -ItemType Directory -Path evidence -Force | Out-Null
-          @{stages=$evidence;appLaunch='NOT TESTED';automaticUpdate='NOT TESTED';userDataRecovery='NOT TESTED';candidateSha256=(Get-FileHash $candidate -Algorithm SHA256).Hash} | ConvertTo-Json -Depth 5 | Set-Content evidence/upgrade.json
+          @{stages=$evidence;appLaunch='NOT TESTED';automaticUpdate='NOT TESTED';userDataRecovery='Synthetic settings file retention only; application consumption and encrypted session recovery NOT TESTED';candidateSha256=(Get-FileHash $candidate -Algorithm SHA256).Hash} | ConvertTo-Json -Depth 5 | Set-Content evidence/upgrade.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
