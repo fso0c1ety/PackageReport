@@ -13,8 +13,14 @@ const db = new URL(process.env.DATABASE_URL || '');
 if (!['127.0.0.1', 'localhost'].includes(db.hostname) || db.pathname !== '/smart_manage_portal_acceptance') throw new Error('Isolated acceptance database required');
 
 const port = 9333;
-const child = spawn(executable, [`--remote-debugging-port=${port}`], { stdio: "ignore", windowsHide: false });
-let browser;
+fs.mkdirSync('artifacts/windows-functional',{recursive:true});
+const childOutput=[];
+const redact=text=>text.replace(/(apikey=)[^&\s"'<>]+/gi,'$1[redacted]').replace(/sb_(publishable|secret)_[A-Za-z0-9_-]+/g,'[redacted-key]').replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,'[redacted-jwt]');
+const child = spawn(executable, [`--remote-debugging-port=${port}`], { stdio: ['ignore','pipe','pipe'], windowsHide: false });
+child.stdout.on('data',chunk=>childOutput.push(chunk.toString()));
+child.stderr.on('data',chunk=>childOutput.push(chunk.toString()));
+child.on('exit',(code,signal)=>fs.writeFileSync('artifacts/windows-functional/electron-exit.json',JSON.stringify({code,signal})));
+let browser,page;
 try {
   let endpoint;
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -27,30 +33,30 @@ try {
   }
   if (!endpoint) throw new Error("Packaged Electron app did not expose a healthy renderer");
   browser = await chromium.connectOverCDP(endpoint);
-  const context = browser.contexts()[0];
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    page = browser.contexts().flatMap(context=>context.pages()).find(candidate=>!candidate.isClosed() && candidate.url().startsWith('app://localhost/'));
+    if(page)break;
+    if(child.exitCode!==null)throw Error(`Installed Electron exited before main renderer: ${child.exitCode}`);
+    await new Promise(resolve=>setTimeout(resolve,500));
+  }
+  if(!page)throw Error('Packaged main renderer did not load app:// assets');
+  await page.waitForLoadState('domcontentloaded');
+  const context=page.context();
   const denied = [];
   const realtimeConfiguration=[];
-  await context.routeWebSocket('**/*', websocket=>{
+  await page.routeWebSocket('**/*', websocket=>{
     const url=new URL(websocket.url());
     if(['localhost','127.0.0.1'].includes(url.hostname))return websocket.connectToServer();
     denied.push(url.origin);
     if(url.hostname==='gxzvlsukjodbarlcjyys.supabase.co')realtimeConfiguration.push({origin:url.origin,expectedProject:true,publishableKeyPresent:/^sb_publishable_/.test(url.searchParams.get('apikey') || ''),connectionBlocked:true});
     return websocket.close({code:1008,reason:'Isolated acceptance blocks nonlocal sockets'});
   });
-  await context.route('**/*', async route => {
+  await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (['app:', 'data:', 'blob:'].includes(url.protocol) || ['localhost','127.0.0.1'].includes(url.hostname)) return route.continue();
     denied.push(url.origin);
     return route.abort('blockedbyclient');
   });
-  let page;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    page = context.pages().find((candidate) => candidate.url().startsWith("app://localhost/"));
-    if (page) break;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  if (!page) throw new Error("Packaged main renderer did not load app:// assets");
-  await page.waitForLoadState("domcontentloaded");
   await page.goto("app://localhost/login.html");
   await page.getByLabel(/email/i).fill("demo@smartmanage.com");
   await page.getByRole("textbox", { name: /^password$/i }).fill(password);
@@ -160,7 +166,12 @@ try {
   if(!realtimeConfiguration.some(item=>item.expectedProject && item.publishableKeyPresent))throw new Error('Exact binary did not expose the expected configured Supabase realtime endpoint');
   fs.writeFileSync('artifacts/windows-functional/realtime-configuration.json',JSON.stringify({observations:realtimeConfiguration,productionConnection:'BLOCKED throughout; not a live realtime delivery test'}));
   console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:true,kanbanUI:true,notificationUI:true,fcmRegistrationCleanup:true,nativeSecureTokenCleared:true,OSPush:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status(), blockedExternalRequests: denied.length }));
+} catch(error) {
+  fs.writeFileSync('artifacts/windows-functional/acceptance-error.json',redact(JSON.stringify({message:error.message,stack:error.stack,childExitCode:child.exitCode,mainPage:page && !page.isClosed()?new URL(page.url()).pathname:null})));
+  await page?.screenshot({path:'artifacts/windows-functional/acceptance-failure.png'}).catch(()=>{});
+  throw error;
 } finally {
+  fs.writeFileSync('artifacts/windows-functional/electron-output-redacted.txt',redact(childOutput.join('')));
   await browser?.close().catch(() => {});
   child.kill();
 }
