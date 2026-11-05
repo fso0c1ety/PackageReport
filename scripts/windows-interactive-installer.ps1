@@ -43,6 +43,7 @@ public static class InstallerDesktopProbe {
   [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr window);
   [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr ReadText(IntPtr window,uint message,IntPtr size,StringBuilder value);
   [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr WriteText(IntPtr window,uint message,IntPtr unused,string value);
+  [DllImport("user32.dll",EntryPoint="SendMessageW")] public static extern IntPtr Message(IntPtr window,uint message,IntPtr first,IntPtr second);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll",SetLastError=true)] public static extern bool SetCursorPos(int x,int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
@@ -83,9 +84,20 @@ public static class InstallerDesktopProbe {
       if($control.Current.ControlType.Id -eq [System.Windows.Automation.ControlType]::RadioButton.Id -and $label -match 'Only for me|Just me'){
         $selection=$control.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern);$selection.Select()
       }
-      if($control.Current.ControlType.Id -eq [System.Windows.Automation.ControlType]::CheckBox.Id -and $label -match '^Run '){
-        $toggle=$control.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
-        if($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On){$toggle.Toggle()}
+      if($label -match '^Run '){
+        $toggle=$null
+        if($control.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern,[ref]$toggle)){
+          if($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On){$toggle.Toggle()}
+        }else{
+          $handle=[IntPtr]$control.Current.NativeWindowHandle
+          if([InstallerDesktopProbe]::Message($handle,240,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32() -eq 1){
+            [InstallerDesktopProbe]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle) | Out-Null
+            $bounds=$control.Current.BoundingRectangle
+            [InstallerDesktopProbe]::Click([int]($bounds.X+$bounds.Width/2),[int]($bounds.Y+$bounds.Height/2))
+            Start-Sleep -Milliseconds 200
+            if([InstallerDesktopProbe]::Message($handle,240,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32() -ne 0){throw 'Unable to deselect optional application launch'}
+          }
+        }
       }
       if($control.Current.ControlType.Id -eq [System.Windows.Automation.ControlType]::Edit.Id){$edits+=$control}
       if($label -match '^(Next\s*>?|Install|Finish|I Agree)$'){
