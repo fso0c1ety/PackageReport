@@ -29,6 +29,14 @@ try {
   browser = await chromium.connectOverCDP(endpoint);
   const context = browser.contexts()[0];
   const denied = [];
+  const realtimeConfiguration=[];
+  await context.routeWebSocket('**/*', websocket=>{
+    const url=new URL(websocket.url());
+    if(['localhost','127.0.0.1'].includes(url.hostname))return websocket.connectToServer();
+    denied.push(url.origin);
+    if(url.hostname==='gxzvlsukjodbarlcjyys.supabase.co')realtimeConfiguration.push({origin:url.origin,expectedProject:true,publishableKeyPresent:/^sb_publishable_/.test(url.searchParams.get('apikey') || ''),connectionBlocked:true});
+    return websocket.close({code:1008,reason:'Isolated acceptance blocks nonlocal sockets'});
+  });
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (['app:', 'data:', 'blob:'].includes(url.protocol) || ['localhost','127.0.0.1'].includes(url.hostname)) return route.continue();
@@ -149,6 +157,8 @@ try {
   });
   if (refreshReuse.status() !== 401) throw new Error(`Revoked refresh session was reusable (${refreshReuse.status()})`);
   fs.writeFileSync('artifacts/windows-functional/blocked-external-requests.json', JSON.stringify({ blocked: denied, isolation: 'fail-closed' }));
+  if(!realtimeConfiguration.some(item=>item.expectedProject && item.publishableKeyPresent))throw new Error('Exact binary did not expose the expected configured Supabase realtime endpoint');
+  fs.writeFileSync('artifacts/windows-functional/realtime-configuration.json',JSON.stringify({observations:realtimeConfiguration,productionConnection:'BLOCKED throughout; not a live realtime delivery test'}));
   console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:true,kanbanUI:true,notificationUI:true,fcmRegistrationCleanup:true,nativeSecureTokenCleared:true,OSPush:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status(), blockedExternalRequests: denied.length }));
 } finally {
   await browser?.close().catch(() => {});
