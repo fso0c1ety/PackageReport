@@ -7,6 +7,11 @@ try {
   $principal=New-Object Security.Principal.WindowsPrincipal($identity)
   if($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Interactive worker must use a real non-administrator token'}
   $result.standardUser=$true
+  $workerTemp=Join-Path $Root 'worker-temp'
+  [IO.Directory]::CreateDirectory($workerTemp) | Out-Null
+  $env:TEMP=$workerTemp
+  $env:TMP=$workerTemp
+  $result.workerTemp=$workerTemp
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
   Add-Type @'

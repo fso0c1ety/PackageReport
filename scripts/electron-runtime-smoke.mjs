@@ -44,18 +44,20 @@ try {
   const context=page.context();
   const denied = [];
   const realtimeConfiguration=[];
-  await page.routeWebSocket('**/*', websocket=>{
+  let isolationViolation=null;
+  const local=url=>['app:','data:','blob:'].includes(url.protocol) || ['localhost','127.0.0.1'].includes(url.hostname);
+  const violate=origin=>{isolationViolation=origin;fs.writeFileSync('artifacts/windows-functional/isolation-violation.json',JSON.stringify({origin}));child.kill();};
+  // The mandatory OS firewall was verified before spawn and covers native
+  // updater/helper traffic too. Observe its real denials instead of installing
+  // CDP routing mocks into Electron's transient startup targets.
+  page.on('requestfailed',request=>{const url=new URL(request.url());if(!local(url))denied.push(url.origin);});
+  page.on('response',response=>{const url=new URL(response.url());if(!local(url))violate(url.origin);});
+  page.on('websocket', websocket=>{
     const url=new URL(websocket.url());
-    if(['localhost','127.0.0.1'].includes(url.hostname))return websocket.connectToServer();
-    denied.push(url.origin);
+    if(local(url))return;
     if(url.hostname==='gxzvlsukjodbarlcjyys.supabase.co')realtimeConfiguration.push({origin:url.origin,expectedProject:true,publishableKeyPresent:/^sb_publishable_/.test(url.searchParams.get('apikey') || ''),connectionBlocked:true});
-    return websocket.close({code:1008,reason:'Isolated acceptance blocks nonlocal sockets'});
-  });
-  await page.route('**/*', async route => {
-    const url = new URL(route.request().url());
-    if (['app:', 'data:', 'blob:'].includes(url.protocol) || ['localhost','127.0.0.1'].includes(url.hostname)) return route.continue();
-    denied.push(url.origin);
-    return route.abort('blockedbyclient');
+    websocket.on('socketerror',()=>denied.push(url.origin));
+    websocket.on('framereceived',()=>violate(url.origin));
   });
   await page.goto("app://localhost/login.html");
   await page.getByLabel(/email/i).fill("demo@smartmanage.com");
@@ -163,6 +165,7 @@ try {
   });
   if (refreshReuse.status() !== 401) throw new Error(`Revoked refresh session was reusable (${refreshReuse.status()})`);
   fs.writeFileSync('artifacts/windows-functional/blocked-external-requests.json', JSON.stringify({ blocked: denied, isolation: 'fail-closed' }));
+  if(isolationViolation)throw Error(`External traffic bypassed the mandatory OS firewall: ${isolationViolation}`);
   if(!realtimeConfiguration.some(item=>item.expectedProject && item.publishableKeyPresent))throw new Error('Exact binary did not expose the expected configured Supabase realtime endpoint');
   fs.writeFileSync('artifacts/windows-functional/realtime-configuration.json',JSON.stringify({observations:realtimeConfiguration,productionConnection:'BLOCKED throughout; not a live realtime delivery test'}));
   console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:true,kanbanUI:true,notificationUI:true,fcmRegistrationCleanup:true,nativeSecureTokenCleared:true,OSPush:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status(), blockedExternalRequests: denied.length }));
