@@ -1,0 +1,83 @@
+name: NSIS dependency environment isolation
+on:
+  pull_request:
+    paths: ['.github/workflows/nsis-postgres-isolation.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  isolate:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [postgres-installed, database-initialized, backend-built, backend-started]
+    env:
+      DATABASE_URL: postgresql://postgres:isolated-ci-only@127.0.0.1:55439/smart_manage_portal_acceptance
+      DATABASE_SSL: 'false'
+      PORTAL_ACCEPTANCE_CI: '1'
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '13342484792'
+          merge-multiple: true
+          run-id: 41868431877
+          github-token: ${{ github.token }}
+          path: dist-electron
+      - name: Install PostgreSQL
+        shell: pwsh
+        run: |
+          choco install postgresql17 --yes --no-progress --params '/Password:isolated-ci-only /Port:5432'
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL installation failed' }
+      - name: Initialize isolated database
+        if: matrix.stage != 'postgres-installed'
+        shell: pwsh
+        run: |
+          $bin='C:\Program Files\PostgreSQL\17\bin'
+          $data=Join-Path $env:RUNNER_TEMP 'nsis-isolation-db'
+          $pw=Join-Path $env:RUNNER_TEMP 'synthetic-password'
+          'isolated-ci-only' | Set-Content $pw -NoNewline
+          & "$bin/initdb.exe" -D $data -U postgres --encoding=UTF8 --locale=C --auth=scram-sha-256 --pwfile=$pw
+          if ($LASTEXITCODE -ne 0) { throw 'initdb failed' }
+          & "$bin/pg_ctl.exe" -D $data -l "$env:RUNNER_TEMP/db.log" -o '-p 55439 -h 127.0.0.1' -w -t 60 start
+          if ($LASTEXITCODE -ne 0) { throw 'pg_ctl failed' }
+          $env:PGPASSWORD='isolated-ci-only'
+          & "$bin/createdb.exe" -h 127.0.0.1 -p 55439 -U postgres smart_manage_portal_acceptance
+          if ($LASTEXITCODE -ne 0) { throw 'createdb failed' }
+      - run: npm run db:migrate
+        if: startsWith(matrix.stage, 'backend-')
+      - run: npm run build
+        if: startsWith(matrix.stage, 'backend-')
+      - name: Start isolated backend
+        if: matrix.stage == 'backend-started'
+        shell: pwsh
+        run: |
+          Start-Process node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden
+          $ready=$false
+          for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
+          if(-not $ready){throw 'Backend readiness failed'}
+      - name: Enable private crash capture and install once
+        shell: pwsh
+        run: |
+          $dumps=Join-Path $env:RUNNER_TEMP 'private-nsis-dumps'
+          New-Item -ItemType Directory $dumps -Force | Out-Null
+          $key='HKCU:\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\Smart-Manage-Setup-1.0.32.exe'
+          New-Item $key -Force | Out-Null
+          New-ItemProperty $key -Name DumpFolder -Value $dumps -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty $key -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          Get-Service | Select-Object Name,Status | ConvertTo-Json | Set-Content "$env:RUNNER_TEMP/nsis-services.json"
+          ./scripts/nsis-environment-checkpoint.ps1 -Stage '${{ matrix.stage }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nsis-dependency-${{ matrix.stage }}
+          path: artifacts/windows-functional
+          if-no-files-found: error
