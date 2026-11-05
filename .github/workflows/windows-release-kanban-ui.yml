@@ -2,7 +2,7 @@ name: Windows release real Kanban UI gate
 on:
   push:
     branches: [diagnostic/nsis-8536-v1.0.32]
-    paths: ['e2e/kanban-pagination.spec.ts', '.github/workflows/windows-release-kanban-ui.yml']
+    paths: ['e2e/kanban-pagination.spec.ts', 'src/app/api/automation/due/route.js', '.github/workflows/windows-release-kanban-ui.yml']
 permissions:
   contents: read
 jobs:

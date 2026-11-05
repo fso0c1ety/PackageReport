@@ -9,6 +9,7 @@ test('date-only automation scheduling uses workspace IANA timezone with Kosovo-c
   assert.match(route, /pg_timezone_names/);
   assert.match(route, /Europe\/Belgrade/);
   assert.match(route, /make_timestamptz/);
+  assert.doesNotMatch(route, /pg_input_is_valid\([^\n]*::regtype/);
   assert.doesNotMatch(route, /scheduled_at::date=CURRENT_DATE/);
 });
 

@@ -8,6 +8,11 @@ domain change, optional 045/046 indexes, or historical migration replay is inclu
 
 - `automation_runs.scheduled_for` is absent. The existing scheduler claim SQL
   references it. An isolated legacy-schema probe fails with SQLSTATE 42703.
+- The endpoint also used an invalid `pg_input_is_valid(text,regtype)` call.
+  The corrected source supplies text type names, matching the live PostgreSQL
+  `pg_input_is_valid(text,text)` signature. This backend correction needs a
+  separately reviewed and authorized deployment; the column addition alone
+  does not fix the endpoint. No such Production deployment has been performed.
 - All 29 names in 048 exist, are owned by postgres, have RLS disabled and no
   policies, and give effective SELECT/INSERT/UPDATE/DELETE to anon and
   authenticated. PUBLIC has no explicit ACL entries on these tables; revoking
