@@ -1,6 +1,10 @@
 name: Preserved Windows installer upgrade and rollback
 on:
   workflow_dispatch:
+    inputs:
+      interactive_only:
+        type: boolean
+        default: false
   pull_request:
     paths:
       - '.github/workflows/windows-preserved-upgrade.yml'
@@ -9,6 +13,7 @@ permissions:
   actions: read
 jobs:
   upgrade:
+    if: ${{ !inputs.interactive_only }}
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -83,5 +88,55 @@ jobs:
         if: always()
         with:
           name: preserved-windows-upgrade-evidence
+          path: evidence
+          if-no-files-found: error
+  standard-user-interactive:
+    if: ${{ github.event_name == 'pull_request' || inputs.interactive_only }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: PackageReport-windows-exe
+          run-id: 42050688838
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Exercise real standard-user installer UI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $name='smui'+([guid]::NewGuid().ToString('N').Substring(0,8))
+          $root=Join-Path 'C:\Users\Public\Documents' ('SmartManageUI-'+[guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory $root -Force | Out-Null
+          $password=ConvertTo-SecureString ('Aa!'+[guid]::NewGuid().ToString('N')+'9') -AsPlainText -Force
+          $created=$false
+          try {
+            New-LocalUser -Name $name -Password $password -AccountNeverExpires | Out-Null
+            $created=$true
+            Add-LocalGroupMember -Group 'Users' -Member $name
+            $acl=Get-Acl $root
+            $rule=[Security.AccessControl.FileSystemAccessRule]::new("$env:COMPUTERNAME\$name",'Modify','ContainerInherit,ObjectInherit','None','Allow')
+            $acl.AddAccessRule($rule);Set-Acl $root $acl
+            Copy-Item candidate/Smart-Manage-Setup-1.0.32.exe $root
+            Copy-Item scripts/windows-interactive-installer.ps1 $root
+            $exe=Join-Path $root 'installed\Smart Manage.exe'
+            $addresses=@('0.0.0.1-126.255.255.255','128.0.0.0-255.255.255.254','::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe')
+            $firewall=New-NetFirewallRule -DisplayName "SmartManage interactive $name" -Direction Outbound -Program $exe -Action Block -RemoteAddress $addresses -ErrorAction Stop
+            if($firewall.Enabled -ne 'True' -or $firewall.Action -ne 'Block'){throw 'Interactive application isolation inactive'}
+            $credential=[pscredential]::new("$env:COMPUTERNAME\$name",$password)
+            $workerScript=Join-Path $root 'windows-interactive-installer.ps1'
+            $worker=Start-Process -FilePath "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -Credential $credential -LoadUserProfile -ArgumentList @('-NoProfile','-File',$workerScript,'-Root',$root) -WindowStyle Hidden -PassThru
+            if(-not $worker.WaitForExit(360000)){Stop-Process -Id $worker.Id -Force;throw 'Standard-user interactive worker timed out'}
+            if($worker.ExitCode -ne 0){throw "Standard-user interactive test failed: $($worker.ExitCode)"}
+          } finally {
+            New-Item -ItemType Directory evidence -Force | Out-Null
+            if(Test-Path (Join-Path $root 'interactive-result.json')){Copy-Item (Join-Path $root 'interactive-result.json') evidence/}
+            if($created){Remove-LocalUser -Name $name}
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: standard-user-interactive-evidence
           path: evidence
           if-no-files-found: error

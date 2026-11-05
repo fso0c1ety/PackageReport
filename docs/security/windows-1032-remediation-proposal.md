@@ -25,6 +25,9 @@ domain change, optional 045/046 indexes, or historical migration replay is inclu
 - service_role has effective CRUD and BYPASSRLS. This is **not** proof that the
   deployed application pool uses service_role. Its real connection identity and
   tenant checks still require verification through that pool before execution.
+- The live ledger has 25 rows, nine NULL checksums and no 044--048 entries.
+  Existing schema objects are not evidence that those files ran. In particular,
+  do not replay 047a or invent ledger records to explain its existing tables.
 
 ## Exact SQL and separate scopes
 
@@ -111,11 +114,40 @@ a demonstrated recovery point and a reviewed concurrent-write/data-loss plan.
 
 ## Evidence and outstanding approvals
 
-- Corrected source: `e1c48fdf1384e0657edf045101de1e53302d8d08`.
+- Release binary source: `f7dc9db738cb3c7d69ce4623f31c8bea83648ffb`.
+  This includes the supported Kanban mutation endpoint and preservation of a
+  newer review-input draft when an older save acknowledgement arrives.
 - Isolated 048/security/restore run: 42039612488, PASS.
-- Corrected Windows artifact: run 42035647291, artifact 13418976557.
-- Corrected browser Kanban run 42034766484 and notification run 42034477301: PASS.
-- Minimal scheduler operation test: follow run triggered by commit 2fb60e7.
+- Configured Windows artifact: run 42050688838, artifact 13427872163;
+  SHA256 `E28D4D3AAAD54B26ECDD139969359003BB358EFB36E77006087B309FD8EDB490`.
+  GitHub build settings use the existing project's public publishable key and
+  canonical smartmanage.dev URLs. No key was created/rotated and no live Vercel
+  setting was changed. Credentials are not included in this proposal.
+- Browser Kanban rapid edit/move/reload, notification lifecycle and actual
+  scheduled execution/notification/deduplication: run 42045702515, PASS 3/3.
+- Minimal scheduler operation and rollback: run 42040061505, PASS.
+- Exact configured-EXE upgrade/rollback, custom-directory registry reuse,
+  per-user registration, profile/theme recovery and uninstall: 42052486730, PASS.
+- Exact configured-EXE full acceptance: 42052480007 found a routing-target
+  lifecycle failure; main-renderer routing and redacted process diagnostics are
+  prepared. Do not label that run PASS. Follow the corrected exact-binary run.
+- Standard-user interactive installer/UAC and encrypted-session recovery are
+  not established by elevated silent-install CI. No interactive self-hosted
+  Windows runner is configured in the repository.
+
+## Exact-artifact publication control, only after all gates pass
+
+The tag-push `release-windows.yml` workflow rebuilds assets. Before creating the
+approved stable tag, hold that specific publisher through the supported GitHub
+workflow control and verify its disabled state. Do not cancel unrelated work or
+disable required CI. Upload only the already-tested EXE, its matching latest.yml,
+blockmap, checksum and stable-name distribution ZIP; then verify stable/Latest
+state, tag target, public downloads and updater integrity. Restore the publisher
+after verification without dispatching another build. No hold, tag or release
+has been executed by this proposal. No main merge is part of publication.
+
+Real owner Auto-Update download/install/restart is explicitly post-publication
+verification, and is not by itself a pre-publication blocker.
 
 This proposal is not independently approved and does not claim current Production
 backup/recovery, live backend-role parity or post-migration health has passed.
