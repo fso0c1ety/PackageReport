@@ -55,8 +55,9 @@ try {
   page.on('websocket', websocket=>{
     const url=new URL(websocket.url());
     if(local(url))return;
-    if(url.hostname==='gxzvlsukjodbarlcjyys.supabase.co')realtimeConfiguration.push({origin:url.origin,expectedProject:true,publishableKeyPresent:/^sb_publishable_/.test(url.searchParams.get('apikey') || ''),connectionBlocked:true});
-    websocket.on('socketerror',()=>denied.push(url.origin));
+    const observation={origin:url.origin,expectedProject:url.hostname==='gxzvlsukjodbarlcjyys.supabase.co',publishableKeyPresent:/^sb_publishable_/.test(url.searchParams.get('apikey') || ''),connectionBlocked:false};
+    if(observation.expectedProject)realtimeConfiguration.push(observation);
+    websocket.on('socketerror',()=>{observation.connectionBlocked=true;denied.push(url.origin);});
     websocket.on('framereceived',()=>violate(url.origin));
   });
   await page.goto("app://localhost/login.html");
@@ -166,7 +167,7 @@ try {
   if (refreshReuse.status() !== 401) throw new Error(`Revoked refresh session was reusable (${refreshReuse.status()})`);
   fs.writeFileSync('artifacts/windows-functional/blocked-external-requests.json', JSON.stringify({ blocked: denied, isolation: 'fail-closed' }));
   if(isolationViolation)throw Error(`External traffic bypassed the mandatory OS firewall: ${isolationViolation}`);
-  if(!realtimeConfiguration.some(item=>item.expectedProject && item.publishableKeyPresent))throw new Error('Exact binary did not expose the expected configured Supabase realtime endpoint');
+  if(!realtimeConfiguration.some(item=>item.expectedProject && item.publishableKeyPresent && item.connectionBlocked))throw new Error('Expected embedded Supabase configuration and actual socket denial were not both observed');
   fs.writeFileSync('artifacts/windows-functional/realtime-configuration.json',JSON.stringify({observations:realtimeConfiguration,productionConnection:'BLOCKED throughout; not a live realtime delivery test'}));
   console.log(JSON.stringify({ started: true, renderer: "app://localhost", loginUI: true, workspaceAPI: true, taskCreateEditPersistenceAPI:true, taskUI:true,kanbanUI:true,notificationUI:true,fcmRegistrationCleanup:true,nativeSecureTokenCleared:true,OSPush:'NOT TESTED',workspaces: api.count, boards: api.tables, rows: api.rows, logoutUI: true, refreshSessionRevoked: true, revokedRefreshStatus: refreshReuse.status(), blockedExternalRequests: denied.length }));
 } catch(error) {
