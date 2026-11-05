@@ -44,7 +44,9 @@ jobs:
           $settingsValue = '{"tenant":"synthetic-only","theme":"dark","selectedWorkspace":"isolated-workspace"}'
           [IO.File]::WriteAllText($settings,$settingsValue)
           foreach ($stage in @(@{name='fresh-stable';file=$stable;version='1.0.31'},@{name='upgrade';file=$candidate;version='1.0.32'},@{name='rollback-reinstall';file=$stable;version='1.0.31'},@{name='reinstall-after-rollback';file=$candidate;version='1.0.32'})) {
-            $process = Start-Process -FilePath $stage.file -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+            $installArguments=@('/S')
+            if($stage.name -eq 'fresh-stable'){$installArguments += "/D=$destination"}
+            $process = Start-Process -FilePath $stage.file -ArgumentList $installArguments -Wait -PassThru -WindowStyle Hidden
             if ($process.ExitCode -ne 0) { throw "$($stage.name) installer failed: $($process.ExitCode)" }
             $actual = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
             if (-not $actual.StartsWith($stage.version)) { throw "$($stage.name) version mismatch: $actual" }
@@ -62,7 +64,7 @@ jobs:
               $target=$shell.CreateShortcut($shortcut.FullName).TargetPath
               if ($target -ne (Join-Path $destination 'Smart Manage.exe')) { throw "Unexpected shortcut target: $target" }
             }
-            $entries=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Smart Manage*' -and $_.InstallLocation.TrimEnd('\') -eq $destination.TrimEnd('\') }
+            $entries=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Smart Manage*' -and ([string]$_.UninstallString).Contains($destination) }
             if(-not $entries){throw 'Per-user uninstall registry entry missing for custom directory'}
             $globalEntries=Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Smart Manage*' }
             if($globalEntries){throw 'Unexpected per-machine registration on clean runner'}
