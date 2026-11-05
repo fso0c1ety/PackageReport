@@ -12,6 +12,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: actions/download-artifact@v4
         with:
           name: PackageReport-windows-exe
@@ -22,6 +26,9 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3000
         run: |
           $ErrorActionPreference = 'Stop'
           gh release download v1.0.31 --repo fso0c1ety/PackageReport --pattern Smart-Manage-Setup-1.0.31.exe --dir stable
@@ -41,6 +48,12 @@ jobs:
             if ($process.ExitCode -ne 0) { throw "$($stage.name) installer failed: $($process.ExitCode)" }
             $actual = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
             if (-not $actual.StartsWith($stage.version)) { throw "$($stage.name) version mismatch: $actual" }
+            $installedExe=Join-Path $destination 'Smart Manage.exe'
+            $addresses=@('0.0.0.1-126.255.255.255','128.0.0.0-255.255.255.254','::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe')
+            $rule=New-NetFirewallRule -DisplayName "SmartManage recovery $([guid]::NewGuid())" -Direction Outbound -Program $installedExe -Action Block -RemoteAddress $addresses -ErrorAction Stop
+            if($rule.Enabled -ne 'True' -or $rule.Action -ne 'Block'){throw 'Recovery outbound isolation inactive'}
+            node scripts/windows-profile-recovery.mjs $installedExe $stage.name
+            if($LASTEXITCODE -ne 0){throw 'Real installed profile recovery failed'}
             if (-not (Test-Path $settings) -or [IO.File]::ReadAllText($settings) -ne $settingsValue) { throw 'Synthetic user settings changed or deleted' }
             $shell = New-Object -ComObject WScript.Shell
             $shortcuts = Get-ChildItem (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') -Recurse -Filter '*Smart Manage*.lnk'
