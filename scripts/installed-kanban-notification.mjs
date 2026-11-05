@@ -70,11 +70,15 @@ export async function installedKanbanNotification(page) {
     await expect.poll(async()=>{notification=(await client.query("SELECT id,read FROM notifications WHERE recipient_id=$1 AND type='record_update' AND data->>'taskId'=$2",[userId,row.id])).rows[0];return Boolean(notification);},{timeout:30000}).toBe(true);
     expect(notification.read).toBe(false);
     await page.getByRole('button',{name:'Notifications',exact:true}).click();
-    await expect(page.getByRole('menu').getByText(`${boardName} updated`,{exact:true})).toBeVisible();
+    // Realtime is unavailable in this exact production-configured EXE under
+    // outbound isolation. TopBar's supported fallback interval is 90 seconds.
+    await expect(page.getByRole('menu').getByText(`${boardName} updated`,{exact:true})).toBeVisible({timeout:140000});
+    await page.keyboard.press('Escape');
+    await page.getByRole('button',{name:'Notifications',exact:true}).click();
     await expect.poll(async()=>(await client.query('SELECT read FROM notifications WHERE id=$1',[notification.id])).rows[0]?.read).toBe(true);
     await page.screenshot({path:'artifacts/windows-functional/installed-kanban-notification.png'});
     await page.keyboard.press('Escape');
-    fs.writeFileSync('artifacts/windows-functional/installed-ui.json',JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistReload:true,notificationEvent:true,notificationUI:true,notificationRead:true,OSPush:'NOT TESTED'}));
+    fs.writeFileSync('artifacts/windows-functional/installed-ui.json',JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistReload:true,notificationEvent:true,notificationUI:true,notificationRead:true,notificationTransport:'90-second fallback polling; realtime unavailable under outbound isolation',OSPush:'NOT TESTED'}));
   } catch(error) {
     await page.screenshot({path:'artifacts/windows-functional/installed-ui-failure.png'}).catch(()=>{});
     fs.writeFileSync('artifacts/windows-functional/installed-ui-failure.json',JSON.stringify({message:error.message,stack:error.stack}));
