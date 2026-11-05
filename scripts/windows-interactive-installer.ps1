@@ -7,7 +7,18 @@ try {
   $principal=New-Object Security.Principal.WindowsPrincipal($identity)
   if($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Interactive worker must use a real non-administrator token'}
   $result.standardUser=$true
-  $workerTemp=Join-Path $Root 'worker-temp'
+  $profileKey=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($identity.User.Value)")
+  if(-not $profileKey){throw 'Standard-user Windows profile was not loaded'}
+  try {$profileRoot=[Environment]::ExpandEnvironmentVariables([string]$profileKey.GetValue('ProfileImagePath'))}
+  finally {$profileKey.Dispose()}
+  if(-not [IO.Path]::IsPathRooted($profileRoot) -or $profileRoot -notlike ('*'+$identity.Name.Split('\')[-1]+'*')){throw 'Refusing an unrelated inherited profile'}
+  $env:USERPROFILE=$profileRoot
+  $env:LOCALAPPDATA=Join-Path $profileRoot 'AppData\Local'
+  $env:APPDATA=Join-Path $profileRoot 'AppData\Roaming'
+  [IO.Directory]::CreateDirectory($env:LOCALAPPDATA) | Out-Null
+  [IO.Directory]::CreateDirectory($env:APPDATA) | Out-Null
+  $result.profileRoot=$profileRoot
+  $workerTemp=Join-Path $env:LOCALAPPDATA 'Temp'
   [IO.Directory]::CreateDirectory($workerTemp) | Out-Null
   $env:TEMP=$workerTemp
   $env:TMP=$workerTemp
