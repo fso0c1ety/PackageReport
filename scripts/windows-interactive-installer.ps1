@@ -18,12 +18,27 @@ try {
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
 public static class InstallerDesktopProbe {
   [DllImport("user32.dll")] public static extern IntPtr GetProcessWindowStation();
   [DllImport("user32.dll")] public static extern IntPtr GetThreadDesktop(uint id);
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] public static extern bool GetUserObjectInformation(IntPtr handle,int index,StringBuilder value,int length,out int needed);
   public static string Name(IntPtr handle){int needed;var value=new StringBuilder(256);return GetUserObjectInformation(handle,2,value,512,out needed)?value.ToString():"unavailable:"+Marshal.GetLastWin32Error();}
+  public delegate bool ChildCallback(IntPtr window,IntPtr parameter);
+  [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr parent,ChildCallback callback,IntPtr parameter);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr window,StringBuilder name,int size);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr window);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr ReadText(IntPtr window,uint message,IntPtr size,StringBuilder value);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr WriteText(IntPtr window,uint message,IntPtr unused,string value);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll",SetLastError=true)] public static extern bool SetCursorPos(int x,int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+  public static IntPtr[] Edits(IntPtr parent){var found=new List<IntPtr>();EnumChildWindows(parent,(window,unused)=>{var name=new StringBuilder(128);GetClassName(window,name,128);if(name.ToString()=="Edit" && IsWindowVisible(window) && IsWindowEnabled(window))found.Add(window);return true;},IntPtr.Zero);return found.ToArray();}
+  public static string Text(IntPtr window){var text=new StringBuilder(4096);ReadText(window,13,(IntPtr)4096,text);return text.ToString();}
+  public static void SetText(IntPtr window,string value){WriteText(window,12,IntPtr.Zero,value);}
+  public static void Click(int x,int y){if(!SetCursorPos(x,y))throw new Exception("Native input desktop access denied: "+Marshal.GetLastWin32Error());mouse_event(2,0,0,0,UIntPtr.Zero);mouse_event(4,0,0,0,UIntPtr.Zero);}
 }
 '@
   $result.windowStation=[InstallerDesktopProbe]::Name([InstallerDesktopProbe]::GetProcessWindowStation())
@@ -80,6 +95,19 @@ public static class InstallerDesktopProbe {
         $directorySeen=$true
       }
     }
+    if(-not $directorySeen){
+      foreach($handle in [InstallerDesktopProbe]::Edits([IntPtr]$window.Current.NativeWindowHandle)){
+        $text=[InstallerDesktopProbe]::Text($handle)
+        if($text -match '^[A-Za-z]:\\'){
+          $expected=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs'
+          if(-not $text.StartsWith($expected,[StringComparison]::OrdinalIgnoreCase)){throw "Unexpected native default folder: $text"}
+          $result.defaultDirectory=$text
+          [InstallerDesktopProbe]::SetText($handle,$destination)
+          if([InstallerDesktopProbe]::Text($handle) -ne $destination){throw 'Native directory edit did not retain the custom path'}
+          $directorySeen=$true
+        }
+      }
+    }
     $result.lastVisibleLabels=$labels
     $button=$buttons | Where-Object {$_.label -match '^(Next\s*>?|Install|Finish|I Agree)$'} | Select-Object -First 1
     if($button){
@@ -87,8 +115,12 @@ public static class InstallerDesktopProbe {
       $pages.Add(@{button=$button.label;visibleLabels=$labels})
       $action=$null
       if($button.element.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$action)){$action.Invoke()}
-      elseif($button.element.TryGetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern,[ref]$action)){$action.DoDefaultAction()}
-      else{throw 'Installer next control has no native accessible action'}
+      else{
+        [InstallerDesktopProbe]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle) | Out-Null
+        $bounds=$button.element.Current.BoundingRectangle
+        if($bounds.Width -le 0 -or $bounds.Height -le 0){throw 'Installer button has no clickable screen bounds'}
+        [InstallerDesktopProbe]::Click([int]($bounds.X+$bounds.Width/2),[int]($bounds.Y+$bounds.Height/2))
+      }
       Start-Sleep -Milliseconds 600
     }else{Start-Sleep -Milliseconds 250}
     $process.Refresh()
