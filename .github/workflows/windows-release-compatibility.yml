@@ -1,0 +1,35 @@
+name: Windows release scheduler compatibility evidence
+on:
+  push:
+    branches: [diagnostic/nsis-8536-v1.0.32]
+    paths: ['.github/workflows/windows-release-compatibility.yml', 'scripts/verify-scheduler-existing-schema.cjs']
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: scheduler_compatibility_test
+        ports: ['5432:5432']
+        options: --health-cmd 'pg_isready -U postgres' --health-interval 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:synthetic-only@127.0.0.1:5432/scheduler_compatibility_test
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: node scripts/verify-scheduler-existing-schema.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scheduler-existing-schema-evidence
+          path: artifacts/scheduler-compatibility
+          if-no-files-found: error
