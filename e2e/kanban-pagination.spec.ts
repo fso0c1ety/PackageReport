@@ -17,10 +17,10 @@ function assertLocalDatabase(url: string) {
   }
 }
 
-async function login(browser: Browser, baseURL: string) {
+async function login(browser: Browser, baseURL: string, email = measurementEmail) {
   const context = await browser.newContext({ baseURL });
   const response = await context.request.post(`${baseURL}/api/login/`, {
-    data: { email: measurementEmail, password },
+    data: { email, password },
     headers: { Origin: baseURL },
   });
   const body = await response.json();
@@ -144,6 +144,44 @@ test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
       await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);
       await fixture.client.end();
       await context.close();
+    }
+  });
+
+  test('release notification event delivers and UI marks it read', async ({ browser, baseURL }) => {
+    const owner = await login(browser,baseURL!);
+    const recipient = await login(browser,baseURL!,'driver-b@smartmanage-demo.com');
+    const fixture = await seedBoard(owner.userId,2);
+    try {
+      await fixture.client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,updated_at) VALUES($1,$2,'member','member','{"scope":"all"}'::jsonb,NOW())`,[fixture.workspaceId,recipient.userId]);
+      await fixture.client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'viewer','{}'::jsonb,'{"scope":"all"}'::jsonb,NOW())`,[fixture.tableId,recipient.userId]);
+      const row = (await fixture.client.query('SELECT id,values FROM rows WHERE table_id=$1 ORDER BY id LIMIT 1',[fixture.tableId])).rows[0];
+      const columns = (await fixture.client.query('SELECT columns FROM tables WHERE id=$1',[fixture.tableId])).rows[0].columns;
+      const changed = {...row.values,[columns[0].id]:`${fixture.marker} notification event`};
+      const response = await owner.context.request.put(`/api/tables/${fixture.tableId}/tasks`,{data:{id:row.id,values:changed}});
+      expect(response.ok(),await response.text()).toBe(true);
+      let id='';
+      await expect.poll(async()=>{
+        const r=await fixture.client.query("SELECT id,read FROM notifications WHERE recipient_id=$1 AND type='record_update' AND data->>'taskId'=$2",[recipient.userId,row.id]);
+        if(r.rows.length===1){id=r.rows[0].id;expect(r.rows[0].read).toBe(false);}
+        return r.rows.length;
+      },{timeout:30000}).toBe(1);
+      const delivered=await recipient.context.request.get('/api/notifications/');
+      expect(delivered.ok()).toBe(true);
+      expect((await delivered.json()).some((n:{id:string})=>n.id===id)).toBe(true);
+      const excluded=await owner.context.request.get('/api/notifications/');
+      expect((await excluded.json()).some((n:{id:string})=>n.id===id)).toBe(false);
+      const page=await recipient.context.newPage();
+      await page.goto(`/workspace/?id=${fixture.workspaceId}`);
+      await page.getByRole('button',{name:'Notifications',exact:true}).click();
+      await expect(page.getByRole('menu').getByText(`${fixture.boardName} updated`,{exact:true})).toBeVisible();
+      await expect.poll(async()=>(await fixture.client.query('SELECT read FROM notifications WHERE id=$1',[id])).rows[0]?.read).toBe(true);
+      await page.reload();
+      expect((await fixture.client.query('SELECT read FROM notifications WHERE id=$1',[id])).rows[0].read).toBe(true);
+      await test.info().attach('notification-lifecycle',{body:JSON.stringify({event:'record update',recipientDelivery:true,UIVisible:true,UIRead:true,readPersists:true,senderIsolation:true,pushDelivery:'NOT TESTED',logout:'Separate installed suite'}),contentType:'application/json'});
+    } finally {
+      await fixture.client.query("DELETE FROM notifications WHERE data->>'workspaceId'=$1",[fixture.workspaceId]);
+      await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);
+      await fixture.client.end();await owner.context.close();await recipient.context.close();
     }
   });
 

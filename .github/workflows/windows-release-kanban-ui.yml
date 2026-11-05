@@ -9,4 +9,4 @@ jobs:
   kanban:
     uses: ./.github/workflows/kanban-postgres-e2e.yml
     with:
-      test_grep: 'release UI creates edits moves and reloads'
+      test_grep: 'release notification event delivers'
