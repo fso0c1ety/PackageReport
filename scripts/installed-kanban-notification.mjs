@@ -13,19 +13,20 @@ export async function installedKanbanNotification(page) {
   await client.connect();
   const workspace=randomUUID(), table=randomUUID(), name=randomUUID(), status=randomUUID();
   const marker=`INSTALLED_UI_${Date.now()}`;
+  const boardName=`${marker} Board`;
   const userId=await page.evaluate(()=>String(JSON.parse(localStorage.getItem('user') || '{}').id || ''));
   if (!userId) throw Error('Installed login identity missing');
   try {
     await client.query('BEGIN');
-    await client.query("INSERT INTO workspaces(id,name,owner_id,is_demo,demo_expires_at,demo_metadata) VALUES($1,$2,$3,TRUE,NOW()+INTERVAL '1 hour','{}'::jsonb)",[workspace,marker,userId]);
+    await client.query("INSERT INTO workspaces(id,name,owner_id,is_demo,demo_expires_at,demo_metadata) VALUES($1,$2,$3,TRUE,NOW()+INTERVAL '1 hour','{}'::jsonb)",[workspace,`${marker} Workspace`,userId]);
     await client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,updated_at) VALUES($1,$2,'admin','admin','{"scope":"all_permitted"}',NOW())`,[workspace,userId]);
     const columns=[{id:name,name:'Name',type:'Text',order:0},{id:status,name:'Status',type:'Status',order:1,options:[{value:'Open',color:'#1976d2'},{value:'Done',color:'#00c875'}]}];
-    await client.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,$2,$3,$4::jsonb)',[table,marker,workspace,JSON.stringify(columns)]);
+    await client.query('INSERT INTO tables(id,name,workspace_id,columns) VALUES($1,$2,$3,$4::jsonb)',[table,boardName,workspace,JSON.stringify(columns)]);
     await client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'owner','{}','{"scope":"all_permitted"}',NOW())`,[table,userId]);
     await client.query('COMMIT');
     const open=async()=>{
       await page.goto(`app://localhost/workspace.html?id=${workspace}`);
-      await page.getByText(marker,{exact:true}).click();
+      await page.getByText(boardName,{exact:true}).click();
       const toolbar=page.getByRole('button',{name:'New task',exact:true});
       await expect(toolbar).toBeVisible({timeout:30000});
       await toolbar.locator('xpath=preceding-sibling::button[1]').click();
@@ -63,11 +64,15 @@ export async function installedKanbanNotification(page) {
     await expect.poll(async()=>{notification=(await client.query("SELECT id,read FROM notifications WHERE recipient_id=$1 AND type='record_update' AND data->>'taskId'=$2",[userId,row.id])).rows[0];return Boolean(notification);},{timeout:30000}).toBe(true);
     expect(notification.read).toBe(false);
     await page.getByRole('button',{name:'Notifications',exact:true}).click();
-    await expect(page.getByRole('menu').getByText(`${marker} updated`,{exact:true})).toBeVisible();
+    await expect(page.getByRole('menu').getByText(`${boardName} updated`,{exact:true})).toBeVisible();
     await expect.poll(async()=>(await client.query('SELECT read FROM notifications WHERE id=$1',[notification.id])).rows[0]?.read).toBe(true);
     await page.screenshot({path:'artifacts/windows-functional/installed-kanban-notification.png'});
     await page.keyboard.press('Escape');
     fs.writeFileSync('artifacts/windows-functional/installed-ui.json',JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistReload:true,notificationEvent:true,notificationUI:true,notificationRead:true,OSPush:'NOT TESTED'}));
+  } catch(error) {
+    await page.screenshot({path:'artifacts/windows-functional/installed-ui-failure.png'}).catch(()=>{});
+    fs.writeFileSync('artifacts/windows-functional/installed-ui-failure.json',JSON.stringify({message:error.message,stack:error.stack}));
+    throw error;
   } finally {
     await client.query('ROLLBACK').catch(()=>{});
     await client.query("DELETE FROM notifications WHERE data->>'workspaceId'=$1",[workspace]);
