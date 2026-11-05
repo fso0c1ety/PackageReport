@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [A, B, C]
+        variant: [A, D]
     env:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
       NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
@@ -27,8 +27,11 @@ jobs:
       - name: Configure diagnostic packaging only
         shell: pwsh
         run: |
-          node -e "const fs=require('fs');const p=require('./package.json');if(process.env.VARIANT==='B')p.build.nsis.selectPerMachineByDefault=true;if(process.env.VARIANT==='C'){p.build.nsis.oneClick=true;p.build.nsis.allowToChangeInstallationDirectory=false;}fs.writeFileSync('package.json',JSON.stringify(p,null,2));"
           New-Item -ItemType Directory evidence -Force | Out-Null
+          if ($env:VARIANT -eq 'D') {
+            node scripts/patch-nsis-known-folder.cjs
+            if ($LASTEXITCODE -ne 0) { throw 'Version-pinned NSIS patch failed' }
+          }
           Copy-Item node_modules/app-builder-lib/templates/nsis/multiUser.nsh evidence/multiUser.nsh
           Copy-Item package.json evidence/package.json
       - run: npm run desktop:build
@@ -52,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [A, B, C]
+        variant: [A, D]
         replica: [1, 2, 3]
     steps:
       - uses: actions/download-artifact@v4
