@@ -1,0 +1,91 @@
+name: NSIS 8536 packaging comparison
+on:
+  push:
+    branches: [diagnostic/nsis-8536-v1.0.32]
+    paths: ['.github/workflows/nsis-packaging-comparison.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [A, D]
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3000
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      VARIANT: ${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - name: Configure diagnostic packaging only
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory evidence -Force | Out-Null
+          if ($env:VARIANT -eq 'D') {
+            node scripts/patch-nsis-known-folder.cjs
+            if ($LASTEXITCODE -ne 0) { throw 'Version-pinned NSIS patch failed' }
+          }
+          Copy-Item node_modules/app-builder-lib/templates/nsis/multiUser.nsh evidence/multiUser.nsh
+          Copy-Item package.json evidence/package.json
+      - run: npm run desktop:build
+      - name: Hash diagnostic installer
+        shell: pwsh
+        run: Get-FileHash dist-electron/Smart-Manage-Setup-1.0.32.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/sha256.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostic-${{ matrix.variant }}
+          path: |
+            dist-electron/*.exe
+            dist-electron/latest.yml
+            dist-electron/*.blockmap
+            evidence
+          if-no-files-found: error
+  install:
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [A, D]
+        replica: [1, 2, 3]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: diagnostic-${{ matrix.variant }}
+          path: diagnostic
+      - name: Single diagnostic installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory evidence -Force | Out-Null
+          $installer=(Resolve-Path diagnostic/dist-electron/Smart-Manage-Setup-1.0.32.exe).Path
+          $expected=(Get-Content diagnostic/evidence/sha256.json|ConvertFrom-Json).Hash
+          $actual=(Get-FileHash $installer -Algorithm SHA256).Hash
+          if($actual -ne $expected){throw 'Diagnostic hash mismatch'}
+          $destination=Join-Path $env:RUNNER_TEMP 'nsis-comparison'
+          $start=Get-Date
+          $p=Start-Process $installer -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+          @{variant='${{ matrix.variant }}';replica='${{ matrix.replica }}';sha256=$actual;exitCode=$p.ExitCode;installed=(Test-Path (Join-Path $destination 'Smart Manage.exe'));image=$env:ImageVersion;identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name;uacInteractive='NOT TESTED: elevated CI identity';scope='Inspect registry evidence';upgrade='NOT TESTED';updater='NOT TESTED'}|ConvertTo-Json|Set-Content evidence/result.json
+          foreach($hive in @('HKCU','HKLM')){Get-ItemProperty "$($hive):\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue|Where-Object DisplayName -match 'Smart Manage'|Select-Object DisplayName,InstallLocation,UninstallString,PSPath|ConvertTo-Json|Set-Content "evidence/$hive-scope.json"}
+          Start-Sleep 10
+          Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start} -ErrorAction SilentlyContinue|Where-Object ProviderName -match 'Application Error|Windows Error Reporting'|Select-Object Id,Message|ConvertTo-Json|Set-Content evidence/events.json
+          if($p.ExitCode -ne 0){throw "Diagnostic NSIS failed: $($p.ExitCode)"}
+          $uninstaller=Get-ChildItem $destination -Filter '*Uninstall*.exe'|Select-Object -First 1
+          if(-not $uninstaller){throw 'Uninstaller missing'}
+          $u=Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
+          if($u.ExitCode -ne 0){throw 'Uninstall failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: install-${{ matrix.variant }}-${{ matrix.replica }}
+          path: evidence
+          if-no-files-found: error

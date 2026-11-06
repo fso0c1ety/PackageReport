@@ -1,0 +1,105 @@
+name: Preserved NSIS clean runner isolation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        condition: [A, B, C, D]
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '13342484792'
+          merge-multiple: true
+          run-id: 41868431877
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Single clean installation and crash evidence
+        shell: pwsh
+        env:
+          CONDITION: ${{ matrix.condition }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory evidence -Force | Out-Null
+          $installer = (Resolve-Path candidate/Smart-Manage-Setup-1.0.32.exe).Path
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash
+          if ($hash -ne '34D86D8F1931A10CCD32518AF95B7DE1AAD00B9EE7AFAB31D084D6DA2546DB9E') { throw 'Installer hash mismatch' }
+          $destination = Join-Path $env:RUNNER_TEMP 'functional-installed'
+          $started = Get-Date
+          $dumpFolder=Join-Path $env:RUNNER_TEMP 'private-nsis-dumps'
+          New-Item -ItemType Directory $dumpFolder -Force | Out-Null
+          $dumpKey='HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Smart-Manage-Setup-1.0.32.exe'
+          New-Item $dumpKey -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpFolder -Value $dumpFolder -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          function Snapshot([string]$label) {
+            Get-Process | Select-Object Id,ProcessName,Path | ConvertTo-Json | Set-Content "evidence/$label-processes.json"
+            Get-ChildItem -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName,Length | ConvertTo-Json | Set-Content "evidence/$label-files.json"
+            $entries = foreach ($key in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+              Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Smart Manage|PackageReport' } | Select-Object DisplayName,DisplayVersion,InstallLocation,UninstallString,PSPath
+            }
+            $entries | ConvertTo-Json | Set-Content "evidence/$label-registry.json"
+            @{componentServicing=(Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending');windowsUpdate=(Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired');pendingRenames=(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue).PendingFileRenameOperations;mutexEnumeration='NOT AVAILABLE: process snapshots do not prove absence of named mutexes'} | ConvertTo-Json | Set-Content "evidence/$label-reboot-and-locks.json"
+          }
+          try {
+            Snapshot 'baseline'
+            if ($env:CONDITION -in @('C','D')) {
+              $first = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+              @{stage='initial-install';exitCode=$first.ExitCode} | ConvertTo-Json | Set-Content evidence/initial-install.json
+              if ($first.ExitCode -ne 0) { throw 'Initial install failed before reinstall experiment' }
+              $uninstaller = Get-ChildItem $destination -Filter '*Uninstall*.exe' | Select-Object -First 1
+              if (-not $uninstaller) { throw 'Uninstaller missing' }
+              $cleanup = Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
+              for ($i=0; $i -lt 60 -and (Test-Path (Join-Path $destination 'Smart Manage.exe')); $i++) { Start-Sleep 1 }
+              Snapshot 'after-uninstall'
+              @{exitCode=$cleanup.ExitCode;executableRemains=(Test-Path (Join-Path $destination 'Smart Manage.exe'))} | ConvertTo-Json | Set-Content evidence/uninstall.json
+              if ($cleanup.ExitCode -ne 0 -or (Test-Path (Join-Path $destination 'Smart Manage.exe'))) { throw 'Uninstall did not finish' }
+            }
+            if ($env:CONDITION -in @('B','D')) {
+              npm ci
+              if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed; NSIS comparison not reached' }
+            }
+            Snapshot 'before-tested-install'
+            $process = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$destination") -Wait -PassThru -WindowStyle Hidden
+            $installed = Test-Path (Join-Path $destination 'Smart Manage.exe')
+            @{sha256=$hash;exitCode=$process.ExitCode;installed=$installed;destination=$destination;image=$env:ImageOS;imageVersion=$env:ImageVersion;os=[Environment]::OSVersion.VersionString;arguments=@('/S',"/D=$destination");attempts=1} | ConvertTo-Json | Set-Content evidence/result.json
+            if ($process.ExitCode -ne 0 -or -not $installed) { throw "NSIS failed: $($process.ExitCode)" }
+            $version = (Get-Item (Join-Path $destination 'Smart Manage.exe')).VersionInfo.ProductVersion
+            if (-not $version.StartsWith('1.0.32')) { throw "Installed version mismatch: $version" }
+          } finally {
+            Start-Sleep -Seconds 15
+            $dumps=Get-ChildItem $dumpFolder -Filter '*.dmp' -ErrorAction SilentlyContinue
+            @{dumpCount=@($dumps).Count;privateDumpsUploaded=$false} | ConvertTo-Json | Set-Content evidence/private-dump-summary.json
+            $debugger=Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue | Where-Object FullName -match '\\x64\\' | Select-Object -First 1
+            if ($debugger -and $dumps) {
+              foreach($dump in $dumps) {
+                & $debugger.FullName -z $dump.FullName -c '.ecxr; r; kv; lm m System; q' 2>&1 | Select-String 'System|nsis|EXCEPTION|Exception|Child|RetAddr|eax=|ecx=|edx=|^[0-9a-f`]+\s' | Out-File evidence/native-stack-summary.txt -Append
+              }
+            } else { 'Native stack unavailable: no dump or debugger present.' | Set-Content evidence/native-stack-summary.txt }
+            Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$started} -ErrorAction SilentlyContinue |
+              Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
+              Select-Object TimeCreated,ProviderName,Id,Message | ConvertTo-Json -Depth 4 | Set-Content evidence/events.json
+            foreach ($root in @($env:ProgramData,$env:LOCALAPPDATA)) {
+              foreach ($directory in @('Microsoft\Windows\WER\ReportArchive','Microsoft\Windows\WER\ReportQueue')) {
+                Get-ChildItem (Join-Path $root $directory) -Recurse -Filter Report.wer -File -ErrorAction SilentlyContinue |
+                  Where-Object LastWriteTime -ge $started | ForEach-Object { Get-Content $_.FullName | Add-Content evidence/wer.txt }
+              }
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nsis-condition-${{ matrix.condition }}
+          path: evidence
+          if-no-files-found: error

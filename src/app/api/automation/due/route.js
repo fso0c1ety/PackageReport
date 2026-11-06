@@ -130,14 +130,14 @@ export async function GET(req) {
       ), scheduled AS (
         SELECT candidates.*,
           CASE
-            WHEN raw_value ~ '^\\d{4}-\\d{2}-\\d{2}$' AND pg_input_is_valid(raw_value, 'date'::regtype)
+            WHEN raw_value ~ '^\\d{4}-\\d{2}-\\d{2}$' AND pg_input_is_valid(raw_value, 'date')
               THEN make_timestamptz(
                 EXTRACT(YEAR FROM raw_value::date)::int,
                 EXTRACT(MONTH FROM raw_value::date)::int,
                 EXTRACT(DAY FROM raw_value::date)::int,
                 0, 0, 0, effective_timezone
               ) - make_interval(mins=>minutes_before)
-            WHEN raw_value ~ '^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}' AND pg_input_is_valid(raw_value, 'timestamp with time zone'::regtype)
+            WHEN raw_value ~ '^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}' AND pg_input_is_valid(raw_value, 'timestamp with time zone')
               THEN raw_value::timestamptz - make_interval(mins=>minutes_before)
             ELSE NULL
           END AS scheduled_at,

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 import pg from "pg";
 
 const password = process.env.SMART_MANAGE_PORTAL_TEST_PASSWORD;
@@ -17,10 +17,10 @@ function assertLocalDatabase(url: string) {
   }
 }
 
-async function login(browser: Browser, baseURL: string) {
+async function login(browser: Browser, baseURL: string, email = measurementEmail) {
   const context = await browser.newContext({ baseURL });
   const response = await context.request.post(`${baseURL}/api/login/`, {
-    data: { email: measurementEmail, password },
+    data: { email, password },
     headers: { Origin: baseURL },
   });
   const body = await response.json();
@@ -79,7 +79,7 @@ async function seedBoard(userId: string, size: number) {
 
 async function chooseKanban(page: Page, boardName: string) {
   await page.getByText(boardName, { exact: true }).click();
-  const newTask = page.getByRole("button", { name: "New task" });
+  const newTask = page.getByRole("button", { name: "New task", exact: true });
   await expect(newTask).toBeVisible({ timeout: 30_000 });
   await newTask.locator("xpath=preceding-sibling::button[1]").click();
   const viewMenu = page.getByRole("menu");
@@ -100,6 +100,129 @@ async function statusCount(page: Page, status: string) {
 test.describe("Kanban progressive pagination (isolated PostgreSQL)", () => {
   test.setTimeout(240_000);
   test.skip(!password || !isolated || !databaseUrl, "Requires the isolated Kanban PostgreSQL workflow");
+
+  test('release UI creates edits moves and reloads a Kanban task', async ({ browser, baseURL }) => {
+    test.skip(process.env.KANBAN_RELEASE_ACCEPTANCE !== '1', 'Requires complete release-acceptance fixtures');
+    const { context, userId } = await login(browser, baseURL!);
+    const fixture = await seedBoard(userId, 2);
+    const page = await context.newPage();
+    try {
+      await page.goto(`/workspace/?id=${fixture.workspaceId}`);
+      await chooseKanban(page, fixture.boardName);
+      const createdResponse = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname.replace(/\/$/,'') === `/api/tables/${fixture.tableId}/tasks`);
+      await page.getByRole('button', { name: /^New Task$/i }).last().click();
+      const response = await createdResponse;
+      expect(response.ok()).toBe(true);
+      const created = await response.json();
+      const dialog = page.getByRole('dialog').last();
+      await expect(dialog).toBeVisible();
+      const title = `${fixture.marker} UI created`;
+      const field = dialog.getByPlaceholder('Empty').first();
+      await field.fill(title);
+      await field.press('Enter');
+      const columns = (await fixture.client.query('SELECT columns FROM tables WHERE id=$1',[fixture.tableId])).rows[0].columns;
+      const nameId = columns[0].id;
+      const statusId = columns[1].id;
+      await expect.poll(async () => (await fixture.client.query('SELECT values FROM rows WHERE id=$1',[created.id])).rows[0]?.values[nameId]).toBe(title);
+      await field.fill(`${title} edited`);
+      await field.press('Enter');
+      await expect.poll(async () => (await fixture.client.query('SELECT values FROM rows WHERE id=$1',[created.id])).rows[0]?.values[nameId]).toBe(`${title} edited`);
+      await dialog.getByRole('button').filter({hasText:'×'}).click();
+      const card = page.locator(`[data-rfd-draggable-id="${created.id}"]`);
+      await expect(card).toBeVisible();
+      await card.focus();
+      await card.press('Space');
+      await card.press('ArrowLeft');
+      await card.press('Space');
+      await expect.poll(async () => (await fixture.client.query('SELECT values FROM rows WHERE id=$1',[created.id])).rows[0]?.values[statusId]).toBe('Open');
+      await page.reload();
+      await chooseKanban(page,fixture.boardName);
+      await expect(page.locator('[data-rfd-droppable-id="kanban:Open"]').getByText(`${title} edited`,{exact:true})).toBeVisible();
+      const unauthenticated = await browser.newContext({baseURL});
+      try { expect((await unauthenticated.request.get(`/api/tables/${fixture.tableId}/tasks`)).status()).toBe(401); } finally {await unauthenticated.close();}
+      await test.info().attach('kanban-ui-assertions',{body:JSON.stringify({uiCreate:true,uiEdit:true,keyboardDrag:true,persistence:true,reload:true,unauthenticatedDenied:true,installedDesktop:'Separate installed suite; this test is browser UI'}),contentType:'application/json'});
+    } finally {
+      await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);
+      await fixture.client.end();
+      await context.close();
+    }
+  });
+
+  test('release notification event delivers and UI marks it read', async ({ browser, baseURL }) => {
+    test.skip(process.env.KANBAN_RELEASE_ACCEPTANCE !== '1', 'Requires complete release-acceptance fixtures');
+    const owner = await login(browser,baseURL!);
+    const recipient = await login(browser,baseURL!,'driver-b@smartmanage-demo.com');
+    const fixture = await seedBoard(owner.userId,2);
+    try {
+      await fixture.client.query(`INSERT INTO workspace_members(workspace_id,user_id,role,workspace_role,record_access,updated_at) VALUES($1,$2,'member','member','{"scope":"all_permitted"}'::jsonb,NOW())`,[fixture.workspaceId,recipient.userId]);
+      await fixture.client.query(`INSERT INTO board_member_access(table_id,user_id,board_role,capabilities,record_access,updated_at) VALUES($1,$2,'viewer','{}'::jsonb,'{"scope":"all_permitted"}'::jsonb,NOW())`,[fixture.tableId,recipient.userId]);
+      const row = (await fixture.client.query('SELECT id,values FROM rows WHERE table_id=$1 ORDER BY id LIMIT 1',[fixture.tableId])).rows[0];
+      const columns = (await fixture.client.query('SELECT columns FROM tables WHERE id=$1',[fixture.tableId])).rows[0].columns;
+      const changed = {...row.values,[columns[0].id]:`${fixture.marker} notification event`};
+      expect((await recipient.context.request.get(`/api/tables/${fixture.tableId}/tasks/${row.id}`)).status()).toBe(200);
+      const response = await owner.context.request.put(`/api/tables/${fixture.tableId}/tasks`,{data:{id:row.id,values:changed}});
+      expect(response.ok(),await response.text()).toBe(true);
+      let id='';
+      await expect.poll(async()=>{
+        const r=await fixture.client.query("SELECT id,read FROM notifications WHERE recipient_id=$1 AND type='record_update' AND data->>'taskId'=$2",[recipient.userId,row.id]);
+        if(r.rows.length===1){id=r.rows[0].id;expect(r.rows[0].read).toBe(false);}
+        return r.rows.length;
+      },{timeout:30000}).toBe(1);
+      const delivered=await recipient.context.request.get('/api/notifications/');
+      expect(delivered.ok()).toBe(true);
+      expect((await delivered.json()).some((n:{id:string})=>n.id===id)).toBe(true);
+      const excluded=await owner.context.request.get('/api/notifications/');
+      expect((await excluded.json()).some((n:{id:string})=>n.id===id)).toBe(false);
+      const page=await recipient.context.newPage();
+      await page.goto(`/workspace/?id=${fixture.workspaceId}`);
+      await page.getByRole('button',{name:'Notifications',exact:true}).click();
+      await expect(page.getByRole('menu').getByText(`${fixture.boardName} updated`,{exact:true})).toBeVisible();
+      await expect.poll(async()=>(await fixture.client.query('SELECT read FROM notifications WHERE id=$1',[id])).rows[0]?.read).toBe(true);
+      await page.reload();
+      expect((await fixture.client.query('SELECT read FROM notifications WHERE id=$1',[id])).rows[0].read).toBe(true);
+      await test.info().attach('notification-lifecycle',{body:JSON.stringify({event:'record update',recipientDelivery:true,UIVisible:true,UIRead:true,readPersists:true,senderIsolation:true,pushDelivery:'NOT TESTED',logout:'Separate installed suite'}),contentType:'application/json'});
+    } finally {
+      await fixture.client.query("DELETE FROM notifications WHERE data->>'workspaceId'=$1",[fixture.workspaceId]);
+      await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);
+      await fixture.client.end();await owner.context.close();await recipient.context.close();
+    }
+  });
+
+  test('release scheduled automation executes and prevents duplicate notification', async ({browser,baseURL}) => {
+    test.skip(process.env.KANBAN_RELEASE_ACCEPTANCE !== '1', 'Requires complete release-acceptance fixtures');
+    const owner=await login(browser,baseURL!);
+    const fixture=await seedBoard(owner.userId,2);
+    let automationId: string | undefined;
+    let rowId: string | undefined;
+    try {
+      const dateColumn=randomUUID();
+      const dateValue=new Date(Date.now()-60_000).toISOString();
+      await fixture.client.query("UPDATE tables SET columns=columns || $1::jsonb WHERE id=$2",[JSON.stringify([{id:dateColumn,name:'Due',type:'Date',order:2}]),fixture.tableId]);
+      rowId=(await fixture.client.query('SELECT id FROM rows WHERE table_id=$1 ORDER BY id LIMIT 1',[fixture.tableId])).rows[0].id;
+      await fixture.client.query('UPDATE rows SET values=values || $1::jsonb WHERE id=$2',[JSON.stringify({[dateColumn]:dateValue}),rowId]);
+      automationId=String((await fixture.client.query(`INSERT INTO automations(id,table_id,enabled,created_by,trigger_type,trigger_col,task_ids,action_type,recipients,definition) VALUES($1,$2,TRUE,$3,'date_arrives',$4,$5::jsonb,'notification',$6::jsonb,'{}'::jsonb) RETURNING id`,[randomUUID(),fixture.tableId,owner.userId,dateColumn,JSON.stringify([rowId]),JSON.stringify([measurementEmail])])).rows[0].id);
+      expect(process.env.JWT_SECRET,'Synthetic scheduler secret required').toBeTruthy();
+      const token=createHmac('sha256',process.env.JWT_SECRET!).update('smart-manage:scheduled-automations:v1').digest('hex');
+      const due=()=>owner.context.request.get('/api/automation/due/',{headers:{Authorization:`Bearer ${token}`}});
+      const first=await due();expect(first.status(),await first.text()).toBe(200);
+      expect((await first.json()).triggered.some((x:{automationId:string|number})=>String(x.automationId)===automationId)).toBe(true);
+      const run=await fixture.client.query('SELECT status,scheduled_for FROM automation_runs WHERE automation_id=$1',[automationId]);
+      expect(run.rows).toHaveLength(1);expect(run.rows[0].status).toBe('success');expect(run.rows[0].scheduled_for).toBeTruthy();
+      const notifications=()=>fixture.client.query("SELECT id FROM notifications WHERE recipient_id=$1 AND type='automation' AND data->>'taskId'=$2",[owner.userId,rowId]);
+      expect((await notifications()).rowCount).toBe(1);
+      expect((await due()).status()).toBe(200);
+      expect((await notifications()).rowCount).toBe(1);
+      expect((await fixture.client.query('SELECT id FROM automation_runs WHERE automation_id=$1',[automationId])).rowCount).toBe(1);
+      await fixture.client.query('UPDATE automations SET enabled=FALSE WHERE id=$1',[automationId]);
+      expect((await due()).status()).toBe(200);
+      expect((await notifications()).rowCount).toBe(1);
+      await test.info().attach('scheduler-delivery',{body:JSON.stringify({environment:'ISOLATED_MIGRATED_SCHEMA',scheduledExecution:true,successStatus:true,scheduledTimestamp:true,notificationDelivered:true,duplicatePrevented:true,disabled:true,productionMissingScheduledFor:'BLOCKED; separate catalog and legacy fixture evidence'}),contentType:'application/json'});
+    } finally {
+      if(rowId) await fixture.client.query("DELETE FROM notifications WHERE type='automation' AND data->>'taskId'=$1",[rowId]);
+      if(automationId){await fixture.client.query('DELETE FROM automation_runs WHERE automation_id=$1',[automationId]);await fixture.client.query('DELETE FROM automations WHERE id=$1',[automationId]);}
+      await fixture.client.query('DELETE FROM workspaces WHERE id=$1',[fixture.workspaceId]);await fixture.client.end();await owner.context.close();
+    }
+  });
 
   for (const size of sizes) {
     test(`${size} tasks: progressive pagination, retry and idle traffic`, async ({ browser, baseURL }) => {

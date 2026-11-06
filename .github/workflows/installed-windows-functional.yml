@@ -1,0 +1,169 @@
+name: Isolated installed Windows functional acceptance
+on: [workflow_dispatch, pull_request]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  installed:
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [1, 2]
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      PORTAL_ACCEPTANCE_CI: '1'
+      VERCEL_ENV: ''
+      DATABASE_URL: postgresql://postgres:isolated-ci-only@127.0.0.1:55439/smart_manage_portal_acceptance
+      DATABASE_SSL: 'false'
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3000
+      SMART_MANAGE_DEMO_PASSWORD: SyntheticOnlyCiPassword2026!
+      SMART_MANAGE_PORTAL_TEST_PASSWORD: SyntheticOnlyCiPassword2026!
+      JWT_SECRET: SyntheticOnlyCiJwtSecretNotForProduction2026
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: PackageReport-windows-exe
+          run-id: 42045849602
+          github-token: ${{ github.token }}
+          path: dist-electron
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prepare disposable PostgreSQL
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          choco install postgresql17 --yes --no-progress --params '/Password:isolated-ci-only /Port:5432'
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL installation failed' }
+          $pgbin = 'C:\Program Files\PostgreSQL\17\bin'
+          # Never reuse the runner's pre-existing 5432 cluster or its credentials.
+          $data = Join-Path $env:RUNNER_TEMP 'smartmanage-pg-functional'
+          $passwordFile = Join-Path $env:RUNNER_TEMP 'synthetic-pg-password'
+          'isolated-ci-only' | Set-Content $passwordFile -NoNewline
+          & "$pgbin\initdb.exe" -D $data -U postgres --encoding=UTF8 --locale=C --auth=scram-sha-256 --pwfile=$passwordFile
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster initialization failed' }
+          & "$pgbin\pg_ctl.exe" -D $data -l "$env:RUNNER_TEMP/functional-postgres.log" -o '-p 55439 -h 127.0.0.1' -w -t 60 start
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster startup failed' }
+          $env:PGPASSWORD = 'isolated-ci-only'
+          & "$pgbin\createdb.exe" -h 127.0.0.1 -p 55439 -U postgres smart_manage_portal_acceptance
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated database creation failed' }
+          & "$pgbin\psql.exe" -X -h 127.0.0.1 -p 55439 -U postgres -d smart_manage_portal_acceptance -v ON_ERROR_STOP=1 -c "SELECT current_database(), inet_server_addr(), inet_server_port(); DO `$`$ BEGIN IF current_setting('server_encoding') <> 'UTF8' THEN RAISE EXCEPTION 'UTF8 required'; END IF; END `$`$;"
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated cluster identity/encoding assertion failed' }
+      - run: npm run db:migrate
+      - run: node scripts/seed-marketing-demo.mjs
+      - run: node scripts/seed-portal-acceptance.mjs
+      - name: Build isolated backend only
+        run: npm run build
+      - name: Download preserved release installer
+        uses: actions/download-artifact@v4
+        with:
+          name: PackageReport-windows-exe
+          run-id: 42045849602
+          github-token: ${{ github.token }}
+          path: dist-electron
+      - name: Verify exact release artifact
+        shell: pwsh
+        run: |
+          $installer = 'dist-electron/Smart-Manage-Setup-1.0.32.exe'
+          $expected = '62784E1C4948202F0E3782380C2CF556724BC39BEE1E10E6D9807CDE89476E7E'
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $expected) { throw 'Release installer SHA256 mismatch' }
+          $manifest = Get-Content dist-electron/latest.yml -Raw
+          $sha512 = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes((Resolve-Path $installer))))
+          if (-not $manifest.Contains($sha512) -or $manifest -notmatch 'version: 1\.0\.32') { throw 'Release updater manifest mismatch' }
+      - name: Start isolated backend and install app
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force artifacts/windows-functional | Out-Null
+          # Capture native installer crashes in this workflow, before NSIS starts.
+          $dumpFolder=Join-Path $env:RUNNER_TEMP 'private-nsis-dumps'
+          New-Item -ItemType Directory $dumpFolder -Force | Out-Null
+          $dumpKey='HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Smart-Manage-Setup-1.0.32.exe'
+          New-Item $dumpKey -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpFolder -Value $dumpFolder -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty $dumpKey -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          Get-Process | Select-Object ProcessName,Id,WorkingSet64,CPU | ConvertTo-Json | Set-Content artifacts/windows-functional/preinstall-processes.json
+          Get-Service | Select-Object Name,Status | ConvertTo-Json | Set-Content artifacts/windows-functional/preinstall-services.json
+          @{image=$env:ImageOS;imageVersion=$env:ImageVersion;backendBeforeInstall=('${{ matrix.replica }}' -eq '1');availableMemory=(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory} | ConvertTo-Json | Set-Content artifacts/windows-functional/environment.json
+          if ('${{ matrix.replica }}' -eq '1') {
+          Start-Process -FilePath node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput "$env:RUNNER_TEMP/backend.log" -RedirectStandardError "$env:RUNNER_TEMP/backend-error.log"
+          $ready=$false
+          for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
+          if(-not $ready){throw 'Isolated backend not ready'}
+          }
+          $installer=Get-ChildItem dist-electron -Filter '*Setup*.exe' | Select-Object -First 1
+          Get-FileHash $installer.FullName -Algorithm SHA256 | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-sha256.json
+          Get-Item $installer.FullName | Select-Object FullName,Length,CreationTimeUtc,LastWriteTimeUtc | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-metadata.json
+          $dest=Join-Path $env:RUNNER_TEMP 'functional-installed'
+          $attempts = @()
+          $installed = $false
+          for($attempt=1; $attempt -le 1 -and -not $installed; $attempt++) {
+            if(Test-Path -LiteralPath $dest){Remove-Item -LiteralPath $dest -Recurse -Force}
+            $p=Start-Process $installer.FullName -ArgumentList @('/S',"/D=$dest") -Wait -PassThru -WindowStyle Hidden
+            $attempts += [pscustomobject]@{ attempt=$attempt; exitCode=$p.ExitCode; installed=(Test-Path -LiteralPath (Join-Path $dest 'Smart Manage.exe')) }
+            if($p.ExitCode -eq 0 -and (Test-Path -LiteralPath (Join-Path $dest 'Smart Manage.exe'))){$installed=$true}
+          }
+          $attempts | ConvertTo-Json | Set-Content artifacts/windows-functional/installer-attempts.json
+          if(-not $installed){
+            try { throw "Installer failed after $($attempts.Count) attempts; path=$($installer.Name)" } catch {
+            $_ | Out-String | Set-Content artifacts/windows-functional/installer-error.txt
+            Start-Sleep -Seconds 15
+            $dumps=Get-ChildItem $dumpFolder -Filter '*.dmp' -ErrorAction SilentlyContinue
+            @{dumpCount=@($dumps).Count;privateDumpsUploaded=$false} | ConvertTo-Json | Set-Content artifacts/windows-functional/private-dump-summary.json
+            $debugger=Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue | Where-Object FullName -match '\\x64\\' | Select-Object -First 1
+            if ($debugger -and $dumps) {
+              # Only native stack/module summaries leave the runner; never memory dumps.
+              foreach($dump in $dumps) {
+                & $debugger.FullName -z $dump.FullName -c '.ecxr; kv; lm m System; q' 2>&1 | Select-String 'System|nsis|EXCEPTION|Exception|Child-SP|RetAddr|^[0-9a-f`]+\s' | Out-File artifacts/windows-functional/native-stack-summary.txt -Append
+              }
+            } else { 'Native stack unavailable: no dump or debugger present.' | Set-Content artifacts/windows-functional/native-stack-summary.txt }
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue |
+              Where-Object { $_.ProviderName -match 'Application Error|Windows Error Reporting|SideBySide' } |
+              Select-Object TimeCreated,ProviderName,Id,LevelDisplayName,Message |
+              Format-List | Out-File artifacts/windows-functional/application-events.txt
+            $werArchive = Join-Path $env:ProgramData 'Microsoft\Windows\WER\ReportArchive'
+            $werQueue = Join-Path $env:ProgramData 'Microsoft\Windows\WER\ReportQueue'
+            $wer = Get-ChildItem $werArchive,$werQueue -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-10) } |
+              Select-Object FullName,LastWriteTime,Length
+            $wer | ConvertTo-Json | Set-Content artifacts/windows-functional/wer-reports.json
+            Get-ChildItem $werArchive,$werQueue -Recurse -Filter 'Report.wer' -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-10) } |
+              ForEach-Object {
+                Add-Content artifacts/windows-functional/wer-report-contents.txt ("--- $($_.FullName) ---")
+                Get-Content $_.FullName | Add-Content artifacts/windows-functional/wer-report-contents.txt
+              }
+            throw
+            }
+          }
+          if ('${{ matrix.replica }}' -eq '2') {
+            Start-Process -FilePath node -ArgumentList @('node_modules/next/dist/bin/next','start','-p','3000','-H','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput "$env:RUNNER_TEMP/backend.log" -RedirectStandardError "$env:RUNNER_TEMP/backend-error.log"
+            $ready=$false
+            for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest http://127.0.0.1:3000/login/ -UseBasicParsing | Out-Null;$ready=$true;break}catch{Start-Sleep 2}}
+            if(-not $ready){throw 'Isolated backend not ready after installation'}
+          }
+          $env:SMART_MANAGE_ELECTRON_EXE=Join-Path $dest 'Smart Manage.exe'
+          # Block external traffic in main/renderer/helper processes, including
+          # startup updater requests. Loopback remains available to the test API.
+          $programs = @((Get-Command node).Source) + @(Get-ChildItem $dest -Recurse -Filter '*.exe' | ForEach-Object FullName)
+          foreach($program in $programs){
+            $addresses = @('0.0.0.1-126.255.255.255','128.0.0.0-255.255.255.254','::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe')
+            $rule = New-NetFirewallRule -DisplayName "SmartManage isolated acceptance $([guid]::NewGuid())" -Direction Outbound -Program $program -Action Block -RemoteAddress $addresses -ErrorAction Stop
+            if ($rule.Enabled -ne 'True' -or $rule.Action -ne 'Block') { throw 'Outbound isolation rule inactive' }
+          }
+          node scripts/electron-runtime-smoke.mjs
+          if($LASTEXITCODE -ne 0){throw 'Installed functional acceptance failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-windows-functional-evidence-${{ matrix.replica }}
+          path: artifacts/windows-functional
+          if-no-files-found: warn
