@@ -7,6 +7,7 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "main": false,
       "diagnostic/nsis-8536-v1.0.32": false,
       "candidate/windows-v1.0.32-local-20261104": false,
       "fix/production-schema-compatibility-20261014": false,
