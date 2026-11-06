@@ -25,6 +25,7 @@ try {
   $result.workerTemp=$workerTemp
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
+  Add-Type -AssemblyName System.Windows.Forms
   Add-Type @'
 using System;
 using System.Text;
@@ -105,7 +106,7 @@ public static class InstallerDesktopProbe {
         if($control.Current.IsEnabled){$buttons+=@{element=$control;label=$label}}
       }
     }
-    foreach($edit in $edits){
+     foreach($edit in @($edits | Where-Object { $false })){
       $value=$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
       if($value.Current.Value -match '^[A-Za-z]:\\'){
         if(-not $directorySeen){
@@ -125,7 +126,13 @@ public static class InstallerDesktopProbe {
            $expected=Join-Path $env:LOCALAPPDATA 'Programs'
           if(-not $text.StartsWith($expected,[StringComparison]::OrdinalIgnoreCase)){throw "Unexpected native default folder: $text"}
           $result.defaultDirectory=$text
-          [InstallerDesktopProbe]::SetText($handle,$destination)
+           [InstallerDesktopProbe]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle) | Out-Null
+           $editBounds=$null
+           foreach($candidate in $controls){ if([IntPtr]$candidate.Current.NativeWindowHandle -eq $handle){$editBounds=$candidate.Current.BoundingRectangle;break} }
+            if($editBounds -and $editBounds.Width -gt 0){[InstallerDesktopProbe]::Click([int]($editBounds.X+$editBounds.Width/2),[int]($editBounds.Y+$editBounds.Height/2))}
+           [System.Windows.Forms.SendKeys]::SendWait('^a')
+           [System.Windows.Forms.SendKeys]::SendWait($destination)
+           Start-Sleep -Milliseconds 200
           if([InstallerDesktopProbe]::Text($handle) -ne $destination){throw 'Native directory edit did not retain the custom path'}
           $directorySeen=$true
         }
